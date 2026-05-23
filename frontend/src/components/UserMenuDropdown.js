@@ -175,19 +175,6 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
         </div>
       </div>
 
-      {/* Show current theme info */}
-      <div className="menu-divider"></div>
-      <div className="menu-section">
-        <div className="current-theme-display">
-          <span className="current-theme-label">Current:</span>
-          <span className="current-theme-value">
-            {currentThemeName} • {currentPaletteName}
-          </span>
-        </div>
-      </div>
-
-      <div className="menu-divider"></div>
-
       {/* Sign In Section (only when not signed in) */}
       {!isSignedIn && (
         <div className="menu-section">
