@@ -1,10 +1,8 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useRef, useCallback } from 'react';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { BookOpenIcon } from './Icons';
-import { Moon, Sun, Palette, LogOut, LogIn } from 'lucide-react';
+import { Moon, Sun, LogOut, LogIn } from 'lucide-react';
 import './UserMenu.css';
 
 // Check if Clerk is available
@@ -21,7 +19,6 @@ if (isClerkAvailable()) {
 }
 
 const UserMenuDropdown = ({ onClose, onShowLogin }) => {
-  const navigate = useNavigate();
   const { t, language, switchLanguage, availableLanguages } = useTranslation();
   const {
     theme,
@@ -39,24 +36,73 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
     switchLanguage(langCode);
   };
 
-  const handleThemeChange = (themeId) => {
-    changeTheme(themeId);
-  };
-
   const handlePaletteChange = (paletteId) => {
     changePalette(paletteId);
   };
+
+  const themeTrackRef = useRef(null);
+
+  const themeIndex = themes.findIndex(t => t.id === theme);
+
+  const handleThemeTrackClick = useCallback((e) => {
+    if (!themeTrackRef.current) return;
+    const rect = themeTrackRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const ratio = x / rect.width;
+    const index = Math.round(ratio * (themes.length - 1));
+    const clampedIndex = Math.max(0, Math.min(themes.length - 1, index));
+    changeTheme(themes[clampedIndex].id);
+  }, [themes, changeTheme]);
+
+  const handleThemeThumbDrag = useCallback((e) => {
+    e.preventDefault();
+    if (!themeTrackRef.current) return;
+
+    const onMove = (moveEvent) => {
+      const rect = themeTrackRef.current.getBoundingClientRect();
+      const clientX = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
+      const x = clientX - rect.left;
+      const ratio = x / rect.width;
+      const index = Math.round(ratio * (themes.length - 1));
+      const clampedIndex = Math.max(0, Math.min(themes.length - 1, index));
+      changeTheme(themes[clampedIndex].id);
+    };
+
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove);
+    document.addEventListener('touchend', onUp);
+  }, [themes, changeTheme]);
 
   return (
     <div className="user-menu-dropdown">
       {/* User Section */}
       <div className="menu-section">
         {isSignedIn ? (
-          <div className="user-info">
-            <div className="user-details">
-              <div className="user-name">{user?.firstName} {user?.lastName}</div>
-              <div className="user-email">{user?.primaryEmailAddress?.emailAddress}</div>
-            </div>
+          <div className="user-info-centered">
+            <div className="user-email-bold">{user?.primaryEmailAddress?.emailAddress || user?.email || ''}</div>
+            {isClerkAuth ? (
+              <SignOutButton>
+                <button className="sign-out-inline" onClick={onClose} title={t('common.signOut')}>
+                  <LogOut size={14} />
+                </button>
+              </SignOutButton>
+            ) : (
+              <button
+                className="sign-out-inline"
+                onClick={() => { onClose(); signOut(); }}
+                title={t('common.signOut')}
+              >
+                <LogOut size={14} />
+              </button>
+            )}
           </div>
         ) : (
           <div className="sign-in-prompt">
@@ -67,77 +113,30 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
 
       <div className="menu-divider"></div>
 
-      {/* Library Link */}
+      {/* Theme Mode Section - Draggable slider with sun/moon */}
       <div className="menu-section">
-        <button
-          className="menu-action primary"
-          onClick={() => {
-            onClose();
-            navigate('/library');
-          }}
-          style={{
-            width: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}
+        <div
+          className="theme-slider-track"
+          ref={themeTrackRef}
+          onClick={handleThemeTrackClick}
         >
-          <BookOpenIcon size={16} />
-          <span>{t('library.myLibrary')}</span>
-        </button>
-      </div>
-
-      <div className="menu-divider"></div>
-
-      {/* Language Section - Compact horizontal flags */}
-      <div className="menu-section">
-        <div className="menu-section-label">{t('common.language')}</div>
-        <div className="compact-options-row">
-          {availableLanguages.map((lang) => (
-            <button
-              key={lang.code}
-              className={`compact-option ${lang.code === language ? 'active' : ''}`}
-              onClick={() => handleLanguageChange(lang.code)}
-              title={lang.nativeName}
-            >
-              <span className="option-flag-large">
-                {lang.code === 'el' ? '🇬🇷' : '🇺🇸'}
-              </span>
-            </button>
-          ))}
+          <Sun size={14} className="theme-slider-icon-left" />
+          <div className="theme-slider-rail">
+            <div
+              className="theme-slider-thumb"
+              style={{ left: `${(themeIndex / (themes.length - 1)) * 100}%` }}
+              onMouseDown={handleThemeThumbDrag}
+              onTouchStart={handleThemeThumbDrag}
+            />
+          </div>
+          <Moon size={14} className="theme-slider-icon-right" />
         </div>
       </div>
 
       <div className="menu-divider"></div>
 
-      {/* Theme Mode Section - Compact horizontal icons */}
+      {/* Color Palette Section */}
       <div className="menu-section">
-        <div className="menu-section-label">
-          <span className="section-icon">{theme === 'dark' ? <Moon size={16} /> : <Sun size={16} />}</span>
-          {t('common.themeMode')}
-        </div>
-        <div className="compact-options-row">
-          {themes.map((themeOption) => (
-            <button
-              key={themeOption.id}
-              className={`compact-option ${themeOption.id === theme ? 'active' : ''}`}
-              onClick={() => handleThemeChange(themeOption.id)}
-              title={themeOption.name}
-            >
-              <span className="option-icon-large">{themeOption.icon}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="menu-divider"></div>
-
-      {/* Color Palette Section - No names */}
-      <div className="menu-section">
-        <div className="menu-section-label">
-          <span className="section-icon"><Palette size={16} /></span>
-          {t('common.colorPalette')}
-        </div>
         <div className="palette-grid">
           {palettes.map((paletteOption) => (
             <button
@@ -150,6 +149,27 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
               }}
             >
               {paletteOption.id === palette && <span className="palette-check">✓</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="menu-divider"></div>
+
+      {/* Language Section - Full width horizontal flags */}
+      <div className="menu-section">
+        <div className="language-options-row">
+          {availableLanguages.map((lang) => (
+            <button
+              key={lang.code}
+              className={`language-option ${lang.code === language ? 'active' : ''}`}
+              onClick={() => handleLanguageChange(lang.code)}
+              title={lang.nativeName}
+            >
+              <span className="option-flag-large">
+                {lang.code === 'el' ? '🇬🇷' : '🇺🇸'}
+              </span>
+              <span className="language-option-name">{lang.nativeName}</span>
             </button>
           ))}
         </div>
@@ -168,42 +188,28 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
 
       <div className="menu-divider"></div>
 
-      {/* Authentication Section */}
-      <div className="menu-section">
-        {isSignedIn && isClerkAuth ? (
-          <SignOutButton>
-            <button className="menu-action danger" onClick={onClose}>
-              <LogOut size={16} /> {t('common.signOut')}
-            </button>
-          </SignOutButton>
-        ) : isSignedIn && !isClerkAuth ? (
-          <button
-            className="menu-action danger"
-            onClick={() => {
-              onClose();
-              signOut();
-            }}
-          >
-            <LogOut size={16} /> {t('common.signOut')}
-          </button>
-        ) : isClerkAuth ? (
-          <SignInButton mode="modal">
-            <button className="menu-action primary" onClick={onClose}>
+      {/* Sign In Section (only when not signed in) */}
+      {!isSignedIn && (
+        <div className="menu-section">
+          {isClerkAuth ? (
+            <SignInButton mode="modal">
+              <button className="menu-action primary" onClick={onClose}>
+                <LogIn size={16} /> {t('common.signIn')}
+              </button>
+            </SignInButton>
+          ) : (
+            <button
+              className="menu-action primary"
+              onClick={() => {
+                onClose();
+                onShowLogin && onShowLogin();
+              }}
+            >
               <LogIn size={16} /> {t('common.signIn')}
             </button>
-          </SignInButton>
-        ) : (
-          <button
-            className="menu-action primary"
-            onClick={() => {
-              onClose();
-              onShowLogin && onShowLogin();
-            }}
-          >
-            <LogIn size={16} /> {t('common.signIn')}
-          </button>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

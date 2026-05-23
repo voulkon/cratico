@@ -65,6 +65,13 @@
   --hover-bg: #f5f5f5;
   --focus-color: #0066cc;
 
+  /* Avatar auth indicator */
+  --avatar-border-default: #9ca3af;
+  --avatar-border-authenticated: #10b981;
+
+  /* Slider rail */
+  --slider-rail-color: var(--border-color);
+
   /* Shadows */
   --shadow: rgba(0,0,0,0.1);
   --shadow-hover: rgba(0,0,0,0.15);
@@ -99,6 +106,13 @@
   /* Interactive colors */
   --hover-bg: #3a3a3a;
   --focus-color: #66b3ff;
+
+  /* Avatar auth indicator */
+  --avatar-border-default: #6b7280;
+  --avatar-border-authenticated: #34d399;
+
+  /* Slider rail */
+  --slider-rail-color: var(--border-color);
 
   /* Shadows */
   --shadow: rgba(0,0,0,0.3);
@@ -136,6 +150,13 @@
   --hover-bg: #eee8d5;
   --focus-color: #268bd2;
 
+  /* Avatar auth indicator */
+  --avatar-border-default: #93a1a1;
+  --avatar-border-authenticated: #859900;
+
+  /* Slider rail - muted-text for contrast (border-color too close to card-bg) */
+  --slider-rail-color: var(--muted-text);
+
   /* Shadows */
   --shadow: rgba(101, 123, 131, 0.1);
   --shadow-hover: rgba(101, 123, 131, 0.15);
@@ -171,6 +192,13 @@
   /* Interactive colors */
   --hover-bg: #073642;
   --focus-color: #268bd2;
+
+  /* Avatar auth indicator */
+  --avatar-border-default: #586e75;
+  --avatar-border-authenticated: #2aa198;
+
+  /* Slider rail - muted-text for contrast (border-color too close to card-bg) */
+  --slider-rail-color: var(--muted-text);
 
   /* Shadows */
   --shadow: rgba(0, 0, 0, 0.4);
@@ -412,6 +440,9 @@
   --disabled-text: #999999;
   --hover-bg: #f5f5f5;
   --focus-color: #0066cc;
+  --avatar-border-default: #9ca3af;
+  --avatar-border-authenticated: #10b981;
+  --slider-rail-color: var(--border-color);
   --shadow: rgba(0,0,0,0.1);
   --shadow-hover: rgba(0,0,0,0.15);
   --shadow-focus: rgba(0,0,0,0.3);

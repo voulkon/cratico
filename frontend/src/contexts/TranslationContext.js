@@ -18,10 +18,10 @@ export const useTranslation = () => {
 };
 
 export const TranslationProvider = ({ children }) => {
-  // Get saved language from localStorage or default to English
+  // Get saved language from localStorage or default to Greek
   const [language, setLanguage] = useState(() => {
     const saved = localStorage.getItem('preferred-language');
-    return saved || 'en';
+    return saved || 'el';
   });
 
   // Save language preference
@@ -73,8 +73,8 @@ export const TranslationProvider = ({ children }) => {
   };
 
   const availableLanguages = [
-    { code: 'en', name: 'English', nativeName: 'English' },
-    { code: 'el', name: 'Greek', nativeName: 'Ελληνικά' }
+    { code: 'el', name: 'Greek', nativeName: 'Ελληνικά' },
+    { code: 'en', name: 'English', nativeName: 'English' }
   ];
 
   const getCurrentLanguage = () => {
