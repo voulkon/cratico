@@ -128,7 +128,8 @@
     "filters" : "Filters",
     "all": "All",
     "loadMore": "Load More",
-    "register" : "Register"
+    "register" : "Register",
+    "notSignedIn": "Not signed in"
   },
   "errors": {
     "failedToLoad": "Failed to load data",

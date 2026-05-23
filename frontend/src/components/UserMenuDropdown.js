@@ -106,7 +106,7 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
           </div>
         ) : (
           <div className="sign-in-prompt">
-            <div className="sign-in-text">Not signed in</div>
+            <div className="sign-in-text">{t('common.notSignedIn')}</div>
           </div>
         )}
       </div>
