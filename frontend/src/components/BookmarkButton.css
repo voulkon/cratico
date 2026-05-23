@@ -58,6 +58,26 @@
   }
 }
 
+/* Auth-required state - grayed out when not signed in */
+.bookmark-button.auth-required,
+.bookmark-chevron.auth-required {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: auto; /* Allow click to trigger auth prompt */
+}
+
+.bookmark-button.auth-required:hover,
+.bookmark-chevron.auth-required:hover {
+  background-color: var(--hover-bg);
+  opacity: 0.5;
+  transform: none;
+}
+
+.bookmark-button.auth-required:active,
+.bookmark-chevron.auth-required:active {
+  transform: none;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .bookmark-button {

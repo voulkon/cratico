@@ -407,7 +407,12 @@
     "signInRequired": "Please sign in to access this feature",
     "signInTitle": "Sign In Required",
     "signIn": "Sign In",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "signInToSubscribe": "Notifications",
+    "signInToBookmark": "Bookmarks",
+    "signInExplanation": "This feature requires an account to work. Please sign in to continue.",
+    "NotificationSignInExplanation": "We need an email address to send you notifications and an account to remember your rules.",
+    "BookmarkSignInExplanation": "We can't show you your saved bookmarks if we don't remember who you are."
   },
   "counterparts": {
     "topOrganizations": "Top Organizations",

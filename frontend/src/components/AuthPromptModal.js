@@ -22,6 +22,12 @@ if (isClerkAvailable()) {
 /**
  * Modal that prompts users to sign in when they try to access protected features
  * Supports both Clerk (when configured) and Django auth
+ *
+ * Flow:
+ * 1. Explanation screen: shows WHY sign-in is needed + the feature-specific message
+ * 2. Auth screen: Clerk sign-in button OR Django login form
+ *
+ * This ensures users always see the explanation before being asked to log in.
  */
 function AuthPromptModal() {
   const { t } = useTranslation();
@@ -30,7 +36,8 @@ function AuthPromptModal() {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState('');
-  const [showDjangoForm, setShowDjangoForm] = useState(false);
+  const [supertitle, setSupertitle] = useState('');
+  const [showAuthForm, setShowAuthForm] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
   const [showPasswordResetRequest, setShowPasswordResetRequest] = useState(false);
 
@@ -45,11 +52,10 @@ function AuthPromptModal() {
       // Show modal for both auth types when user is not signed in
       if (isLoaded && !isSignedIn) {
         setMessage(event.detail?.message || t('auth.signInRequired') || 'Please sign in to access this feature');
+        setSupertitle(event.detail?.supertitle || '');
         setIsOpen(true);
-        // For Django auth, immediately show the login form
-        if (!isClerkAuth) {
-          setShowDjangoForm(true);
-        }
+        // Always start with the explanation screen
+        setShowAuthForm(false);
       }
     };
 
@@ -60,18 +66,24 @@ function AuthPromptModal() {
     };
   }, [isLoaded, isSignedIn, isClerkAuth, t, location.pathname]);
 
+  // Close and reset all state
+  const handleClose = () => {
+    setIsOpen(false);
+    setShowAuthForm(false);
+    setShowRegister(false);
+    setShowPasswordResetRequest(false);
+  };
+
   // Don't render if modal is not open
   if (!isOpen) return null;
 
-  // For Django auth, show the login form directly
-  if (showDjangoForm) {
+  // ── Django auth: show login/register/reset forms ──
+  if (!isClerkAuth && showAuthForm) {
     if (showPasswordResetRequest) {
       return (
         <DjangoPasswordResetRequest
           onSuccess={() => {
-            setIsOpen(false);
-            setShowDjangoForm(false);
-            setShowPasswordResetRequest(false);
+            handleClose();
           }}
           onCancel={() => {
             setShowPasswordResetRequest(false);
@@ -84,14 +96,10 @@ function AuthPromptModal() {
       return (
         <DjangoRegisterForm
           onSuccess={() => {
-            setIsOpen(false);
-            setShowDjangoForm(false);
-            setShowRegister(false);
+            handleClose();
           }}
           onCancel={() => {
-            setIsOpen(false);
-            setShowDjangoForm(false);
-            setShowRegister(false);
+            handleClose();
           }}
           onSwitchToLogin={() => setShowRegister(false)}
         />
@@ -101,12 +109,10 @@ function AuthPromptModal() {
     return (
       <DjangoLoginForm
         onSuccess={() => {
-          setIsOpen(false);
-          setShowDjangoForm(false);
+          handleClose();
         }}
         onCancel={() => {
-          setIsOpen(false);
-          setShowDjangoForm(false);
+          handleClose();
         }}
         onSwitchToRegister={() => setShowRegister(true)}
         onForgotPassword={() => setShowPasswordResetRequest(true)}
@@ -114,7 +120,7 @@ function AuthPromptModal() {
     );
   }
 
-  // For Clerk auth, show the auth prompt modal with Clerk sign-in button
+  // ── Explanation screen (shown for both Clerk and Django before auth form) ──
   return (
     <div style={{
       position: 'fixed',
@@ -151,11 +157,26 @@ function AuthPromptModal() {
           fontSize: '24px',
           fontWeight: '600'
         }}>
-          {t('auth.signInTitle') || 'Sign In Required'}
+          {supertitle ? (
+            <>
+              <span style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: 'var(--muted-text, #888888)',
+                marginBottom: '4px'
+              }}>
+                {supertitle}
+              </span>
+              {t('auth.signInTitle') || 'Sign In Required'}
+            </>
+          ) : (
+            t('auth.signInTitle') || 'Sign In Required'
+          )}
         </h2>
 
         <p style={{
-          margin: '0 0 24px 0',
+          margin: '0 0 8px 0',
           fontSize: '16px',
           color: 'var(--muted-text, #666666)',
           lineHeight: '1.5'
@@ -163,13 +184,25 @@ function AuthPromptModal() {
           {message}
         </p>
 
+        {!message && (
+          <p style={{
+            margin: '0 0 24px 0',
+            fontSize: '14px',
+            color: 'var(--muted-text, #888888)',
+            lineHeight: '1.5',
+            fontStyle: 'italic'
+          }}>
+            {t('auth.signInExplanation') || 'This feature requires an account to work. Please sign in to continue.'}
+          </p>
+        )}
+
         <div style={{
           display: 'flex',
           gap: '12px',
           justifyContent: 'center'
         }}>
           <button
-            onClick={() => setIsOpen(false)}
+            onClick={handleClose}
             style={{
               padding: '12px 24px',
               borderRadius: '8px',
@@ -191,9 +224,34 @@ function AuthPromptModal() {
             {t('auth.cancel') || 'Cancel'}
           </button>
 
-          <SignInButton mode="modal">
+          {isClerkAuth ? (
+            <SignInButton mode="modal">
+              <button
+                onClick={handleClose}
+                style={{
+                  padding: '12px 24px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: getCurrentPaletteColor(),
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  fontWeight: '500',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.opacity = '0.8';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.opacity = '1';
+                }}
+              >
+                {t('auth.signIn') || 'Sign In'}
+              </button>
+            </SignInButton>
+          ) : (
             <button
-              onClick={() => setIsOpen(false)}
+              onClick={() => setShowAuthForm(true)}
               style={{
                 padding: '12px 24px',
                 borderRadius: '8px',
@@ -214,7 +272,7 @@ function AuthPromptModal() {
             >
               {t('auth.signIn') || 'Sign In'}
             </button>
-          </SignInButton>
+          )}
         </div>
       </div>
     </div>
