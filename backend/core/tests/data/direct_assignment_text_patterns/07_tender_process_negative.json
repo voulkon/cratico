@@ -1,0 +1,6 @@
+{
+  "id": "tender_process_negative",
+  "text_content": "Ανάθεση μέσω διαγωνιστικής διαδικασίας",
+  "should_detect": false,
+  "notes": "Negative case: tender process (competitive bidding), not direct assignment"
+}

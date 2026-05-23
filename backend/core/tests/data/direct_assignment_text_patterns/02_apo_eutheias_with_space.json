@@ -1,0 +1,7 @@
+{
+  "id": "apo_eutheias_with_space",
+  "ada": "9ΔΠΟ46ΜΜΥΗ-9ΧΩ",
+  "text_content": "Την απ' ευθείας ανάθεση στην επιχείρηση ACME Ltd",
+  "should_detect": true,
+  "notes": "Variant with apostrophe and space: απ' ευθείας"
+}

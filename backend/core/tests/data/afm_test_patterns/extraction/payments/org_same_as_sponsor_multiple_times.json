@@ -1,0 +1,298 @@
+{
+    "id": "payment_org_same_as_sponsor_multiple_times",
+    "description": "Payment decision without counterpart - ΚΤΙΡΙΑΚΕΣ ΥΠΟΔΟΜΕΣ",
+    "ada": "ΨΤ78ΟΞΧΔ-04Δ",
+    "extra_field_values_json": {
+        "org": {
+            "afm": "999233404",
+            "afmType": "EL",
+            "enterName": false,
+            "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ"
+        },
+        "skipVatReason": "10066",
+        "sponsor": [
+            {
+                "sponsorAFMName": {
+                    "afm": "999233404",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ"
+                },
+                "expenseAmount": {
+                    "amount": 186.87,
+                    "currency": "EUR"
+                }
+            },
+            {
+                "sponsorAFMName": {
+                    "afm": "999233404",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ"
+                },
+                "expenseAmount": {
+                    "amount": 28307.69,
+                    "currency": "EUR"
+                }
+            },
+            {
+                "sponsorAFMName": {
+                    "afm": "999233404",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ"
+                },
+                "expenseAmount": {
+                    "amount": 206.74,
+                    "currency": "EUR"
+                }
+            },
+            {
+                "sponsorAFMName": {
+                    "afm": "999233404",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ"
+                },
+                "expenseAmount": {
+                    "amount": 138807.6,
+                    "currency": "EUR"
+                }
+            },
+            {
+                "sponsorAFMName": {
+                    "afm": "999233404",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ"
+                },
+                "expenseAmount": {
+                    "amount": 24000.0,
+                    "currency": "EUR"
+                }
+            },
+            {
+                "sponsorAFMName": {
+                    "afm": "999233404",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ"
+                },
+                "expenseAmount": {
+                    "amount": 174240.86,
+                    "currency": "EUR"
+                }
+            },
+            {
+                "sponsorAFMName": {
+                    "afm": "999233404",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ"
+                },
+                "expenseAmount": {
+                    "amount": 13493.45,
+                    "currency": "EUR"
+                }
+            },
+            {
+                "sponsorAFMName": {
+                    "afm": "999233404",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ"
+                },
+                "expenseAmount": {
+                    "amount": 8587.97,
+                    "currency": "EUR"
+                }
+            },
+            {
+                "sponsorAFMName": {
+                    "afm": "999233404",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ"
+                },
+                "expenseAmount": {
+                    "amount": 873.99,
+                    "currency": "EUR"
+                }
+            },
+            {
+                "sponsorAFMName": {
+                    "afm": "999233404",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ"
+                },
+                "expenseAmount": {
+                    "amount": 905.08,
+                    "currency": "EUR"
+                }
+            },
+            {
+                "sponsorAFMName": {
+                    "afm": "999233404",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ"
+                },
+                "expenseAmount": {
+                    "amount": 3978.9,
+                    "currency": "EUR"
+                }
+            },
+            {
+                "sponsorAFMName": {
+                    "afm": "999233404",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ"
+                },
+                "expenseAmount": {
+                    "amount": 1800.0,
+                    "currency": "EUR"
+                }
+            },
+            {
+                "sponsorAFMName": {
+                    "afm": "999233404",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ"
+                },
+                "expenseAmount": {
+                    "amount": 85893.26,
+                    "currency": "EUR"
+                }
+            },
+            {
+                "sponsorAFMName": {
+                    "afm": "999233404",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ"
+                },
+                "expenseAmount": {
+                    "amount": 149789.43,
+                    "currency": "EUR"
+                }
+            },
+            {
+                "sponsorAFMName": {
+                    "afm": "999233404",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ"
+                },
+                "expenseAmount": {
+                    "amount": 478.0,
+                    "currency": "EUR"
+                }
+            },
+            {
+                "sponsorAFMName": {
+                    "afm": "999233404",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ"
+                },
+                "expenseAmount": {
+                    "amount": 232802.67,
+                    "currency": "EUR"
+                }
+            },
+            {
+                "sponsorAFMName": {
+                    "afm": "999233404",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ"
+                },
+                "expenseAmount": {
+                    "amount": 2716.87,
+                    "currency": "EUR"
+                }
+            },
+            {
+                "sponsorAFMName": {
+                    "afm": "999233404",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ"
+                },
+                "expenseAmount": {
+                    "amount": 1662.76,
+                    "currency": "EUR"
+                }
+            },
+            {
+                "sponsorAFMName": {
+                    "afm": "999233404",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ"
+                },
+                "expenseAmount": {
+                    "amount": 122416.26,
+                    "currency": "EUR"
+                }
+            },
+            {
+                "sponsorAFMName": {
+                    "afm": "999233404",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ"
+                },
+                "expenseAmount": {
+                    "amount": 1851.94,
+                    "currency": "EUR"
+                }
+            },
+            {
+                "sponsorAFMName": {
+                    "afm": "999233404",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ"
+                },
+                "expenseAmount": {
+                    "amount": 6996.85,
+                    "currency": "EUR"
+                }
+            }
+        ],
+        "relatedEkgrisiDapanis": [],
+        "relatedDecisions": [],
+        "documentType": "ΠΡΑΞΗ"
+    },
+    "expected": {
+        "entities": 21,
+        "amounts": 21,
+        "total_amount" : 999997.19
+    },
+    "_comment": "This case is completely broken. The complete amount is almost a million, the document shows something like an expense sheet of a doctor (ΠΛΑΤΑΝΗΣΙΩΤΗΣ ΣΤΕΦ. ∆ΗΜΗΤΡΙΟΣ) around 1,000 euros "
+}

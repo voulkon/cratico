@@ -1,0 +1,101 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools-items %}
+    <li>
+        <a href="trigger-postgres/?streaming=true" class="addlink" style="background-color: #4CAF50;">
+            Create PostgreSQL Backup (Streaming)
+        </a>
+    </li>
+    <li>
+        <a href="trigger-postgres/?streaming=false" class="addlink" style="background-color: #66BB6A;">
+            Create PostgreSQL Backup (File-based)
+        </a>
+    </li>
+    <li>
+        <a href="trigger-opensearch/" class="addlink" style="background-color: #2196F3;">
+            Create OpenSearch Backup
+        </a>
+    </li>
+    <li>
+        <a href="browse-s3/" class="viewlink">
+            Browse S3 Backups
+        </a>
+    </li>
+    <li>
+        <a href="stats/" class="viewlink">
+            View Database Stats
+        </a>
+    </li>
+    {{ block.super }}
+{% endblock %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+        .auto-refresh-indicator {
+            position: fixed;
+            top: 40px;
+            right: 20px;
+            background-color: #2196F3;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 9999;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .auto-refresh-indicator.refreshing {
+            background-color: #4CAF50;
+        }
+    </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if there are any in-progress backups by looking for status badges
+            const statusBadges = document.querySelectorAll('span[style*="background-color"]');
+            let hasInProgress = false;
+
+            statusBadges.forEach(badge => {
+                const text = badge.textContent.trim();
+                if (text === 'Pending' || text === 'In Progress') {
+                    hasInProgress = true;
+                }
+            });
+
+            if (hasInProgress) {
+                // Add indicator
+                const indicator = document.createElement('div');
+                indicator.className = 'auto-refresh-indicator';
+                indicator.innerHTML = 'Auto-refresh: <span id="countdown">10</span>s';
+                document.body.appendChild(indicator);
+
+                let countdown = 10;
+
+                // Countdown timer
+                const countdownInterval = setInterval(() => {
+                    countdown--;
+                    const countdownEl = document.getElementById('countdown');
+                    if (countdownEl) {
+                        countdownEl.textContent = countdown;
+                    }
+
+                    if (countdown <= 0) {
+                        clearInterval(countdownInterval);
+                        indicator.classList.add('refreshing');
+                        indicator.innerHTML = 'Refreshing...';
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 500);
+                    }
+                }, 1000);
+
+                // Allow clicking indicator to refresh immediately
+                indicator.style.cursor = 'pointer';
+                indicator.title = 'Click to refresh now';
+                indicator.addEventListener('click', () => {
+                    clearInterval(countdownInterval);
+                    window.location.reload();
+                });
+            }
+        });
+    </script>
+{% endblock %}

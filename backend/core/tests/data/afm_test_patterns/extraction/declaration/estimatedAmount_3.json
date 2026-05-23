@@ -1,0 +1,57 @@
+{
+  "id": "estimatedAmount_3_refugees_accommodation",
+  "description": "estimatedAmount_3_refugees_accommodation",
+  "ada": "90ΠΝ46ΝΩΑ7-6ΕΛ",
+  "extra_field_values_json": {
+    "cpv": [
+      "79993000-1",
+      "79713000-5",
+      "90910000-9",
+      "90911200-8",
+      "45452000-0",
+      "50700000-2",
+      "50324200-4",
+      "50800000-3",
+      "50710000-5",
+      "50730000-1",
+      "50500000-0"
+    ],
+    "budgettype": null,
+    "partialead": null,
+    "awardAmount": null,
+    "entryNumber": null,
+    "documentType": "ΠΡΑΞΗ",
+    "amountWithKae": null,
+    "amountWithVAT": null,
+    "financialYear": null,
+    "orgBudgetCode": "Πρόγραμμα Δημοσίων Επενδύσεων",
+    "textRelatedADA": null,
+    "estimatedAmount": {
+      "amount": 136273392.8,
+      "currency": "EUR"
+    },
+    "relatedDecisions": [],
+    "contestProgressType": "Ανοικτός",
+    "manifestContractType": "Υπηρεσίες",
+    "recalledExpenseDecision": null,
+    "manifestSelectionCriterion": "Χαμηλότερη Τιμή"
+  },
+  "expected": {
+    "entities": 0,
+    "amounts": 1,
+    "total_amount": 136273392.8
+  },
+  "_analysis": {
+    "entities_found": [],
+    "amounts_found": [
+      {
+        "amount": 136273392.8,
+        "currency": "EUR",
+        "path": "estimatedAmount",
+        "source_field": "amount",
+        "linked": false
+      }
+    ],
+    "unlinked_pattern": "estimatedAmount"
+  }
+}

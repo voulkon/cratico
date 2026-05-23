@@ -1,0 +1,11 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_urls %}
+
+{% block object-tools-items %}
+    <li>
+        <a href="{{ batch_process_url }}" class="addlink">
+            Batch Process Documents
+        </a>
+    </li>
+    {{ block.super }}
+{% endblock %}

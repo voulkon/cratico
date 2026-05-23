@@ -1,0 +1,54 @@
+{
+  "category": "complex_words",
+  "description": "Test cases for complex real-world Greek words (phonetic transliteration)",
+  "test_cases": [
+    {
+      "id": "genetiki_grammateia",
+      "input": "GENETIKI GRAMMATEIA",
+      "expected_output": "ΓΕΝΕΤΙΚΙ ΓΡΑΜΜΑΤΕΙΑ",
+      "notes": "General Secretariat (phonetic spelling)"
+    },
+    {
+      "id": "nomarchia",
+      "input": "NOMARCHIA",
+      "expected_output": "ΝΟΜΑΡΧΙΑ",
+      "notes": "Prefecture"
+    },
+    {
+      "id": "dhmotiki_epicheirisi",
+      "input": "DHMOTIKI EPICHEIRISI",
+      "expected_output": "ΔΗΜΟΤΙΚΙ ΕΠΙΧΕΙΡΙΣΙ",
+      "notes": "Municipal enterprise (phonetic)"
+    },
+    {
+      "id": "yparxia_nomou",
+      "input": "YPARXIA NOMOU",
+      "expected_output": "ΥΠΑΡΞΙΑ ΝΟΜΟΥ",
+      "notes": "Prefecture existence"
+    },
+    {
+      "id": "topiki_aftodioikisi",
+      "input": "TOPIKI AFTODIOIKISI",
+      "expected_output": "ΤΟΠΙΚΙ ΑΦΤΟΔΙΟΙΚΙΣΙ",
+      "notes": "Local self-government"
+    },
+    {
+      "id": "koinotita",
+      "input": "KOINOTITA",
+      "expected_output": "ΚΟΙΝΟΤΙΤΑ",
+      "notes": "Community"
+    },
+    {
+      "id": "periphereia",
+      "input": "PERIPHEREIA ATTIKIS",
+      "expected_output": "ΠΕΡΙΦΕΡΕΙΑ ΑΤΤΙΚΙΣ",
+      "notes": "Region of Attica"
+    },
+    {
+      "id": "synergasia",
+      "input": "SYNERGASIA",
+      "expected_output": "ΣΥΝΕΡΓΑΣΙΑ",
+      "notes": "Cooperation"
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+{
+  "category": "real_world_searches",
+  "description": "Real-world search query scenarios",
+  "test_cases": [
+    {
+      "id": "search_municipality_greek",
+      "text": "ΔΗΜΟΣ",
+      "expected_language": "greek",
+      "min_confidence": 0.95,
+      "expected_weights": ["A", "C"],
+      "notes": "User searches for municipalities in Greek"
+    },
+    {
+      "id": "search_municipality_latin",
+      "text": "municipality",
+      "expected_language": "latin",
+      "min_confidence": 0.95,
+      "expected_weights": ["C", "A"],
+      "notes": "User searches for municipalities in English"
+    },
+    {
+      "id": "search_company_coca_cola",
+      "text": "COCA COLA",
+      "expected_language": "latin",
+      "min_confidence": 0.95,
+      "expected_weights": ["C", "A"],
+      "notes": "Search for company with Latin name"
+    },
+    {
+      "id": "search_afm",
+      "text": "094123456",
+      "expected_language": "neutral",
+      "min_confidence": 0.95,
+      "expected_weights": ["A", "B"],
+      "notes": "AFM search (numbers only)"
+    },
+    {
+      "id": "search_person_greek",
+      "text": "ΠΑΠΑΔΟΠΟΥΛΟΣ",
+      "expected_language": "greek",
+      "min_confidence": 0.95,
+      "expected_weights": ["A", "C"],
+      "notes": "Search for person by last name in Greek"
+    },
+    {
+      "id": "search_person_latin",
+      "text": "Papadopoulos",
+      "expected_language": "latin",
+      "min_confidence": 0.95,
+      "expected_weights": ["C", "A"],
+      "notes": "Search for person by transliterated name"
+    },
+    {
+      "id": "search_organization_ministry",
+      "text": "ΥΠΟΥΡΓΕΙΟ",
+      "expected_language": "greek",
+      "min_confidence": 0.95,
+      "expected_weights": ["A", "C"],
+      "notes": "Ministry search in Greek"
+    },
+    {
+      "id": "search_organization_region",
+      "text": "ΠΕΡΙΦΕΡΕΙΑ",
+      "expected_language": "greek",
+      "min_confidence": 0.95,
+      "expected_weights": ["A", "C"],
+      "notes": "Region search in Greek"
+    },
+    {
+      "id": "search_partial_greek",
+      "text": "ΔΗΜ",
+      "expected_language": "greek",
+      "min_confidence": 0.95,
+      "expected_weights": ["A", "C"],
+      "notes": "Partial word search in Greek"
+    },
+    {
+      "id": "search_partial_latin",
+      "text": "mun",
+      "expected_language": "latin",
+      "min_confidence": 0.95,
+      "expected_weights": ["C", "A"],
+      "notes": "Partial word search in Latin"
+    }
+  ]
+}

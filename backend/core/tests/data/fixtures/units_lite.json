@@ -1,0 +1,40 @@
+{
+    "units": [
+        {
+            "uid": "93542",
+            "label": "ΓΡΑΦΕΙΟ ΑΝΤΙΔΗΜΑΡΧΟΥ",
+            "abbreviation": null,
+            "category": "OFFICE",
+            "unitDomains": [],
+            "active": true,
+            "activeFrom": 1262304000000,
+            "activeUntil": null,
+            "parentId": "6174"
+        },
+        {
+            "uid": "81204",
+            "label": "ΓΡΑΦΕΙΟ ΔΗΜΑΡΧΟΥ",
+            "abbreviation": null,
+            "category": "UNIT",
+            "unitDomains": [
+                "fake_website.com",
+                "fake_website2.com"
+            ],
+            "active": true,
+            "activeFrom": 1262304000000,
+            "activeUntil": null,
+            "parentId": "6174"
+        },
+        {
+            "uid": "81223",
+            "label": "ΓΡΑΦΕΙΟ ΠΡΟΝΟΙΑΣ",
+            "abbreviation": null,
+            "category": "UNIT",
+            "unitDomains": [],
+            "active": true,
+            "activeFrom": 1262304000000,
+            "activeUntil": null,
+            "parentId": "6174"
+        }
+    ]
+}

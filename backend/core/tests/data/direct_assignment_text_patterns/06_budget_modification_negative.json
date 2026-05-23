@@ -1,0 +1,6 @@
+{
+  "id": "budget_modification_negative",
+  "text_content": "Τροποποίηση προϋπολογισμού για τις ανάγκες του τμήματος",
+  "should_detect": false,
+  "notes": "Negative case: budget modification, not a direct assignment"
+}

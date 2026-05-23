@@ -1,0 +1,19 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div style="padding: 20px;">
+    <h1>{{ title }}</h1>
+
+    <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 5px; padding: 20px; margin: 20px 0;">
+        <pre style="font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; margin: 0;">{{ output }}</pre>
+    </div>
+
+    <div style="margin-top: 20px;">
+        <a href="../../" class="button">← Back to Import Threshold Configuration</a>
+        <a href="/api/admin/core/importjob/" class="button" style="margin-left: 10px;">View Import Jobs</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,738 @@
+{
+  "id": "amountWithVAT_1",
+  "description": "amountWithVAT and many amountWithKae - no recipient",
+  "ada": "ΡΞΤΜ46ΜΑΠΣ-0ΨΟ",
+  "extra_field_values_json": {
+    "budgettype": "Τακτικός Προϋπολογισμός",
+    "partialead": false,
+    "awardAmount": null,
+    "entryNumber": "0000000001",
+    "documentType": "ΠΡΑΞΗ",
+    "amountWithKae": [
+      {
+        "kae": "0411",
+        "amountWithVAT": 4800.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0419",
+        "amountWithVAT": 100000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0433",
+        "amountWithVAT": 200000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0439",
+        "amountWithVAT": 400000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0629",
+        "amountWithVAT": 1500000000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0641",
+        "amountWithVAT": 20000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0642",
+        "amountWithVAT": 60000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0644",
+        "amountWithVAT": 4200000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0649",
+        "amountWithVAT": 160000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0813",
+        "amountWithVAT": 60000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0824",
+        "amountWithVAT": 800.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0831",
+        "amountWithVAT": 800.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0832",
+        "amountWithVAT": 800.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0841",
+        "amountWithVAT": 400.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0842",
+        "amountWithVAT": 800.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0845",
+        "amountWithVAT": 1600.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0849",
+        "amountWithVAT": 800.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0851",
+        "amountWithVAT": 400.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0879",
+        "amountWithVAT": 800.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0884",
+        "amountWithVAT": 400.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0887",
+        "amountWithVAT": 800.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0888",
+        "amountWithVAT": 400.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0889",
+        "amountWithVAT": 400.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0892",
+        "amountWithVAT": 8000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0893",
+        "amountWithVAT": 800000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0894",
+        "amountWithVAT": 6000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0899",
+        "amountWithVAT": 4000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0911",
+        "amountWithVAT": 1600000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0912",
+        "amountWithVAT": 8000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0929",
+        "amountWithVAT": 31200000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "1281",
+        "amountWithVAT": 800.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "1299",
+        "amountWithVAT": 400.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "1413",
+        "amountWithVAT": 400.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "1429",
+        "amountWithVAT": 400.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "1439",
+        "amountWithVAT": 400.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "1719",
+        "amountWithVAT": 400.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "2312",
+        "amountWithVAT": 200000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "2329",
+        "amountWithVAT": 200000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "2816",
+        "amountWithVAT": 40000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "3199",
+        "amountWithVAT": 502000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "3311",
+        "amountWithVAT": 10000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "3348",
+        "amountWithVAT": 48000000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "3355",
+        "amountWithVAT": 49200000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "3366.01",
+        "amountWithVAT": 120000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "3371",
+        "amountWithVAT": 40000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "3391",
+        "amountWithVAT": 84000000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "3392",
+        "amountWithVAT": 400000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "3394",
+        "amountWithVAT": 120000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "3395",
+        "amountWithVAT": 800000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "3399",
+        "amountWithVAT": 4000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "4419",
+        "amountWithVAT": 10000000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "6119",
+        "amountWithVAT": 8000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "7111",
+        "amountWithVAT": 400.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "7122",
+        "amountWithVAT": 400.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "7127",
+        "amountWithVAT": 400.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "7129",
+        "amountWithVAT": 400.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "9725",
+        "amountWithVAT": 12000.0,
+        "sponsorAFMName": {}
+      },
+      {
+        "kae": "0431",
+        "amountWithVAT": 40000.0,
+        "sponsorAFMName": {},
+        "kaeCreditRemainder": null
+      }
+    ],
+    "amountWithVAT": {
+      "amount": 1732540400.0,
+      "currency": "EUR"
+    },
+    "financialYear": 2026,
+    "relatedDecisions": [],
+    "relatedPartialADA": null,
+    "recalledExpenseDecision": false
+  },
+  "expected": {
+    "entities": 0,
+    "amounts": 59,
+    "total_amount": 3465080800.00
+  },
+  "_analysis": {
+    "comment" : "3465080800.00 is double of the real amount because it contains it once as amountWithVAT and once as sum of amountWithKae. There is no recipient, so all amounts are unlinked.",
+    "entities_found": [],
+    "amounts_found": [
+      {
+        "amount": 4800.0,
+        "currency": "EUR",
+        "path": "amountWithKae[0]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 100000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[1]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 200000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[2]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 400000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[3]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 1500000000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[4]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 20000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[5]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 60000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[6]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 4200000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[7]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 160000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[8]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 60000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[9]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 800.0,
+        "currency": "EUR",
+        "path": "amountWithKae[10]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 800.0,
+        "currency": "EUR",
+        "path": "amountWithKae[11]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 800.0,
+        "currency": "EUR",
+        "path": "amountWithKae[12]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 400.0,
+        "currency": "EUR",
+        "path": "amountWithKae[13]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 800.0,
+        "currency": "EUR",
+        "path": "amountWithKae[14]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 1600.0,
+        "currency": "EUR",
+        "path": "amountWithKae[15]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 800.0,
+        "currency": "EUR",
+        "path": "amountWithKae[16]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 400.0,
+        "currency": "EUR",
+        "path": "amountWithKae[17]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 800.0,
+        "currency": "EUR",
+        "path": "amountWithKae[18]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 400.0,
+        "currency": "EUR",
+        "path": "amountWithKae[19]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 800.0,
+        "currency": "EUR",
+        "path": "amountWithKae[20]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 400.0,
+        "currency": "EUR",
+        "path": "amountWithKae[21]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 400.0,
+        "currency": "EUR",
+        "path": "amountWithKae[22]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 8000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[23]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 800000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[24]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 6000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[25]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 4000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[26]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 1600000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[27]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 8000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[28]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 31200000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[29]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 800.0,
+        "currency": "EUR",
+        "path": "amountWithKae[30]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 400.0,
+        "currency": "EUR",
+        "path": "amountWithKae[31]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 400.0,
+        "currency": "EUR",
+        "path": "amountWithKae[32]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 400.0,
+        "currency": "EUR",
+        "path": "amountWithKae[33]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 400.0,
+        "currency": "EUR",
+        "path": "amountWithKae[34]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 400.0,
+        "currency": "EUR",
+        "path": "amountWithKae[35]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 200000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[36]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 200000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[37]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 40000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[38]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 502000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[39]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 10000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[40]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 48000000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[41]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 49200000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[42]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 120000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[43]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 40000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[44]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 84000000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[45]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 400000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[46]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 120000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[47]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 800000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[48]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 4000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[49]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 10000000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[50]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 8000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[51]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 400.0,
+        "currency": "EUR",
+        "path": "amountWithKae[52]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 400.0,
+        "currency": "EUR",
+        "path": "amountWithKae[53]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 400.0,
+        "currency": "EUR",
+        "path": "amountWithKae[54]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 400.0,
+        "currency": "EUR",
+        "path": "amountWithKae[55]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 12000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[56]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 40000.0,
+        "currency": "EUR",
+        "path": "amountWithKae[57]",
+        "source_field": "amountWithVAT",
+        "linked": false
+      },
+      {
+        "amount": 1732540400.0,
+        "currency": "EUR",
+        "path": "amountWithVAT",
+        "source_field": "amount",
+        "linked": false
+      }
+    ],
+    "unlinked_pattern": "amountWithVAT"
+  }
+}

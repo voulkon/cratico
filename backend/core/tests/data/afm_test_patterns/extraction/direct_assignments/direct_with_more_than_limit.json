@@ -1,0 +1,22 @@
+{
+    "id": "direct_with_more_than_limit",
+    "description": "Direct assignment 2+ million  - FRANK AND FAME",
+    "ada": "9ΕΡΙ46ΜΤΛ6-311",
+    "extra_field_values_json": {
+        "person": [],
+        "awardAmount": {
+            "amount": 2609900.0,
+            "currency": "EUR"
+        },
+        "assignmentType": "Υπηρεσίες",
+        "cpv": null,
+        "textRelatedADA": null,
+        "relatedDecisions": [],
+        "documentType": "ΠΡΑΞΗ"
+    },
+    "expected": {
+        "entities": 0,
+        "amounts": 1,
+        "total_amount" : 2609900.0
+    }
+}

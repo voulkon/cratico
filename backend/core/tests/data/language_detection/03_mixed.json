@@ -1,0 +1,41 @@
+{
+  "category": "mixed",
+  "description": "Test cases with mixed Greek and Latin text",
+  "test_cases": [
+    {
+      "id": "mixed_municipality",
+      "text": "ΔΗΜΟΣ Athens",
+      "expected_language": "mixed",
+      "min_confidence": 0.5,
+      "notes": "Municipality in both Greek and English"
+    },
+    {
+      "id": "mixed_company",
+      "text": "COCA COLA ΕΛΛΑΣ",
+      "expected_language": "mixed",
+      "min_confidence": 0.5,
+      "notes": "Company name with mixed script"
+    },
+    {
+      "id": "mixed_address",
+      "text": "Οδός Panepistimiou",
+      "expected_language": "latin",
+      "min_confidence": 0.5,
+      "notes": "Street name in mixed script - it's 76% Latin, so expected language is Latin"
+    },
+    {
+      "id": "mixed_balanced",
+      "text": "ΔΗΜΟΣ ΑΘΗΝΩΝ Municipality Athens",
+      "expected_language": "mixed",
+      "min_confidence": 0.7,
+      "notes": "Balanced mix of Greek and Latin"
+    },
+    {
+      "id": "mixed_with_numbers",
+      "text": "ΔΗΜΟΣ 2024 Athens",
+      "expected_language": "mixed",
+      "min_confidence": 0.5,
+      "notes": "Mixed with numbers"
+    }
+  ]
+}

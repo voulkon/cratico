@@ -1,0 +1,218 @@
+/* Import centralized StatCard styles */
+@import './StatCard.css';
+
+/* Subscription Metadata Header - Component Styles */
+
+.subscription-metadata-header {
+  background: var(--card-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-left: 4px solid var(--palette-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xxxxl);
+  margin-bottom: var(--spacing-xxxl);
+  box-shadow: 0 2px 4px var(--shadow);
+}
+
+/* Title */
+.subscription-title {
+  font-size: var(--font-xl);
+  font-weight: var(--font-bold);
+  margin: 0 0 var(--spacing-xl) 0;
+  color: var(--text-color);
+}
+
+/* Primary Info Section */
+.subscription-primary-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--spacing-xxxl);
+  padding-bottom: var(--spacing-xl);
+  border-bottom: 2px solid var(--border-color);
+  flex-wrap: wrap;
+  gap: var(--spacing-lg);
+}
+
+.subscription-name-section {
+  flex: 1;
+  min-width: 250px;
+}
+
+.subscription-alias {
+  font-size: var(--font-lg);
+  font-weight: var(--font-bold);
+  margin: 0 0 var(--spacing-sm) 0;
+  color: var(--text-color);
+}
+
+.subscription-target {
+  font-size: var(--font-md);
+  color: var(--muted-text);
+  font-weight: var(--font-medium);
+}
+
+.check-frequency-badge {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  background: var(--palette-primary);
+  color: white;
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: 20px;
+  font-size: var(--font-sm);
+  font-weight: var(--font-medium);
+}
+
+.frequency-icon {
+  display: flex;
+  align-items: center;
+}
+
+/* Filters Section */
+.filters-section {
+  background: var(--hover-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-xl);
+  margin-bottom: var(--spacing-xxxl);
+}
+
+.filters-title {
+  font-size: var(--font-lg);
+  font-weight: var(--font-medium);
+  margin: 0 0 var(--spacing-lg) 0;
+  color: var(--palette-primary);
+}
+
+.filters-grid {
+  display: grid;
+  gap: var(--spacing-lg);
+}
+
+.filter-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.filter-label {
+  font-size: var(--font-xs);
+  font-weight: var(--font-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted-text);
+}
+
+.filter-value {
+  font-size: var(--font-md);
+  color: var(--text-color);
+  font-weight: var(--font-medium);
+}
+
+/* Keywords and Types Lists */
+.keywords-list,
+.types-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+}
+
+.keyword-badge,
+.type-badge {
+  background: var(--bg-selected);
+  color: var(--palette-primary);
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-xs);
+  font-weight: var(--font-medium);
+  border: 1px solid var(--palette-primary);
+}
+
+.match-operator {
+  font-size: var(--font-xs);
+  color: var(--muted-text);
+  font-style: italic;
+}
+
+/* Stats Section */
+.subscription-stats-section {
+  margin-bottom: var(--spacing-xl);
+}
+
+.stats-title {
+  font-size: var(--font-lg);
+  font-weight: var(--font-medium);
+  margin: 0 0 var(--spacing-lg) 0;
+  color: var(--palette-primary);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+/* StatCard styles imported from StatCard.css */
+
+/* Metadata Footer */
+.subscription-metadata-footer {
+  display: flex;
+  gap: var(--spacing-xxxl);
+  padding-top: var(--spacing-lg);
+  border-top: 2px solid var(--border-color);
+  flex-wrap: wrap;
+}
+
+.metadata-item {
+  display: flex;
+  gap: var(--spacing-sm);
+  font-size: var(--font-sm);
+}
+
+.metadata-label {
+  color: var(--muted-text);
+  font-weight: var(--font-medium);
+}
+
+.metadata-value {
+  color: var(--text-color);
+  font-weight: var(--font-medium);
+}
+
+/* Responsive Design */
+@media (max-width: 968px) {
+  .subscription-metadata-header {
+    padding: var(--spacing-xxxl);
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .subscription-metadata-header {
+    padding: var(--spacing-xl);
+  }
+
+  .subscription-primary-info {
+    flex-direction: column;
+  }
+
+  .check-frequency-badge {
+    align-self: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .subscription-metadata-header {
+    padding: var(--spacing-lg);
+  }
+
+  .subscription-metadata-footer {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+}

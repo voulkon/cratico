@@ -1,0 +1,315 @@
+version: '3.8'
+
+# Production Application Stack (Stateless components)
+# Deploy this on your App Server
+
+services:
+  # ───────────────────── Observability ──────────────────────
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    restart: always
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    # labels:
+    #   - "caddy_0.basicauth.${JAEGER_AUTH_USER}=${JAEGER_AUTH_HASH}"
+    expose:
+      - "16686"
+      - "4317"
+      - "4318"
+    networks:
+      - diavgeia-prod-net
+
+  loki:
+    image: grafana/loki:latest
+    container_name: diavgeia_loki
+    restart: always
+    expose:
+      - "3100"
+    networks:
+      - diavgeia-prod-net
+    volumes:
+      - loki_data:/loki
+      - ./docker/loki-config:/etc/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider http://localhost:3100/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: diavgeia_promtail
+    restart: always
+    volumes:
+      - ./docker/promtail-config/promtail.yml:/etc/promtail/config.yml
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - diavgeia-prod-net
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: diavgeia_grafana
+    restart: always
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    expose:
+      - "3000"
+    networks:
+      - diavgeia-prod-net
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana-provisioning:/etc/grafana/provisioning
+    depends_on:
+      - loki
+
+  # ───────────────────────── Broker ──────────────────────────
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: diavgeia_rabbitmq
+    restart: always
+    expose:
+      - "5672"
+      - "15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-guest}
+    networks:
+      - diavgeia-prod-net
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 15s
+      retries: 5
+
+  # ──────────────────────── Cache ─────────────────────────
+  redis:
+    image: redis:8.0.0-alpine
+    container_name: diavgeia_redis
+    restart: always
+    command: sh -c "redis-server $${REDIS_PASSWORD:+--requirepass \"$$REDIS_PASSWORD\"}"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    networks:
+      - diavgeia-prod-net
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "sh", "-c", "redis-cli $${REDIS_PASSWORD:+-a \"$$REDIS_PASSWORD\"} ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: diavgeia_redis_commander
+    restart: always
+    environment:
+      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD}
+      - SERVICE_FQDN_REDIS_COMMANDER=
+    expose:
+      - "8081"
+    # labels:
+    #   - "caddy_0.basicauth.${JAEGER_AUTH_USER}=${JAEGER_AUTH_HASH}"
+    networks:
+      - diavgeia-prod-net
+    depends_on:
+      - redis
+
+  # ──────────────────── Connection Pooler ────────────────────
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: diavgeia_pgbouncer
+    restart: always
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${DB_HOST}:${DB_PORT}/${POSTGRES_DB}
+      - POOL_MODE=transaction
+      - MAX_CLIENT_CONN=1000
+      - DEFAULT_POOL_SIZE=25
+      - RESERVE_POOL_SIZE=5
+      - RESERVE_POOL_TIMEOUT=3
+      - SERVER_IDLE_TIMEOUT=600
+      - MAX_DB_CONNECTIONS=0
+      - MAX_USER_CONNECTIONS=0
+      - AUTH_TYPE=scram-sha-256
+      - CLIENT_TLS_SSLMODE=disable
+    expose:
+      - "5432"
+    networks:
+      - diavgeia-prod-net
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "localhost", "-p", "5432", "-U", "${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ───────────────────────── Backend ─────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: diavgeia_backend
+    restart: always
+    volumes:
+      # Optional: Bind mounts for hot-fixing production without rebuild (use with caution)
+      # In true immutable prod, remove these bind mounts.
+      - ./backend/api:/code/api
+      - ./backend/core:/code/core
+      - ./backend/diavgeia_project:/code/diavgeia_project
+      - ./backend/docs:/code/docs
+      - ./backend/sql_queries:/code/sql_queries
+      - ./backend/templates:/code/templates
+      - ./backend/users:/code/users
+      - ./backend/version:/code/version
+      - ./backend/manage.py:/code/manage.py
+      - ./backend/pyproject.toml:/code/pyproject.toml
+      - ./backend/poetry.lock:/code/poetry.lock
+      - ./backend/Makefile:/code/Makefile
+    expose:
+      - "8000"
+    environment:
+      # VITAL: Points to remote servers via PgBouncer for connection pooling
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}
+      - OPENSEARCH_URL=${OPENSEARCH_URL} # e.g., http://my-os-server.com:9200
+      - INDEX_THE_OPENSEARCH=${INDEX_THE_OPENSEARCH:-true}
+      - CELERY_BROKER_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//
+      - JAEGER_HOST=${JAEGER_HOST:-jaeger}
+      - JAEGER_PORT=${JAEGER_PORT:-4317}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - DEBUG=${DEBUG:-false}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+      - GEMI_API_KEY=${GEMI_API_KEY}
+      - STEALTH_MODE=${STEALTH_MODE:-false}
+      - STEALTH_ALLOWLIST=${STEALTH_ALLOWLIST:-false}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME:-crati-backups}
+    networks:
+      - diavgeia-prod-net
+    depends_on:
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+      args:
+        LIGHT_WORKER: ${LIGHT_WORKER:-false}
+    container_name: diavgeia_worker
+    restart: always
+    command:  ["/bin/sh", "-c", "chmod +x /code/worker_entrypoint.sh && /code/worker_entrypoint.sh"]
+    networks:
+      - diavgeia-prod-net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+    environment:
+      # Same vital remote connections via PgBouncer
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}
+      - OPENSEARCH_URL=${OPENSEARCH_URL}
+      - INDEX_THE_OPENSEARCH=${INDEX_THE_OPENSEARCH:-true}
+      - CELERY_BROKER_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//
+      - JAEGER_HOST=${JAEGER_HOST:-jaeger}
+      - JAEGER_PORT=${JAEGER_PORT:-4317}
+      - GEMI_API_KEY=${GEMI_API_KEY}
+      - LIGHT_WORKER=${LIGHT_WORKER:-false}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME:-crati-backups}
+  beat:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.celery-light
+    container_name: diavgeia_beat
+    restart: always
+    command: celery -A diavgeia_project beat -l INFO
+    networks:
+      - diavgeia-prod-net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}
+      - CELERY_BROKER_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//
+      - GEMI_API_KEY=${GEMI_API_KEY}
+
+  flower:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.celery-light
+    container_name: diavgeia_flower
+    restart: always
+    command: celery -A diavgeia_project flower --port=5555 --basic-auth=${FLOWER_BASIC_AUTH}
+    networks:
+      - diavgeia-prod-net
+    expose:
+      - "5555"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      - CELERY_BROKER_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//
+      - FLOWER_BASIC_AUTH=${FLOWER_BASIC_AUTH}
+
+  # ───────────────────────── Front end ───────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend.prod
+      args:
+        REACT_APP_CLERK_PUBLISHABLE_KEY: ${REACT_APP_CLERK_PUBLISHABLE_KEY}
+        REACT_APP_API_URL: ${REACT_APP_API_URL}
+    networks:
+      - diavgeia-prod-net
+
+  # ──────────────────────── Gateway ──────────────────────────
+  # This is the APP Gateway for HTTP traffic
+  nginx:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.nginx
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    expose:
+      - "80"
+    depends_on: [backend, frontend, flower, jaeger]
+    environment:
+    - HOST=0.0.0.0
+    - STAGING_MODE=${STAGING_MODE:-false}
+    - STAGING_USERNAME=${STAGING_USERNAME:-}
+    - STAGING_PASSWORD=${STAGING_PASSWORD:-}
+    networks:
+      - diavgeia-prod-net
+
+volumes:
+  rabbitmq_data:
+    driver: local
+  redis_data:
+    driver: local
+  loki_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  diavgeia-prod-net:
+    external: true
+    name: coolify

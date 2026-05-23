@@ -1,0 +1,333 @@
+{% extends "admin/change_list.html" %}
+{% load static %}
+
+{% block content_title %}
+    <h1>{{ title }}</h1>
+
+    {% if show_initialize_prompt %}
+    <div style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 20px; margin: 20px 0;">
+        <h2 style="margin-top: 0; color: #856404;">
+            <span style="font-size: 24px;">⚠️</span> Feature Flags Not Initialized
+        </h2>
+        <p style="font-size: 16px; margin-bottom: 20px;">
+            No feature flags found in the database. Initialize them to start managing your system's feature toggles.
+        </p>
+        <div style="margin-bottom: 15px;">
+            <strong>Known flags to initialize:</strong> {{ known_flags_count }}
+        </div>
+        <a href="{% url 'admin:featureflag_initialize' %}"
+           class="button"
+           style="background-color: #28a745; color: white; padding: 12px 24px; border-radius: 5px; text-decoration: none; font-weight: bold; display: inline-block; font-size: 16px;">
+            🚀 Initialize Feature Flags Now
+        </a>
+        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd; font-size: 14px; color: #666;">
+            <strong>Alternative:</strong> Run <code style="background: #f4f4f4; padding: 2px 6px; border-radius: 3px;">python manage.py initialize_feature_flags</code> from the command line
+        </div>
+    </div>
+    {% elif needs_sync %}
+    <div style="background: #d1ecf1; border: 2px solid #17a2b8; border-radius: 8px; padding: 15px; margin: 20px 0;">
+        <h3 style="margin-top: 0; color: #0c5460;">
+            <span style="font-size: 20px;">ℹ️</span> New Flags Available
+        </h3>
+        <p style="margin-bottom: 15px;">
+            Database has <strong>{{ flag_count }}</strong> flag(s), but <strong>{{ known_flags_count }}</strong> flag(s) are defined in code.
+            New flags may need to be initialized.
+        </p>
+        <a href="{% url 'admin:featureflag_initialize' %}"
+           class="button"
+           style="background-color: #17a2b8; color: white; padding: 10px 20px; border-radius: 5px; text-decoration: none; display: inline-block;">
+            Synchronize Flags
+        </a>
+    </div>
+    {% else %}
+    <div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 5px; padding: 10px; margin: 20px 0; font-size: 14px;">
+        <span style="color: #155724;">✓</span>
+        <strong>{{ flag_count }}</strong> feature flag(s) initialized and ready to use
+        <span style="margin-left: 20px;">
+            <a href="{% url 'admin:featureflag_clear_cache' %}" style="color: #155724; text-decoration: underline;">
+                Clear Cache
+            </a>
+        </span>
+    </div>
+    {% endif %}
+{% endblock %}
+
+{% block result_list %}
+    {% if show_initialize_prompt %}
+        <div style="text-align: center; padding: 40px; color: #999;">
+            <p style="font-size: 18px; margin-bottom: 20px;">No feature flags to display</p>
+            <p>Click the button above to initialize flags from your configuration</p>
+        </div>
+    {% elif flags_by_category %}
+        <div style="margin: 15px 0; display: flex; gap: 10px; align-items: center;">
+            <button type="button" id="toggle-all-btn" class="button" style="padding: 8px 16px; font-size: 13px;">
+                ▶ Collapse All
+            </button>
+            <span style="color: #666; font-size: 13px; margin-left: 10px;">
+                {{ flags_by_category|length }} categor{{ flags_by_category|length|pluralize:"y,ies" }}
+            </span>
+        </div>
+
+        <style>
+            .category-section {
+                margin: 20px 0;
+                border: 1px solid #ddd;
+                border-radius: 5px;
+                overflow: hidden;
+            }
+
+            .category-header {
+                background: linear-gradient(to bottom, #f7f7f7, #e7e7e7);
+                padding: 12px 15px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                user-select: none;
+                border-bottom: 1px solid #ddd;
+            }
+
+            .category-header:hover {
+                background: linear-gradient(to bottom, #efefef, #dfdfdf);
+            }
+
+            .category-title {
+                font-weight: bold;
+                font-size: 14px;
+                color: #333;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .category-count {
+                background: #5b80b2;
+                color: white;
+                padding: 2px 8px;
+                border-radius: 10px;
+                font-size: 12px;
+                font-weight: normal;
+            }
+
+            .category-toggle {
+                font-size: 18px;
+                color: #666;
+                transition: transform 0.2s;
+            }
+
+            .category-section.collapsed .category-toggle {
+                transform: rotate(-90deg);
+            }
+
+            .category-content {
+                max-height: 5000px;
+                overflow: hidden;
+                transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+                opacity: 1;
+            }
+
+            .category-section.collapsed .category-content {
+                max-height: 0;
+                opacity: 0;
+            }
+
+            .flag-table {
+                width: 100%;
+                border-collapse: collapse;
+                background: white;
+            }
+
+            .flag-table thead th {
+                background: #f9f9f9;
+                padding: 10px;
+                text-align: left;
+                font-weight: 600;
+                font-size: 12px;
+                color: #666;
+                border-bottom: 2px solid #ddd;
+            }
+
+            .flag-table tbody tr {
+                border-bottom: 1px solid #eee;
+            }
+
+            .flag-table tbody tr:hover {
+                background: #f5f9ff;
+            }
+
+            .flag-table tbody td {
+                padding: 10px;
+                font-size: 13px;
+            }
+
+            .flag-table tbody td a {
+                color: #447e9b;
+                text-decoration: none;
+            }
+
+            .flag-table tbody td a:hover {
+                color: #036;
+                text-decoration: underline;
+            }
+        </style>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                var allSections = document.querySelectorAll('.category-section');
+                var toggleBtn = document.getElementById('toggle-all-btn');
+
+                // Function to check if all sections are collapsed
+                function areAllCollapsed() {
+                    return Array.from(allSections).every(section => section.classList.contains('collapsed'));
+                }
+
+                // Function to update button text
+                function updateButtonText() {
+                    if (areAllCollapsed()) {
+                        toggleBtn.textContent = '▼ Expand All';
+                    } else {
+                        toggleBtn.textContent = '▶ Collapse All';
+                    }
+                }
+
+                // Individual category toggle
+                allSections.forEach(function(section) {
+                    var header = section.querySelector('.category-header');
+                    header.addEventListener('click', function() {
+                        section.classList.toggle('collapsed');
+                        updateButtonText();
+                    });
+                });
+
+                // Toggle all button
+                toggleBtn.addEventListener('click', function() {
+                    if (areAllCollapsed()) {
+                        // Expand all
+                        allSections.forEach(function(section) {
+                            section.classList.remove('collapsed');
+                        });
+                        toggleBtn.textContent = '▶ Collapse All';
+                    } else {
+                        // Collapse all
+                        allSections.forEach(function(section) {
+                            section.classList.add('collapsed');
+                        });
+                        toggleBtn.textContent = '▼ Expand All';
+                    }
+                });
+
+                // Initialize button text
+                updateButtonText();
+            });
+        </script>
+
+        {% for category, flags in flags_by_category.items %}
+        <div class="category-section">
+            <div class="category-header">
+                <div class="category-title">
+                    <span>{{ category }}</span>
+                    <span class="category-count">{{ flags|length }}</span>
+                </div>
+                <span class="category-toggle">▼</span>
+            </div>
+            <div class="category-content">
+                <table class="flag-table">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>Key</th>
+                            <th>Name</th>
+                            <th>Status</th>
+                            <th>Quick Action</th>
+                            <th>Restart</th>
+                            <th>Source</th>
+                            <th>Last Changed By</th>
+                            <th>Last Checked</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for flag in flags %}
+                        <tr>
+                            <td>{{ flag.status_icon }}</td>
+                            <td><a href="{% url 'admin:core_featureflag_change' flag.pk %}">{{ flag.key }}</a></td>
+                            <td>{{ flag.name }}</td>
+                            <td>{% if flag.value_type == 'boolean' %}
+                                    {% if flag.enabled %}
+                                        <span style="background: #d4edda; color: #155724; padding: 4px 8px; border-radius: 3px; font-weight: 500;">✓ Enabled</span>
+                                    {% else %}
+                                        <span style="background: #f8d7da; color: #721c24; padding: 4px 8px; border-radius: 3px; font-weight: 500;">✗ Disabled</span>
+                                    {% endif %}
+                                {% elif flag.value_type == 'list' %}
+                                    {% if flag.list_value %}
+                                        <span style="background: #d1ecf1; color: #0c5460; padding: 4px 8px; border-radius: 3px; font-weight: 500;">{{ flag.list_value|length }} item{{ flag.list_value|length|pluralize }}</span>
+                                    {% else %}
+                                        <span style="color: #999;">Empty list</span>
+                                    {% endif %}
+                                {% else %}
+                                    {% if flag.string_value %}
+                                        <span style="background: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 3px; font-weight: 500;">Set</span>
+                                    {% else %}
+                                        <span style="color: #999;">Not set</span>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                            <td>{% if flag.value_type == 'boolean' %}
+                                    {% url 'admin:featureflag_toggle' flag.id as toggle_url %}
+                                    {% if flag.enabled %}
+                                        <a href="{{ toggle_url }}" style="background-color: #dc3545; color: white; padding: 5px 10px; border-radius: 3px; text-decoration: none; font-size: 12px;">Disable</a>
+                                    {% else %}
+                                        <a href="{{ toggle_url }}" style="background-color: #28a745; color: white; padding: 5px 10px; border-radius: 3px; text-decoration: none; font-size: 12px;">Enable</a>
+                                    {% endif %}
+                                {% else %}
+                                    <span style="color: #999;">—</span>
+                                {% endif %}
+                            </td>
+                            <td>{% if flag.requires_restart %}
+                                    <span style="background: #fff3cd; color: #856404; padding: 3px 8px; border-radius: 3px; font-size: 11px;">⚠️ Required</span>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td style="font-size: 11px; color: #666;">
+                                {% load feature_flag_tags %}
+                                {% get_flag_source flag.key as source_info %}
+                                {% if source_info %}
+                                    {% if source_info.from_env %}
+                                        <span style="background: #e3f2fd; color: #1565c0; padding: 2px 6px; border-radius: 2px;">ENV</span>
+                                    {% elif source_info.from_db %}
+                                        <span style="background: #f3e5f5; color: #6a1b9a; padding: 2px 6px; border-radius: 2px;">DB</span>
+                                    {% else %}
+                                        <span style="background: #f5f5f5; color: #666; padding: 2px 6px; border-radius: 2px;">Default</span>
+                                    {% endif %}
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td style="font-size: 12px;">
+                                {% with flag.audit_logs.all|first as latest_log %}
+                                    {% if latest_log %}
+                                        <div>{{ latest_log.changed_by }}</div>
+                                        <div style="color: #999; font-size: 11px;">{{ latest_log.changed_at|timesince }} ago</div>
+                                    {% else %}
+                                        <span style="color: #999;">—</span>
+                                    {% endif %}
+                                {% endwith %}
+                            </td>
+                            <td style="font-size: 12px; color: #666;">
+                                {% if flag.last_checked_at %}
+                                    {{ flag.last_checked_at|timesince }} ago
+                                {% else %}
+                                    Never
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        {{ block.super }}
+    {% endif %}
+{% endblock %}

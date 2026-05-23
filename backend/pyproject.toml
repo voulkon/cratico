@@ -1,0 +1,97 @@
+[tool.poetry]
+name = "diavgeia-backend"
+version = "0.1.0"
+description = "Django backend for Diavgeia API integration"
+authors = ["Konstantinos Voulgaropoulos <voulkon93@gmail.com>"]
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.11"
+django = "^5.0.3"
+djangorestframework = "^3.14.0"
+psycopg2-binary = "^2.9.9"
+redis = "^5.0.1"
+django-cors-headers = "^4.3.1"
+djangorestframework-simplejwt = "^5.3.1"
+gunicorn = "^21.2.0"
+python-dotenv = "^1.0.0"
+debugpy = "^1.8.1"
+loguru = "^0.7.3"
+responses = "^0.25.7"
+celery = "^5.5.2"
+django-celery-results = "^2.6.0"
+django-celery-beat = "^2.8.0"
+Faker = "37.0.0"
+diavgeia-api = {git = "https://github.com/voulkon/diavgeia-api.git"}
+gemi-opendata-client = {path = "./gemi", develop = true}
+django-ses = "^4.7.2"
+numpy = "^2.4.4"
+
+# OpenTelemetry dependencies
+opentelemetry-sdk = "^1.32.1"
+opentelemetry-instrumentation-django = "^0.53b1"
+opentelemetry-instrumentation-celery = "^0.53b1"
+opentelemetry-exporter-otlp = "^1.32.1"
+opentelemetry-instrumentation-requests = "^0.53b1"
+opentelemetry-instrumentation-psycopg2 = "^0.53b1"
+PyMuPDF = "^1.25.5"
+tqdm="^4.67.1"
+django-redis="^5.4.0"
+drf-yasg="^1.21.10"
+django-csp="^4.0"
+bleach="^6.2.0"
+stamina="^25.1.0"
+python-json-logger="^4.0.0"
+boto3 = "^1.42.0"
+tiktoken="^0.8.0"  # Token counting for AI cost estimation
+PyYAML="^6.0.2"  # For reading OpenSearch config files
+
+[tool.poetry.group.worker]
+optional = false  # Always install with worker
+
+[tool.poetry.group.worker.dependencies]
+# ════════════════════════════════════════════════════════════════════════════
+# Analytics & Data Science Stack (required for analytics module)
+# ════════════════════════════════════════════════════════════════════════════
+# These are explicitly imported in analytics/*.py files
+# Installed in ALL worker modes (both light and full)
+# NOTE: numpy is in main dependencies (needed by Django admin)
+pandas="^2.3.0"          # DataFrame operations
+scipy="^1.15.3"          # Scientific computing
+matplotlib="^3.10.3"     # Plotting (analytics/*)
+seaborn="^0.13.2"        # Statistical visualizations
+networkx="^3.5"          # Graph analysis
+
+[tool.poetry.group.docling]
+optional = true  # Only install when LIGHT_WORKER=false
+
+[tool.poetry.group.docling.dependencies]
+# ════════════════════════════════════════════════════════════════════════════
+# ⚠️ WARNING: EXTREMELY HEAVY (~10GB+ with torch, transformers, OCR models)
+# ════════════════════════════════════════════════════════════════════════════
+# This is THE culprit for the massive Docker image size
+# Only installed when LIGHT_WORKER=false in Docker
+# Provides advanced document extraction (tables, structure, etc.)
+docling="^2.54.0"
+
+[tool.poetry.group.dev.dependencies]
+black = "^24.2.0"
+flake8 = "^7.0.0"
+pytest = "^7.4.4"
+pytest-django = "^4.8.0"
+ipython = "^8.20.0"
+pytest-vcr = "^1.0.2"
+vcrpy = "^7.0.0"
+factory-boy = "^3.3.3"
+pytest-cov = "^7.0.0"
+isort = "^8.0.1"
+freezegun = "^1.5.5"
+autoflake = "^2.3.3"
+vulture = "^2.16"
+pylint = "^4.0.5"
+bandit = "^1.9.4"
+pre-commit = "^4.6.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

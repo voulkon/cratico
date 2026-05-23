@@ -1,0 +1,288 @@
+name: diavgeia-no-db
+
+# Usage:
+# docker-compose -f docker/docker-compose-no-db.yml --env-file=.env_files/.env.local.no-db.secrets up
+# docker-compose -f docker/docker-compose-no-db.yml --env-file=.env_files/.env.local.no-db.secrets down
+
+services:
+  # ───────────────────── Observability ──────────────────────
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    networks:
+      - crati-app-net
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:latest
+    container_name: crati_loki
+    ports:
+      - "3100:3100"
+    networks:
+      - crati-app-net
+    volumes:
+      - loki_data:/loki
+      - ./loki-config:/etc/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider http://localhost:3100/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: crati_promtail
+    volumes:
+      - ./promtail-config/promtail.yml:/etc/promtail/config.yml
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - crati-app-net
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: crati_grafana
+    ports:
+      - "3001:3000"
+    networks:
+      - crati-app-net
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana-provisioning:/etc/grafana/provisioning
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  # ───────────────────────── Broker ──────────────────────────
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: crati_rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-guest}
+    networks:
+      - crati-app-net
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 15s
+      retries: 5
+    restart: unless-stopped
+
+  # ──────────────────────── Cache ─────────────────────────
+  redis:
+    image: redis:8.0.0-alpine
+    container_name: crati_redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    networks:
+      - crati-app-net
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: crati_redis_commander
+    environment:
+      # Configure Redis Commander to show all 3 databases:
+      # DB 0: Celery task results
+      # DB 1: Django cache + Search history
+      # DB 2: Import decision chunks
+      - REDIS_HOSTS=celery:redis:6379:0:${REDIS_PASSWORD},cache:redis:6379:1:${REDIS_PASSWORD},import:redis:6379:2:${REDIS_PASSWORD}
+    ports:
+      - "8081:8081"
+    networks:
+      - crati-app-net
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # ───────────────────────── Backend ─────────────────────────
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+    container_name: crati_backend
+    volumes:
+      - ../backend:/code
+    ports:
+      - "8000:8000"
+      - "${DJANGO_DEBUG_PORT:-8002}:${DJANGO_DEBUG_PORT:-8002}"
+      - "8003:8003"
+    env_file:
+      - ../.env_files/.env.local.secrets
+    environment:
+      - DJANGO_DEBUG_PORT=${DJANGO_DEBUG_PORT:-8002}
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${DB_HOST:-crati_db}:${DB_PORT:-5432}/${POSTGRES_DB}
+      - CELERY_BROKER_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//
+      - JAEGER_HOST=${JAEGER_HOST:-jaeger}
+      - JAEGER_PORT=${JAEGER_PORT:-4317}
+      - OPENSEARCH_URL=${OPENSEARCH_URL:-http://crati_opensearch:9200}
+      - INDEX_THE_OPENSEARCH=${INDEX_THE_OPENSEARCH:-true}
+      - GEMI_API_KEY=${GEMI_API_KEY}
+      - STEALTH_MODE=${STEALTH_MODE:-false}
+      - STEALTH_ALLOWLIST=${STEALTH_ALLOWLIST:-false}
+      - DJANGO_LOG_LEVEL=${BACKEND_LOG_LEVEL:-INFO}
+      - DB_LOG_LEVEL=${DB_LOG_LEVEL:-WARNING}
+    networks:
+      - crati-app-net
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+      args:
+        LIGHT_WORKER: ${LIGHT_WORKER:-false}
+    container_name: crati_worker
+    command: ["/code/worker_entrypoint.sh"]
+    restart: unless-stopped
+    networks:
+      - crati-app-net
+    volumes:
+      - ../backend:/code
+    ports:
+      - "${CELERY_DEBUG_PORT:-8004}:${CELERY_DEBUG_PORT:-8004}"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    env_file:
+      - ../.env_files/.env.local.secrets
+    environment:
+      - CELERY_DEBUG_PORT=${CELERY_DEBUG_PORT:-8004}
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${DB_HOST:-crati_db}:${DB_PORT:-5432}/${POSTGRES_DB}
+      - CELERY_BROKER_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//
+      - JAEGER_HOST=${JAEGER_HOST:-jaeger}
+      - JAEGER_PORT=${JAEGER_PORT:-4317}
+      - OPENSEARCH_URL=${OPENSEARCH_URL:-http://crati_opensearch:9200}
+      - INDEX_THE_OPENSEARCH=${INDEX_THE_OPENSEARCH:-true}
+      - LIGHT_WORKER=${LIGHT_WORKER:-false}
+      - USE_JSON_LOGGING=true
+      - DJANGO_LOG_LEVEL=${WORKER_LOG_LEVEL:-INFO}
+      - CELERY_LOG_LEVEL=${WORKER_LOG_LEVEL:-INFO}
+      - DB_LOG_LEVEL=${DB_LOG_LEVEL:-WARNING}
+
+  beat:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.celery-light
+    container_name: crati_beat
+    command: celery -A diavgeia_project beat -l INFO
+    networks:
+      - crati-app-net
+    volumes:
+      - ../backend:/code
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    env_file:
+      - ../.env_files/.env.local.secrets
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${DB_HOST:-crati_db}:${DB_PORT:-5432}/${POSTGRES_DB}
+      - CELERY_BROKER_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//
+    restart: unless-stopped
+
+  flower:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.celery-light
+    container_name: crati_flower
+    command: celery -A diavgeia_project flower --port=5555  --basic-auth=${FLOWER_BASIC_AUTH}
+    networks:
+      - crati-app-net
+    ports:
+      - "5555:5555"
+    volumes:
+      - ../backend:/code
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    env_file:
+      - ../.env_files/.env.local.secrets
+    environment:
+      - CELERY_BROKER_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//
+      - FLOWER_BASIC_AUTH=${FLOWER_BASIC_AUTH}
+    restart: unless-stopped
+
+  # ───────────────────────── Front end ───────────────────────
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules
+    environment:
+      - REACT_APP_CLERK_PUBLISHABLE_KEY=${REACT_APP_CLERK_PUBLISHABLE_KEY}
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-/api}
+    networks:
+      - crati-app-net
+    restart: unless-stopped
+
+  # ──────────────────────── Gateway ──────────────────────────
+  # This container now acts as the SINGLE entrypoint for:
+  # 1. HTTP Traffic (Front/Back) -> via /etc/nginx/conf.d/*.conf
+  nginx:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.nginx
+    volumes:
+      # Mount the standard HTTP server config for locations (API, Frontend)
+      - ../nginx/local.nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "80:80"       # HTTP Access
+    depends_on: [backend, frontend, flower, jaeger]
+    environment:
+    - HOST=0.0.0.0
+    networks:
+      - crati-app-net
+    restart: unless-stopped
+
+volumes:
+  loki_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+  redis_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  crati-app-net:
+    driver: bridge
+    name: crati-app-net

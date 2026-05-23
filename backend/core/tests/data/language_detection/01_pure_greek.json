@@ -1,0 +1,54 @@
+{
+  "category": "pure_greek",
+  "description": "Test cases with pure Greek text",
+  "test_cases": [
+    {
+      "id": "greek_municipality",
+      "text": "ΔΗΜΟΣ ΑΘΗΝΑΙΩΝ",
+      "expected_language": "greek",
+      "min_confidence": 0.95,
+      "min_greek_ratio": 0.9,
+      "notes": "Common Greek municipality name"
+    },
+    {
+      "id": "greek_ministry",
+      "text": "ΥΠΟΥΡΓΕΙΟ ΠΑΙΔΕΙΑΣ",
+      "expected_language": "greek",
+      "min_confidence": 0.95,
+      "min_greek_ratio": 0.9,
+      "notes": "Ministry name in Greek"
+    },
+    {
+      "id": "greek_lowercase",
+      "text": "περιφέρεια αττικής",
+      "expected_language": "greek",
+      "min_confidence": 0.95,
+      "min_greek_ratio": 0.9,
+      "notes": "Lowercase Greek with accents"
+    },
+    {
+      "id": "greek_with_diacritics",
+      "text": "Αθήνα Πειραιάς",
+      "expected_language": "greek",
+      "min_confidence": 0.95,
+      "min_greek_ratio": 0.9,
+      "notes": "Mixed case with diacritics"
+    },
+    {
+      "id": "greek_single_word",
+      "text": "ΔΗΜΟΣ",
+      "expected_language": "greek",
+      "min_confidence": 0.95,
+      "min_greek_ratio": 0.9,
+      "notes": "Single Greek word"
+    },
+    {
+      "id": "greek_long_text",
+      "text": "ΑΠΟΦΑΣΗ ΑΠΕΥΘΕΙΑΣ ΑΝΑΘΕΣΗΣ ΓΙΑ ΤΗΝ ΥΛΟΠΟΙΗΣΗ ΤΟΥ ΕΡΓΟΥ",
+      "expected_language": "greek",
+      "min_confidence": 0.95,
+      "min_greek_ratio": 0.9,
+      "notes": "Longer Greek text from decision"
+    }
+  ]
+}

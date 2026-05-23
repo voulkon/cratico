@@ -1,0 +1,122 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block content %}
+<div id="content-main">
+    <h1>Import Decisions</h1>
+
+    <form method="post" id="import-form">
+        {% csrf_token %}
+
+        <fieldset class="module">
+            <h2>Date Range</h2>
+            <div class="form-row">
+                <div class="field-box">
+                    <label for="start_date">Start Date:</label>
+                    <input type="date" name="start_date" id="start_date" required>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="field-box">
+                    <label for="end_date">End Date:</label>
+                    <input type="date" name="end_date" id="end_date" required>
+                </div>
+            </div>
+        </fieldset>
+
+        <fieldset class="module">
+            <h2>Filters</h2>
+            <div class="form-row">
+                <div class="field-box">
+                    <label for="entity_type">Entity Type:</label>
+                    <select name="entity_type" id="entity_type">
+                        <option value="">All</option>
+                        <option value="organization">Organization</option>
+                        <option value="signer">Signer</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row entity-selector" style="display: none;">
+                <div class="field-box">
+                    <label for="entity_id">Select Entity:</label>
+                    <select name="entity_id" id="entity_id" style="width: 400px;"></select>
+                </div>
+            </div>
+        </fieldset>
+
+        <div class="submit-row">
+            <input type="submit" value="Start Import" class="default">
+        </div>
+    </form>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize dates
+        const today = new Date();
+        const lastMonth = new Date(today);
+        lastMonth.setMonth(today.getMonth() - 1);
+
+        document.getElementById('start_date').valueAsDate = lastMonth;
+        document.getElementById('end_date').valueAsDate = today;
+
+        // Initialize Select2
+        $('#entity_id').select2({
+            placeholder: 'Search for an organization or signer',
+            allowClear: true,
+            ajax: {
+                url: '{% url "admin:entity_search" %}',
+                dataType: 'json',
+                delay: 250,
+                data: function(params) {
+                    return {
+                        q: params.term,
+                        entity_type: $('#entity_type').val()
+                    };
+                },
+                processResults: function(data) {
+                    return {
+                        results: data.results
+                    };
+                },
+                cache: true
+            }
+        });
+
+        // Show/hide entity selector based on type
+        $('#entity_type').on('change', function() {
+            const val = $(this).val();
+            if (val) {
+                $('.entity-selector').show();
+            } else {
+                $('.entity-selector').hide();
+                $('#entity_id').val(null).trigger('change');
+            }
+        });
+
+        // Handle form submission
+        $('#import-form').on('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+
+            fetch('{% url "admin_import_decisions" %}', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`Import job ${data.job_id} started successfully.`);
+                    window.location.href = '{% url "admin:core_importjob_changelist" %}';
+                } else {
+                    alert('Error starting import job.');
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

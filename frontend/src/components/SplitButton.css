@@ -1,0 +1,161 @@
+/* ═══════════════════════════════════════════════════════════
+   SPLIT BUTTON - Reusable component for consistent UI
+   ═══════════════════════════════════════════════════════════
+
+   This defines the base styling for all split buttons in the app.
+   Components can customize by:
+   1. Adding custom classes via mainClassName/chevronClassName
+   2. Overriding CSS variables
+   3. Adding component-specific styles
+
+   Note: Overlay is now managed centrally at the App level.
+
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Wrapper ───────────────────────────────────────────────── */
+.split-button {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: 0 2px 8px var(--shadow);
+  backdrop-filter: blur(10px);
+  z-index: auto;
+}
+
+.split-button-open {
+  z-index: 1003; /* Above unified overlay (1002) when open */
+}
+
+/* ── Main button (left half) ──────────────────────────────── */
+.split-button-main {
+  position: relative;
+  background-color: transparent;
+  color: var(--text-color);
+  border: 1px solid transparent;
+  border-right: 1px solid var(--border-color);
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-lg);
+  transition: all var(--transition-fast);
+  backdrop-filter: none;
+  box-shadow: none;
+  min-width: 50px;
+}
+
+.split-button-main:hover:not(:disabled) {
+  background-color: var(--hover-bg);
+  transform: translateY(-2px);
+}
+
+.split-button-main:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.split-button-main.active {
+  background-color: var(--palette-primary);
+  color: var(--bg-color);
+  border-color: var(--palette-primary);
+}
+
+.split-button-main.active:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.split-button-main:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* ── Chevron button (right half) ──────────────────────────── */
+.split-button-chevron {
+  position: relative;
+  background-color: transparent;
+  color: var(--text-color);
+  border: 1px solid transparent;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  padding: 0 var(--spacing-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  box-shadow: none;
+  min-width: 40px;
+}
+
+.split-button-chevron:hover:not(:disabled) {
+  background-color: var(--hover-bg);
+}
+
+.split-button-chevron.active {
+  background-color: var(--palette-primary);
+  color: var(--bg-color);
+  border-color: var(--palette-primary);
+}
+
+.split-button-chevron.active:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.split-button-chevron:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.split-button-chevron-icon {
+  font-size: var(--font-md);
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Badge (for unread counts, etc.) ──────────────────────── */
+.split-button-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background-color: var(--danger-color);
+  color: var(--bg-color);
+  font-size: 0.7em;
+  font-weight: bold;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  box-shadow: 0 2px 4px var(--shadow-focus);
+  animation: badgePulse 2s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+/* ── Loading state ─────────────────────────────────────────── */
+.split-button-main.loading,
+.split-button-chevron.loading {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}

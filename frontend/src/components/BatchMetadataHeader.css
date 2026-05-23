@@ -1,0 +1,171 @@
+/* Import centralized StatCard styles */
+@import './StatCard.css';
+
+/* Batch Metadata Header - Component Styles */
+
+.batch-metadata-header {
+  background: var(--card-bg);
+  border-radius: 8px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+/* Title */
+.batch-title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--text-color);
+  margin: 0 0 1.5rem 0;
+}
+
+/* Subscription Info */
+.subscription-info {
+  background: var(--hover-bg);
+  border-left: 4px solid var(--palette-primary);
+  padding: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+  border-radius: 4px;
+}
+
+.info-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--muted-text);
+  letter-spacing: 0.5px;
+  margin-bottom: 0.5rem;
+}
+
+.subscription-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.subscription-alias {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--text-color);
+}
+
+.organization-label {
+  background: var(--palette-primary);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.entity-name {
+  color: var(--text-color);
+  font-size: 0.95rem;
+}
+
+.entity-afm {
+  color: var(--muted-text);
+  font-size: 0.85rem;
+}
+
+/* Batch Metadata Grid */
+.batch-metadata {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.metadata-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.metadata-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--muted-text);
+  letter-spacing: 0.5px;
+}
+
+.metadata-value {
+  font-size: 1rem;
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+.metadata-value.highlight {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--palette-primary);
+}
+
+.date-range {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Statistics Section */
+.statistics-section {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid var(--border-color);
+}
+
+.statistics-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text-color);
+  margin: 0 0 1rem 0;
+}
+
+.statistics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+/* StatCard styles imported from StatCard.css */
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .batch-metadata-header {
+    padding: 1.5rem;
+  }
+
+  .batch-title {
+    font-size: 1.5rem;
+  }
+
+  .batch-metadata {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .statistics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .subscription-details {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .batch-metadata-header {
+    padding: 1rem;
+  }
+
+  .batch-title {
+    font-size: 1.3rem;
+  }
+
+  .stat-value {
+    font-size: 1.1rem;
+  }
+}

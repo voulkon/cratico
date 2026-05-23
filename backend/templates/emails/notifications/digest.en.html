@@ -1,0 +1,19 @@
+{% extends "emails/base.html" %}
+
+{% block title %}{{ notification_count }} New Notification{{ notification_count|pluralize }} - {{ app_name }}{% endblock %}
+
+{% block content %}
+<h2>{{ notification_count }} New Notification{{ notification_count|pluralize }}</h2>
+
+<p>Hi {{ username }},</p>
+
+<p>You have <strong>{{ notification_count }}</strong> new notification{{ notification_count|pluralize }} from your subscriptions.</p>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ app_url }}/notifications" class="button">View All Notifications</a>
+</div>
+
+<p style="font-size: 14px; color: #6b7280;">
+    You can manage your subscriptions and notification preferences in your account settings.
+</p>
+{% endblock %}

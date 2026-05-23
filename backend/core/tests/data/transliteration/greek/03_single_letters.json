@@ -1,0 +1,150 @@
+{
+  "category": "single_letters",
+  "description": "Test cases for single Latin to Greek letter mappings",
+  "test_cases": [
+    {
+      "id": "letter_a",
+      "input": "A",
+      "expected": "Α",
+      "notes": "Alpha"
+    },
+    {
+      "id": "letter_b",
+      "input": "B",
+      "expected": "Β",
+      "notes": "Beta"
+    },
+    {
+      "id": "letter_g",
+      "input": "G",
+      "expected": "Γ",
+      "notes": "Gamma"
+    },
+    {
+      "id": "letter_d",
+      "input": "D",
+      "expected": "Δ",
+      "notes": "Delta"
+    },
+    {
+      "id": "letter_e",
+      "input": "E",
+      "expected": "Ε",
+      "notes": "Epsilon"
+    },
+    {
+      "id": "letter_z",
+      "input": "Z",
+      "expected": "Ζ",
+      "notes": "Zeta"
+    },
+    {
+      "id": "letter_h",
+      "input": "H",
+      "expected": "Η",
+      "notes": "Eta"
+    },
+    {
+      "id": "letter_i",
+      "input": "I",
+      "expected": "Ι",
+      "notes": "Iota"
+    },
+    {
+      "id": "letter_k",
+      "input": "K",
+      "expected": "Κ",
+      "notes": "Kappa"
+    },
+    {
+      "id": "letter_l",
+      "input": "L",
+      "expected": "Λ",
+      "notes": "Lambda"
+    },
+    {
+      "id": "letter_m",
+      "input": "M",
+      "expected": "Μ",
+      "notes": "Mu"
+    },
+    {
+      "id": "letter_n",
+      "input": "N",
+      "expected": "Ν",
+      "notes": "Nu"
+    },
+    {
+      "id": "letter_x",
+      "input": "X",
+      "expected": "Ξ",
+      "notes": "Xi"
+    },
+    {
+      "id": "letter_o",
+      "input": "O",
+      "expected": "Ο",
+      "notes": "Omicron"
+    },
+    {
+      "id": "letter_p",
+      "input": "P",
+      "expected": "Π",
+      "notes": "Pi"
+    },
+    {
+      "id": "letter_r",
+      "input": "R",
+      "expected": "Ρ",
+      "notes": "Rho"
+    },
+    {
+      "id": "letter_s",
+      "input": "S",
+      "expected": "Σ",
+      "notes": "Sigma"
+    },
+    {
+      "id": "letter_t",
+      "input": "T",
+      "expected": "Τ",
+      "notes": "Tau"
+    },
+    {
+      "id": "letter_u",
+      "input": "U",
+      "expected": "Υ",
+      "notes": "Upsilon"
+    },
+    {
+      "id": "letter_y",
+      "input": "Y",
+      "expected": "Υ",
+      "notes": "Y also maps to Upsilon"
+    },
+    {
+      "id": "letter_f",
+      "input": "F",
+      "expected": "Φ",
+      "notes": "F maps to Phi"
+    },
+    {
+      "id": "letter_w",
+      "input": "W",
+      "expected": "Ω",
+      "notes": "W maps to Omega"
+    },
+    {
+      "id": "lowercase_a",
+      "input": "a",
+      "expected": "α",
+      "notes": "Lowercase alpha"
+    },
+    {
+      "id": "lowercase_b",
+      "input": "b",
+      "expected": "β",
+      "notes": "Lowercase beta"
+    }
+  ]
+}

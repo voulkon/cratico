@@ -1,0 +1,1032 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Daily Decision Analysis{% endblock %}
+
+{% block extrahead %}
+<style>
+    .analysis-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+        margin: 20px 0;
+    }
+    .analysis-card {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 15px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .analysis-card h3 {
+        margin-top: 0;
+        color: #333;
+        border-bottom: 2px solid #007cba;
+        padding-bottom: 5px;
+    }
+    .stat-row {
+        display: flex;
+        justify-content: space-between;
+        margin: 8px 0;
+        padding: 5px 0;
+        border-bottom: 1px solid #eee;
+    }
+    .stat-label {
+        font-weight: bold;
+    }
+    .navigation {
+        margin: 20px 0;
+        text-align: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 15px;
+    }
+    .navigation a {
+        display: inline-block;
+        padding: 8px 15px;
+        margin: 0 5px;
+        background: #007cba;
+        color: white;
+        text-decoration: none;
+        border-radius: 3px;
+    }
+    .navigation a:hover {
+        background: #005a87;
+    }
+    .current-date-container {
+        text-align: center;
+        margin: 0 20px;
+    }
+    .current-date {
+        font-size: 1.2em;
+        font-weight: bold;
+        display: block;
+    }
+    .day-of-week {
+        font-size: 0.9em;
+        color: #666;
+        font-weight: normal;
+    }
+    .weekend-indicator {
+        color: #dc3545;
+        font-weight: bold;
+    }
+    .weekday-indicator {
+        color: #28a745;
+        font-weight: bold;
+    }
+    .fetch-button {
+        padding: 8px 15px;
+        background: #28a745;
+        color: white;
+        border: none;
+        border-radius: 3px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+    .fetch-button:hover {
+        background: #218838;
+    }
+    .fetch-button:disabled {
+        background: #6c757d;
+        cursor: not-allowed;
+    }
+    .quality-score {
+        font-size: 1.2em;
+        font-weight: bold;
+        text-align: center;
+        padding: 10px;
+        border-radius: 5px;
+    }
+    .quality-excellent { background-color: #d4edda; color: #155724; }
+    .quality-good { background-color: #fff3cd; color: #856404; }
+    .quality-poor { background-color: #f8d7da; color: #721c24; }
+    .top-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    .top-list li {
+        padding: 5px 0;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+    }
+    .no-data {
+        text-align: center;
+        color: #666;
+        font-style: italic;
+        padding: 40px;
+    }
+    .weekend-notice {
+        background-color: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 5px;
+        padding: 15px;
+        margin: 15px 0;
+        text-align: center;
+    }
+    .alert {
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 4px;
+        display: none;
+    }
+    .alert-success {
+        background-color: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    .alert-error {
+        background-color: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+    .loading {
+        display: none;
+        text-align: center;
+        padding: 20px;
+        color: #666;
+    }
+
+    /* Decision Details Styles */
+    .decision-list {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        margin-top: 15px;
+    }
+
+    .decision-card {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        transition: box-shadow 0.2s ease;
+    }
+
+    .decision-card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .decision-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 10px;
+        border-bottom: 2px solid #007cba;
+        padding-bottom: 8px;
+    }
+
+    .decision-header h4 {
+        margin: 0;
+        color: #333;
+        flex: 1;
+        margin-right: 10px;
+    }
+
+    .ada-badge {
+        background: #007cba;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.85em;
+        font-weight: bold;
+        white-space: nowrap;
+    }
+
+    .header-badges {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .amount-badge {
+        background: #28a745;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.9em;
+        font-weight: bold;
+        white-space: nowrap;
+    }
+
+    .decision-meta {
+        margin-bottom: 10px;
+    }
+
+    .meta-item {
+        margin: 8px 0;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .meta-item strong {
+        color: #495057;
+        min-width: 100px;
+    }
+
+    .org-name {
+        font-weight: bold;
+        color: #0056b3;
+    }
+
+    .afm {
+        color: #6c757d;
+        font-size: 0.9em;
+    }
+
+    .signer {
+        background: #e9ecef;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 0.9em;
+    }
+
+    .decision-type {
+        background: #d1ecf1;
+        color: #0c5460;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 0.9em;
+    }
+
+    .status {
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 0.9em;
+        font-weight: bold;
+    }
+
+    .status-published { background: #d4edda; color: #155724; }
+    .status-revoked { background: #f8d7da; color: #721c24; }
+    .status-pending_revocation { background: #fff3cd; color: #856404; }
+
+    .financial-year {
+        background: #e2e3e5;
+        color: #383d41;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 0.9em;
+    }
+
+    .amount {
+        font-weight: bold;
+        color: #28a745;
+    }
+
+    .issue-date {
+        font-family: monospace;
+        color: #495057;
+    }
+
+    .private-data-indicator {
+        color: #dc3545;
+        font-size: 0.9em;
+        margin-left: 10px;
+    }
+
+    .content-preview {
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 10px;
+        margin: 10px 0;
+    }
+
+    .preview-text {
+        margin: 5px 0 0 0;
+        color: #495057;
+        font-size: 0.9em;
+        line-height: 1.4;
+    }
+
+    .document-link {
+        margin-top: 10px;
+    }
+
+    .doc-link {
+        display: inline-block;
+        padding: 6px 12px;
+        background: #28a745;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+        font-size: 0.9em;
+    }
+
+    .doc-link:hover {
+        background: #218838;
+    }
+
+    /* Pagination Styles */
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 15px;
+        margin: 20px 0;
+        padding: 15px;
+        background: white;
+        border-radius: 5px;
+    }
+
+    .pagination-btn {
+        display: inline-block;
+        padding: 8px 16px;
+        background: #007cba;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+        font-size: 0.9em;
+    }
+
+    .pagination-btn:hover {
+        background: #005a87;
+    }
+
+    .pagination-btn.disabled {
+        background: #6c757d;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+
+    .pagination-info {
+        font-weight: bold;
+        color: #495057;
+    }
+
+    .page-size-selector {
+        text-align: center;
+        margin-top: 15px;
+    }
+
+    .page-size-selector label {
+        margin-right: 8px;
+        color: #495057;
+    }
+
+    .page-size-selector select {
+        padding: 4px 8px;
+        border: 1px solid #ced4da;
+        border-radius: 3px;
+        background: white;
+    }
+
+    /* Counterparts Styles */
+    .counterparts-section {
+        border-top: 1px solid #eee;
+        padding-top: 10px;
+        margin-top: 10px;
+    }
+    .counterpart-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 5px;
+    }
+    .counterpart-item {
+        background: #f8f9fa;
+        padding: 8px;
+        border-radius: 4px;
+        border-left: 3px solid #007cba;
+    }
+    .cp-role {
+        font-weight: bold;
+        color: #007cba;
+        font-size: 0.85em;
+        text-transform: uppercase;
+    }
+    .cp-name {
+        font-weight: bold;
+        margin-left: 5px;
+    }
+    .cp-companies {
+        margin-top: 5px;
+        padding-left: 15px;
+    }
+    .cp-company {
+        margin-bottom: 5px;
+        font-size: 0.9em;
+    }
+    .company-name {
+        font-weight: bold;
+        color: #333;
+    }
+    .company-gemi {
+        color: #666;
+        font-size: 0.85em;
+        margin-left: 5px;
+    }
+    .company-persons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 3px;
+        padding-left: 10px;
+    }
+    .company-person {
+        background: #e9ecef;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 0.85em;
+        color: #495057;
+    }
+
+    /* Type Badges */
+    .type-badge:hover { background-color: #f0f0f0; }
+    .type-badge.active { background-color: #007bff; color: white; border-color: #0056b3; }
+    .type-badge.active span[style*="background: #eee"] { background: rgba(255,255,255,0.2) !important; color: white; }
+    .type-badge.active span[style*="color: #28a745"] { color: #d4edda !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Daily Decision Analysis - Detailed View</h1>
+
+<!-- Mode Toggle -->
+<div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 15px 0; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+    <div>
+        <strong>📊 Detailed View:</strong> Showing comprehensive analysis (slower loading, more metrics)
+    </div>
+    <a href="?date={{ target_date|date:'Y-m-d' }}&mode=simple" style="display: inline-block; padding: 10px 20px; background: #28a745; color: white; text-decoration: none; border-radius: 4px; font-weight: bold;">
+        ⚡ Switch to Quick View
+    </a>
+</div>
+
+<!-- Help banner -->
+<div style="background: #e7f3ff; border-left: 4px solid #007cba; padding: 12px 15px; margin: 15px 0; border-radius: 4px;">
+    <strong>💡 Quick Guide:</strong>
+    <ul style="margin: 8px 0 0 20px; font-size: 0.9em;">
+        <li><strong>Re-importing old days with bugs?</strong> Just click "Fetch Day" (no Force needed)</li>
+        <li><strong>Import is stuck?</strong> Tick "Force" to override the running job</li>
+        <li><strong>Need today's latest?</strong> Use "Incremental" (ignores date picker)</li>
+    </ul>
+</div>
+
+<!-- Alert messages -->
+<div id="alert-container"></div>
+
+<!-- Loading indicator -->
+<div id="loading" class="loading">
+    <p>Fetching decisions... This may take a few minutes.</p>
+</div>
+
+<div class="navigation">
+    {% if prev_date %}
+        <a href="?date={{ prev_date|date:'Y-m-d' }}&mode=analytical">&larr; {{ prev_date|date:'M d, Y' }}</a>
+    {% endif %}
+
+    <div class="current-date-container">
+        <span class="current-date">{{ target_date|date:'F d, Y' }}</span>
+        {% if analysis.is_weekend %}
+            <span class="day-of-week weekend-indicator">{{ analysis.day_of_week }} (Weekend)</span>
+        {% else %}
+            <span class="day-of-week weekday-indicator">{{ analysis.day_of_week }}</span>
+        {% endif %}
+    </div>
+
+    {% if next_date %}
+        <a href="?date={{ next_date|date:'Y-m-d' }}&mode=analytical">{{ next_date|date:'M d, Y' }} &rarr;</a>
+    {% endif %}
+
+    <!-- Fetch button with options -->
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
+        <button id="fetch-button" class="fetch-button" onclick='fetchDecisions("{{ target_date|date:"Y-m-d" }}")'>
+            🔄 Fetch Day
+        </button>
+        <div style="display: flex; gap: 15px; font-size: 12px;">
+            <label style="cursor: pointer;">
+                <input type="checkbox" id="opt-distributed" checked>
+                <span title="🚀 DISTRIBUTED MODE&#10;&#10;Uses Celery to process decisions in parallel (~30 worker tasks).&#10;&#10;✓ Faster for large batches (~1500 decisions)&#10;✓ Better resource utilization&#10;✓ Non-blocking (runs in background)&#10;&#10;⚠️ Requires Celery workers to be running&#10;⚠️ Results appear after a few minutes&#10;&#10;Default: ON (recommended for daily imports)">🚀 Distributed</span>
+            </label>
+            <label style="cursor: pointer;">
+                <input type="checkbox" id="opt-reconcile" checked>
+                <span title="📊 RECONCILE MODE&#10;&#10;Compares your imported count with official Diavgeia API statistics.&#10;&#10;✓ Validates data completeness&#10;✓ Shows detailed analysis if discrepancy > 5%&#10;✓ Identifies missing or extra decisions&#10;&#10;Displays:&#10;  • Official count vs. your count&#10;  • Percentage difference&#10;  • Top organizations and types&#10;&#10;Default: ON (recommended for quality assurance)">📊 Reconcile</span>
+            </label>
+            <label style="cursor: pointer;">
+                <input type="checkbox" id="opt-force">
+                <span title="⚠️ FORCE MODE&#10;&#10;Override an ALREADY RUNNING import for this date.&#10;&#10;🔍 When to use:&#10;  • An import is stuck in PENDING/FETCHING/PROCESSING&#10;  • You deployed a bug fix and want to restart mid-import&#10;  • You need to cancel and re-run an active job&#10;&#10;🎯 For RE-IMPORTING COMPLETED days:&#10;  ✓ Just click 'Fetch Day' - NO force needed!&#10;  ✓ System allows re-import of COMPLETED/FAILED jobs automatically&#10;  ✓ Use this for days imported with old buggy code&#10;&#10;⚠️ WARNING:&#10;  • Creates duplicate jobs if import is running&#10;  • May waste resources on parallel imports&#10;&#10;Default: OFF (rarely needed)">⚠️ Force</span>
+            </label>
+            <label style="cursor: pointer;">
+                <input type="checkbox" id="opt-incremental">
+                <span title="⚡ INCREMENTAL MODE&#10;&#10;Syncs only NEW decisions published since your last import (timestamp-based).&#10;&#10;🔍 When to use:&#10;  • Catching up on today's new publications&#10;  • Running multiple imports per day&#10;  • Quick updates for ongoing monitoring&#10;&#10;❌ NOT for re-importing historical days:&#10;  • Ignores the date picker completely&#10;  • Uses last sync timestamp, not selected date&#10;  • Won't fix bugs in old imports&#10;&#10;✓ Much faster than full day import&#10;✓ Automatically finds decisions after last sync&#10;&#10;⚠️ NOTE:&#10;  • Cannot be combined with Distributed/Reconcile&#10;  • Only fetches decisions with uploadDate > last import&#10;&#10;Default: OFF (for ongoing monitoring only)">⚡ Incremental</span>
+            </label>
+        </div>
+    </div>
+</div>
+
+{% if analysis.is_weekend and not analysis.has_data %}
+<div class="weekend-notice">
+    <strong>📅 Weekend Notice:</strong> This is a {{ analysis.day_of_week }}. Government offices typically don't publish decisions on weekends, so low or zero counts are expected.
+</div>
+{% endif %}
+
+{% if not analysis.has_data %}
+<div class="no-data">
+    <h2>No decisions found for {{ target_date|date:'F d, Y' }} ({{ analysis.day_of_week }})</h2>
+    {% if analysis.is_weekend %}
+        <p>This is expected for weekends when government offices are typically closed.</p>
+    {% else %}
+        <p>This might indicate missing data or a public holiday.</p>
+    {% endif %}
+    <p>Click the "Fetch Day" button above to import decisions from the official API.</p>
+</div>
+{% else %}
+
+<div class="analysis-grid">
+    <!-- Overview Card -->
+    <div class="analysis-card">
+        <h3>Overview</h3>
+        <div class="stat-row">
+            <span class="stat-label">Date:</span>
+            <span>{{ target_date|date:'F d, Y' }}</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Day of Week:</span>
+            <span>
+                {% if analysis.is_weekend %}
+                    <span class="weekend-indicator">{{ analysis.day_of_week }} (Weekend)</span>
+                {% else %}
+                    <span class="weekday-indicator">{{ analysis.day_of_week }}</span>
+                {% endif %}
+            </span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Total Decisions:</span>
+            <span>{{ analysis.total_count }}</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Unique Organizations:</span>
+            <span>{{ analysis.by_organization|length }}</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Unique Decision Types:</span>
+            <span>{{ analysis.by_type|length }}</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Content Coverage:</span>
+            <span>{{ analysis.content_stats.subject_coverage }}%</span>
+        </div>
+    </div>
+
+    <!-- Quality Indicators -->
+    <div class="analysis-card">
+        <h3>Data Quality</h3>
+        <div class="quality-score {% if analysis.quality_indicators.completeness_score >= 80 %}quality-excellent{% elif analysis.quality_indicators.completeness_score >= 60 %}quality-good{% else %}quality-poor{% endif %}">
+            {{ analysis.quality_indicators.completeness_score }}% Complete
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Missing Subjects:</span>
+            <span>{{ analysis.quality_indicators.missing_subject_count }}</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Missing Organizations:</span>
+            <span>{{ analysis.quality_indicators.missing_organization_count }}</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">No Signers:</span>
+            <span>{{ analysis.quality_indicators.no_signers_count }}</span>
+        </div>
+    </div>
+
+    <!-- Top Organizations -->
+    <div class="analysis-card">
+        <h3>Top Organizations</h3>
+        {% if analysis.top_organizations %}
+            <ul class="top-list">
+                {% for org in analysis.top_organizations|slice:":5" %}
+                <li>
+                    <span>{{ org.organization__label|default:"Unknown" }}</span>
+                    <span><strong>{{ org.count }}</strong></span>
+                </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No organization data available</p>
+        {% endif %}
+    </div>
+
+    <!-- Top Decision Types -->
+    <div class="analysis-card">
+        <h3>Top Decision Types</h3>
+        {% if analysis.top_types %}
+            <ul class="top-list">
+                {% for type in analysis.top_types|slice:":5" %}
+                <li>
+                    <span>{{ type.decision_type__label|default:"Unknown" }}</span>
+                    <span><strong>{{ type.count }}</strong></span>
+                </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No type data available</p>
+        {% endif %}
+    </div>
+
+    <!-- Financial Summary -->
+    <div class="analysis-card">
+        <h3>💰 Financial Summary</h3>
+        <div class="stat-row" style="border-bottom: 2px solid #eee; margin-bottom: 10px;">
+            <span class="stat-label">Total Amount:</span>
+            <span class="amount" style="font-size: 1.2em;">€{{ analysis.financial_summary.total_amount|floatformat:2 }}</span>
+        </div>
+
+        {% if analysis.financial_summary.by_sponsor %}
+            <h4 style="margin: 10px 0 5px 0; font-size: 0.9em; color: #666;">Top Sponsors</h4>
+            <ul class="top-list">
+                {% for item in analysis.financial_summary.by_sponsor %}
+                <li>
+                    <span title="{{ item.entity__afm }}">{{ item.entity__name|default:item.entity__afm|truncatechars:30 }}</span>
+                    <span class="amount">€{{ item.total_amount|floatformat:0 }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+
+        {% if analysis.financial_summary.by_organization %}
+            <h4 style="margin: 15px 0 5px 0; font-size: 0.9em; color: #666;">Top Organizations</h4>
+            <ul class="top-list">
+                {% for item in analysis.financial_summary.by_organization %}
+                <li>
+                    <span>{{ item.organization__label|truncatechars:30 }}</span>
+                    <span class="amount">€{{ item.total_amount|floatformat:0 }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+
+        {% if analysis.financial_summary.by_signer %}
+            <h4 style="margin: 15px 0 5px 0; font-size: 0.9em; color: #666;">Top Signers</h4>
+            <ul class="top-list">
+                {% for item in analysis.financial_summary.by_signer %}
+                <li>
+                    <span>{{ item.signers__first_name }} {{ item.signers__last_name }}</span>
+                    <span class="amount">€{{ item.total_amount|floatformat:0 }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    </div>
+
+    <!-- Document Analysis -->
+    <div class="analysis-card">
+        <h3>Document Processing</h3>
+        <div class="stat-row">
+            <span class="stat-label">With Documents:</span>
+            <span>{{ analysis.document_stats.total_with_docs }}</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Extracted:</span>
+            <span>{{ analysis.document_stats.extracted }}</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Extraction Rate:</span>
+            <span>{{ analysis.document_stats.extraction_rate }}%</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Pending:</span>
+            <span>{{ analysis.document_stats.pending }}</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Failed:</span>
+            <span>{{ analysis.document_stats.failed }}</span>
+        </div>
+    </div>
+
+    <!-- Timing Analysis -->
+    <div class="analysis-card">
+        <h3>Timing Analysis</h3>
+        <div class="stat-row">
+            <span class="stat-label">Earliest Decision:</span>
+            <span>{{ analysis.timing_stats.earliest_time|date:'H:i' }}</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Latest Decision:</span>
+            <span>{{ analysis.timing_stats.latest_time|date:'H:i' }}</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Average Hour:</span>
+            <span>{{ analysis.timing_stats.avg_hour|floatformat:1 }}:00</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Time Span:</span>
+            <span>{{ analysis.timing_stats.time_span_hours|floatformat:1 }} hours</span>
+        </div>
+    </div>
+</div>
+
+<!-- Decision Types Mixture -->
+<div class="analysis-card" style="margin-top: 20px;">
+    <h3>Decision Types Mixture</h3>
+    <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+        <a href="?date={{ target_date|date:'Y-m-d' }}&mode=analytical"
+           class="type-badge {% if not current_decision_type_uid %}active{% endif %}"
+           style="text-decoration: none; padding: 8px 12px; border-radius: 20px; border: 1px solid #ddd; color: #333; display: flex; align-items: center; gap: 8px;">
+            <span>All Types</span>
+            <span style="background: #eee; padding: 2px 6px; border-radius: 10px; font-size: 0.8em;">{{ analysis.total_count }}</span>
+        </a>
+
+        {% for type in analysis.by_type %}
+        <a href="?date={{ target_date|date:'Y-m-d' }}&mode=analytical&decision_type_uid={{ type.decision_type__uid }}"
+           class="type-badge {% if current_decision_type_uid == type.decision_type__uid %}active{% endif %}"
+           style="text-decoration: none; padding: 8px 12px; border-radius: 20px; border: 1px solid #ddd; color: #333; display: flex; align-items: center; gap: 8px;">
+            <span>{{ type.decision_type__label|default:"Unknown" }}</span>
+            <span style="background: #eee; padding: 2px 6px; border-radius: 10px; font-size: 0.8em;">{{ type.count }}</span>
+            {% if type.total_amount %}
+            <span style="color: #28a745; font-size: 0.8em;">€{{ type.total_amount|floatformat:0 }}</span>
+            {% endif %}
+        </a>
+        {% endfor %}
+    </div>
+</div>
+
+{% if analysis.is_weekend %}
+<div class="weekend-notice">
+    <strong>📅 Weekend Activity:</strong> Found {{ analysis.total_count }} decisions on {{ analysis.day_of_week }}. This is unusual for weekend days.
+</div>
+{% endif %}
+
+<!-- Decision Details Section -->
+{% if decision_details.decisions %}
+<div class="analysis-card" style="grid-column: 1 / -1;">
+    <h3>
+        📋 Decision Details ({{ decision_details.offset|add:1 }} - {{ decision_details.offset|add:decision_details.decisions|length }} of {{ decision_details.total_count }})
+        {% if current_decision_type_uid %}
+            <span style="font-size: 0.7em; font-weight: normal; color: #666; margin-left: 10px;">
+                (Filtered by Type)
+            </span>
+        {% endif %}
+    </h3>
+
+    <div class="decision-list">
+        {% for decision in decision_details.decisions %}
+        <div class="decision-card">
+            <div class="decision-header">
+                <h4>{{ decision.subject|truncatechars:100 }}</h4>
+                <div class="header-badges">
+                    {% if decision.amount %}
+                    <span class="amount-badge">€{{ decision.amount|floatformat:2 }}</span>
+                    {% endif %}
+                    <span class="ada-badge">{{ decision.ada }}</span>
+                </div>
+            </div>
+
+            <div class="decision-meta">
+                {% if decision.organization %}
+                <div class="meta-item">
+                    <strong>Organization:</strong>
+                    <span class="org-name">{{ decision.organization.label }}</span>
+                    {% if decision.organization.vat_number %}
+                    <span class="afm">(VAT: {{ decision.organization.vat_number }})</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {% if decision.signers %}
+                <div class="meta-item">
+                    <strong>Signers:</strong>
+                    {% for signer in decision.signers %}
+                        <span class="signer">{{ signer.first_name }} {{ signer.last_name }}</span>
+                        {% if not forloop.last %}, {% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if decision.counterparts %}
+                <div class="meta-item counterparts-section">
+                    <strong>Counterparts:</strong>
+                    <div class="counterpart-list">
+                        {% for cp in decision.counterparts %}
+                        <div class="counterpart-item">
+                            <span class="cp-role">[{{ cp.role }}]</span>
+                            <span class="cp-name">{{ cp.name|default:cp.afm }}</span>
+
+                            {% if cp.companies %}
+                            <div class="cp-companies">
+                                {% for company in cp.companies %}
+                                <div class="cp-company">
+                                    <span class="company-name">🏢 {{ company.name }}</span>
+                                    <span class="company-gemi">(GEMI: {{ company.gemi }})</span>
+
+                                    {% if company.persons %}
+                                    <div class="company-persons">
+                                        {% for person in company.persons %}
+                                        <span class="company-person">👤 {{ person.name }} ({{ person.role }})</span>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="meta-item">
+                    <strong>Type:</strong> <span class="decision-type">{{ decision.decision_type|default:"Unknown" }}</span>
+                    <strong>Status:</strong> <span class="status status-{{ decision.status|lower }}">{{ decision.status }}</span>
+                </div>
+
+                {% if decision.financial_year or decision.amount %}
+                <div class="meta-item">
+                    {% if decision.financial_year %}
+                    <strong>Financial Year:</strong> <span class="financial-year">{{ decision.financial_year }}</span>
+                    {% endif %}
+                    {% if decision.amount %}
+                    <strong>Amount:</strong> <span class="amount">€{{ decision.amount|floatformat:2 }}</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <div class="meta-item">
+                    <strong>Issue Date:</strong> <span class="issue-date">{{ decision.issue_date|date:"Y-m-d H:i" }}</span>
+                    {% if decision.has_private_data %}
+                    <span class="private-data-indicator">🔒 Contains Private Data</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="content-preview">
+                <strong>Document Content:</strong>
+                {% if decision.full_text %}
+                    <div class="preview-text" style="white-space: pre-wrap; max-height: 300px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 0.9em; margin-top: 5px;">{{ decision.full_text }}</div>
+                {% elif decision.content_preview %}
+                    <p class="preview-text">{{ decision.content_preview }}</p>
+                {% else %}
+                    <p class="text-muted" style="font-style: italic; color: #999;">No content extracted yet.</p>
+                {% endif %}
+            </div>
+
+            {% if decision.document_url %}
+            <div class="document-link">
+                <a href="{{ decision.document_url }}" target="_blank" class="doc-link">📄 View Document</a>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if decision_details.has_previous or decision_details.has_next %}
+    <div class="pagination">
+        {% if decision_details.has_previous %}
+        <a href="?date={{ target_date|date:'Y-m-d' }}&mode=analytical&offset={{ decision_details.previous_offset }}&limit={{ current_limit }}{% if current_decision_type_uid %}&decision_type_uid={{ current_decision_type_uid }}{% endif %}" class="pagination-btn prev-btn">← Previous</a>
+        {% else %}
+        <span class="pagination-btn disabled">← Previous</span>
+        {% endif %}
+
+        <span class="pagination-info">
+            Showing {{ decision_details.offset|add:1 }} - {{ decision_details.offset|add:decision_details.decisions|length }} of {{ decision_details.total_count }}
+        </span>
+
+        {% if decision_details.has_next %}
+        <a href="?date={{ target_date|date:'Y-m-d' }}&mode=analytical&offset={{ decision_details.next_offset }}&limit={{ current_limit }}{% if current_decision_type_uid %}&decision_type_uid={{ current_decision_type_uid }}{% endif %}" class="pagination-btn next-btn">Next →</a>
+        {% else %}
+        <span class="pagination-btn disabled">Next →</span>
+        {% endif %}
+    </div>
+
+    <!-- Page size selector -->
+    <div class="page-size-selector">
+        <label for="page-size">Decisions per page:</label>
+        <select id="page-size" onchange="changePageSize(this.value)">
+            <option value="10" {% if current_limit == 10 %}selected{% endif %}>10</option>
+            <option value="25" {% if current_limit == 25 %}selected{% endif %}>25</option>
+            <option value="50" {% if current_limit == 50 %}selected{% endif %}>50</option>
+            <option value="100" {% if current_limit == 100 %}selected{% endif %}>100</option>
+        </select>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+{% endif %}
+
+<script>
+function showAlert(message, type = 'success') {
+    const container = document.getElementById('alert-container');
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type}`;
+    alert.style.display = 'block';
+    alert.textContent = message;
+
+    container.innerHTML = '';
+    container.appendChild(alert);
+
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        alert.style.display = 'none';
+    }, 5000);
+}
+
+function fetchDecisions(date) {
+    const button = document.getElementById('fetch-button');
+    const loading = document.getElementById('loading');
+
+    // Get checkbox values
+    const distributed = document.getElementById('opt-distributed').checked;
+    const reconcile = document.getElementById('opt-reconcile').checked;
+    const force = document.getElementById('opt-force').checked;
+    const incremental = document.getElementById('opt-incremental').checked;
+
+    // Disable button and show loading
+    button.disabled = true;
+    button.textContent = incremental ? 'Syncing...' : (distributed ? 'Dispatching...' : 'Fetching...');
+    loading.style.display = 'block';
+
+    // Get CSRF token
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+                     document.querySelector('meta[name=csrf-token]')?.getAttribute('content') ||
+                     '{{ csrf_token }}';
+
+    // Build request body
+    const params = new URLSearchParams({
+        date: date,
+        distributed: distributed,
+        reconcile: reconcile,
+        force: force,
+        incremental: incremental,
+        csrfmiddlewaretoken: csrfToken
+    });
+
+    fetch('/api/admin/decisions/fetch-daily/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': csrfToken,
+        },
+        body: params.toString()
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            let message = data.message;
+
+            // Add log file info if available
+            if (data.log_file) {
+                message += `\n\nLogs: ${data.log_file}`;
+            }
+
+            // Add task ID for distributed mode
+            if (data.task_id) {
+                message += `\n\nMonitor with: python manage.py monitor_distributed_import --status`;
+            }
+
+            // Show command output in console
+            if (data.command_output) {
+                console.log('=== Import Command Output ===');
+                console.log(data.command_output);
+            }
+
+            showAlert(message, 'success');
+
+            // Only reload if not distributed (distributed is async)
+            if (!data.task_id) {
+                setTimeout(() => {
+                    window.location.reload();
+                }, 3000);
+            } else {
+                // For distributed, show message and don't reload immediately
+                showAlert('Distributed import running in background. Refresh page in a few minutes.', 'info');
+            }
+        } else {
+            showAlert(data.error || 'An error occurred', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Network error occurred. Please try again.', 'error');
+    })
+    .finally(() => {
+        // Re-enable button and hide loading
+        button.disabled = false;
+        button.textContent = '🔄 Fetch Day';
+        loading.style.display = 'none';
+    });
+}
+
+// Add CSRF token to page if not already present
+if (!document.querySelector('meta[name=csrf-token]')) {
+    const meta = document.createElement('meta');
+    meta.name = 'csrf-token';
+    meta.content = '{{ csrf_token }}';
+    document.head.appendChild(meta);
+}
+
+// Function to change page size
+function changePageSize(newLimit) {
+    const urlParams = new URLSearchParams(window.location.search);
+    urlParams.set('limit', newLimit);
+    urlParams.set('offset', 0);
+    window.location.search = urlParams.toString();
+}
+</script>
+
+{% endblock %}

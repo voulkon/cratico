@@ -1,0 +1,778 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    .storage-dashboard {
+        padding: 20px;
+        max-width: 1600px;
+    }
+
+    /* Header Section */
+    .dashboard-header {
+        margin-bottom: 30px;
+    }
+
+    .dashboard-header h1 {
+        margin: 0 0 10px 0;
+        color: var(--body-fg);
+    }
+
+    .dashboard-header p {
+        color: var(--body-quiet-color);
+        margin: 0;
+    }
+
+    /* Main Database Size Card - Prominent */
+    .main-size-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 40px;
+        border-radius: 8px;
+        margin-bottom: 30px;
+        text-align: center;
+        color: white;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .main-size-label {
+        font-size: 1.2em;
+        opacity: 0.9;
+        margin-bottom: 15px;
+    }
+
+    .main-size-value {
+        font-size: 4em;
+        font-weight: bold;
+        margin-bottom: 10px;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .main-size-subtext {
+        font-size: 1.1em;
+        opacity: 0.8;
+    }
+
+    /* Expandable Section */
+    .expandable-section {
+        background: var(--body-bg);
+        padding: 20px;
+        border-radius: 4px;
+        border: 1px solid var(--hairline-color);
+        margin-bottom: 20px;
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        padding: 10px;
+        border-radius: 4px;
+        transition: background 0.2s;
+    }
+
+    .section-header:hover {
+        background: var(--darkened-bg);
+    }
+
+    .section-title {
+        font-size: 1.3em;
+        font-weight: 600;
+        color: var(--body-fg);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .section-icon {
+        font-size: 1.2em;
+    }
+
+    .load-button {
+        padding: 8px 16px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9em;
+        transition: all 0.2s;
+    }
+
+    .load-button:hover {
+        background: var(--primary-hover);
+        transform: translateY(-1px);
+    }
+
+    .load-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .section-content {
+        margin-top: 20px;
+        display: none;
+    }
+
+    .section-content.loaded {
+        display: block;
+    }
+
+    /* Loading Spinner */
+    .loading-spinner {
+        text-align: center;
+        padding: 40px;
+        color: var(--body-quiet-color);
+    }
+
+    .spinner {
+        display: inline-block;
+        width: 40px;
+        height: 40px;
+        border: 4px solid rgba(0,0,0,0.1);
+        border-top: 4px solid var(--primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 15px;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Data Table Styles */
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+        background: var(--body-bg);
+    }
+
+    .data-table thead {
+        background: var(--darkened-bg);
+        border-bottom: 2px solid var(--hairline-color);
+    }
+
+    .data-table th {
+        padding: 12px 15px;
+        text-align: left;
+        font-weight: 600;
+        color: var(--body-fg);
+        font-size: 0.9em;
+        text-transform: uppercase;
+    }
+
+    .data-table td {
+        padding: 12px 15px;
+        border-bottom: 1px solid var(--hairline-color);
+        color: var(--body-fg);
+    }
+
+    .data-table tr:hover {
+        background: var(--darkened-bg);
+    }
+
+    .data-table .numeric {
+        text-align: right;
+        font-family: 'Monaco', 'Courier New', monospace;
+    }
+
+    .data-table .table-name {
+        font-weight: 600;
+        color: var(--link-fg);
+    }
+
+    /* Badges */
+    .badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 3px;
+        font-size: 0.85em;
+        font-weight: bold;
+    }
+
+    .badge.success {
+        background: #e8f5e9;
+        color: #2e7d32;
+    }
+
+    .badge.warning {
+        background: #fff3e0;
+        color: #e65100;
+    }
+
+    .badge.danger {
+        background: #ffebee;
+        color: #c62828;
+    }
+
+    .badge.info {
+        background: #e3f2fd;
+        color: #1565c0;
+    }
+
+    /* Progress Bars */
+    .progress-bar-mini {
+        width: 60px;
+        height: 8px;
+        background: var(--darkened-bg);
+        border-radius: 4px;
+        overflow: hidden;
+        display: inline-block;
+        vertical-align: middle;
+        margin-left: 5px;
+    }
+
+    .progress-bar-mini-fill {
+        height: 100%;
+        background: #4CAF50;
+    }
+
+    .progress-bar-mini-fill.warning {
+        background: #ff9800;
+    }
+
+    .progress-bar-mini-fill.danger {
+        background: #f44336;
+    }
+
+    /* Status Messages */
+    .status-message {
+        padding: 12px 20px;
+        border-radius: 4px;
+        margin: 15px 0;
+        display: none;
+    }
+
+    .status-message.active {
+        display: block;
+    }
+
+    .status-message.error {
+        background: #ffebee;
+        border-left: 4px solid #f44336;
+        color: #c62828;
+    }
+
+    .status-message.success {
+        background: #e8f5e9;
+        border-left: 4px solid #4CAF50;
+        color: #2e7d32;
+    }
+
+    /* Refresh Button */
+    .refresh-button {
+        padding: 10px 20px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 1em;
+        float: right;
+    }
+
+    .refresh-button:hover {
+        background: var(--primary-hover);
+    }
+
+    /* Extended Stats Cards */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-top: 20px;
+    }
+
+    .stat-card {
+        background: var(--darkened-bg);
+        padding: 15px;
+        border-radius: 4px;
+        border: 1px solid var(--hairline-color);
+    }
+
+    .stat-label {
+        font-size: 0.85em;
+        color: var(--body-quiet-color);
+        margin-bottom: 5px;
+    }
+
+    .stat-value {
+        font-size: 1.5em;
+        font-weight: bold;
+        color: var(--body-fg);
+    }
+
+    .stat-subtext {
+        font-size: 0.8em;
+        color: var(--body-quiet-color);
+        margin-top: 5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="storage-dashboard">
+    <div class="dashboard-header">
+        <h1>Database Storage Dashboard</h1>
+        <p>Fast, progressive loading of database statistics</p>
+        <button class="refresh-button" onclick="window.location.reload()">Refresh</button>
+    </div>
+
+    <!-- Main Database Size - Always Visible -->
+    <div class="main-size-card">
+        <div class="main-size-label">Total Database Size</div>
+        <div class="main-size-value">{{ db_stats.size_gb }} GB</div>
+        <div class="main-size-subtext">{{ db_stats.database_name }} • {{ db_stats.total_size }}</div>
+    </div>
+
+    <!-- Extended Database Stats - Click to Load -->
+    <div class="expandable-section">
+        <div class="section-header" onclick="toggleSection('extended-stats')">
+            <div class="section-title">
+                Extended Database Statistics
+            </div>
+            <button id="extended-stats-btn" class="load-button" onclick="loadExtendedStats(event)">
+                Load Details
+            </button>
+        </div>
+        <div id="extended-stats-content" class="section-content"></div>
+    </div>
+
+    <!-- Table Statistics - Click to Load -->
+    <div class="expandable-section">
+        <div class="section-header" onclick="toggleSection('table-stats')">
+            <div class="section-title">
+                Table Storage Statistics
+            </div>
+            <button id="table-stats-btn" class="load-button" onclick="loadTableStats(event)">
+                Load Tables
+            </button>
+        </div>
+        <div id="table-stats-content" class="section-content"></div>
+    </div>
+
+    <!-- Index Statistics - Click to Load -->
+    <div class="expandable-section">
+        <div class="section-header" onclick="toggleSection('index-stats')">
+            <div class="section-title">
+                Index Statistics
+            </div>
+            <button id="index-stats-btn" class="load-button" onclick="loadIndexStats(event)">
+                Load Indexes
+            </button>
+        </div>
+        <div id="index-stats-content" class="section-content"></div>
+    </div>
+
+    <!-- Column Statistics - Click to Load -->
+    <div class="expandable-section">
+        <div class="section-header" onclick="toggleSection('column-stats')">
+            <div class="section-title">
+                Column Storage Analysis
+            </div>
+            <button id="column-stats-btn" class="load-button" onclick="loadColumnStats(event)">
+                Load Columns
+            </button>
+        </div>
+        <div id="column-stats-content" class="section-content"></div>
+    </div>
+
+    <!-- Bloat Estimates - Click to Load -->
+    <div class="expandable-section">
+        <div class="section-header" onclick="toggleSection('bloat-stats')">
+            <div class="section-title">
+                Table Bloat Estimates
+            </div>
+            <button id="bloat-stats-btn" class="load-button" onclick="loadBloatStats(event)">
+                Load Bloat Info
+            </button>
+        </div>
+        <div id="bloat-stats-content" class="section-content"></div>
+    </div>
+</div>
+
+<script>
+// Track what's been loaded
+const loadedSections = new Set();
+
+// CSRF token helper
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+const csrftoken = getCookie('csrftoken');
+
+// Toggle section visibility
+function toggleSection(sectionId) {
+    const content = document.getElementById(sectionId + '-content');
+    if (loadedSections.has(sectionId)) {
+        content.classList.toggle('loaded');
+    }
+}
+
+// Show loading state
+function showLoading(contentId) {
+    const content = document.getElementById(contentId);
+    content.innerHTML = `
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>Loading data...</p>
+        </div>
+    `;
+    content.classList.add('loaded');
+}
+
+// Show error
+function showError(contentId, message) {
+    const content = document.getElementById(contentId);
+    content.innerHTML = `
+        <div class="status-message error active">
+            Error loading data: ${message}
+        </div>
+    `;
+}
+
+// Load extended database stats
+async function loadExtendedStats(event) {
+    event.stopPropagation();
+
+    if (loadedSections.has('extended-stats')) {
+        toggleSection('extended-stats');
+        return;
+    }
+
+    const btn = document.getElementById('extended-stats-btn');
+    btn.disabled = true;
+    btn.textContent = 'Loading...';
+
+    showLoading('extended-stats-content');
+
+    try {
+        const response = await fetch('/api/admin/db-storage/extended-stats/');
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            const data = result.data;
+            document.getElementById('extended-stats-content').innerHTML = `
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Total Tables</div>
+                        <div class="stat-value">${data.table_count}</div>
+                        <div class="stat-subtext">in public schema</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Total Indexes</div>
+                        <div class="stat-value">${data.index_count}</div>
+                        <div class="stat-subtext">${data.total_index_size}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Total Rows</div>
+                        <div class="stat-value">${data.total_rows.toLocaleString()}</div>
+                        <div class="stat-subtext">live rows</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Dead Rows</div>
+                        <div class="stat-value">${data.dead_rows.toLocaleString()}</div>
+                        <div class="stat-subtext">${data.dead_rows > 10000 ? 'Consider VACUUM' : 'Healthy'}</div>
+                    </div>
+                </div>
+            `;
+            loadedSections.add('extended-stats');
+            btn.textContent = 'Loaded ✓';
+        } else {
+            showError('extended-stats-content', result.message);
+            btn.disabled = false;
+            btn.textContent = 'Retry';
+        }
+    } catch (error) {
+        showError('extended-stats-content', error.message);
+        btn.disabled = false;
+        btn.textContent = 'Retry';
+    }
+}
+
+// Load table stats
+async function loadTableStats(event) {
+    event.stopPropagation();
+
+    if (loadedSections.has('table-stats')) {
+        toggleSection('table-stats');
+        return;
+    }
+
+    const btn = document.getElementById('table-stats-btn');
+    btn.disabled = true;
+    btn.textContent = 'Loading...';
+
+    showLoading('table-stats-content');
+
+    try {
+        const response = await fetch('/api/admin/db-storage/tables/');
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            const tables = result.data;
+            let html = `
+                <p style="color: var(--body-quiet-color); margin-bottom: 15px;">
+                    Showing top 50 tables by size. "Total Size" includes table data, TOAST storage, and all indexes.
+                </p>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Table</th>
+                            <th class="numeric">Total Size</th>
+                            <th class="numeric">Table Data</th>
+                            <th class="numeric">External</th>
+                            <th class="numeric">Row Count</th>
+                            <th class="numeric">Dead Rows</th>
+                            <th class="numeric">Bloat %</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            tables.forEach(table => {
+                const bloatBadge = table.dead_ratio > 10 ? 'danger' : table.dead_ratio > 5 ? 'warning' : 'info';
+                html += `
+                    <tr>
+                        <td class="table-name">${table.name}</td>
+                        <td class="numeric"><strong>${table.total_size}</strong></td>
+                        <td class="numeric">${table.table_size}</td>
+                        <td class="numeric">${table.external_size}</td>
+                        <td class="numeric">${table.row_count.toLocaleString()}</td>
+                        <td class="numeric">${table.dead_rows > 0 ? table.dead_rows.toLocaleString() : '-'}</td>
+                        <td class="numeric">
+                            ${table.dead_ratio > 0 ? `<span class="badge ${bloatBadge}">${table.dead_ratio}%</span>` : '-'}
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            document.getElementById('table-stats-content').innerHTML = html;
+            loadedSections.add('table-stats');
+            btn.textContent = 'Loaded ✓';
+        } else {
+            showError('table-stats-content', result.message);
+            btn.disabled = false;
+            btn.textContent = 'Retry';
+        }
+    } catch (error) {
+        showError('table-stats-content', error.message);
+        btn.disabled = false;
+        btn.textContent = 'Retry';
+    }
+}
+
+// Load index stats
+async function loadIndexStats(event) {
+    event.stopPropagation();
+
+    if (loadedSections.has('index-stats')) {
+        toggleSection('index-stats');
+        return;
+    }
+
+    const btn = document.getElementById('index-stats-btn');
+    btn.disabled = true;
+    btn.textContent = 'Loading...';
+
+    showLoading('index-stats-content');
+
+    try {
+        const response = await fetch('/api/admin/db-storage/indexes/');
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            const indexes = result.data;
+            let html = `
+                <p style="color: var(--body-quiet-color); margin-bottom: 15px;">
+                    Showing top 50 indexes by size. "Scans" indicates how often the index is used.
+                </p>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Index Name</th>
+                            <th>Table</th>
+                            <th class="numeric">Size</th>
+                            <th class="numeric">Scans</th>
+                            <th class="numeric">Tuples Read</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            indexes.forEach(index => {
+                html += `
+                    <tr>
+                        <td>${index.name}</td>
+                        <td class="table-name">${index.table}</td>
+                        <td class="numeric">${index.size}</td>
+                        <td class="numeric">${index.scans.toLocaleString()}</td>
+                        <td class="numeric">${index.tuples_read.toLocaleString()}</td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            document.getElementById('index-stats-content').innerHTML = html;
+            loadedSections.add('index-stats');
+            btn.textContent = 'Loaded ✓';
+        } else {
+            showError('index-stats-content', result.message);
+            btn.disabled = false;
+            btn.textContent = 'Retry';
+        }
+    } catch (error) {
+        showError('index-stats-content', error.message);
+        btn.disabled = false;
+        btn.textContent = 'Retry';
+    }
+}
+
+// Load column stats
+async function loadColumnStats(event) {
+    event.stopPropagation();
+
+    if (loadedSections.has('column-stats')) {
+        toggleSection('column-stats');
+        return;
+    }
+
+    const btn = document.getElementById('column-stats-btn');
+    btn.disabled = true;
+    btn.textContent = 'Loading...';
+
+    showLoading('column-stats-content');
+
+    try {
+        const response = await fetch('/api/admin/db-storage/columns/');
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            const columnData = result.data;
+            let html = '<p style="color: var(--body-quiet-color); margin-bottom: 15px;">Detailed column storage analysis for key tables with large columns.</p>';
+
+            for (const [tableName, columns] of Object.entries(columnData)) {
+                html += `
+                    <h3 style="margin: 20px 0 10px 0; color: var(--body-fg);">${tableName}</h3>
+                    <div class="stats-grid">
+                `;
+
+                columns.forEach(col => {
+                    if (col.size_estimate) {
+                        html += `
+                            <div class="stat-card">
+                                <div class="stat-label">${col.name}</div>
+                                <div class="stat-value">${col.size_estimate.estimated_mb} MB</div>
+                                <div class="stat-subtext">
+                                    Avg: ${col.size_estimate.avg_length} bytes<br>
+                                    Max: ${col.size_estimate.max_length} bytes
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+
+                html += '</div>';
+            }
+
+            document.getElementById('column-stats-content').innerHTML = html;
+            loadedSections.add('column-stats');
+            btn.textContent = 'Loaded ✓';
+        } else {
+            showError('column-stats-content', result.message);
+            btn.disabled = false;
+            btn.textContent = 'Retry';
+        }
+    } catch (error) {
+        showError('column-stats-content', error.message);
+        btn.disabled = false;
+        btn.textContent = 'Retry';
+    }
+}
+
+// Load bloat stats
+async function loadBloatStats(event) {
+    event.stopPropagation();
+
+    if (loadedSections.has('bloat-stats')) {
+        toggleSection('bloat-stats');
+        return;
+    }
+
+    const btn = document.getElementById('bloat-stats-btn');
+    btn.disabled = true;
+    btn.textContent = 'Loading...';
+
+    showLoading('bloat-stats-content');
+
+    try {
+        const response = await fetch('/api/admin/db-storage/bloat/');
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            const bloatData = result.data;
+            let html = `
+                <p style="color: var(--body-quiet-color); margin-bottom: 15px;">
+                    Tables with highest bloat estimates. Consider VACUUM to reclaim space.
+                </p>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Table</th>
+                            <th class="numeric">Total Size</th>
+                            <th class="numeric">Bloat %</th>
+                            <th class="numeric">Estimated Bloat Size</th>
+                            <th>Last Vacuum</th>
+                            <th>Last Autovacuum</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            bloatData.tables.forEach(table => {
+                const bloatBadge = table.bloat_pct > 10 ? 'danger' : table.bloat_pct > 5 ? 'warning' : 'info';
+                html += `
+                    <tr>
+                        <td class="table-name">${table.table}</td>
+                        <td class="numeric">${table.total_size}</td>
+                        <td class="numeric"><span class="badge ${bloatBadge}">${table.bloat_pct}%</span></td>
+                        <td class="numeric">${table.estimated_bloat}</td>
+                        <td>${table.last_vacuum || 'Never'}</td>
+                        <td>${table.last_autovacuum || 'Never'}</td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            document.getElementById('bloat-stats-content').innerHTML = html;
+            loadedSections.add('bloat-stats');
+            btn.textContent = 'Loaded ✓';
+        } else {
+            showError('bloat-stats-content', result.message);
+            btn.disabled = false;
+            btn.textContent = 'Retry';
+        }
+    } catch (error) {
+        showError('bloat-stats-content', error.message);
+        btn.disabled = false;
+        btn.textContent = 'Retry';
+    }
+}
+</script>
+{% endblock %}

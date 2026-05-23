@@ -1,0 +1,394 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}Daily Decision Summary{% endblock %}
+
+{% block extrahead %}
+<style>
+    .simple-view {
+        max-width: 1000px;
+        margin: 0 auto;
+    }
+
+    .view-toggle {
+        background: #e7f3ff;
+        border-left: 4px solid #007cba;
+        padding: 15px;
+        margin: 15px 0;
+        border-radius: 4px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .toggle-btn {
+        display: inline-block;
+        padding: 10px 20px;
+        background: #007cba;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+        font-weight: bold;
+        transition: background 0.2s;
+    }
+
+    .toggle-btn:hover {
+        background: #005a87;
+    }
+
+    .navigation {
+        margin: 20px 0;
+        text-align: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 15px;
+    }
+
+    .navigation a {
+        display: inline-block;
+        padding: 8px 15px;
+        margin: 0 5px;
+        background: #007cba;
+        color: white;
+        text-decoration: none;
+        border-radius: 3px;
+    }
+
+    .navigation a:hover {
+        background: #005a87;
+    }
+
+    .current-date-container {
+        text-align: center;
+        margin: 0 20px;
+    }
+
+    .current-date {
+        font-size: 1.5em;
+        font-weight: bold;
+        display: block;
+    }
+
+    .day-of-week {
+        font-size: 1em;
+        color: #666;
+        font-weight: normal;
+    }
+
+    .weekend-indicator {
+        color: #dc3545;
+        font-weight: bold;
+    }
+
+    .weekday-indicator {
+        color: #28a745;
+        font-weight: bold;
+    }
+
+    .summary-card {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 30px;
+        margin: 20px 0;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .main-count {
+        text-align: center;
+        padding: 20px 0;
+        border-bottom: 2px solid #007cba;
+        margin-bottom: 20px;
+    }
+
+    .count-number {
+        font-size: 4em;
+        font-weight: bold;
+        color: #007cba;
+        line-height: 1;
+    }
+
+    .count-label {
+        font-size: 1.2em;
+        color: #666;
+        margin-top: 10px;
+    }
+
+    .quick-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin: 20px 0;
+    }
+
+    .stat-box {
+        text-align: center;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 6px;
+    }
+
+    .stat-value {
+        font-size: 2em;
+        font-weight: bold;
+        color: #333;
+    }
+
+    .stat-label {
+        font-size: 0.9em;
+        color: #666;
+        margin-top: 5px;
+    }
+
+    .top-list {
+        margin: 20px 0;
+    }
+
+    .top-list h3 {
+        color: #333;
+        border-bottom: 2px solid #007cba;
+        padding-bottom: 8px;
+        margin-bottom: 15px;
+    }
+
+    .list-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px;
+        border-bottom: 1px solid #eee;
+        align-items: center;
+    }
+
+    .list-item:hover {
+        background: #f8f9fa;
+    }
+
+    .item-label {
+        flex: 1;
+        font-weight: 500;
+    }
+
+    .item-count {
+        background: #007cba;
+        color: white;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-weight: bold;
+        font-size: 0.9em;
+    }
+
+    .no-data {
+        text-align: center;
+        color: #666;
+        font-style: italic;
+        padding: 60px 20px;
+    }
+
+    .weekend-notice {
+        background-color: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 5px;
+        padding: 15px;
+        margin: 15px 0;
+        text-align: center;
+    }
+
+    .fetch-button {
+        padding: 8px 15px;
+        background: #28a745;
+        color: white;
+        border: none;
+        border-radius: 3px;
+        cursor: pointer;
+        font-size: 14px;
+        margin-left: 10px;
+    }
+
+    .fetch-button:hover {
+        background: #218838;
+    }
+
+    .two-column {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 30px;
+        margin-top: 20px;
+    }
+
+    @media (max-width: 768px) {
+        .two-column {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="simple-view">
+    <h1>Daily Decision Summary - Quick View</h1>
+
+    <!-- Mode Toggle -->
+    <div class="view-toggle">
+        <div>
+            <strong>⚡ Quick View:</strong> Showing essential metrics only (fast loading)
+        </div>
+        <a href="?date={{ target_date|date:'Y-m-d' }}&mode=analytical" class="toggle-btn">
+            📊 View Detailed Analysis
+        </a>
+    </div>
+
+    <!-- Navigation -->
+    <div class="navigation">
+        {% if prev_date %}
+            <a href="?date={{ prev_date|date:'Y-m-d' }}&mode=simple">&larr; {{ prev_date|date:'M d' }}</a>
+        {% endif %}
+
+        <div class="current-date-container">
+            <span class="current-date">{{ target_date|date:'F d, Y' }}</span>
+            <span class="day-of-week {% if analysis.is_weekend %}weekend-indicator{% else %}weekday-indicator{% endif %}">
+                {{ analysis.day_of_week }}
+            </span>
+        </div>
+
+        {% if next_date %}
+            <a href="?date={{ next_date|date:'Y-m-d' }}&mode=simple">{{ next_date|date:'M d' }} &rarr;</a>
+        {% endif %}
+
+        <button onclick="fetchDecisions('{{ target_date|date:'Y-m-d' }}')" class="fetch-button">
+            Fetch Day
+        </button>
+    </div>
+
+    {% if analysis.is_weekend and not analysis.has_data %}
+    <div class="weekend-notice">
+        <strong>📅 Weekend:</strong> This is a {{ analysis.day_of_week }}. Government offices typically don't publish decisions on weekends.
+    </div>
+    {% endif %}
+
+    {% if not analysis.has_data %}
+    <div class="summary-card">
+        <div class="no-data">
+            <h2>No decisions found for {{ target_date|date:'F d, Y' }}</h2>
+            {% if analysis.is_weekend %}
+                <p>This is expected for weekends when government offices are typically closed.</p>
+            {% else %}
+                <p>This might indicate missing data or a public holiday.</p>
+            {% endif %}
+            <p>Click "Fetch Day" above to import decisions from the official API.</p>
+        </div>
+    </div>
+    {% else %}
+
+    <!-- Main Count Card -->
+    <div class="summary-card">
+        <div class="main-count">
+            <div class="count-number">{{ analysis.total_count|default:0 }}</div>
+            <div class="count-label">Decisions Published</div>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="quick-stats">
+            <div class="stat-box">
+                <div class="stat-value">{{ analysis.top_types|length }}</div>
+                <div class="stat-label">Decision Types</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">{{ analysis.top_organizations|length }}</div>
+                <div class="stat-label">Organizations</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">{{ analysis.subject_coverage }}%</div>
+                <div class="stat-label">Have Subject</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">{{ analysis.document_coverage }}%</div>
+                <div class="stat-label">Have Documents</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top Lists -->
+    <div class="two-column">
+        <!-- Top Decision Types -->
+        <div class="summary-card">
+            <div class="top-list">
+                <h3>Top Decision Types</h3>
+                {% if analysis.top_types %}
+                    {% for type_data in analysis.top_types %}
+                        <div class="list-item">
+                            <span class="item-label">{{ type_data.decision_type__label }}</span>
+                            <span class="item-count">{{ type_data.count }}</span>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p style="color: #666; font-style: italic; padding: 20px; text-align: center;">No type data available</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Top Organizations -->
+        <div class="summary-card">
+            <div class="top-list">
+                <h3>Top Organizations</h3>
+                {% if analysis.top_organizations %}
+                    {% for org_data in analysis.top_organizations %}
+                        <div class="list-item">
+                            <span class="item-label">{{ org_data.organization__label|truncatewords:6 }}</span>
+                            <span class="item-count">{{ org_data.count }}</span>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p style="color: #666; font-style: italic; padding: 20px; text-align: center;">No organization data available</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if analysis.is_weekend %}
+    <div class="weekend-notice">
+        <strong>📅 Weekend Activity:</strong> Found {{ analysis.total_count }} decisions on {{ analysis.day_of_week }}. This is unusual for weekend days.
+    </div>
+    {% endif %}
+
+    <!-- Call to Action -->
+    <div class="view-toggle" style="margin-top: 30px;">
+        <div>
+            <strong>Need more details?</strong> View the full analytical breakdown with financial data, timing patterns, and individual decisions.
+        </div>
+        <a href="?date={{ target_date|date:'Y-m-d' }}&mode=analytical" class="toggle-btn">
+            📊 View Detailed Analysis
+        </a>
+    </div>
+
+    {% endif %}
+</div>
+
+<script>
+function fetchDecisions(date) {
+    // Redirect to fetch endpoint (reuse existing functionality)
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/api/admin/decisions/fetch-daily/';
+
+    const dateInput = document.createElement('input');
+    dateInput.type = 'hidden';
+    dateInput.name = 'date';
+    dateInput.value = date;
+
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrfmiddlewaretoken';
+    csrfInput.value = '{{ csrf_token }}';
+
+    form.appendChild(dateInput);
+    form.appendChild(csrfInput);
+    document.body.appendChild(form);
+
+    if (confirm(`Fetch decisions for ${date}? This may take a few minutes.`)) {
+        form.submit();
+    }
+}
+</script>
+
+{% endblock %}

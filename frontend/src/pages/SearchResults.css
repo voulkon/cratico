@@ -1,0 +1,373 @@
+/* Search Results Page Styles */
+
+.search-results-page {
+  min-height: 100vh;
+  background-color: var(--bg-color);
+  padding: var(--spacing-xl);
+}
+
+.search-results-header {
+  max-width: 1200px;
+  margin: 0 auto var(--spacing-xl);
+}
+
+.search-results-search-container {
+  max-width: 800px;
+  margin: 0 auto var(--spacing-lg);
+}
+
+.search-results-query-info {
+  text-align: center;
+}
+
+.search-results-query-info h1 {
+  color: var(--text-color);
+  margin-bottom: var(--spacing-sm);
+  font-size: var(--font-xl);
+  font-weight: var(--font-bold);
+}
+
+.search-results-count {
+  color: var(--muted-text);
+  font-size: var(--font-md);
+  margin: 0;
+}
+
+/* Loading States */
+.search-results-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px var(--spacing-xl);
+  color: var(--muted-text);
+}
+
+.search-results-loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border-color);
+  border-top: 3px solid var(--palette-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: var(--spacing-lg);
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Error States */
+.search-results-error {
+  text-align: center;
+  padding: 60px var(--spacing-xl);
+}
+
+.search-results-error h2 {
+  color: var(--text-color);
+  margin-bottom: var(--spacing-md);
+}
+
+.search-results-error p {
+  color: var(--muted-text);
+  margin-bottom: var(--spacing-lg);
+}
+
+.search-results-retry-btn {
+  background-color: var(--palette-primary);
+  color: white;
+  border: none;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: var(--font-bold);
+  transition: var(--transition-fast);
+}
+
+.search-results-retry-btn:hover {
+  background-color: var(--palette-secondary);
+}
+
+/* No Results */
+.search-results-no-results {
+  text-align: center;
+  padding: 60px var(--spacing-xl);
+}
+
+.search-results-no-results h2 {
+  color: var(--text-color);
+  margin-bottom: var(--spacing-md);
+}
+
+.search-results-no-results p {
+  color: var(--muted-text);
+}
+
+/* Content */
+.search-results-content {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.search-results-categories {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xxxl);
+}
+
+.search-results-category {
+  background-color: var(--card-bg);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.search-results-category-title {
+  background-color: var(--hover-bg);
+  padding: var(--spacing-lg) var(--spacing-xl);
+  margin: 0;
+  font-size: var(--font-xl);
+  font-weight: var(--font-bold);
+  color: var(--text-color);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.search-results-category-icon {
+  font-size: var(--font-xl);
+}
+
+.search-results-category-count {
+  margin-left: auto;
+  background-color: var(--palette-primary);
+  color: white;
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-sm);
+  font-weight: var(--font-bold);
+}
+
+.search-results-items {
+  display: flex;
+  flex-direction: column;
+}
+
+.search-results-item {
+  padding: var(--spacing-xl);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-lg);
+}
+
+.search-results-item:last-child {
+  border-bottom: none;
+}
+
+.search-results-item:hover {
+  background-color: var(--hover-bg);
+}
+
+.search-results-document-item {
+  padding: var(--spacing-xxl);
+}
+
+.search-results-item-icon {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  background-color: var(--hover-bg);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--palette-primary);
+  font-size: var(--font-xl);
+  border: 1px solid var(--border-color);
+}
+
+.search-results-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.search-results-item-title {
+  font-weight: var(--font-bold);
+  color: var(--text-color);
+  margin-bottom: var(--spacing-xs);
+  font-size: var(--font-lg);
+  line-height: 1.4;
+}
+
+.search-results-item-subtitle {
+  font-size: var(--font-md);
+  color: var(--muted-text);
+  margin-bottom: var(--spacing-xs);
+  line-height: 1.3;
+}
+
+.search-results-item-description {
+  font-size: var(--font-md);
+  color: var(--muted-text);
+  line-height: 1.4;
+  margin-bottom: var(--spacing-sm);
+}
+
+.search-results-item-score {
+  font-size: var(--font-xs);
+  color: var(--muted-text);
+  font-style: italic;
+  margin-top: var(--spacing-sm);
+}
+
+/* Document-specific styles */
+.search-results-document-excerpt {
+  margin: var(--spacing-md) 0;
+  padding: var(--spacing-lg);
+  background-color: var(--hover-bg);
+  border-radius: var(--radius-md);
+  font-size: var(--font-sm);
+  line-height: 1.6;
+  color: var(--muted-text);
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  border-left: 4px solid var(--palette-primary);
+}
+
+.search-results-document-excerpt em {
+  background-color: #fef3c7;
+  color: #92400e;
+  font-style: normal;
+  font-weight: var(--font-bold);
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.search-results-document-excerpt mark {
+  background-color: #fef3c7;
+  color: #92400e;
+  font-weight: var(--font-bold);
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.search-results-document-metadata {
+  margin-top: var(--spacing-lg);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg);
+  background-color: var(--hover-bg);
+  border-radius: var(--radius-md);
+}
+
+.search-results-metadata-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: var(--font-sm);
+}
+
+.search-results-metadata-icon {
+  font-size: var(--font-md);
+}
+
+.search-results-metadata-label {
+  font-weight: var(--font-bold);
+  color: var(--muted-text);
+}
+
+.search-results-metadata-text {
+  color: var(--text-color);
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+/* Highlight matching text */
+.search-results-item-title em,
+.search-results-item-title mark {
+  background-color: #fef3c7;
+  color: #92400e;
+  font-style: normal;
+  font-weight: var(--font-bold);
+  padding: 1px 3px;
+  border-radius: 3px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .search-results-page {
+    padding: var(--spacing-lg);
+  }
+
+  .search-results-item {
+    padding: var(--spacing-lg);
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+
+  .search-results-document-item {
+    padding: var(--spacing-lg);
+  }
+
+  .search-results-item-icon {
+    width: 40px;
+    height: 40px;
+    font-size: var(--font-lg);
+    align-self: flex-start;
+  }
+
+  .search-results-category-title {
+    padding: var(--spacing-md) var(--spacing-lg);
+    font-size: var(--font-lg);
+  }
+
+  .search-results-document-metadata {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+  }
+}
+
+@media (max-width: 480px) {
+  .search-results-page {
+    padding: var(--spacing-md);
+  }
+
+  .search-results-query-info h1 {
+    font-size: var(--font-xl);
+  }
+
+  .search-results-item {
+    padding: var(--spacing-md);
+  }
+
+  .search-results-document-item {
+    padding: var(--spacing-md);
+  }
+
+  .search-results-document-excerpt {
+    padding: var(--spacing-md);
+    font-size: var(--font-xs);
+  }
+}
+
+/* Focus indicators for accessibility */
+.search-results-item:focus {
+  outline: 2px solid var(--palette-primary);
+  outline-offset: -2px;
+}
+
+/* Dark mode support for highlights */
+[data-theme="dark"] .search-results-document-excerpt em,
+[data-theme="dark"] .search-results-document-excerpt mark,
+[data-theme="dark"] .search-results-item-title em,
+[data-theme="dark"] .search-results-item-title mark {
+  background-color: #451a03;
+  color: #fbbf24;
+}

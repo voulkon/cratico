@@ -1,0 +1,1072 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block extrahead %}
+{{ block.super }}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<style>
+    .calendar {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 2px;
+        margin-top: 20px;
+    }
+    .calendar-header {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 5px;
+        font-weight: bold;
+        text-align: center;
+    }
+    .day {
+        border: 1px solid #eee;
+        padding: 5px;
+        min-height: 40px;
+        background-color: #f9f9f9;
+        position: relative;
+        font-size: 0.85em;
+        cursor: pointer;
+    }
+    .day.has-data {
+        background-color: #d4edda;
+    }
+    .day.selected {
+        background-color: #b8daff;
+        border: 1px solid #007bff;
+    }
+    .day.selected.has-data {
+        background-color: #a3cfbb;
+        border: 1px solid #007bff;
+    }
+    .day.other-month {
+        background-color: #f0f0f0;
+        color: #aaa;
+        cursor: default;
+    }
+    .day-number {
+        position: absolute;
+        top: 2px;
+        right: 5px;
+    }
+    .day-content {
+        margin-top: 18px;
+        text-align: center;
+    }
+    .controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+    .nav-buttons {
+        display: flex;
+        gap: 10px;
+    }
+    .entity-selector {
+        margin-bottom: 20px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+    .entity-selector select {
+        min-width: 250px;
+    }
+    .decision-count {
+        font-weight: bold;
+    }
+    .multi-month-view {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+    }
+    .month-container {
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 10px;
+        background-color: #fff;
+    }
+    .month-container h3 {
+        text-align: center;
+        margin-top: 0;
+    }
+    .other-month {
+        opacity: 0.6;
+    }
+    .bulk-actions {
+        position: fixed;
+        bottom: 80px;
+        right: 20px;
+        display: none;
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-radius: 5px;
+        border: 1px solid #ddd;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+        z-index: 999;
+        min-width: 300px;
+        max-width: 400px;
+    }
+    .bulk-actions h3 {
+        margin-top: 0;
+        margin-bottom: 10px;
+    }
+    .selection-info {
+        margin-bottom: 10px;
+    }
+
+    /* Add styling for signer results */
+    .select2-result-entity {
+        padding: 6px;
+    }
+
+    /* Keyboard navigation help */
+    .keyboard-help {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 10px 15px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        z-index: 1000;
+        font-size: 0.85em;
+    }
+
+    .kbd {
+        display: inline-block;
+        background: #f7f7f7;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+        box-shadow: 0 1px 1px rgba(0,0,0,0.2);
+        padding: 0.1em 0.5em;
+        margin: 0 0.2em;
+        font-family: monospace;
+    }
+
+    /* Focus indicator for keyboard navigation */
+    .day:focus {
+        outline: 2px solid #007bff;
+        z-index: 10;
+    }
+
+    /* Year view specific styles */
+    .view-selector {
+        margin-bottom: 20px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .year-view {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 15px;
+    }
+
+    .year-view .month-container {
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 8px;
+        background-color: #fff;
+    }
+
+    .year-view .month-container h4 {
+        text-align: center;
+        margin: 0 0 8px 0;
+        font-size: 0.9em;
+    }
+
+    .year-view .calendar {
+        gap: 1px;
+    }
+
+    .year-view .day {
+        min-height: 25px;
+        padding: 2px;
+        font-size: 0.7em;
+    }
+
+    .year-view .day-number {
+        position: absolute;
+        top: 1px;
+        right: 2px;
+        font-size: 0.8em;
+    }
+
+    .year-view .day-content {
+        margin-top: 12px;
+        font-size: 0.8em;
+    }
+
+    .year-view .calendar-header {
+        gap: 1px;
+        font-size: 0.7em;
+        margin-bottom: 2px;
+    }
+
+    /* Multi-year view specific styles */
+    .multi-year-view {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 15px;
+        margin-top: 20px;
+    }
+
+    .year-card {
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        padding: 20px;
+        background-color: #fff;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+
+    .year-card:hover {
+        border-color: #007bff;
+        box-shadow: 0 2px 8px rgba(0,123,255,0.2);
+    }
+
+    .year-card.has-data {
+        background-color: #d4edda;
+        border-color: #28a745;
+    }
+
+    .year-card.selected {
+        background-color: #b8daff;
+        border-color: #007bff;
+        border-width: 3px;
+    }
+
+    .year-card.selected.has-data {
+        background-color: #a3cfbb;
+        border-color: #007bff;
+    }
+
+    .year-card h3 {
+        margin: 0 0 10px 0;
+        font-size: 1.5em;
+        color: #333;
+    }
+
+    .year-stats {
+        font-size: 0.9em;
+        color: #666;
+    }
+
+    .year-stats .stat {
+        display: block;
+        margin: 5px 0;
+    }
+
+    .year-stats .decisions-count {
+        font-weight: bold;
+        color: #28a745;
+    }
+
+    .year-card.no-data .decisions-count {
+        color: #dc3545;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 1200px) {
+        .year-view {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .multi-year-view {
+            grid-template-columns: repeat(4, 1fr);
+        }
+    }
+
+    @media (max-width: 900px) {
+        .year-view {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .multi-year-view {
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
+
+    @media (max-width: 600px) {
+        .year-view {
+            grid-template-columns: 1fr;
+        }
+
+        .multi-year-view {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <h1>Decision Coverage Explorer</h1>
+
+    <div class="entity-selector">
+        <label for="entity-type">View by:</label>
+        <select id="entity-type">
+            <option value="all" {% if entity_type == 'all' %}selected{% endif %}>All Decisions</option>
+            <option value="organization" {% if entity_type == 'organization' %}selected{% endif %}>Organization</option>
+            <option value="signer" {% if entity_type == 'signer' %}selected{% endif %}>Signer</option>
+        </select>
+
+        <select id="entity-select" style="width: 400px;" {% if entity_type == 'all' %}disabled{% endif %}>
+            {% if entity_id %}
+            <option value="{{ entity_id }}" selected>{{ entity_name }}</option>
+            {% endif %}
+        </select>
+
+        <button id="load-entity" class="button">Load</button>
+    </div>
+
+    <!-- Add view selector -->
+    <div class="view-selector">
+        <label for="view-type">View:</label>
+        <select id="view-type">
+            <option value="quarter" {% if view_type == 'quarter' %}selected{% endif %}>Quarter View</option>
+            <option value="year" {% if view_type == 'year' %}selected{% endif %}>Year View</option>
+            <option value="multi-year" {% if view_type == 'multi-year' %}selected{% endif %}>Multi-Year View</option>
+        </select>
+
+        <button id="change-view" class="button">Switch View</button>
+    </div>
+
+    {% if view_type == 'multi-year' %}
+    <!-- Multi-Year View -->
+    <div class="controls">
+        <h2>{{ start_year }} - {{ end_year }}</h2>
+        <div class="nav-buttons">
+            <a href="?entity_type={{ entity_type }}&entity_id={{ entity_id }}&view=multi-year&year={{ prev_decade_year }}" class="button">
+                Previous Decade
+            </a>
+            <a href="?entity_type={{ entity_type }}&entity_id={{ entity_id }}&view=multi-year&year={{ next_decade_year }}" class="button">
+                Next Decade
+            </a>
+        </div>
+    </div>
+
+    <!-- Bulk Actions Panel -->
+    <div id="bulk-actions" class="bulk-actions">
+        <h3>Bulk Import</h3>
+        <div class="selection-info">
+            Selected years: <span id="selection-count">0</span>
+        </div>
+        <div id="selection-range"></div>
+        <div style="margin-top: 10px;">
+            <button id="import-selected" class="button">Import Selected Years</button>
+            <button id="clear-selection" class="button">Clear Selection</button>
+        </div>
+    </div>
+
+    <div class="multi-year-view">
+        {% for year_data in multi_year_data %}
+        <div class="year-card {% if year_data.has_data %}has-data{% else %}no-data{% endif %}"
+             data-year="{{ year_data.year }}"
+             data-selectable="true">
+            <h3>{{ year_data.year }}</h3>
+            <div class="year-stats">
+                <span class="stat decisions-count">
+                    {{ year_data.total_decisions }} decisions
+                </span>
+                <span class="stat">
+                    {{ year_data.months_with_data }}/12 months
+                </span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% elif view_type == 'year' %}
+    <!-- Existing Year View -->
+    <div class="controls">
+        <h2>{{ year }}</h2>
+        <div class="nav-buttons">
+            <a href="?entity_type={{ entity_type }}&entity_id={{ entity_id }}&view=year&year={{ prev_year }}" class="button">
+                Previous Year
+            </a>
+            <a href="?entity_type={{ entity_type }}&entity_id={{ entity_id }}&view=year&year={{ next_year }}" class="button">
+                Next Year
+            </a>
+        </div>
+    </div>
+
+    <!-- Bulk Actions Panel -->
+    <div id="bulk-actions" class="bulk-actions">
+        <h3>Bulk Import</h3>
+        <div class="selection-info">
+            Selected dates: <span id="selection-count">0</span>
+        </div>
+        <div id="selection-range"></div>
+        <div style="margin-top: 10px;">
+            <button id="import-selected" class="button">Import Selected Dates</button>
+            <button id="clear-selection" class="button">Clear Selection</button>
+        </div>
+    </div>
+
+    <div class="year-view">
+        {% for month_data in year_calendar %}
+        <div class="month-container">
+            <h4>{{ month_data.name }} {{ month_data.year }}</h4>
+
+            <div class="calendar-header">
+                <div>S</div>
+                <div>M</div>
+                <div>T</div>
+                <div>W</div>
+                <div>T</div>
+                <div>F</div>
+                <div>S</div>
+            </div>
+
+            <div class="calendar">
+                {% for day in month_data.days %}
+                <div class="day {% if day.has_data %}has-data{% endif %} {% if not day.is_current_month %}other-month{% endif %}"
+                     {% if day.day and day.is_current_month %}
+                     data-date="{{ day.date }}"
+                     data-selectable="true"
+                     {% endif %}>
+                    {% if day.day %}
+                    <div class="day-number">{{ day.day }}</div>
+                    <div class="day-content">
+                        {% if day.count > 0 %}
+                        <div class="decision-count">{{ day.count }}</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% else %}
+    <!-- Existing Quarter View -->
+    <div class="controls">
+        <h2>{{ quarter_name }}</h2>
+        <div class="nav-buttons">
+            <a href="?entity_type={{ entity_type }}&entity_id={{ entity_id }}&view=quarter&month={{ prev_quarter_month }}&year={{ prev_quarter_year }}" class="button">
+                Previous Quarter
+            </a>
+            <a href="?entity_type={{ entity_type }}&entity_id={{ entity_id }}&view=quarter&month={{ next_quarter_month }}&year={{ next_quarter_year }}" class="button">
+                Next Quarter
+            </a>
+        </div>
+    </div>
+
+    <!-- Bulk Actions Panel -->
+    <div id="bulk-actions" class="bulk-actions">
+        <h3>Bulk Import</h3>
+        <div class="selection-info">
+            Selected dates: <span id="selection-count">0</span>
+        </div>
+        <div id="selection-range"></div>
+        <div style="margin-top: 10px;">
+            <button id="import-selected" class="button">Import Selected Dates</button>
+            <button id="clear-selection" class="button">Clear Selection</button>
+        </div>
+    </div>
+
+    <div class="multi-month-view">
+        {% for month_data in quarter_calendar %}
+        <div class="month-container">
+            <h3>{{ month_data.name }} {{ month_data.year }}</h3>
+
+            <div class="calendar-header">
+                <div>Su</div>
+                <div>Mo</div>
+                <div>Tu</div>
+                <div>We</div>
+                <div>Th</div>
+                <div>Fr</div>
+                <div>Sa</div>
+            </div>
+
+            <div class="calendar">
+                {% for day in month_data.days %}
+                <div class="day {% if day.has_data %}has-data{% endif %} {% if not day.is_current_month %}other-month{% endif %}"
+                     {% if day.day and day.is_current_month %}
+                     data-date="{{ day.date }}"
+                     data-selectable="true"
+                     {% endif %}>
+                    {% if day.day %}
+                    <div class="day-number">{{ day.day }}</div>
+                    <div class="day-content">
+                        {% if day.count > 0 %}
+                        <div class="decision-count">{{ day.count }}</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Add keyboard help tooltip -->
+<!-- <div class="keyboard-help">
+    <div><strong>Keyboard Navigation:</strong></div>
+    {% if view_type == 'multi-year' %}
+    <div><span class="kbd">←</span><span class="kbd">→</span> Navigate years</div>
+    <div><span class="kbd">Ctrl</span> + Click for multi-select</div>
+    {% else %}
+    <div><span class="kbd">↑</span><span class="kbd">↓</span><span class="kbd">←</span><span class="kbd">→</span> Navigate dates</div>
+    <div><span class="kbd">Shift</span> + Click/Arrows for multi-select</div>
+    {% endif %}
+    <div><span class="kbd">Esc</span> Clear selection</div>
+</div> -->
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Enhanced Select2 with proper signer handling
+        $('#entity-select').select2({
+            placeholder: 'Search for an organization or signer',
+            allowClear: true,
+            minimumInputLength: 2,
+            ajax: {
+                url: '{% url "admin:entity_search" %}',
+                dataType: 'json',
+                delay: 350,
+                data: function(params) {
+                    return {
+                        q: params.term,
+                        entity_type: $('#entity-type').val()
+                    };
+                },
+                processResults: function(data) {
+                    return {
+                        results: data.results
+                    };
+                },
+                cache: true
+            },
+            templateResult: formatEntityResult,
+            templateSelection: formatEntitySelection
+        });
+
+        // Format dropdown items with proper signer display
+        function formatEntityResult(entity) {
+            if (!entity.id) {
+                return entity.text;
+            }
+
+            if ($('#entity-type').val() === 'signer' && entity.hasOwnProperty('last_name')) {
+                // For signers, show name and organization
+                var $container = $('<div class="select2-result-entity"></div>');
+                $container.append('<div><strong>' + entity.last_name + '</strong>' +
+                                (entity.first_name ? ', ' + entity.first_name : '') + '</div>');
+
+                if (entity.organization) {
+                    $container.append('<div style="font-size: 0.9em; color: #28a745; font-style: italic;">' + entity.organization + '</div>');
+                }
+
+                return $container;
+            } else {
+                // For organizations, show main text and latin name
+                var $container = $('<div class="select2-result-entity"></div>');
+                $container.append('<div><strong>' + entity.text + '</strong></div>');
+
+                if (entity.latin_name) {
+                    $container.append('<div style="font-size: 0.9em; color: #007bff; font-style: italic;">' + entity.latin_name + '</div>');
+                }
+
+                return $container;
+            }
+        }
+
+        // Format the selected item
+        function formatEntitySelection(entity) {
+            return entity.text;
+        }
+
+        // Handle entity type change
+        $('#entity-type').on('change', function() {
+            const entityType = $(this).val();
+
+            if (entityType === 'all') {
+                // Disable entity selector for "all" mode
+                $('#entity-select').prop('disabled', true).val(null).trigger('change');
+            } else {
+                // Enable entity selector
+                $('#entity-select').prop('disabled', false);
+                $('#entity-select').val(null).trigger('change');
+
+                // Update placeholder based on entity type
+                if (entityType === 'signer') {
+                    $('#entity-select').data('placeholder', 'Search by last name or first name');
+                } else {
+                    $('#entity-select').data('placeholder', 'Search for an organization');
+                }
+                $('#entity-select').trigger('change');
+            }
+        });
+
+        // Initialize entity type on page load (trigger change to set correct state)
+        $('#entity-type').trigger('change');
+
+        // Handle load button
+        $('#load-entity').on('click', function() {
+            const entityType = $('#entity-type').val();
+            let entityId = $('#entity-select').val();
+
+            // Normalize null/empty values
+            if (entityId === 'null' || entityId === null || entityId === '') {
+                entityId = null;
+            }
+
+            // For "all" mode, entity ID is not required
+            if (entityType !== 'all' && !entityId) {
+                alert('Please select an entity first');
+                return;
+            }
+
+            // Get current view type and year
+            const viewType = $('#view-type').val();
+            var currentYear = {% if year %}{{ year }}{% else %}new Date().getFullYear(){% endif %};
+            var currentMonth = {% if month %}{{ month }}{% else %}new Date().getMonth() + 1{% endif %};
+
+            // Build URL - omit entity_id if it's null or for 'all' mode
+            var url = '?entity_type=' + entityType;
+            if (entityType !== 'all' && entityId) {
+                url += '&entity_id=' + entityId;
+            }
+            url += '&view=' + viewType + '&year=' + currentYear;
+
+            if (viewType === 'quarter') {
+                url += '&month=' + currentMonth;
+            }
+
+            window.location.href = url;
+        });
+
+        // Handle view type change
+        $('#change-view').on('click', function() {
+            const entityType = $('#entity-type').val();
+            const entityId = $('#entity-select').val();
+            const viewType = $('#view-type').val();
+
+            var currentMonth = {% if month %}{{ month }}{% else %}new Date().getMonth() + 1{% endif %};
+            var currentYear = {% if year %}{{ year }}{% else %}new Date().getFullYear(){% endif %};
+
+            var url = '?entity_type=' + entityType + '&view=' + viewType + '&year=' + currentYear;
+
+            if (entityId) {
+                url += '&entity_id=' + entityId;
+            }
+
+            if (viewType === 'quarter') {
+                url += '&month=' + currentMonth;
+            }
+
+            window.location.href = url;
+        });
+
+        // Selection logic for different view types
+        {% if view_type == 'multi-year' %}
+        // Multi-year selection logic
+        let selectedYears = new Set();
+
+        // Handle year selection
+        $('.year-card[data-selectable="true"]').on('click', function(e) {
+            const year = $(this).data('year');
+
+            // Clear existing selection if not holding Ctrl/Cmd
+            if (!e.ctrlKey && !e.metaKey) {
+                clearSelection();
+            }
+
+            // Toggle this year
+            toggleYearSelection($(this));
+
+            e.preventDefault();
+        });
+
+        // Toggle a year's selection
+        function toggleYearSelection(yearElement) {
+            const year = yearElement.data('year');
+
+            if (!year) return;
+
+            if (selectedYears.has(year)) {
+                // Remove from selection
+                selectedYears.delete(year);
+                yearElement.removeClass('selected');
+            } else {
+                // Add to selection
+                selectedYears.add(year);
+                yearElement.addClass('selected');
+            }
+
+            updateBulkActions();
+        }
+
+        // Clear all selections
+        function clearSelection() {
+            selectedYears.clear();
+            $('.year-card').removeClass('selected');
+            updateBulkActions();
+        }
+
+        // Update the bulk actions panel
+        function updateBulkActions() {
+            if (selectedYears.size > 0) {
+                // Show the bulk actions panel
+                $('#bulk-actions').show();
+                $('#selection-count').text(selectedYears.size);
+
+                // Show year range
+                const sortedYears = Array.from(selectedYears).sort((a, b) => a - b);
+                if (sortedYears.length > 0) {
+                    const firstYear = sortedYears[0];
+                    const lastYear = sortedYears[sortedYears.length - 1];
+
+                    if (sortedYears.length === 1) {
+                        $('#selection-range').text(`Selected year: ${firstYear}`);
+                    } else {
+                        $('#selection-range').text(`Year range: ${firstYear} to ${lastYear}`);
+                    }
+                }
+            } else {
+                // Hide the panel if no years selected
+                $('#bulk-actions').hide();
+            }
+        }
+
+        // Handle bulk import button for years
+        $('#import-selected').on('click', function() {
+            if (selectedYears.size === 0) {
+                alert('Please select at least one year first');
+                return;
+            }
+
+            const entityType = $('#entity-type').val();
+            const entityId = $('#entity-select').val();
+            const entityName = $('#entity-select option:selected').text();
+
+            // Get sorted years for range display
+            const sortedYears = Array.from(selectedYears).sort((a, b) => a - b);
+            const startYear = sortedYears[0];
+            const endYear = sortedYears[sortedYears.length - 1];
+
+            // Create date range (full years)
+            const startDate = `${startYear}-01-01`;
+            const endDate = `${endYear}-12-31`;
+
+            if (confirm(`Import decisions for ${entityName} for years ${startYear} to ${endYear}?`)) {
+                // Send AJAX request to import
+                fetch('{% url "admin_import_decisions" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: `start_date=${startDate}&end_date=${endDate}&entity_type=${entityType}&entity_id=${entityId}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`Import job ${data.job_id} started successfully for years ${startYear} to ${endYear}.`);
+                    } else {
+                        alert('Error starting import job.');
+                    }
+                });
+            }
+        });
+
+        // Clear selection button
+        $('#clear-selection').on('click', function() {
+            clearSelection();
+        });
+
+        // Add keyboard navigation for years
+        $(document).on('keydown', function(e) {
+            // Only respond to keys when focus isn't in an input field
+            if ($('input:focus, textarea:focus, select:focus').length > 0) {
+                return;
+            }
+
+            // Escape key - clear selection
+            if (e.key === 'Escape') {
+                clearSelection();
+                return;
+            }
+
+            // Ctrl+A or Cmd+A - select all visible years
+            if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+                $('.year-card[data-selectable="true"]').each(function() {
+                    const year = $(this).data('year');
+                    selectedYears.add(year);
+                    $(this).addClass('selected');
+                });
+                updateBulkActions();
+                e.preventDefault();
+                return;
+            }
+        });
+
+        {% else %}
+        // Existing day selection logic for quarter and year views
+        let selectedDates = new Set();
+        let isSelecting = false;
+        let selectionStart = null;
+
+        // Handle double-click to open daily analysis
+        $('.day[data-selectable="true"]').on('dblclick', function(e) {
+            const date = $(this).data('date');
+            if (date) {
+                const url = `/api/admin/decisions/daily-analysis/?date=${date}&mode=simple`;
+                window.open(url, '_blank');
+            }
+            e.preventDefault();
+        });
+
+        // Handle day selection
+        $('.day[data-selectable="true"]').on('mousedown', function(e) {
+            // Start selection
+            isSelecting = true;
+            selectionStart = $(this).data('date');
+
+            // Clear existing selection if not holding shift
+            if (!e.shiftKey) {
+                clearSelection();
+            }
+
+            // Toggle this date
+            toggleDateSelection($(this));
+
+            e.preventDefault(); // Prevent text selection
+        });
+
+        // Handle mouse movement for selection
+        $('.day[data-selectable="true"]').on('mouseenter', function() {
+            if (isSelecting) {
+                const currentDate = $(this).data('date');
+
+                // When dragging, select all dates between start and current position
+                if (selectionStart && currentDate) {
+                    // Get all dates between start and current
+                    const startDate = new Date(selectionStart);
+                    const endDate = new Date(currentDate);
+
+                    // Always ensure proper order (start < end)
+                    const dateFrom = startDate < endDate ? startDate : endDate;
+                    const dateTo = startDate < endDate ? endDate : startDate;
+
+                    // Create array of all dates in range
+                    const datesInRange = [];
+                    const currentDateTemp = new Date(dateFrom);
+
+                    while (currentDateTemp <= dateTo) {
+                        datesInRange.push(new Date(currentDateTemp).toISOString().split('T')[0]);
+                        currentDateTemp.setDate(currentDateTemp.getDate() + 1);
+                    }
+
+                    // Select all dates in range
+                    datesInRange.forEach(date => {
+                        const dayElement = $(`.day[data-date="${date}"]`);
+                        if (dayElement.length) {
+                            toggleDateSelection(dayElement, true); // Force add
+                        }
+                    });
+                }
+            }
+        });
+
+        // Handle end of selection
+        $(document).on('mouseup', function() {
+            if (isSelecting) {
+                isSelecting = false;
+                updateBulkActions();
+            }
+        });
+
+        // Toggle a date's selection
+        function toggleDateSelection(dayElement, forceAdd = false) {
+            const dateStr = dayElement.data('date');
+
+            if (!dateStr) return;
+
+            if (forceAdd || !selectedDates.has(dateStr)) {
+                // Add to selection
+                selectedDates.add(dateStr);
+                dayElement.addClass('selected');
+            } else if (!forceAdd) {
+                // Remove from selection (only if not force adding)
+                selectedDates.delete(dateStr);
+                dayElement.removeClass('selected');
+            }
+        }
+
+        // Clear all selections
+        function clearSelection() {
+            selectedDates.clear();
+            $('.day').removeClass('selected');
+            updateBulkActions();
+        }
+
+        // Update the bulk actions panel
+        function updateBulkActions() {
+            if (selectedDates.size > 0) {
+                // Show the bulk actions panel
+                $('#bulk-actions').show();
+                $('#selection-count').text(selectedDates.size);
+
+                // Show date range
+                const sortedDates = Array.from(selectedDates).sort();
+                if (sortedDates.length > 0) {
+                    const firstDate = new Date(sortedDates[0]).toLocaleDateString();
+                    const lastDate = new Date(sortedDates[sortedDates.length - 1]).toLocaleDateString();
+
+                    if (sortedDates.length === 1) {
+                        $('#selection-range').text(`Selected date: ${firstDate}`);
+                    } else {
+                        $('#selection-range').text(`Date range: ${firstDate} to ${lastDate}`);
+                    }
+                }
+            } else {
+                // Hide the panel if no dates selected
+                $('#bulk-actions').hide();
+            }
+        }
+
+        // Handle bulk import button for dates
+        $('#import-selected').on('click', function() {
+            if (selectedDates.size === 0) {
+                alert('Please select at least one date first');
+                return;
+            }
+
+            const entityType = $('#entity-type').val();
+            const entityId = $('#entity-select').val();
+            const entityName = $('#entity-select option:selected').text();
+
+            // Get sorted dates for range display
+            const sortedDates = Array.from(selectedDates).sort();
+            const startDate = sortedDates[0];
+            const endDate = sortedDates[sortedDates.length - 1];
+
+            if (confirm(`Import decisions for ${entityName} from ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}?`)) {
+                // Send AJAX request to import
+                fetch('{% url "admin_import_decisions" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: `start_date=${startDate}&end_date=${endDate}&entity_type=${entityType}&entity_id=${entityId}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`Import job ${data.job_id} started successfully for date range ${new Date(startDate).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}.`);
+                    } else {
+                        alert('Error starting import job.');
+                    }
+                });
+            }
+        });
+
+        // Clear selection button
+        $('#clear-selection').on('click', function() {
+            clearSelection();
+        });
+
+        // Add arrow key navigation for dates
+        $(document).on('keydown', function(e) {
+            // Only respond to arrow keys when focus isn't in an input field
+            if ($('input:focus, textarea:focus, select:focus').length > 0) {
+                return;
+            }
+
+            // Escape key - clear selection
+            if (e.key === 'Escape') {
+                clearSelection();
+                return;
+            }
+
+            // Ctrl+A or Cmd+A - select all visible dates
+            if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+                // Select all visible dates
+                $('.day[data-selectable="true"]').each(function() {
+                    toggleDateSelection($(this), true);
+                });
+                updateBulkActions();
+                e.preventDefault();
+                return;
+            }
+
+            // Get currently selected date or use today
+            let currentDate = null;
+            let currentElement = $('.day.selected').first();
+
+            if (currentElement.length) {
+                currentDate = new Date(currentElement.data('date'));
+            } else {
+                currentDate = new Date();
+                // Format as YYYY-MM-DD
+                const todayStr = currentDate.toISOString().split('T')[0];
+                currentElement = $(`.day[data-date="${todayStr}"]`);
+            }
+
+            if (!currentDate) return;
+
+            let newDate = new Date(currentDate);
+            let handled = true;
+
+            // Handle arrow keys
+            switch (e.key) {
+                case 'ArrowLeft':
+                    newDate.setDate(newDate.getDate() - 1);
+                    break;
+                case 'ArrowRight':
+                    newDate.setDate(newDate.getDate() + 1);
+                    break;
+                case 'ArrowUp':
+                    newDate.setDate(newDate.getDate() - 7);
+                    break;
+                case 'ArrowDown':
+                    newDate.setDate(newDate.getDate() + 7);
+                    break;
+                default:
+                    handled = false;
+            }
+
+            if (handled) {
+                e.preventDefault(); // Prevent scrolling
+
+                // Format as YYYY-MM-DD
+                const newDateStr = newDate.toISOString().split('T')[0];
+                const newElement = $(`.day[data-date="${newDateStr}"]`);
+
+                if (newElement.length) {
+                    // Clear existing selection if not holding shift
+                    if (!e.shiftKey) {
+                        clearSelection();
+                    }
+
+                    // Select the new date
+                    toggleDateSelection(newElement, true);
+                    updateBulkActions();
+
+                    // Scroll into view if needed
+                    newElement[0].scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'nearest'
+                    });
+                }
+            }
+        });
+        {% endif %}
+    });
+</script>
+{% endblock %}

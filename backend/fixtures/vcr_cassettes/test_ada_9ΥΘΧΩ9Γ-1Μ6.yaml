@@ -1,0 +1,203 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.32.4
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/decisions/9%CE%A5%CE%98%CE%A7%CE%A99%CE%93-1%CE%9C6
+  response:
+    body:
+      string: "{\"protocolNumber\":\"0631\u0392\",\"subject\":\"\u0395\u039D\u03A4\u0391\u039B\u039C\u0391
+        \u03A0\u039B\u0397\u03A1\u03A9\u039C\u0397\u03A3\",\"issueDate\":1751403600000,\"organizationId\":\"6069\",\"signerIds\":[\"100076970\"],\"unitIds\":[\"100000836\"],\"decisionTypeId\":\"\u0392.2.2\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"org\":{\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"name\":\"\u0394\u0397\u039C\u039F\u03A3
+        \u0393\u03A1\u0395\u0392\u0395\u039D\u03A9\u039D\",\"afm\":\"997921832\"},\"skipVatReason\":null,\"sponsor\":[{\"expenseAmount\":{\"amount\":2399.84,\"currency\":\"EUR\"},\"sponsorAFMName\":{\"afmType\":\"EL\",\"name\":\"\u039D.\u039D\u0391\u03A5\u03A1\u0399\u039D\u0399\u0391\u0394\u0397\u03A3
+        & \u03A3\u0399\u0391 \u0395.\u0395.\",\"afm\":\"998524941\"},\"cpv\":\"\",\"kae\":\"15.6481.001\"},{\"expenseAmount\":{\"amount\":5188.4,\"currency\":\"EUR\"},\"sponsorAFMName\":{\"afmType\":\"EL\",\"name\":\"\u039D.\u039D\u0391\u03A5\u03A1\u0399\u039D\u0399\u0391\u0394\u0397\u03A3
+        & \u03A3\u0399\u0391 \u0395.\u0395.\",\"afm\":\"998524941\"},\"cpv\":\"\",\"kae\":\"15.6481.002\"}],\"relatedEkgrisiDapanis\":null,\"relatedDecisions\":null,\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"9\u03A5\u0398\u03A7\u03A99\u0393-1\u039C6\",\"publishTimestamp\":1751883630894,\"submissionTimestamp\":1751883630894,\"versionId\":\"b41be1a8-ace7-4604-9da9-faaa51a5349a\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/9\u03A5\u0398\u03A7\u03A99\u0393-1\u039C6\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/9\u03A5\u0398\u03A7\u03A99\u0393-1\u039C6\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Sun, 13 Jul 2025 17:26:37 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.32.4
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/organizations/6069
+  response:
+    body:
+      string: "{\"uid\":\"6069\",\"label\":\"\u0394\u0397\u039C\u039F\u03A3 \u0393\u03A1\u0395\u0392\u0395\u039D\u03A9\u039D\",\"abbreviation\":null,\"latinName\":\"dimos_grevenon\",\"status\":\"active\",\"category\":\"MUNICIPALITY\",\"vatNumber\":\"997921832\",\"fekNumber\":\"3852\",\"fekIssue\":\"fektype_A\",\"fekYear\":\"2010\",\"odeManagerEmail\":\"syzefxis@0641.syzefxis.gov.gr\",\"website\":\"http://www.dimosgrevenon.gr\",\"supervisorId\":\"5005\",\"supervisorLabel\":\"\u03A0\u0395\u03A1\u0399\u03A6\u0395\u03A1\u0395\u0399\u0391
+        \u0394\u03A5\u03A4\u0399\u039A\u0397\u03A3 \u039C\u0391\u039A\u0395\u0394\u039F\u039D\u0399\u0391\u03A3\",\"organizationDomains\":[]}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Sun, 13 Jul 2025 17:26:38 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.32.4
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/signers/100076970
+  response:
+    body:
+      string: "{\"uid\":\"100076970\",\"firstName\":\"\u039A\u03AC\u03C1\u03BC\u03B5\u03BD\",\"lastName\":\"\u03A3\u03B9\u03AD\u03BC\u03BF\u03C5\",\"active\":true,\"activeFrom\":1667952000000,\"activeUntil\":32503672800768,\"organizationId\":\"6069\",\"hasOrganizationSignRights\":false,\"units\":[{\"uid\":\"100000836\",\"positionId\":\"POS_10073\",\"positionLabel\":\"\u0391\u03BD\u03B1\u03C0\u03BB\u03B7\u03C1\u03C9\u03C4\u03AE\u03C2
+        \u03A0\u03C1\u03BF\u03CA\u03C3\u03C4\u03AC\u03BC\u03B5\u03BD\u03BF\u03C2 \u0394\u03B9\u03B5\u03CD\u03B8\u03C5\u03BD\u03C3\u03B7\u03C2\"}]}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Sun, 13 Jul 2025 17:26:38 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.32.4
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/units/100000836
+  response:
+    body:
+      string: "{\"uid\":\"100000836\",\"label\":\"\u0394\u0399\u0395\u03A5\u0398\u03A5\u039D\u03A3\u0397
+        \u039F\u0399\u039A\u039F\u039D\u039F\u039C\u0399\u039A\u03A9\u039D \u03A5\u03A0\u0397\u03A1\u0395\u03A3\u0399\u03A9\u039D\",\"abbreviation\":null,\"category\":\"ADMINISTRATION\",\"unitDomains\":null,\"active\":true,\"activeFrom\":1404777600000,\"activeUntil\":null,\"parentId\":\"6069\"}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Sun, 13 Jul 2025 17:26:38 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.32.4
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/units/100000836
+  response:
+    body:
+      string: "{\"uid\":\"100000836\",\"label\":\"\u0394\u0399\u0395\u03A5\u0398\u03A5\u039D\u03A3\u0397
+        \u039F\u0399\u039A\u039F\u039D\u039F\u039C\u0399\u039A\u03A9\u039D \u03A5\u03A0\u0397\u03A1\u0395\u03A3\u0399\u03A9\u039D\",\"abbreviation\":null,\"category\":\"ADMINISTRATION\",\"unitDomains\":null,\"active\":true,\"activeFrom\":1404777600000,\"activeUntil\":null,\"parentId\":\"6069\"}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Sun, 13 Jul 2025 17:26:39 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.32.4
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/units/6069
+  response:
+    body:
+      string: '{"description":"Resource not found","user":null,"errors":[{"errorCode":"","errorMessage":"Unit
+        with id:6069 not found","errorDetails":null,"canBeIgnored":false}],"exception":"ResourceNotFoundException"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Sun, 13 Jul 2025 17:26:39 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+    status:
+      code: 404
+      message: Not Found
+version: 1

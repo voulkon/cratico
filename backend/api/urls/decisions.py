@@ -1,0 +1,37 @@
+"""
+Decision-related URL patterns.
+"""
+
+from django.urls import path
+
+# URL prefix for this module
+PREFIX = "decisions/"
+
+from api.views import decisions as decisions_views
+from api.views import search
+
+urlpatterns = [
+    # Decision detail endpoints (using integer ID)
+    path("<int:decision_id>/", decisions_views.decision_detail, name="decision_detail"),
+    path(
+        "<int:decision_id>/entities/",
+        decisions_views.decision_entities,
+        name="decision_entities",
+    ),
+    path(
+        "<int:decision_id>/related/",
+        decisions_views.decision_related,
+        name="decision_related",
+    ),
+    path(
+        "<int:decision_id>/companies/",
+        decisions_views.decision_companies,
+        name="decision-companies",
+    ),
+    # Document content (legacy path - consider deprecating in favor of decisions/<id>/content/)
+    path(
+        "<int:decision_id>/content/",
+        search.get_document_content_api_dev,
+        name="decision_content_dev",
+    ),
+]

@@ -1,0 +1,6 @@
+{
+  "id": "expense_approval_negative",
+  "text_content": "Έγκριση δαπάνης για προμήθεια υλικών",
+  "should_detect": false,
+  "notes": "Negative case: expense approval, not a direct assignment"
+}

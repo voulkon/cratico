@@ -1,0 +1,62 @@
+{
+  "id": "laimos_prespses",
+  "description": "laimos_prespses",
+  "ada": "9ΦΥΣ7ΛΨ-ΠΚΗ",
+  "extra_field_values_json": {
+    "person": [
+      {
+        "afm": "099597974",
+        "name": "ΕΡΓΟΝ ΑΝΩΝΥΜΗ ΤΕΧΝΙΚΗ ΤΟΥΡΙΣΤΙΚΗ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ",
+        "afmType": "EL",
+        "enterName": false
+      }
+    ],
+    "duration": "24 ΜΗΝΕΣ",
+    "budgettype": null,
+    "partialead": null,
+    "awardAmount": null,
+    "entryNumber": null,
+    "contractType": "Σύμβαση Έργου",
+    "documentType": "ΠΡΑΞΗ",
+    "amountWithKae": null,
+    "amountWithVAT": null,
+    "financialYear": null,
+    "contractAmount": {
+      "amount": 4783835.64,
+      "currency": "EUR"
+    },
+    "numberOfPeople": null,
+    "financedProject": true,
+    "relatedDecisions": [
+      {
+        "relatedDecisionsADA": "ΡΝΒ77ΛΨ-ΝΛΘ"
+      }
+    ],
+    "recalledExpenseDecision": null
+  },
+  "expected": {
+    "entities": 1,
+    "amounts": 1,
+    "total_amount": 4783835.64
+  },
+  "_analysis": {
+    "entities_found": [
+      {
+        "afm": "099597974",
+        "name": "ΕΡΓΟΝ Α.Τ.T.Ε.Β.Ε.",
+        "role": "person",
+        "path": "person"
+      }
+    ],
+    "amounts_found": [
+      {
+        "amount": 4783835.64,
+        "currency": "EUR",
+        "path": "contractAmount",
+        "source_field": "amount",
+        "linked": false
+      }
+    ],
+    "unlinked_pattern": "contractAmount"
+  }
+}

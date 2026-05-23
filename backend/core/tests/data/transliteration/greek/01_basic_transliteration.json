@@ -1,0 +1,60 @@
+{
+  "category": "basic_transliteration",
+  "description": "Test cases for basic Latin to Greek transliteration",
+  "test_cases": [
+    {
+      "id": "basic_dhmos",
+      "input": "DHMOS",
+      "expected": "ΔΗΜΟΣ",
+      "notes": "Basic Greek municipality word"
+    },
+    {
+      "id": "basic_ypourgeia",
+      "input": "YPOURGEIA",
+      "expected": "ΥΠΟΥΡΓΕΙΑ",
+      "notes": "Ministry in Greek"
+    },
+    {
+      "id": "basic_perifereia",
+      "input": "PERIFEREIA",
+      "expected": "ΠΕΡΙΦΕΡΕΙΑ",
+      "notes": "Region in Greek"
+    },
+    {
+      "id": "multiple_words",
+      "input": "DHMOS ATHINON",
+      "expected": "ΔΗΜΟΣ ΑΘΙΝΟΝ",
+      "notes": "Multiple words with space"
+    },
+    {
+      "id": "lowercase_dhmos",
+      "input": "dhmos",
+      "expected": "δημοσ",
+      "notes": "Lowercase input preserves case"
+    },
+    {
+      "id": "lowercase_ypourgeia",
+      "input": "ypourgeia",
+      "expected": "υπουργεια",
+      "notes": "Another lowercase example"
+    },
+    {
+      "id": "mixed_case",
+      "input": "DhMoS",
+      "expected": "ΔηΜοΣ",
+      "notes": "Mixed case preserves each character's case"
+    },
+    {
+      "id": "with_numbers",
+      "input": "DHMOS 123",
+      "expected": "ΔΗΜΟΣ 123",
+      "notes": "Numbers are preserved as-is"
+    },
+    {
+      "id": "with_punctuation",
+      "input": "DHMOS, ATHINAION!",
+      "expected": "ΔΗΜΟΣ, ΑΘΙΝΑΙΟΝ!",
+      "notes": "Punctuation preserved at word boundaries"
+    }
+  ]
+}

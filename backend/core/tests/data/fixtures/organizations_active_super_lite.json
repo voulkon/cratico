@@ -1,0 +1,35 @@
+{
+    "organizations": [
+        {
+            "uid": "15168",
+            "label": "ΜΗΤΡΩΟ ΔΗΜΟΥ ΓΟΡΤΥΝΑΣ Ν. ΗΡΑΚΛΕΙΟΥ",
+            "abbreviation": null,
+            "latinName": "odemitroougortynas",
+            "status": "active",
+            "category": "OTHERTYPE",
+            "vatNumber": "999174215",
+            "fekNumber": "0",
+            "fekIssue": "",
+            "fekYear": "0",
+            "odeManagerEmail": "odegortynas@yahoo.gr",
+            "website": "",
+            "supervisorId": "6067",
+            "supervisorLabel": "ΔΗΜΟΣ ΓΟΡΤΥΝΑΣ",
+            "organizationDomains": []
+        },
+        {
+            "latin_name": "itcp_uoc",
+            "abbreviation": null,
+            "label": "ΕΡΕΥΝΗΤΙΚΟ ΠΑΝΕΠΙΣΤΗΜΙΑΚΟ ΙΝΣΤΙΤΟΥΤΟ ΘΕΩΡΗΤΙΚΗΣ ΚΑΙ ΥΠΟΛΟΓΙΣΤΙΚΗΣ ΦΥΣΙΚΗΣ",
+            "status": "active",
+            "category": "NPID",
+            "vat_number": "090101919 ΠΑΝΕΠΙΣΤΗΜΙΑΚΟ ΙΝΣΤΙΤΟΥΤΟ ΘΕΩΡΗΤΙΚΗΣ ΚΑΙ ΥΠΟΛΟΓΙΣΤΙΚΗΣ ΦΥΣΙΚΗΣ",
+            "fek_number": "1",
+            "fek_issue": "fektype_B",
+            "fek_year": "1992",
+            "website": "http: //itcp.physics.uoc.gr/",
+            "supervisor_org_uid": null,
+            "supervisor_org_name": null
+        }
+    ]
+}

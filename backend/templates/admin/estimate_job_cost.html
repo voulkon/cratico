@@ -1,0 +1,153 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static admin_modify %}
+
+{% block extrahead %}{{ block.super }}
+<style>
+    .estimation-result {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 5px;
+        margin-top: 20px;
+        border: 1px solid #ddd;
+    }
+    .stat-box {
+        display: inline-block;
+        margin-right: 20px;
+        padding: 10px;
+        background: white;
+        border: 1px solid #eee;
+        border-radius: 4px;
+        min-width: 150px;
+    }
+    .stat-label {
+        font-size: 12px;
+        color: #666;
+        text-transform: uppercase;
+    }
+    .stat-value {
+        font-size: 24px;
+        font-weight: bold;
+        color: #333;
+    }
+    .items-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+    }
+    .items-table th, .items-table td {
+        padding: 8px;
+        border-bottom: 1px solid #eee;
+        text-align: left;
+    }
+    .items-table th {
+        background: #f1f1f1;
+    }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+&rsaquo; <a href="{% url 'admin:core_aijobdefinition_changelist' %}">AI Job Definitions</a>
+&rsaquo; {{ job.display_name }}
+&rsaquo; Estimate Cost
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <h1>Estimate Cost: {{ job.display_name }}</h1>
+
+    <form method="post">
+        {% csrf_token %}
+        <fieldset class="module aligned">
+            <div class="form-row">
+                <label for="date">Target Date:</label>
+                <input type="date" name="date" id="date" value="{{ target_date }}" required>
+                <div class="help">Date to process documents from</div>
+            </div>
+
+            <div class="form-row">
+                <label for="provider">Provider:</label>
+                <input type="text" name="provider" id="provider" value="{{ provider }}" required>
+            </div>
+
+            <div class="form-row">
+                <label for="model">Model:</label>
+                <input type="text" name="model" id="model" value="{{ model }}" required>
+                <div class="help">Use exact model ID (e.g., anthropic.claude-3-haiku-20240307-v1:0)</div>
+            </div>
+        </fieldset>
+
+        <div class="submit-row">
+            <input type="submit" value="Run Estimation" class="default" name="_save">
+        </div>
+    </form>
+
+    {% if error %}
+    <div class="errornote">
+        {{ error }}
+    </div>
+    {% endif %}
+
+    {% if success %}
+    <div class="estimation-result">
+        <h2>Estimation Results</h2>
+
+        <div style="margin-bottom: 20px;">
+            <div class="stat-box">
+                <div class="stat-label">Total Cost</div>
+                <div class="stat-value">${{ result.total_cost_usd_formatted }}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Items</div>
+                <div class="stat-value">{{ result.total_items }}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Avg Cost/Item</div>
+                <div class="stat-value">${{ result.average_cost_per_item_usd_formatted }}</div>
+            </div>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <div class="stat-box">
+                <div class="stat-label">Input Tokens</div>
+                <div class="stat-value">{{ result.total_input_tokens }}</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Output Tokens</div>
+                <div class="stat-value">{{ result.total_output_tokens }}</div>
+            </div>
+        </div>
+
+        <h3>Item Breakdown (First 50)</h3>
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Identifier</th>
+                    <th>Input Tokens</th>
+                    <th>Output Tokens</th>
+                    <th>Est. Cost</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in result.items|slice:":50" %}
+                <tr>
+                    <td>{{ item.sequence }}</td>
+                    <td>{{ item.item_identifier }}</td>
+                    <td>{{ item.input_tokens }}</td>
+                    <td>{{ item.output_tokens }}</td>
+                    <td>${{ item.cost_usd_formatted }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5">No items found for this date.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

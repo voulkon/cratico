@@ -1,0 +1,67 @@
+.logo-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  text-decoration: none;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  background-color: var(--surface-color);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px var(--shadow);
+  height: 40px; /* Match control buttons height */
+  min-width: fit-content;
+}
+
+.logo-link:hover {
+  transform: scale(1.02);
+  opacity: 0.9;
+}
+
+.logo-link:active {
+  transform: scale(0.98);
+}
+
+.logo-text {
+  display: flex;
+  align-items: baseline;
+  font-weight: var(--font-bold);
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+
+.logo-crati,
+.logo-co {
+  color: var(--text-color);
+}
+
+/* First letters - make them taller and more prominent */
+.logo-crati::first-letter,
+.logo-co::first-letter {
+  font-size: 1.4em;
+  font-weight: var(--font-black);
+  background: linear-gradient(135deg, var(--palette-primary), var(--palette-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.logo-dot {
+  color: var(--palette-primary);
+  font-weight: var(--font-black);
+  margin: 0 1px;
+}
+
+/* Size variants */
+.logo-small .logo-text {
+  font-size: 16px;
+}
+
+.logo-medium .logo-text {
+  font-size: 20px;
+}
+
+.logo-large .logo-text {
+  font-size: 28px;
+}

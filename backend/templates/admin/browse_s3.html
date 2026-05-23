@@ -1,0 +1,157 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+&rsaquo; <a href="{% url 'admin:app_list' app_label='core' %}">Core</a>
+&rsaquo; <a href="{% url 'admin:core_backup_changelist' %}">Backups</a>
+&rsaquo; Browse S3
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    {% if errors %}
+    <div class="messagelist">
+        {% for error in errors %}
+        <li class="error">{{ error }}</li>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="module">
+        <h1>S3 Bucket: {{ bucket_name }}</h1>
+        <p style="color: #666; margin-bottom: 20px;">
+            <strong>Base path:</strong> s3://{{ bucket_name }}/backups/
+        </p>
+    </div>
+
+    <div class="module" style="margin-top: 20px;">
+        <h2>PostgreSQL Backups ({{ s3_files.postgres|length }})</h2>
+        {% if s3_files.postgres %}
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                <thead>
+                    <tr style="background-color: #f8f8f8; text-align: left;">
+                        <th style="padding: 8px; border-bottom: 2px solid #ddd;">Filename</th>
+                        <th style="padding: 8px; border-bottom: 2px solid #ddd;">Size</th>
+                        <th style="padding: 8px; border-bottom: 2px solid #ddd;">Last Modified</th>
+                        <th style="padding: 8px; border-bottom: 2px solid #ddd;">S3 Key</th>
+                        <th style="padding: 8px; border-bottom: 2px solid #ddd;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for file in s3_files.postgres %}
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #eee;">
+                            <strong>{{ file.filename }}</strong>
+                        </td>
+                        <td style="padding: 8px; border-bottom: 1px solid #eee;">
+                            {% if file.size < 1024 %}
+                                {{ file.size }} B
+                            {% elif file.size < 1048576 %}
+                                {{ file.size|floatformat:2 |add:"0"|floatformat:0|divisibleby:"1024" }} KB
+                            {% elif file.size < 1073741824 %}
+                                {% widthratio file.size 1048576 1 %} MB
+                            {% else %}
+                                {% widthratio file.size 1073741824 1 %} GB
+                            {% endif %}
+                        </td>
+                        <td style="padding: 8px; border-bottom: 1px solid #eee;">
+                            {{ file.last_modified|date:"Y-m-d H:i:s" }}
+                        </td>
+                        <td style="padding: 8px; border-bottom: 1px solid #eee;">
+                            <code style="font-size: 11px; color: #666;">{{ file.key }}</code>
+                        </td>
+                        <td style="padding: 8px; border-bottom: 1px solid #eee;">
+                            <a href="{% url 'admin:restore_postgres_from_s3' file.key %}"
+                               class="button"
+                               style="background-color: #4CAF50; color: white; padding: 5px 12px; text-decoration: none; border-radius: 3px; font-size: 12px;"
+                               onclick="return confirm('Are you sure you want to restore this PostgreSQL backup? This will overwrite your current database!');">🔄 Restore</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p style="padding: 20px; background: #f9f9f9; border-radius: 4px; color: #666;">
+                No PostgreSQL backups found in S3.
+            </p>
+        {% endif %}
+    </div>
+
+    <div class="module" style="margin-top: 30px;">
+        <h2>OpenSearch Snapshots in S3 ({{ s3_files.opensearch|length }})</h2>
+        <p style="color: #666; margin-bottom: 10px;">
+            <strong>Note:</strong> Snapshots discovered by parsing S3 metadata files directly.
+        </p>
+        {% if s3_files.opensearch %}
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                <thead>
+                    <tr style="background-color: #f8f8f8; text-align: left;">
+                        <th style="padding: 8px; border-bottom: 2px solid #ddd;">Snapshot Name</th>
+                        <th style="padding: 8px; border-bottom: 2px solid #ddd;">State</th>
+                        <th style="padding: 8px; border-bottom: 2px solid #ddd;">Created</th>
+                        <th style="padding: 8px; border-bottom: 2px solid #ddd;">Indices</th>
+                        <th style="padding: 8px; border-bottom: 2px solid #ddd;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for snapshot in s3_files.opensearch %}
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #eee;">
+                            <strong>{{ snapshot.snapshot_name }}</strong><br>
+                            <code style="font-size: 10px; color: #666;">{{ snapshot.uuid }}</code>
+                        </td>
+                        <td style="padding: 8px; border-bottom: 1px solid #eee;">
+                            {% if snapshot.state == "SUCCESS" %}
+                                <span style="color: #4CAF50; font-weight: bold;">✓ {{ snapshot.state }}</span>
+                            {% else %}
+                                <span style="color: #ff9800; font-weight: bold;">{{ snapshot.state }}</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 8px; border-bottom: 1px solid #eee;">
+                            {% if snapshot.last_modified %}
+                                {{ snapshot.last_modified|date:"Y-m-d H:i:s" }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td style="padding: 8px; border-bottom: 1px solid #eee;">
+                            <span style="font-size: 11px;">{{ snapshot.indices|default:"N/A" }}</span>
+                        </td>
+                        <td style="padding: 8px; border-bottom: 1px solid #eee;">
+                            <a href="{% url 'admin:restore_opensearch_from_s3' snapshot.snapshot_name %}"
+                               class="button"
+                               style="background-color: #2196F3; color: white; padding: 5px 12px; text-decoration: none; border-radius: 3px; font-size: 12px;"
+                               onclick="return confirm('Are you sure you want to restore this OpenSearch snapshot? This will overwrite your current index!');">🔄 Restore</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p style="padding: 20px; background: #f9f9f9; border-radius: 4px; color: #666;">
+                No OpenSearch snapshots found in S3. Check that snapshots are being created to <code>backups/opensearch/</code>.
+            </p>
+        {% endif %}
+    </div>
+
+    <div style="margin-top: 30px; padding: 15px; background: #e3f2fd; border-left: 4px solid #2196F3; border-radius: 4px;">
+        <h3 style="margin-top: 0;">💡 About S3 Storage & Restore</h3>
+        <ul style="line-height: 1.6;">
+            <li><strong>PostgreSQL backups</strong> are stored as <code>.dump</code> files in custom compressed format</li>
+            <li><strong>OpenSearch snapshots</strong> are stored as directories with multiple files managed by OpenSearch</li>
+            <li>Files shown here are directly accessible in the AWS Console or via AWS CLI</li>
+            <li><strong>To restore:</strong> Click the 🔄 Restore button next to any backup - perfect for restoring data from another deployment!</li>
+            <li>⚠️ <strong>Warning:</strong> Restoring will overwrite your current database/index. Make sure you have a backup first if needed.</li>
+        </ul>
+    </div>
+
+    <div style="margin-top: 20px;">
+        <a href="{% url 'admin:core_backup_changelist' %}" class="button" style="padding: 8px 16px;">
+            ← Back to Backups
+        </a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,135 @@
+/* Notification Batch Detail Page - Page-specific styles */
+
+.notification-batch-detail-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+  background: var(--bg-color);
+  min-height: 100vh;
+}
+
+/* Breadcrumb Navigation */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+}
+
+.breadcrumb-link {
+  background: none;
+  border: none;
+  color: var(--palette-primary);
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.breadcrumb-link:hover {
+  color: var(--palette-secondary);
+  text-decoration: underline;
+}
+
+.breadcrumb-separator {
+  color: var(--muted-text);
+}
+
+.breadcrumb-current {
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+/* Subscription Link Container */
+.subscription-link-container {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.view-all-subscription-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--palette-primary);
+  color: white;
+  border: none;
+  padding: 0.8rem 1.5rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+.view-all-subscription-link:hover {
+  background: var(--palette-secondary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--shadow-hover);
+}
+
+/* Loading, Error, Not Found States */
+.loading-container,
+.error-container,
+.not-found-container {
+  text-align: center;
+  padding: 4rem 2rem;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid var(--border-color);
+  border-top-color: var(--palette-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error-container h2,
+.not-found-container h2 {
+  color: var(--text-color);
+  margin-bottom: 1rem;
+}
+
+.error-container p {
+  color: var(--error-text);
+  margin-bottom: 1.5rem;
+}
+
+.back-button {
+  background: var(--palette-primary);
+  color: white;
+  border: none;
+  padding: 0.8rem 2rem;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.back-button:hover {
+  background: var(--palette-secondary);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .notification-batch-detail-page {
+    padding: 1rem;
+  }
+
+  .subscription-link-container {
+    margin-bottom: 1.5rem;
+  }
+
+  .view-all-subscription-link {
+    width: 100%;
+    font-size: 0.95rem;
+  }
+}

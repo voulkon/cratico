@@ -1,0 +1,277 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}API Analytics{% endblock %}
+
+{% block extrastyle %}
+<style>
+    .analytics-container {
+        padding: 20px;
+    }
+
+    .stat-card {
+        background: #fff;
+        border: 1px solid #ddd;
+        padding: 15px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .stat-value {
+        font-size: 24px;
+        font-weight: bold;
+        color: #447e9b;
+    }
+
+    .export-btn {
+        margin-top: 20px;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    th,
+    td {
+        padding: 8px;
+        border: 1px solid #ddd;
+        text-align: left;
+    }
+
+    th {
+        background-color: #f5f5f5;
+    }
+
+    .chart-container {
+        height: 300px;
+        margin-bottom: 30px;
+    }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="analytics-container">
+    <h1>API Analytics Dashboard</h1>
+
+    {% if total_requests == 0 and unique_ips == 0 %}
+    <!-- Empty State -->
+    <div class="stat-card" style="text-align: center; padding: 60px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+        <i class="fas fa-chart-line fa-5x" style="opacity: 0.3; margin-bottom: 30px;"></i>
+        <h2 style="color: white; margin-bottom: 15px;">No Analytics Data Yet</h2>
+        <p style="font-size: 18px; margin-bottom: 30px; opacity: 0.9;">
+            Start making API requests to see analytics data appear here in real-time.
+        </p>
+
+        <div style="background: rgba(255,255,255,0.1); border-radius: 8px; padding: 30px; max-width: 600px; margin: 0 auto; text-align: left;">
+            <h3 style="color: white; margin-top: 0;">🔍 Quick Check:</h3>
+            <p style="margin-bottom: 20px;">Redis connection is active and monitoring all API requests starting with <code style="background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 3px;">/api/</code></p>
+
+            <h4 style="color: white;">How to populate this dashboard:</h4>
+            <ol style="line-height: 2;">
+                <li>Visit the <a href="/api/docs/" style="color: #ffd700; text-decoration: underline;">API Documentation</a></li>
+                <li>Make some API requests (any endpoint under <code style="background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 3px;">/api/</code>)</li>
+                <li>Refresh this page to see the analytics</li>
+            </ol>
+
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2);">
+                <p style="margin-bottom: 15px;"><strong>Development Tools:</strong></p>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <a href="/api/docs/" class="button" style="background: white; color: #667eea; padding: 10px 20px; border-radius: 5px; text-decoration: none; display: inline-block;">
+                        📚 API Docs
+                    </a>
+                    <a href="http://localhost:8081" target="_blank" class="button" style="background: rgba(255,255,255,0.2); color: white; padding: 10px 20px; border-radius: 5px; text-decoration: none; display: inline-block;">
+                        🗄️ Redis Commander
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <!-- Analytics Dashboard with Data -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="stat-card">
+                <h3>Total API Requests</h3>
+                <div class="stat-value">{{ total_requests }}</div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="stat-card">
+                <h3>Unique IP Addresses</h3>
+                <div class="stat-value">{{ unique_ips }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="stat-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="margin: 0;">Daily Traffic</h3>
+                    <div class="time-navigation" style="display: flex; gap: 10px; align-items: center;">
+                        <a href="?daily_offset={{ daily_offset|add:7 }}{% if hourly_offset %}&hourly_offset={{ hourly_offset }}{% endif %}"
+                           class="button" style="padding: 5px 15px; text-decoration: none;">
+                            ◀ Previous 7 Days
+                        </a>
+                        <span style="color: #666; font-size: 14px;">{{ daily_range }}</span>
+                        <a href="?daily_offset={{ daily_offset|add:-7 }}{% if hourly_offset %}&hourly_offset={{ hourly_offset }}{% endif %}"
+                           class="button" style="padding: 5px 15px; text-decoration: none;"
+                           {% if daily_offset <= 0 %}onclick="return false;" style="opacity: 0.5; cursor: not-allowed;"{% endif %}>
+                            Next 7 Days ▶
+                        </a>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="dailyChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="stat-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h3 style="margin: 0;">Hourly Traffic</h3>
+                    <div class="time-navigation" style="display: flex; gap: 10px; align-items: center;">
+                        <a href="?hourly_offset={{ hourly_offset|add:24 }}{% if daily_offset %}&daily_offset={{ daily_offset }}{% endif %}"
+                           class="button" style="padding: 5px 15px; text-decoration: none;">
+                            ◀ Previous 24 Hours
+                        </a>
+                        <span style="color: #666; font-size: 14px;">{{ hourly_range }}</span>
+                        <a href="?hourly_offset={{ hourly_offset|add:-24 }}{% if daily_offset %}&daily_offset={{ daily_offset }}{% endif %}"
+                           class="button" style="padding: 5px 15px; text-decoration: none;"
+                           {% if hourly_offset <= 0 %}onclick="return false;" style="opacity: 0.5; cursor: not-allowed;"{% endif %}>
+                            Next 24 Hours ▶
+                        </a>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="hourlyChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="stat-card">
+                <h3>Popular Endpoints</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Endpoint</th>
+                            <th>Requests</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for endpoint, count in popular_endpoints %}
+                        <tr>
+                            <td>{{ endpoint }}</td>
+                            <td>{{ count }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="stat-card">
+                <h3>🧭 IP Journey Tracking</h3>
+                <p style="font-size: 14px; color: #666; margin-bottom: 15px;">
+                    Shows which endpoints each IP address has visited
+                </p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>IP Address</th>
+                            <th>Endpoints Visited</th>
+                            <th>Journey Length</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for ip, endpoints, count in ip_journeys %}
+                        <tr>
+                            <td><code>{{ ip }}</code></td>
+                            <td style="font-size: 12px;">
+                                {% for endpoint in endpoints|slice:":3" %}
+                                    <div>→ {{ endpoint }}</div>
+                                {% endfor %}
+                                {% if count > 3 %}
+                                    <div style="color: #999; font-style: italic;">+ {{ count|add:"-3" }} more...</div>
+                                {% endif %}
+                            </td>
+                            <td><strong>{{ count }}</strong></td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" style="text-align: center; color: #999;">
+                                No journey data yet. IP tracking starts with new requests.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="export-btn">
+        <a href="{% url 'admin:export_analytics' %}" class="button">Export as CSV</a>
+    </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Daily traffic chart
+        var dailyLabels = [{% for day, count in daily_traffic %}'{{ day }}', {% endfor %}];
+        var dailyData = [{% for day, count in daily_traffic %}{{ count }}, {% endfor %}];
+
+    var dailyChart = new Chart(document.getElementById('dailyChart'), {
+        type: 'line',
+        data: {
+            labels: dailyLabels,
+            datasets: [{
+                label: 'Daily Requests',
+                data: dailyData,
+                borderColor: '#447e9b',
+                backgroundColor: 'rgba(68, 126, 155, 0.1)',
+                borderWidth: 2,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
+        }
+    });
+
+    // Hourly traffic chart
+    var hourlyLabels = [{% for hour, count in hourly_traffic %}'{{ hour }}', {% endfor %}];
+    var hourlyData = [{% for hour, count in hourly_traffic %}{{ count }}, {% endfor %}];
+
+    var hourlyChart = new Chart(document.getElementById('hourlyChart'), {
+        type: 'bar',
+        data: {
+            labels: hourlyLabels,
+            datasets: [{
+                label: 'Hourly Requests',
+                data: hourlyData,
+                backgroundColor: 'rgba(68, 126, 155, 0.7)'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
+        }
+    });
+
+    // Methods chart removed - now showing IP Journey tracking instead
+  });
+</script>
+{% endif %} <!-- End of else block for analytics display -->
+</div> <!-- End analytics-container -->
+{% endblock %}

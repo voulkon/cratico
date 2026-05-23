@@ -1,0 +1,77 @@
+# name: Database Tests
+
+# on:
+#   push:
+#     branches: [ "main","dev" ]
+#     paths:
+#       - 'backend/core/migrations/**'
+#       - 'backend/core/models/**'
+#       - 'backend/**/test_*_db.py'
+#       - '.github/workflows/db-ci.yml'
+#   pull_request:
+#     branches: [ "main","dev" ]
+#     paths:
+#       - 'backend/core/migrations/**'
+#       - 'backend/core/models/**'
+#       - 'backend/**/test_*_db.py'
+#       - '.github/workflows/db-ci.yml'
+#   workflow_dispatch:
+
+# jobs:
+#   test:
+#     runs-on: ubuntu-latest
+#     defaults:
+#       run:
+#         working-directory: backend
+
+#     services:
+#       postgres:  # Name doesn't matter for direct port mapping
+#         image: postgres:15
+#         env:
+#           POSTGRES_USER: postgres
+#           POSTGRES_PASSWORD: postgres
+#           POSTGRES_DB: test_diavgeia
+#         ports:
+#           - 5432:5432
+#         options: >-
+#           --health-cmd pg_isready
+#           --health-interval 10s
+#           --health-timeout 5s
+#           --health-retries 5
+
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v4
+
+#     - name: Set up Python
+#       uses: actions/setup-python@v5
+#       with:
+#         python-version: '3.13'
+#         cache: 'pip'
+
+#     - name: Install Poetry
+#       run: pip install poetry==1.8.2
+
+#     - name: Cache Poetry dependencies
+#       uses: actions/cache@v4
+#       with:
+#         path: ~/.cache/pypoetry/virtualenvs
+#         key: ${{ runner.os }}-poetry-${{ hashFiles('backend/poetry.lock') }}
+#         restore-keys: |
+#           ${{ runner.os }}-poetry-
+
+#     - name: Install dependencies
+#       run: poetry install
+
+#     # Run fast tests that need database access
+#     - name: Run fast database tests
+#       run: poetry run pytest -m fast -k "django_db" -v
+#       env:
+#         DEBUG: 'False'
+#         SECRET_KEY: 'ci-secret-key'
+#         ALLOWED_HOSTS: '*'
+#         PG_TEST: 'True'
+#         DB_HOST: 'localhost'
+#         DB_USER: 'postgres'
+#         DB_PASSWORD: 'postgres'
+#         DB_NAME: 'test_diavgeia'

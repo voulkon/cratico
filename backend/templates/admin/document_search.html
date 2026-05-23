@@ -1,0 +1,217 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+        .result-details {
+        margin-top: 5px;
+        padding-top: 5px;
+        border-top: 1px dashed #eee;
+        font-size: 0.9em;
+    }
+
+    .result-details div {
+        margin-bottom: 3px;
+    }
+
+    .document-link {
+        background-color: #f0f5ff;
+        padding: 2px 8px;
+        border-radius: 3px;
+        margin-left: 10px;
+        border: 1px solid #d0e0ff;
+        display: inline-block;
+    }
+
+    .document-link:hover {
+        background-color: #e0ebff;
+    }
+    .search-form {
+        margin-bottom: 20px;
+        padding: 15px;
+        background: #f8f8f8;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+    .search-field {
+        margin-right: 15px;
+        display: inline-block;
+    }
+    .result-item {
+        margin-bottom: 20px;
+        padding: 15px;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+    .result-header {
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #eee;
+    }
+    .result-title {
+        font-weight: bold;
+        font-size: 1.1em;
+    }
+    .result-meta {
+        font-size: 0.9em;
+        color: #666;
+    }
+    .result-content {
+        max-height: 200px;
+        overflow-y: auto;
+        white-space: pre-line;
+    }
+    .highlight {
+        background-color: yellow;
+        font-weight: bold;
+    }
+    .stats {
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <h1>Document Full-Text Search</h1>
+
+    <div class="search-form">
+        <form method="get" id="search-form">
+            <div class="search-field">
+                <label for="q">Search text:</label>
+                <input type="text" name="q" id="q" value="{{ query }}" style="width: 400px;" placeholder="Enter search terms...">
+            </div>
+
+            <div class="search-field">
+                <label for="provider">Provider:</label>
+                <select name="provider" id="provider">
+                    <option value="">All providers</option>
+                    {% for provider in providers %}
+                    <option value="{{ provider }}" {% if provider == provider_filter %}selected{% endif %}>
+                        {{ provider }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="search-field">
+                <label for="status">Decision status:</label>
+                <select name="status" id="status">
+                    <option value="">All statuses</option>
+                    {% for status in statuses %}
+                    <option value="{{ status }}" {% if status == status_filter %}selected{% endif %}>
+                        {{ status }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="search-field">
+                <label for="is_scanned">Scanned document:</label>
+                <select name="is_scanned" id="is_scanned">
+                    <option value="">All documents</option>
+                    <option value="true" {% if is_scanned_filter == 'true' %}selected{% endif %}>Scanned</option>
+                    <option value="false" {% if is_scanned_filter == 'false' %}selected{% endif %}>Not scanned</option>
+                </select>
+            </div>
+
+            <div class="search-field">
+                <button type="submit" class="button">Search</button>
+            </div>
+        </form>
+    </div>
+
+    {% if query %}
+    <div class="stats">
+        <p>Found {{ count }} documents matching your search.</p>
+    </div>
+
+    <div class="results">
+        {% for result in results %}
+        <div class="result-item">
+            <div class="result-header">
+                <div class="result-title">
+                    <a href="{% url 'admin:core_documentextraction_change' result.id %}">
+                        {{ result.decision.subject|truncatechars:100 }}
+                    </a>
+                </div>
+                <div class="result-meta">
+                    ADA: <a href="{% url 'admin:core_decision_change' result.decision.id %}">{{ result.decision.ada }}</a>
+                    {% if result.decision.document_url %}
+                    | <a href="{{ result.decision.document_url }}" target="_blank" class="document-link">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                          <polyline points="15 3 21 3 21 9"></polyline>
+                          <line x1="10" y1="14" x2="21" y2="3"></line>
+                        </svg>
+                        PDF Document
+                      </a>
+                    {% endif %}                    | Provider: {{ result.extraction_provider }}
+                    | Status: {{ result.extraction_status }}
+                    | Pages: {{ result.page_count }}
+                    | Characters: {{ result.character_count }}
+                </div>
+            </div>
+            <div class="result-content">
+                {{ result.raw_text|truncatechars:500 }}
+                {% if result.raw_text|length > 500 %}
+                <a href="{% url 'admin:core_documentextraction_change' result.id %}" class="button">View full text</a>
+                {% endif %}
+            </div>
+
+            <div class="result-details">
+                {% if result.decision.organization %}
+                <div><strong>Organization:</strong>
+                    <a href="{% url 'admin:core_organization_change' result.decision.organization.pk %}">
+                        {{ result.decision.organization.label }}
+                    </a>
+                </div>
+                {% endif %}
+
+                {% if result.decision.signers.exists %}
+                <div><strong>Signers:</strong>
+                    {% for signer in result.decision.signers.all|slice:":3" %}
+                        <a href="{% url 'admin:core_signer_change' signer.pk %}">
+                            {{ signer.last_name }}, {{ signer.first_name }}
+                        </a>{% if not forloop.last %}, {% endif %}
+                    {% endfor %}
+                    {% if result.decision.signers.count > 3 %}
+                        and {{ result.decision.signers.count|add:"-3" }} more
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <div><strong>Date:</strong> {{ result.decision.issue_date|date:"Y-m-d" }}</div>
+            </div>
+        </div>
+        {% empty %}
+        <p>No documents found matching your search criteria.</p>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="message">
+        <p>Enter search terms to find documents.</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Highlight search terms
+        const searchTerms = '{{ query }}'.split(' ');
+        const contentElements = document.querySelectorAll('.result-content');
+
+        searchTerms.forEach(term => {
+            if (term.trim() !== '') {
+                contentElements.forEach(element => {
+                    const html = element.innerHTML;
+                    const regex = new RegExp(`(${term})`, 'gi');
+                    element.innerHTML = html.replace(regex, '<span class="highlight">$1</span>');
+                });
+            }
+        });
+    });
+</script>
+{% endblock %}

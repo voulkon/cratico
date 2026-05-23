@@ -1,0 +1,48 @@
+{
+  "category": "neutral",
+  "description": "Test cases with no alphabetic characters (neutral)",
+  "test_cases": [
+    {
+      "id": "neutral_numbers",
+      "text": "123456789",
+      "expected_language": "neutral",
+      "min_confidence": 0.95,
+      "notes": "Pure numbers (AFM search)"
+    },
+    {
+      "id": "neutral_punctuation",
+      "text": "!@#$%^&*()",
+      "expected_language": "neutral",
+      "min_confidence": 0.95,
+      "notes": "Only punctuation"
+    },
+    {
+      "id": "neutral_spaces",
+      "text": "   ",
+      "expected_language": "neutral",
+      "min_confidence": 0.95,
+      "notes": "Only whitespace"
+    },
+    {
+      "id": "neutral_empty",
+      "text": "",
+      "expected_language": "neutral",
+      "min_confidence": 0.95,
+      "notes": "Empty string"
+    },
+    {
+      "id": "neutral_numbers_spaces",
+      "text": "123 456 789",
+      "expected_language": "neutral",
+      "min_confidence": 0.95,
+      "notes": "Numbers with spaces"
+    },
+    {
+      "id": "neutral_special_chars",
+      "text": "+-=[]{}",
+      "expected_language": "neutral",
+      "min_confidence": 0.95,
+      "notes": "Special characters"
+    }
+  ]
+}

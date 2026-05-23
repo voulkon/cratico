@@ -1,0 +1,39 @@
+{
+    "id": "direct_with_counterpart_3",
+    "description": "Direct assignment with counterpart - Apovlita",
+    "ada": "ΨΚ29ΟΛ3Υ-0ΤΡ",
+    "extra_field_values_json": {
+        "cpv": [
+            "90513700-3",
+            "90513900-5"
+        ],
+        "person": [
+            {
+                "afm": "800410090",
+                "name": "ΒΙΟΣΤΕΡΕΑ ΠΑΡΑΓΩΓΗ ΕΔΑΦΟΒΕΛΤΙΩΤΙΚΩΝ ΑΝΩΝΥΜΟΣ ΕΤΑΙΡΕΙΑ",
+                "afmType": "EL",
+                "enterName": false
+            }
+        ],
+        "budgettype": null,
+        "partialead": null,
+        "awardAmount": {
+            "amount": 26040.0,
+            "currency": "EUR"
+        },
+        "entryNumber": null,
+        "documentType": "ΠΡΑΞΗ",
+        "amountWithKae": null,
+        "amountWithVAT": null,
+        "financialYear": null,
+        "assignmentType": "Υπηρεσίες",
+        "textRelatedADA": null,
+        "relatedDecisions": [],
+        "recalledExpenseDecision": null
+    },
+    "expected": {
+        "entities": 1,
+        "amounts": 1,
+        "total_amount" : 26040.0
+    }
+}

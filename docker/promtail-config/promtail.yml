@@ -1,0 +1,139 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Docker socket scraping - RUNNING containers only
+  - job_name: docker_containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: status
+            values: [running]
+
+    relabel_configs:
+      # Capture container name (e.g., diavgeia_worker, diavgeia_backend)
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'container_name'
+        regex: '/(.*)'
+        replacement: '${1}'
+
+      # Map to standardized service_name (hyphenated, matching SERVICE_NAME env var)
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'service_name'
+        regex: '/diavgeia_backend'
+        replacement: 'diavgeia-backend'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'service_name'
+        regex: '/diavgeia_worker'
+        replacement: 'diavgeia-worker'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'service_name'
+        regex: '/diavgeia_beat'
+        replacement: 'diavgeia-beat'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'service_name'
+        regex: '/diavgeia_(.*)'
+        replacement: 'diavgeia-${1}'
+
+      # Set component type for easier filtering
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'component'
+        regex: '/diavgeia_backend'
+        replacement: 'django'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'component'
+        regex: '/diavgeia_worker'
+        replacement: 'celery'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'component'
+        regex: '/diavgeia_beat'
+        replacement: 'celery-beat'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'component'
+        regex: '/diavgeia_db'
+        replacement: 'database'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'component'
+        regex: '/diavgeia_redis'
+        replacement: 'cache'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'component'
+        regex: '/diavgeia_nginx'
+        replacement: 'webserver'
+
+      # Set environment
+      - target_label: 'environment'
+        replacement: 'development'
+
+    # Enhanced pipeline with JSON parsing
+    pipeline_stages:
+      - docker: {}
+
+      # Drop log entries older than 14 days to prevent ingestion errors
+      - drop:
+          source: timestamp
+          older_than: 336h  # 14 days
+          drop_counter_reason: "timestamp_too_old"
+
+      # Try to parse as JSON first
+      - json:
+          expressions:
+            # Standard log fields
+            timestamp: timestamp
+            level: level
+            logger: logger
+            message: message
+
+            # Custom application fields
+            ingestion_id: ingestion_id
+            ada: ada
+            stage: stage
+            task_id: task_id
+            job_type: job_type
+            component_status: component
+            duration_ms: duration_ms
+
+            # User/request context
+            user_id: user_id
+            endpoint: endpoint
+
+            # Error tracking
+            error_type: error_type
+            error_message: error_message
+
+      # Extract labels for high-cardinality filtering
+      # WARNING: Only use labels for low-cardinality fields!
+      # ingestion_id and ada should NOT be labels (too many unique values)
+      # They should be extracted as fields for querying with | json
+      - labels:
+          level:
+          logger:
+          job_type:
+          stage:
+
+      # Set timestamp from parsed JSON if available
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+          # Fallback formats
+          fallback_formats:
+            - "2006-01-02 15:04:05.000"
+            - "2006-01-02T15:04:05.999999Z07:00"
+            - "2006-01-02T15:04:05.999999"
+
+      # If JSON parsing fails, fall back to regex for old-style logs
+      - match:
+          selector: '{component="celery"}'
+          stages:
+            - regex:
+                expression: '(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}) \| (?P<level>\w+)'
+            - labels:
+                level:

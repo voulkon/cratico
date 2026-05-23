@@ -1,0 +1,37 @@
+{
+    "id": "direct_with_counterpart_1",
+    "description": "Direct assignment with counterpart - ΕΛΕΓΚΤΙΚΟΣ ΚΡΙΚΟΣ",
+    "ada": "Ρ5ΟΓΩΕ6-Ι41",
+    "extra_field_values_json": {
+        "cpv": [
+            "79212200-5"
+        ],
+        "person": [
+            {
+                "afm": "802497241",
+                "name": "ΕΛΕΓΚΤΙΚΟΣ ΚΡΙΚΟΣ ΜΟΝΟΠΡΟΣΩΠΗ Ι Κ Ε",
+                "afmType": "EL",
+                "enterName": false
+            }
+        ],
+        "budgettype": null,
+        "partialead": null,
+        "awardAmount": {
+            "amount": 37200.0,
+            "currency": "EUR"
+        },
+        "entryNumber": null,
+        "documentType": "ΠΡΑΞΗ",
+        "amountWithKae": null,
+        "amountWithVAT": null,
+        "financialYear": null,
+        "assignmentType": "Υπηρεσίες",
+        "textRelatedADA": null,
+        "relatedDecisions": [],
+        "recalledExpenseDecision": null
+    },
+    "expected": {
+        "entities": 1,
+        "amounts": 1
+    }
+}

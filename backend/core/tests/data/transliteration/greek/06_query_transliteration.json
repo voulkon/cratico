@@ -1,0 +1,54 @@
+{
+  "category": "query_transliteration",
+  "description": "Test cases for smart query transliteration (transliterate_query method)",
+  "test_cases": [
+    {
+      "id": "latin_query_transliterated",
+      "input": "DHMOS",
+      "expected": "ΔΗΜΟΣ",
+      "notes": "Latin query should be transliterated"
+    },
+    {
+      "id": "greek_query_unchanged",
+      "input": "ΔΗΜΟΣ",
+      "expected": "ΔΗΜΟΣ",
+      "notes": "Greek query should remain unchanged"
+    },
+    {
+      "id": "empty_query_unchanged",
+      "input": "",
+      "expected": "",
+      "notes": "Empty query should remain empty"
+    },
+    {
+      "id": "numbers_unchanged",
+      "input": "123456789",
+      "expected": "123456789",
+      "notes": "Numeric queries should remain unchanged"
+    },
+    {
+      "id": "mixed_query_majority_latin",
+      "input": "ΔΗΜΟΣ Athens",
+      "expected": "ΔΗΜΟΣ Αθενσ",
+      "notes": "Mixed query with majority Latin (6 Latin vs 5 Greek) should be transliterated"
+    },
+    {
+      "id": "mixed_query_majority_greek",
+      "input": "ΔΗΜΟΣ ΤΗΣ ΑΘΗΝΑΣ W",
+      "expected": "ΔΗΜΟΣ ΤΗΣ ΑΘΗΝΑΣ W",
+      "notes": "Mixed query with majority Greek (14 Greek vs 1 Latin) should remain unchanged"
+    },
+    {
+      "id": "latin_phrase",
+      "input": "DHMOS ATHINON",
+      "expected": "ΔΗΜΟΣ ΑΘΙΝΟΝ",
+      "notes": "Latin phrase should be fully transliterated"
+    },
+    {
+      "id": "afm_search",
+      "input": "AFM 123456789",
+      "expected": "ΑΦΜ 123456789",
+      "notes": "Latin abbreviations should be transliterated"
+    }
+  ]
+}

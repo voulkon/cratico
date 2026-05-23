@@ -1,0 +1,28 @@
+{
+    "id": "direct_without_counterpart_1",
+    "description": "Direct assignment without counterpart - Ταχυμεταφορές με Courier",
+    "ada": "62ΡΑΟΡΝ0-0Ξ9",
+    "extra_field_values_json": {
+        "cpv": [
+            "90600000-3"
+        ],
+        "person": [],
+        "budgettype": null,
+        "partialead": null,
+        "awardAmount": {"amount": 37200.0, "currency": "EUR"},
+        "entryNumber": null,
+        "documentType": "ΠΡΑΞΗ",
+        "amountWithKae": null,
+        "amountWithVAT": null,
+        "financialYear": null,
+        "assignmentType": "Υπηρεσίες",
+        "textRelatedADA": null,
+        "relatedDecisions": [],
+        "recalledExpenseDecision": null
+
+    },
+    "expected": {
+        "entities": 0,
+        "amounts": 1
+    }
+}

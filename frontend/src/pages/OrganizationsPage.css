@@ -1,0 +1,325 @@
+/* Add these new styles to your existing CSS */
+
+.welcome-state {
+  text-align: center;
+  padding: var(--spacing-xxxl) var(--spacing-xl);
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  margin: var(--spacing-xl) 0;
+  border: 2px dashed var(--border-color);
+}
+
+.welcome-content h2 {
+  color: var(--palette-primary);
+  margin-bottom: var(--spacing-md);
+  font-size: var(--font-xl);
+}
+
+.welcome-content p {
+  color: var(--muted-text);
+  margin-bottom: var(--spacing-xl);
+  font-size: var(--font-md);
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.welcome-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--spacing-xl);
+  margin: var(--spacing-xl) 0;
+}
+
+.welcome-option {
+  background: var(--hover-bg);
+  padding: var(--spacing-xl);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+}
+
+.welcome-option h3 {
+  color: var(--palette-secondary);
+  margin-bottom: var(--spacing-sm);
+  font-size: var(--font-md);
+}
+
+.welcome-option p {
+  color: var(--text-color);
+  font-size: var(--font-sm);
+  margin: 0;
+}
+
+.popular-organizations {
+  margin-top: var(--spacing-xxxl);
+  padding-top: var(--spacing-xl);
+  border-top: 1px solid var(--border-color);
+}
+
+.popular-organizations h3 {
+  color: var(--palette-primary);
+  margin-bottom: var(--spacing-md);
+  font-size: var(--font-lg);
+}
+
+.popular-org-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  justify-content: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.popular-org-button {
+  background: var(--bg-selected);
+  border: 2px solid var(--palette-primary);
+  color: var(--palette-primary);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: var(--font-bold);
+  transition: var(--transition-fast);
+  font-size: var(--font-sm);
+}
+
+.popular-org-button:hover {
+  background: var(--palette-primary);
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+.popular-note {
+  color: var(--muted-text);
+  font-size: var(--font-xs);
+  font-style: italic;
+  margin: 0;
+}
+
+.clear-button {
+  background: var(--danger-color, #dc3545);
+  color: white;
+  border: none;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: var(--font-medium);
+  transition: var(--transition-fast);
+  margin-left: var(--spacing-sm);
+}
+
+.clear-button:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .welcome-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .popular-org-buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .popular-org-button {
+    width: 100%;
+    max-width: 300px;
+  }
+}
+
+/* Add this to your existing CSS */
+
+.chart-container {
+  width: 100%;
+  height: 600px;
+  max-height: 70vh;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  margin-top: var(--spacing-xl);
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 4px 12px var(--shadow);
+  border: 2px solid var(--border-color);
+}
+
+.chart-header {
+  background: var(--hover-bg);
+  border-bottom: 1px solid var(--border-color);
+  padding: var(--spacing-md);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chart-title {
+  font-weight: var(--font-bold);
+  color: var(--palette-primary);
+  margin: 0;
+  font-size: var(--font-md);
+}
+
+.chart-controls {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.chart-help-text {
+  font-size: var(--font-xs);
+  color: var(--muted-text);
+  margin: 0;
+}
+
+.chart-content {
+  height: calc(100% - 60px);
+  width: 100%;
+  position: relative;
+}
+
+/* Make sure ReactFlow controls are visible and clickable */
+.chart-content .react-flow__controls {
+  z-index: 10 !important;
+  background: var(--card-bg) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: 0 2px 8px var(--shadow) !important;
+}
+
+.chart-content .react-flow__controls button {
+  background: var(--card-bg) !important;
+  color: var(--text-color) !important;
+  border: none !important;
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+.chart-content .react-flow__controls button:hover {
+  background: var(--hover-bg) !important;
+  color: var(--palette-primary) !important;
+}
+
+.chart-content .react-flow__controls button:last-child {
+  border-bottom: none !important;
+}
+
+/* Make sure the controls aren't blocked */
+.chart-content .react-flow__controls {
+  pointer-events: all !important;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .chart-container {
+    height: 400px;
+    max-height: 50vh;
+    margin-top: var(--spacing-md);
+  }
+
+  .chart-header {
+    padding: var(--spacing-sm);
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    text-align: center;
+  }
+
+  .chart-title {
+    font-size: var(--font-sm);
+  }
+
+  .chart-help-text {
+    font-size: var(--font-xxs);
+  }
+
+  .chart-content {
+    height: calc(100% - 80px);
+  }
+
+  /* Make controls larger on mobile for easier tapping */
+  .chart-content .react-flow__controls button {
+    min-width: 40px !important;
+    min-height: 40px !important;
+    font-size: 16px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .chart-container {
+    height: 350px;
+    max-height: 40vh;
+  }
+}
+
+.chart-container + * {
+  margin-top: var(--spacing-xl);
+}
+
+.page-footer {
+  padding: var(--spacing-xl) 0;
+  text-align: center;
+  color: var(--muted-text);
+  font-size: var(--font-sm);
+  border-top: 1px solid var(--border-color);
+  margin-top: var(--spacing-xxxl);
+}
+
+/* Remove or comment out this old style */
+/*
+.chart-json {
+  background: var(--hover-bg);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-sm);
+  overflow: auto;
+  font-size: var(--font-xs);
+  max-height: 600px;
+}
+*/
+
+/* Add responsive height */
+@media (max-width: 768px) {
+  .chart-container {
+    height: 600px;
+  }
+}
+
+/* Add these styles for the enhanced search results */
+.search-result-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  width: 100%;
+}
+
+.search-result-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.item-type-badge {
+  padding: 2px var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-xs);
+  font-weight: var(--font-bold);
+}
+
+.item-type-badge.organization {
+  background: var(--palette-primary);
+  color: white;
+}
+
+.item-type-badge.signer {
+  background: var(--palette-secondary);
+  color: white;
+}
+
+.parent-org {
+  font-size: var(--font-xs);
+  color: var(--muted-text);
+  margin-top: var(--spacing-xs);
+  padding-left: var(--spacing-sm);
+  border-left: 2px solid var(--border-color);
+}

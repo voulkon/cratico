@@ -1,0 +1,47 @@
+{
+  "id": "delcaration_1",
+  "description": "delcaration_1 - buses in creta",
+  "ada": "Ρ6ΘΧ46ΝΩΑ7-9ΘΦ",
+  "extra_field_values_json": {
+    "cpv": [
+      "60112000-6"
+    ],
+    "budgettype": null,
+    "partialead": null,
+    "awardAmount": null,
+    "entryNumber": null,
+    "documentType": "ΠΡΑΞΗ",
+    "amountWithKae": null,
+    "amountWithVAT": null,
+    "financialYear": null,
+    "orgBudgetCode": "Πρόγραμμα Δημοσίων Επενδύσεων",
+    "textRelatedADA": null,
+    "estimatedAmount": {
+      "amount": 490500000.0,
+      "currency": "EUR"
+    },
+    "relatedDecisions": [],
+    "contestProgressType": "Ανοικτός",
+    "manifestContractType": "Υπηρεσίες",
+    "recalledExpenseDecision": null,
+    "manifestSelectionCriterion": "Συμφερότερη από οικονομικής άποψης"
+  },
+  "expected": {
+    "entities": 0,
+    "amounts": 1,
+    "total_amount": 490500000.0
+  },
+  "_analysis": {
+    "entities_found": [],
+    "amounts_found": [
+      {
+        "amount": 490500000.0,
+        "currency": "EUR",
+        "path": "estimatedAmount",
+        "source_field": "amount",
+        "linked": false
+      }
+    ],
+    "unlinked_pattern": "estimatedAmount"
+  }
+}

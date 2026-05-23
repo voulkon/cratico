@@ -1,0 +1,6 @@
+{
+  "id": "uppercase_variant",
+  "text_content": "ΑΠΕΥΘΕΙΑΣ ΑΝΑΘΕΣΗ σε προμηθευτή",
+  "should_detect": true,
+  "notes": "Uppercase variant to test case-insensitivity"
+}

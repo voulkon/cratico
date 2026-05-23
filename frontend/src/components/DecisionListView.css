@@ -1,0 +1,149 @@
+/* Decision List View - Shared Component Styles */
+
+.decision-list-view {
+  margin-top: 2rem;
+}
+
+/* Header with Controls */
+.decisions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid var(--border-color, #e0e0e0);
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.decisions-title {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--text-color);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.count-badge {
+  background: var(--primary-color, #2563eb);
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* Controls Container */
+.controls-container {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Viewed Filter */
+.viewed-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Decisions List */
+.decisions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Load More Button */
+.load-more-container {
+  margin-top: 2rem;
+  text-align: center;
+  padding: 1rem 0;
+}
+
+.load-more-button {
+  padding: 0.8rem 2rem;
+  background: var(--primary-color, #2563eb);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  min-width: 180px;
+}
+
+.load-more-button:hover:not(:disabled) {
+  background: var(--primary-dark, #1d4ed8);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.load-more-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.load-more-button.loading {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+/* Empty and Loading States */
+.no-decisions-message {
+  text-align: center;
+  padding: 3rem 2rem;
+  color: var(--muted-text);
+  font-size: 1.1rem;
+  background: var(--hover-bg);
+  border-radius: 8px;
+  border: 2px dashed var(--border-color);
+}
+
+.loading-text {
+  text-align: center;
+  padding: 2rem;
+  color: var(--muted-text);
+  font-size: 1rem;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .decisions-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .controls-container {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .decisions-title {
+    font-size: 1.2rem;
+  }
+
+  .load-more-button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .controls-container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .viewed-filter {
+    width: 100%;
+  }
+
+  .viewed-filter select {
+    flex: 1;
+  }
+}

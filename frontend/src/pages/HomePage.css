@@ -1,0 +1,376 @@
+.homepage {
+  min-height: 100vh;
+  background: linear-gradient(135deg, var(--bg-color) 0%, var(--hover-bg) 100%);
+  color: var(--text-color);
+  /* Add top padding to account for fixed controls on right only */
+  padding-top: 70px;
+}
+
+.homepage-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  /* Less left padding since no logo, balanced right for controls */
+  padding: 0 clamp(var(--spacing-xl), 10vw, 200px) 0 var(--spacing-xl);
+}
+
+/* Hero Section - keeping tight spacing */
+.hero-section {
+  padding: var(--spacing-xl) 0 var(--spacing-xxl) 0;
+  text-align: center;
+}
+
+.hero-title {
+  font-size: 3.5rem;
+  font-weight: var(--font-bold);
+  margin-bottom: var(--spacing-lg);
+  background: linear-gradient(135deg, var(--palette-primary), var(--palette-secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-subtitle {
+  font-size: var(--font-lg);
+  color: var(--muted-text);
+  margin-bottom: var(--spacing-lg);
+  font-weight: var(--font-medium);
+}
+
+/* Hero Search - Enhanced version */
+.hero-search-enhanced {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--spacing-xxl);
+}
+
+.hero-search-enhanced .homepage-super-search {
+  max-width: 800px;
+  width: 100%;
+}
+
+.hero-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-xl);
+  margin-top: var(--spacing-xxxxl);
+}
+
+.hero-stat {
+  text-align: center;
+}
+
+.stat-number {
+  display: block;
+  font-size: 2.5rem;
+  font-weight: var(--font-black);
+  color: var(--palette-primary);
+  margin-bottom: var(--spacing-sm);
+}
+
+.stat-label {
+  color: var(--muted-text);
+  font-size: var(--font-md);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Data Grid - Two Column Layout */
+.data-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-xl);
+  margin-top: var(--spacing-xl);
+  margin-bottom: var(--spacing-xxl);
+}
+
+.data-section {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  display: flex;
+  flex-direction: column;
+}
+
+.data-section .section-header {
+  margin-bottom: var(--spacing-lg);
+}
+
+/* Section Header Styles */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-xl);
+}
+
+.see-all-button {
+  background: none;
+  border: none;
+  color: var(--palette-primary);
+  font-size: var(--font-sm);
+  cursor: pointer;
+  text-decoration: none;
+  font-weight: var(--font-medium);
+  transition: var(--transition-fast);
+}
+
+.see-all-button:hover {
+  color: var(--palette-secondary);
+}
+
+.section-title {
+  font-size: var(--font-lg);
+  font-weight: var(--font-bold);
+  color: var(--text-color);
+}
+
+/* Card Rank Badge */
+.card-rank {
+  font-size: var(--font-sm);
+  font-weight: var(--font-bold);
+  color: var(--palette-primary);
+  background: var(--hover-bg);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  min-width: 32px;
+  text-align: center;
+}
+
+/* Organizations List - Vertical Compact */
+.organizations-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.organization-card.compact {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.organization-card.compact:hover {
+  border-color: var(--palette-primary);
+  box-shadow: 0 2px 8px var(--shadow-hover);
+  transform: translateX(4px);
+}
+
+.organization-card.compact .org-info {
+  flex: 1;
+}
+
+.organization-card.compact .org-name {
+  font-size: var(--font-md);
+  font-weight: var(--font-bold);
+  margin-bottom: var(--spacing-xs);
+  color: var(--text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.organization-card.compact .org-stats {
+  display: flex;
+  gap: var(--spacing-md);
+  color: var(--muted-text);
+  font-size: var(--font-sm);
+}
+
+/* Decisions List - Compact Version */
+.decisions-list.compact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.decision-item.compact {
+  display: flex;
+  gap: var(--spacing-md);
+  align-items: flex-start;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  transition: var(--transition-fast);
+}
+
+.decision-item.compact .decision-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.decision-item.compact .decision-subject {
+  font-size: var(--font-sm);
+  font-weight: var(--font-medium);
+  margin-bottom: var(--spacing-xs);
+  color: var(--text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.decision-item.compact .decision-meta {
+  font-size: var(--font-xs);
+  color: var(--muted-text);
+  margin-bottom: var(--spacing-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.decision-amount-compact {
+  font-size: var(--font-sm);
+  font-weight: var(--font-bold);
+  color: var(--palette-primary);
+  white-space: nowrap;
+}
+
+/* Organizations Section - Old Grid Style (keeping for compatibility) */
+.organizations-section {
+  margin-bottom: var(--spacing-xxxxl);
+}
+
+.organizations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.organization-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-lg);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.organization-card:hover {
+  border-color: var(--palette-primary);
+  box-shadow: 0 4px 12px var(--shadow-hover);
+}
+
+.org-name {
+  font-size: var(--font-md);
+  font-weight: var(--font-bold);
+  margin-bottom: var(--spacing-sm);
+  color: var(--text-color);
+}
+
+.org-stats {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted-text);
+  font-size: var(--font-sm);
+}
+
+.org-amount {
+  color: var(--palette-primary);
+  font-weight: var(--font-medium);
+}
+
+/* Decisions Section - Old Full Width Style */
+.decisions-section {
+  margin-bottom: var(--spacing-xxxxl);
+}
+
+.decisions-list {
+  gap: var(--spacing-md);
+}
+
+.decision-item {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-lg);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-md);
+  transition: var(--transition-fast);
+}
+
+.decision-item.clickable {
+  cursor: pointer;
+}
+
+.decision-item.clickable:hover {
+  border-color: var(--palette-primary);
+  box-shadow: 0 4px 12px var(--shadow-hover);
+  transform: translateY(-2px);
+}
+
+.decision-subject {
+  font-weight: var(--font-medium);
+  margin-bottom: var(--spacing-sm);
+  color: var(--text-color);
+}
+
+.decision-meta {
+  display: flex;
+  gap: var(--spacing-md);
+  color: var(--muted-text);
+  font-size: var(--font-sm);
+}
+
+.decision-amount {
+  font-size: var(--font-lg);
+  font-weight: var(--font-bold);
+  color: var(--palette-primary);
+  white-space: nowrap;
+}
+
+/* Loading State */
+.homepage-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+  gap: var(--spacing-lg);
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border-color);
+  border-top: 4px solid var(--palette-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .hero-title {
+    font-size: 2.5rem;
+  }
+
+  .hero-search-enhanced .super-search-container {
+    transform: scale(1);
+  }
+
+  .data-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .decision-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

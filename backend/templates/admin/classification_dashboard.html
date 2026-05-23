@@ -1,0 +1,454 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Classification Dashboard{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+.dashboard-container {
+    padding: 20px;
+    max-width: 1400px;
+}
+
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.dashboard-title {
+    font-size: 28px;
+    font-weight: bold;
+    color: var(--body-fg);
+}
+
+/* Stats Cards */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background: var(--body-bg);
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.stat-card h3 {
+    margin-top: 0;
+    color: var(--body-fg);
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stat-value {
+    font-size: 36px;
+    font-weight: bold;
+    color: var(--primary, #417690);
+    margin: 10px 0;
+}
+
+.stat-card.success .stat-value {
+    color: #28a745;
+}
+
+.stat-card.warning .stat-value {
+    color: #ffc107;
+}
+
+.stat-card.info .stat-value {
+    color: #17a2b8;
+}
+
+.stat-meta {
+    font-size: 12px;
+    color: var(--body-quiet-fg, #666);
+}
+
+/* Progress Bar */
+.progress-container {
+    background: #f0f0f0;
+    border-radius: 4px;
+    height: 24px;
+    position: relative;
+    margin: 10px 0;
+}
+
+.progress-bar {
+    background: linear-gradient(90deg, #417690, #28a745);
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-weight: bold;
+    color: #333;
+}
+
+/* Active Jobs Section */
+.section-title {
+    font-size: 20px;
+    font-weight: bold;
+    margin: 30px 0 15px 0;
+    color: var(--body-fg);
+}
+
+.active-jobs {
+    background: var(--body-bg);
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 30px;
+}
+
+.job-item {
+    border-bottom: 1px solid var(--border-color, #eee);
+    padding: 15px 0;
+}
+
+.job-item:last-child {
+    border-bottom: none;
+}
+
+.job-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.job-id {
+    font-family: monospace;
+    font-size: 14px;
+    color: var(--body-fg);
+}
+
+.job-status {
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.job-status.running {
+    background: #d4edda;
+    color: #155724;
+}
+
+.job-status.pending {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.job-progress {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.job-progress-bar {
+    flex: 1;
+    background: #f0f0f0;
+    border-radius: 4px;
+    height: 20px;
+    overflow: hidden;
+}
+
+.job-progress-fill {
+    background: #417690;
+    height: 100%;
+    transition: width 0.3s ease;
+}
+
+.job-progress-text {
+    font-size: 14px;
+    color: var(--body-fg);
+    min-width: 100px;
+    text-align: right;
+}
+
+/* Recent Jobs Table */
+.jobs-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.jobs-table th,
+.jobs-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color, #eee);
+}
+
+.jobs-table th {
+    background: var(--body-bg);
+    font-weight: bold;
+    color: var(--body-fg);
+}
+
+.jobs-table tr:hover {
+    background: #f8f9fa;
+}
+
+/* Action Buttons */
+.action-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.btn {
+    padding: 10px 20px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: bold;
+    display: inline-block;
+    transition: all 0.2s ease;
+}
+
+.btn-primary {
+    background: #417690;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #205067;
+}
+
+.btn-secondary {
+    background: #f0f0f0;
+    color: #333;
+}
+
+.btn-secondary:hover {
+    background: #e0e0e0;
+}
+
+/* Auto-refresh */
+.auto-refresh {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.auto-refresh input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .job-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">Home</a>
+&rsaquo; <a href="{% url 'admin:core_classificationjob_changelist' %}">Classification Jobs</a>
+&rsaquo; Dashboard
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <div class="dashboard-header">
+        <h1 class="dashboard-title">Classification Dashboard</h1>
+        <div class="auto-refresh">
+            <label>
+                <input type="checkbox" id="auto-refresh" checked>
+                Auto-refresh (5s)
+            </label>
+            <a href="{% url 'admin:core_classificationjob_add' %}" class="btn btn-primary">+ New Job</a>
+        </div>
+    </div>
+
+    <!-- Overall Statistics -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>Total Decisions</h3>
+            <div class="stat-value">{{ total_decisions|floatformat:0|intcomma }}</div>
+            <div class="stat-meta">In database</div>
+        </div>
+
+        <div class="stat-card success">
+            <h3>Classified</h3>
+            <div class="stat-value">{{ classified_count|floatformat:0|intcomma }}</div>
+            <div class="stat-meta">{{ classification_rate }}% coverage</div>
+        </div>
+
+        <div class="stat-card warning">
+            <h3>Unclassified</h3>
+            <div class="stat-value">{{ unclassified_count|floatformat:0|intcomma }}</div>
+            <div class="stat-meta">Need classification</div>
+        </div>
+
+        <div class="stat-card info">
+            <h3>Direct Assignments</h3>
+            <div class="stat-value">{{ direct_assignments|floatformat:0|intcomma }}</div>
+            <div class="stat-meta">{{ direct_assignment_rate }}% of classified</div>
+        </div>
+    </div>
+
+    <!-- Classification Progress -->
+    <div class="stat-card">
+        <h3>Overall Classification Progress</h3>
+        <div class="progress-container">
+            <div class="progress-bar" style="width: {{ classification_rate }}%;"></div>
+            <span class="progress-text">{{ classification_rate }}%</span>
+        </div>
+    </div>
+
+    <!-- Active Jobs -->
+    {% if active_jobs %}
+    <h2 class="section-title">Active Jobs</h2>
+    <div class="active-jobs">
+        {% for job in active_jobs %}
+        <div class="job-item" data-job-id="{{ job.job_id }}">
+            <div class="job-header">
+                <span class="job-id">{{ job.job_id }}</span>
+                <span class="job-status {{ job.status }}">{{ job.get_status_display }}</span>
+            </div>
+            <div class="job-progress">
+                <div class="job-progress-bar">
+                    <div class="job-progress-fill" style="width: {{ job.progress_percentage }}%;"></div>
+                </div>
+                <span class="job-progress-text">
+                    {{ job.processed_count|floatformat:0|intcomma }} / {{ job.total_decisions|floatformat:0|intcomma }}
+                </span>
+            </div>
+            <div style="margin-top: 10px; font-size: 12px; color: #666;">
+                Mode: {{ job.get_processing_mode_display }} |
+                Rate: {{ job.decisions_per_second }} decisions/sec |
+                {% if job.estimated_completion %}
+                    ETA: {{ job.estimated_completion|timesince }}
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Recent Jobs -->
+    <h2 class="section-title">Recent Jobs</h2>
+    <table class="jobs-table">
+        <thead>
+            <tr>
+                <th>Job ID</th>
+                <th>Mode</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Processed</th>
+                <th>Direct Assignments</th>
+                <th>Errors</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for job in recent_jobs %}
+            <tr>
+                <td><code>{{ job.job_id|slice:":8" }}</code></td>
+                <td>{{ job.get_processing_mode_display }}</td>
+                <td>
+                    <span class="job-status {{ job.status }}">{{ job.get_status_display }}</span>
+                </td>
+                <td>{{ job.progress_percentage }}%</td>
+                <td>{{ job.processed_count|floatformat:0|intcomma }}</td>
+                <td>{{ job.direct_assignments_found|floatformat:0|intcomma }}</td>
+                <td>{{ job.error_count|floatformat:0|intcomma }}</td>
+                <td>{{ job.created_at|timesince }} ago</td>
+                <td>
+                    <a href="{% url 'admin:classification_job_detail' job.job_id %}" class="btn btn-secondary">View</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="action-buttons">
+        <a href="{% url 'admin:core_classificationjob_add' %}?processing_mode=unclassified" class="btn btn-primary">
+            Classify Unclassified Decisions
+        </a>
+        <a href="{% url 'admin:core_classificationjob_add' %}?processing_mode=outdated" class="btn btn-secondary">
+            Update Outdated Classifications
+        </a>
+    </div>
+</div>
+
+<script>
+// Auto-refresh functionality
+let refreshInterval;
+
+function startAutoRefresh() {
+    refreshInterval = setInterval(() => {
+        if (document.getElementById('auto-refresh').checked) {
+            location.reload();
+        }
+    }, 5000);
+}
+
+function stopAutoRefresh() {
+    clearInterval(refreshInterval);
+}
+
+document.getElementById('auto-refresh').addEventListener('change', (e) => {
+    if (e.target.checked) {
+        startAutoRefresh();
+    } else {
+        stopAutoRefresh();
+    }
+});
+
+// Start auto-refresh on page load
+startAutoRefresh();
+
+// Poll for job progress updates
+{% if active_jobs %}
+setInterval(() => {
+    {% for job in active_jobs %}
+    fetch('{% url "admin:classification_job_progress" job.job_id %}')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const jobElement = document.querySelector(`[data-job-id="{{ job.job_id }}"]`);
+                if (jobElement) {
+                    const progressBar = jobElement.querySelector('.job-progress-fill');
+                    const progressText = jobElement.querySelector('.job-progress-text');
+
+                    progressBar.style.width = data.progress_percentage + '%';
+                    progressText.textContent = `${data.processed_count} / ${data.total_decisions}`;
+
+                    if (data.status !== 'running') {
+                        location.reload();
+                    }
+                }
+            }
+        });
+    {% endfor %}
+}, 3000);
+{% endif %}
+</script>
+{% endblock %}

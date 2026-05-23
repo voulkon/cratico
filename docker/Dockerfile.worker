@@ -1,0 +1,86 @@
+# ──────────── STAGE 1: Build dependencies ────────────
+FROM python:3.12-slim AS deps-builder
+
+# Build argument to control worker mode
+# LIGHT_WORKER=true  → lightweight mode (no Docling, no heavy deps, PyMuPDF only)
+# LIGHT_WORKER=false → full mode (with Docling, PyTorch, OCR models)
+ARG LIGHT_WORKER=true
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Install build tools (only needed during build)
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    make \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Poetry (match host version)
+RUN pip install poetry==2.2.1
+
+WORKDIR /code
+
+# Copy poetry files
+COPY backend/pyproject.toml backend/poetry.lock ./
+COPY backend/gemi ./gemi/
+
+# Configure poetry
+RUN poetry config virtualenvs.create false
+
+# Install dependencies based on LIGHT_WORKER mode
+# Use BuildKit cache mounts to persist both pip and poetry caches
+RUN --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=cache,target=/root/.cache/pypoetry \
+    if [ "$LIGHT_WORKER" = "true" ]; then \
+        echo "🪶 LIGHT_WORKER mode: Installing core + analytics (no Docling)..."; \
+        poetry install --no-root --no-interaction --no-ansi --without docling; \
+    else \
+        echo "🚀 FULL_WORKER mode: Installing ALL dependencies (including Docling)..."; \
+        # Let Poetry/Docling handle PyTorch installation
+        # Set pip index to prefer CPU-only wheels to avoid 4GB+ CUDA packages
+        PIP_INDEX_URL=https://download.pytorch.org/whl/cpu \
+        PIP_EXTRA_INDEX_URL=https://pypi.org/simple \
+        poetry install --no-root --no-interaction --no-ansi --with docling; \
+    fi
+
+# ──────────── STAGE 2: Final runtime image ────────────
+FROM python:3.12-slim AS runtime
+
+# Pass LIGHT_WORKER from build stage
+ARG LIGHT_WORKER=true
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+# Set environment variable to control extractor at runtime
+ENV LIGHT_WORKER=${LIGHT_WORKER}
+
+# Install runtime dependencies based on LIGHT_WORKER mode
+RUN if [ "$LIGHT_WORKER" = "true" ]; then \
+        echo "🪶 LIGHT_WORKER mode: Installing minimal runtime dependencies..."; \
+        apt-get update && apt-get install -y \
+            postgresql-client \
+            procps \
+            && rm -rf /var/lib/apt/lists/*; \
+    else \
+        echo "🚀 FULL_WORKER mode: Installing full runtime dependencies (OpenCV, OpenMP)..."; \
+        apt-get update && apt-get install -y \
+            postgresql-client \
+            procps \
+            libgl1 \
+            libglib2.0-0 \
+            libgomp1 \
+            && rm -rf /var/lib/apt/lists/*; \
+    fi
+
+WORKDIR /code
+
+# Copy ONLY the installed packages from the builder stage
+COPY --from=deps-builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=deps-builder /usr/local/bin /usr/local/bin
+
+# Copy your application code
+COPY backend/ .
+
+# Make entrypoint executable
+RUN chmod +x worker_entrypoint.sh

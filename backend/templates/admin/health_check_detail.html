@@ -1,0 +1,213 @@
+{% extends "admin/base_site.html" %}
+{% load admin_urls static health_filters %}
+
+{% block title %}Health Check Detail - {{ health_check.decision.ada }}{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+.health-detail { padding: 20px; max-width: 1200px; }
+.header-section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #ddd; }
+.status-badge { padding: 6px 12px; border-radius: 4px; font-size: 14px; font-weight: bold; color: white; display: inline-block; }
+.status-badge.healthy { background-color: #28a745; }
+.status-badge.warning { background-color: #ffc107; }
+.status-badge.error { background-color: #dc3545; }
+.status-badge.unknown { background-color: #6c757d; }
+.component-section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #ddd; border-left: 5px solid #ddd; }
+.component-section.error { border-left-color: #dc3545; background-color: #fff5f5; }
+.component-section.warning { border-left-color: #ffc107; background-color: #fffbf0; }
+.component-section.healthy { border-left-color: #28a745; }
+.component-title { font-size: 1.3em; font-weight: 600; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+.finding-message { font-size: 1.1em; margin-bottom: 15px; color: #333; }
+.issues-list { list-style: none; padding: 0; margin: 15px 0; }
+.issues-list li { padding: 8px 12px; margin-bottom: 8px; background-color: #fff; border-left: 4px solid #dc3545; border-radius: 4px; }
+.issues-list li.warning { border-left-color: #ffc107; }
+.details-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+.details-table thead { background: #f8f9fa; border-bottom: 2px solid #ddd; }
+.details-table th { padding: 10px; text-align: left; font-weight: 600; }
+.details-table td { padding: 10px; border-bottom: 1px solid #eee; }
+.action-box { background: #e7f3ff; border: 1px solid #b3d9ff; border-radius: 4px; padding: 15px; margin-top: 15px; }
+.action-box h4 { margin: 0 0 10px 0; color: #0056b3; }
+.button { padding: 10px 20px; border-radius: 4px; text-decoration: none; display: inline-block; font-weight: 500; border: none; cursor: pointer; }
+.button-primary { background-color: #007cba; color: white; }
+.button-success { background-color: #28a745; color: white; }
+.button-secondary { background-color: #f0f0f0; color: #333; border: 1px solid #ddd; }
+.button-group { margin-top: 20px; display: flex; gap: 10px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="health-detail">
+    <div class="header-section">
+        <h1>Health Check Details</h1>
+        <h2><a href="{% url 'admin:core_decision_change' health_check.decision.id %}">{{ health_check.decision.ada }}</a></h2>
+        <p><strong>Subject:</strong> {{ health_check.decision.subject }}</p>
+        <p><strong>Overall Status:</strong> <span class="status-badge {{ health_check.overall_status|lower }}">{{ health_check.overall_status }}</span></p>
+        <p style="font-size: 0.9em; color: #666;">Last checked: {{ health_check.last_checked_at|date:"Y-m-d H:i:s" }}</p>
+    </div>
+
+    <h2>Component Status</h2>
+
+    {% for component_name, component_status in health_check.component_statuses.items %}
+        {% with component_finding=health_check.findings|get_item:component_name %}
+        <div class="component-section {{ component_status|lower }}">
+            <div class="component-title">
+                <span>{{ component_name|title|replace:"_, " }}</span>
+                <span class="status-badge {{ component_status|lower }}">{{ component_status }}</span>
+            </div>
+
+            {% if component_finding %}
+                <div class="finding-message">{{ component_finding.message }}</div>
+
+                {% if component_finding.details %}
+                    {# Entity details #}
+                    {% if component_name == 'entities' %}
+                        {% if component_finding.details.entities_needing_data %}
+                            <h4>Entities Needing Company Data ({{ component_finding.details.entities_needing_data|length }}):</h4>
+                            <table class="details-table">
+                                <thead><tr><th>AFM</th><th>Name</th><th>Role</th><th>Reason</th></tr></thead>
+                                <tbody>
+                                    {% for entity in component_finding.details.entities_needing_data %}
+                                        <tr>
+                                            <td style="font-family: monospace;">{{ entity.afm }}</td>
+                                            <td>{{ entity.name }}</td>
+                                            <td>{{ entity.role }}</td>
+                                            <td style="color: #666;">{{ entity.reason }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% endif %}
+
+                        {% if component_finding.details.entities_with_errors %}
+                            <h4>Entities with Failed Lookups ({{ component_finding.details.entities_with_errors|length }}):</h4>
+                            <table class="details-table">
+                                <thead style="background: #ffebee;"><tr><th>AFM</th><th>Name</th><th>Error</th><th>Attempts</th><th>Last Try</th></tr></thead>
+                                <tbody>
+                                    {% for entity in component_finding.details.entities_with_errors %}
+                                        <tr>
+                                            <td style="font-family: monospace;">{{ entity.afm }}</td>
+                                            <td>{{ entity.name }}</td>
+                                            <td style="color: #dc3545;">{{ entity.error }}</td>
+                                            <td>{{ entity.error_count }}</td>
+                                            <td style="font-size: 0.9em;">{{ entity.last_attempt|default:"Never" }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        {% endif %}
+                    {% endif %}
+
+                    {% if component_finding.details.issues %}
+                        <h4>Issues:</h4>
+                        <ul class="issues-list">
+                            {% for issue in component_finding.details.issues %}
+                                <li>{{ issue }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+
+                    {% if component_finding.details.warnings %}
+                        <h4>Warnings:</h4>
+                        <ul class="issues-list">
+                            {% for warning in component_finding.details.warnings %}
+                                <li class="warning">{{ warning }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                {% endif %}
+
+                {% if component_status == 'ERROR' or component_status == 'WARNING' %}
+                    <div class="action-box">
+                        <h4>🔧 Corrective Actions</h4>
+
+                        {% if component_name == 'entities' %}
+                            {% if component_finding.details.entities_needing_data %}
+                                <p><strong>Fetch Missing Company Data:</strong></p>
+                                <form method="post" action="{% url 'admin:health_fix_entities' health_check.id %}" style="display: inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="button button-success">
+                                        Fetch Company Data ({{ component_finding.details.entities_needing_data|length }} AFMs)
+                                    </button>
+                                </form>
+                                <p style="margin: 8px 0 0 0; font-size: 0.9em; color: #666;">
+                                    Uses existing Celery tasks (rate-limited to 6/min). Check why they didn't run initially.
+                                </p>
+                            {% endif %}
+
+                            {% if component_finding.details.entity_count == 0 %}
+                                <p><strong>Re-extract Entities:</strong></p>
+                                <form method="post" action="{% url 'admin:health_reextract_entities' health_check.id %}" style="display: inline;">
+                                    {% csrf_token %}
+                                    <button type="submit" class="button button-success">
+                                        Extract AFM Entities from Decision
+                                    </button>
+                                </form>
+                                <p style="margin: 8px 0 0 0; font-size: 0.9em; color: #666;">
+                                    Uses EntityExtractionService to parse extra_field_values_json.
+                                </p>
+                            {% endif %}
+
+                        {% elif component_name == 'relations' %}
+                            <p><strong>Check Relations:</strong></p>
+                            <form method="post" action="{% url 'admin:health_relink_relations' health_check.id %}" style="display: inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="button button-success">
+                                    Diagnose Relation Issues
+                                </button>
+                            </form>
+                            <p style="margin: 8px 0 0 0; font-size: 0.9em; color: #666;">
+                                Provides diagnostics. Full re-linking requires re-import.
+                            </p>
+
+                        {% elif component_name == 'document_extraction' %}
+                            <p><strong>Retry Extraction:</strong></p>
+                            <form method="post" action="{% url 'admin:health_retry_extraction' health_check.id %}" style="display: inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="button button-success">Retry Document Extraction</button>
+                            </form>
+                            <p style="margin: 8px 0 0 0; font-size: 0.9em; color: #666;">
+                                Resets status to PENDING and queues extraction task.
+                            </p>
+
+                        {% elif component_name == 'opensearch' %}
+                            <p><strong>Re-index:</strong></p>
+                            <form method="post" action="{% url 'admin:health_reindex' health_check.id %}" style="display: inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="button button-success">Re-index in OpenSearch</button>
+                            </form>
+                            <p style="margin: 8px 0 0 0; font-size: 0.9em; color: #666;">
+                                Requires extracted text. Fix document extraction first if needed.
+                            </p>
+
+                        {% elif component_name == 'coverage' %}
+                            <p><strong>Update Coverage:</strong></p>
+                            <form method="post" action="{% url 'admin:health_update_coverage' health_check.id %}" style="display: inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="button button-success">
+                                    Recalculate Date Coverage
+                                </button>
+                            </form>
+                            <p style="margin: 8px 0 0 0; font-size: 0.9em; color: #666;">
+                                Updates DateCoverage record for this organization/date.
+                            </p>
+
+                        {% else %}
+                            <p style="color: #666;">No automated fix available. Manual investigation required.</p>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            {% else %}
+                <p style="color: #666;">No detailed findings available.</p>
+            {% endif %}
+        </div>
+        {% endwith %}
+    {% endfor %}
+
+    <div class="button-group">
+        <a href="{% url 'admin:health_refresh_single' health_check.id %}" class="button button-primary">🔄 Re-check Health Status</a>
+        <a href="{% url 'admin:core_decision_change' health_check.decision.id %}" class="button button-secondary">View Decision</a>
+        <a href="{% url 'admin:health_dashboard' %}" class="button button-secondary">Back to Dashboard</a>
+    </div>
+</div>
+{% endblock %}

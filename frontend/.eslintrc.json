@@ -1,0 +1,26 @@
+{
+  "extends": ["react-app"],
+  "plugins": ["react-hooks"],
+  "rules": {
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "warn"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.js", "**/*.jsx"],
+      "rules": {
+        "no-restricted-syntax": [
+          "warn",
+          {
+            "selector": "CallExpression[callee.name='useEffect'] > ArrayExpression.arguments:last-child > Identifier[name=/^(fetch|load|handle|get|set)[A-Z]/]",
+            "message": "❌ Avoid putting callback functions directly in useEffect dependencies. Use useCallback or eslint-disable."
+          },
+          {
+            "selector": "CallExpression[callee.name='useEffect'] > ArrayExpression.arguments:last-child > MemberExpression[object.object.name='window'][object.property.name='location']",
+            "message": "❌ Don't use window.location in useEffect dependencies. Use React Router's useLocation() instead."
+          }
+        ]
+      }
+    }
+  ]
+}

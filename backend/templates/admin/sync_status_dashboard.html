@@ -1,0 +1,502 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    .sync-dashboard {
+        padding: 20px;
+    }
+
+    .stats-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+
+    .stat-card {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-left: 4px solid #4CAF50;
+    }
+
+    .stat-card.warning {
+        border-left-color: #ff9800;
+    }
+
+    .stat-card.danger {
+        border-left-color: #f44336;
+    }
+
+    .stat-label {
+        font-size: 0.9em;
+        color: #666;
+        margin-bottom: 5px;
+    }
+
+    .stat-value {
+        font-size: 2em;
+        font-weight: bold;
+        color: #333;
+    }
+
+    .sync-progress {
+        margin: 30px 0;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .progress-bar-container {
+        width: 100%;
+        height: 30px;
+        background: #f0f0f0;
+        border-radius: 15px;
+        overflow: hidden;
+        margin: 10px 0;
+    }
+
+    .progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, #4CAF50, #45a049);
+        transition: width 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+    }
+
+    .progress-bar.warning {
+        background: linear-gradient(90deg, #ff9800, #f57c00);
+    }
+
+    .progress-bar.danger {
+        background: linear-gradient(90deg, #f44336, #d32f2f);
+    }
+
+    .actions-panel {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 30px;
+    }
+
+    .btn-primary {
+        background: #4CAF50;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 1em;
+        margin-right: 10px;
+    }
+
+    .btn-primary:hover {
+        background: #45a049;
+    }
+
+    .btn-secondary {
+        background: #2196F3;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 1em;
+    }
+
+    .btn-secondary:hover {
+        background: #0b7dda;
+    }
+
+    .missing-table {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+
+    .missing-table table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .missing-table th {
+        background: #f5f5f5;
+        padding: 12px;
+        text-align: left;
+        font-weight: bold;
+        border-bottom: 2px solid #ddd;
+    }
+
+    .missing-table td {
+        padding: 12px;
+        border-bottom: 1px solid #eee;
+    }
+
+    .missing-table tr:hover {
+        background: #f9f9f9;
+    }
+
+    .checkbox-col {
+        width: 40px;
+        text-align: center;
+    }
+
+    .ada-link {
+        color: #2196F3;
+        text-decoration: none;
+    }
+
+    .ada-link:hover {
+        text-decoration: underline;
+    }
+
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 20px 0;
+        gap: 10px;
+    }
+
+    .pagination a, .pagination span {
+        padding: 8px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        text-decoration: none;
+        color: #333;
+    }
+
+    .pagination a:hover {
+        background: #f0f0f0;
+    }
+
+    .pagination .current {
+        background: #4CAF50;
+        color: white;
+        border-color: #4CAF50;
+    }
+
+    .select-all-container {
+        padding: 10px;
+        background: #f9f9f9;
+        border-bottom: 1px solid #ddd;
+    }
+
+    .alert {
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 4px;
+    }
+
+    .alert-success {
+        background: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+    }
+
+    .alert-warning {
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        color: #856404;
+    }
+
+    .alert-error {
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+    }
+
+    .info-box {
+        background: #e3f2fd;
+        border-left: 4px solid #2196F3;
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 4px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sync-dashboard">
+    <h1>📊 Complete Pipeline Status: Decision → Extraction → OpenSearch</h1>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="info-box">
+        <strong>ℹ️ Complete Pipeline View:</strong><br>
+        <strong>Step 1:</strong> Decisions downloaded from Diavgeia API → <strong>Step 2:</strong> Text extracted to PostgreSQL → <strong>Step 3:</strong> Indexed in OpenSearch
+        <br>This dashboard shows gaps at each stage and provides tools to fix them.
+    </div>
+
+    <!-- 3-Stage Pipeline Visualization -->
+    <div class="sync-progress">
+        <h3>Pipeline Flow</h3>
+
+        <div style="margin: 20px 0;">
+            <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 15px;">
+                <div style="flex: 1; text-align: center;">
+                    <div style="font-size: 3em;">📥</div>
+                    <strong>Step 1: Decisions</strong><br>
+                    <span style="font-size: 2em; color: #4CAF50;">{{ total_decisions }}</span>
+                </div>
+                <div style="font-size: 2em; color: #999;">→</div>
+                <div style="flex: 1; text-align: center;">
+                    <div style="font-size: 3em;">📄</div>
+                    <strong>Step 2: Extracted</strong><br>
+                    <span style="font-size: 2em; color: {% if extraction_gap > 100 %}#f44336{% elif extraction_gap > 10 %}#ff9800{% else %}#4CAF50{% endif %};">{{ completed_extractions }}</span>
+                    <br><small>({{ extraction_percentage }}%)</small>
+                </div>
+                <div style="font-size: 2em; color: #999;">→</div>
+                <div style="flex: 1; text-align: center;">
+                    <div style="font-size: 3em;">🔍</div>
+                    <strong>Step 3: Indexed</strong><br>
+                    <span style="font-size: 2em; color: {% if indexing_gap > 100 %}#f44336{% elif indexing_gap > 10 %}#ff9800{% else %}#4CAF50{% endif %};">{{ opensearch_count }}</span>
+                    <br><small>({{ indexing_percentage }}%)</small>
+                </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="progress-bar-container">
+                <div class="progress-bar {% if indexing_percentage < 80 %}danger{% elif indexing_percentage < 95 %}warning{% endif %}"
+                     style="width: {{ indexing_percentage }}%">
+                    {{ indexing_percentage }}% Complete
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Stats -->
+    <div class="stats-container">
+        <div class="stat-card">
+            <div class="stat-label">📥 Total Decisions</div>
+            <div class="stat-value">{{ total_decisions|default:0 }}</div>
+        </div>
+
+        <div class="stat-card {% if decisions_without_extraction > 100 %}danger{% elif decisions_without_extraction > 10 %}warning{% endif %}">
+            <div class="stat-label">❌ No Extraction</div>
+            <div class="stat-value">{{ decisions_without_extraction|default:0 }}</div>
+        </div>
+
+        <div class="stat-card {% if failed_extractions > 100 %}danger{% elif failed_extractions > 10 %}warning{% endif %}">
+            <div class="stat-label">⚠️ Failed Extractions</div>
+            <div class="stat-value">{{ failed_extractions|default:0 }}</div>
+        </div>
+
+        <div class="stat-card {% if pending_extractions > 50 %}warning{% endif %}">
+            <div class="stat-label">⏳ Pending Extractions</div>
+            <div class="stat-value">{{ pending_extractions|default:0 }}</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-label">✅ Completed Extractions</div>
+            <div class="stat-value">{{ completed_extractions|default:0 }}</div>
+        </div>
+
+        <div class="stat-card {% if indexing_gap > 100 %}danger{% elif indexing_gap > 10 %}warning{% endif %}">
+            <div class="stat-label">🔍 Indexed in OpenSearch</div>
+            <div class="stat-value">{{ opensearch_count|default:0 }}</div>
+        </div>
+    </div>
+
+    <!-- Gap Summary -->
+    <div class="sync-progress">
+        <h3>🔧 Issues to Fix</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div style="padding: 15px; background: {% if extraction_gap > 0 %}#fff3cd{% else %}#d4edda{% endif %}; border-radius: 8px;">
+                <strong>Gap 1→2: Extraction Needed</strong><br>
+                <span style="font-size: 2em;">{{ extraction_gap }}</span> decisions need text extraction
+                <br><small>({{ decisions_without_extraction }} never attempted + {{ failed_extractions }} failed)</small>
+            </div>
+            <div style="padding: 15px; background: {% if indexing_gap > 0 %}#fff3cd{% else %}#d4edda{% endif %}; border-radius: 8px;">
+                <strong>Gap 2→3: Indexing Needed</strong><br>
+                <span style="font-size: 2em;">{{ indexing_gap }}</span> extracted documents not indexed
+            </div>
+        </div>
+    </div>
+
+    <!-- Actions Panel -->
+    <div class="actions-panel">
+        <h3>🔧 Actions</h3>
+
+        <!-- View Toggle -->
+        <div style="margin-bottom: 20px;">
+            <strong>View:</strong>
+            <a href="?view=extraction" class="btn-secondary" style="text-decoration: none; display: inline-block; margin: 5px;">
+                📄 Decisions Needing Extraction ({{ extraction_gap }})
+            </a>
+            <a href="?view=indexing" class="btn-secondary" style="text-decoration: none; display: inline-block; margin: 5px;">
+                🔍 Extracted but Not Indexed ({{ indexing_gap }})
+            </a>
+        </div>
+
+        {% if view_type == 'extraction' %}
+        <!-- Extraction Actions -->
+        <form method="post" style="display: inline; align-items: center; gap: 10px;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="extract_all">
+            <label for="batch_size" style="margin-right: 5px;">Batch Size:</label>
+            <input type="number" id="batch_size" name="batch_size" value="500" min="1" max="1000"
+                   style="width: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-right: 10px;">
+            <button type="submit" class="btn-primary"
+                    onclick="return confirm('This will queue extraction for the specified batch size. The system will process them automatically. Continue?')">
+                📥 Start Batch Extraction
+            </button>
+        </form>
+
+        <button type="button" class="btn-secondary" onclick="document.getElementById('extract-form').requestSubmit()">
+            ✅ Extract Selected
+        </button>
+
+        {% elif view_type == 'indexing' %}
+        <!-- Indexing Actions -->
+        <form method="post" style="display: inline;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="reindex_all">
+            <button type="submit" class="btn-primary"
+                    onclick="return confirm('This will trigger reindexing of all {{ indexing_gap }} missing documents. Continue?')">
+                🔄 Reindex All Missing Documents
+            </button>
+        </form>
+
+        <button type="button" class="btn-secondary" onclick="document.getElementById('reindex-form').requestSubmit()">
+            ✅ Reindex Selected
+        </button>
+        {% endif %}
+
+        <button type="button" class="btn-secondary" onclick="window.location.reload()">
+            🔃 Refresh Stats
+        </button>
+    </div>
+
+    <!-- Missing Documents Table -->
+    {% if missing_decisions %}
+    <div class="missing-table">
+        <h3 style="padding: 20px 20px 10px;">
+            {% if view_type == 'extraction' %}
+                📋 Decisions Needing Extraction (Page {{ page }} of {{ total_pages }})
+            {% else %}
+                📋 Extracted but Not Indexed (Page {{ page }} of {{ total_pages }})
+            {% endif %}
+        </h3>
+
+        <form method="post" id="{% if view_type == 'extraction' %}extract-form{% else %}reindex-form{% endif %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="{% if view_type == 'extraction' %}extract_selected{% else %}reindex_selected{% endif %}">
+
+            <div class="select-all-container">
+                <label>
+                    <input type="checkbox" id="select-all" onclick="toggleSelectAll(this)">
+                    Select All on This Page
+                </label>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th class="checkbox-col">Select</th>
+                        <th>ADA</th>
+                        <th>Subject</th>
+                        <th>Organization</th>
+                        <th>Type</th>
+                        <th>Issue Date</th>
+                        <th>Status</th>
+                        {% if view_type == 'indexing' %}
+                        <th>Pages</th>
+                        <th>Chars</th>
+                        {% endif %}
+                        <th>Extraction Date</th>
+                        {% if view_type == 'extraction' %}
+                        <th>Error</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for decision in missing_decisions %}
+                    <tr>
+                        <td class="checkbox-col">
+                            <input type="checkbox" name="selected_decisions" value="{{ decision.ada }}" class="decision-checkbox">
+                        </td>
+                        <td>
+                            <a href="{% url 'admin:core_decision_change' decision.id %}" class="ada-link" target="_blank">
+                                {{ decision.ada }}
+                            </a>
+                        </td>
+                        <td>{{ decision.subject|truncatewords:10 }}</td>
+                        <td>{{ decision.organization|truncatewords:5 }}</td>
+                        <td>{{ decision.decision_type }}</td>
+                        <td>{{ decision.issue_date|date:"Y-m-d" }}</td>
+                        <td>
+                            {% if decision.extraction_status == 'NO_EXTRACTION' %}
+                                <span style="color: #ff9800;">❌ No Extraction</span>
+                            {% elif decision.extraction_status == 'FAILED' %}
+                                <span style="color: #f44336;">⚠️ Failed</span>
+                            {% elif decision.extraction_status == 'COMPLETED' %}
+                                <span style="color: #4CAF50;">✅ Completed</span>
+                            {% else %}
+                                {{ decision.extraction_status }}
+                            {% endif %}
+                        </td>
+                        {% if view_type == 'indexing' %}
+                        <td>{{ decision.page_count|default:"—" }}</td>
+                        <td>{{ decision.character_count|default:"—" }}</td>
+                        {% endif %}
+                        <td>{{ decision.extraction_date|date:"Y-m-d H:i"|default:"—" }}</td>
+                        {% if view_type == 'extraction' %}
+                        <td>{{ decision.error_message|truncatewords:10|default:"—" }}</td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </form>
+
+        <!-- Pagination -->
+        {% if total_pages > 1 %}
+        <div class="pagination">
+            {% if has_previous %}
+                <a href="?page={{ previous_page }}&view={{ view_type }}">← Previous</a>
+            {% endif %}
+
+            <span class="current">Page {{ page }} of {{ total_pages }}</span>
+
+            {% if has_next %}
+                <a href="?page={{ next_page }}&view={{ view_type }}">Next →</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <div class="info-box" style="background: #d4edda; border-left-color: #4CAF50;">
+        {% if view_type == 'extraction' %}
+            <strong>✅ All decisions have text extraction!</strong><br>
+            No decisions need extraction at this time.
+        {% else %}
+            <strong>✅ Perfect sync!</strong><br>
+            All completed document extractions are indexed in OpenSearch.
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function toggleSelectAll(checkbox) {
+    const checkboxes = document.querySelectorAll('.decision-checkbox');
+    checkboxes.forEach(cb => cb.checked = checkbox.checked);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,6 @@
+{
+  "id": "no_accent_on_anathesi",
+  "text_content": "Απευθείας αναθεση χωρίς τόνο",
+  "should_detect": true,
+  "notes": "Without accent on αναθεση (testing accent variations)"
+}

@@ -1,0 +1,328 @@
+.dual-range-slider {
+  margin: var(--spacing-xl) 0;
+}
+
+.slider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.slider-label {
+  font-weight: var(--font-bold);
+  font-size: var(--font-md);
+  color: var(--text-color);
+}
+
+.slider-values {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+  font-size: var(--font-sm);
+  color: var(--muted-text);
+}
+
+.value-badge {
+  background-color: var(--bg-info);
+  color: var(--color-text-info);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-weight: var(--font-bold);
+}
+
+.value-separator {
+  color: var(--muted-text);
+}
+
+.slider-container {
+  position: relative;
+  height: 50px;
+  padding: var(--spacing-sm) 0;
+  margin-bottom: var(--spacing-sm);
+}
+
+.slider-track {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 8px;
+  background-color: var(--bg-info);
+  border-radius: var(--radius-sm);
+  transform: translateY(-50%);
+  cursor: pointer;
+  overflow: visible;
+}
+
+/* Activity background visualization */
+.activity-background {
+  position: absolute;
+  top: -12px; /* Position above the track */
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: 32px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.slider-range {
+  position: absolute;
+  top: 50%;
+  height: 12px;
+  background-color: var(--palette-secondary);
+  border-radius: var(--radius-sm);
+  transform: translateY(-50%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.slider-handle {
+  position: absolute;
+  top: 50%;
+  width: 24px;
+  height: 40px;
+  background-color: var(--palette-primary);
+  border-radius: 8px;
+  transform: translate(-50%, -50%);
+  cursor: grab;
+  border: 3px solid var(--card-bg);
+  box-shadow: 0 2px 8px var(--shadow);
+  z-index: 3;
+  transition: var(--transition-fast);
+  user-select: none;
+  touch-action: none; /* Prevent browser handling of touch */
+}
+
+/* Differentiate start and end handles */
+.slider-handle.start {
+  background-color: var(--palette-emphasis);
+  border-radius: 8px 4px 4px 8px;
+}
+
+.slider-handle.end {
+  background-color: var(--palette-emphasis);
+  border-radius: 4px 8px 8px 4px;
+}
+
+.slider-handle:hover {
+  transform: translate(-50%, -50%) scale(1.15);
+  box-shadow: 0 4px 12px var(--shadow-hover);
+}
+
+.slider-handle.start:hover {
+  background-color: var(--palette-emphasis); /* Slightly darker primary blue */
+}
+
+.slider-handle.end:hover {
+  background-color: var(--palette-emphasis); /* Slightly darker secondary blue */
+}
+
+/* Focus states for keyboard accessibility */
+.slider-handle:focus {
+  outline: none;
+}
+
+.slider-handle:focus-visible {
+  outline: 3px solid var(--palette-primary);
+  outline-offset: 3px;
+  box-shadow: 0 4px 16px var(--shadow-focus);
+}
+
+.slider-handle.dragging {
+  cursor: grabbing;
+  box-shadow: 0 6px 20px var(--shadow-focus);
+  z-index: 10;
+  transition: none;
+  transform: translate(-50%, -50%) scale(1.2);
+}
+
+.slider-handle.start.dragging {
+  background-color: var(--palette-emphasis);
+}
+
+.slider-handle.end.dragging {
+  background-color: var(--palette-emphasis);
+}
+
+/* Enhanced tooltip */
+.slider-tooltip {
+  position: fixed;
+  background-color: var(--card-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px var(--shadow-focus);
+  font-size: var(--font-xs);
+  pointer-events: none;
+  z-index: 1000;
+  white-space: nowrap;
+  backdrop-filter: blur(10px);
+}
+
+.slider-tooltip.enhanced {
+  padding: var(--spacing-sm);
+  min-width: 120px;
+}
+
+.tooltip-time {
+  font-weight: var(--font-bold);
+  color: var(--palette-primary);
+  margin-bottom: var(--spacing-xs);
+  text-align: center;
+}
+
+.tooltip-activity {
+  border-top: 1px solid var(--border-color);
+  padding-top: var(--spacing-xs);
+}
+
+.activity-period {
+  font-size: var(--font-xs);
+  color: var(--muted-text);
+  margin-bottom: 2px;
+  text-align: center;
+}
+
+.activity-stats {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
+.activity-count {
+  color: var(--text-color);
+  font-size: var(--font-xs);
+}
+
+.activity-amount {
+  color: var(--palette-emphasis);
+  font-weight: var(--font-bold);
+  font-size: var(--font-xs);
+}
+
+/* Activity summary */
+.activity-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background-color: var(--hover-bg);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  font-size: var(--font-xs);
+  color: var(--muted-text);
+  margin-top: var(--spacing-xs);
+}
+
+.summary-label {
+  font-weight: var(--font-medium);
+  color: var(--text-color);
+}
+
+.summary-periods {
+  color: var(--muted-text);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .slider-container {
+    height: 70px; /* More room for activity and larger handles on mobile */
+    padding: var(--spacing-md) 0;
+  }
+
+  .activity-background {
+    top: -15px;
+    height: 40px;
+  }
+
+  /* Larger touch targets on mobile */
+  .slider-handle {
+    width: 32px;
+    height: 48px;
+    border-width: 4px;
+  }
+
+  .slider-track {
+    height: 12px; /* Thicker track for easier tapping */
+  }
+
+  .slider-range {
+    height: 16px;
+  }
+
+  .slider-tooltip.enhanced {
+    font-size: var(--font-xs);
+    padding: var(--spacing-xs);
+    min-width: 100px;
+  }
+
+  .activity-summary {
+    flex-direction: column;
+    gap: 2px;
+    text-align: center;
+  }
+}
+
+/* Animation for activity path */
+.activity-background path {
+  transition: all var(--transition-fast);
+}
+
+.slider-track:hover .activity-background path {
+  stroke-opacity: 0.8;
+  fill-opacity: 0.4;
+}
+
+/* Drag feedback tooltip */
+.drag-feedback-tooltip {
+  position: absolute;
+  top: -50px;
+  transform: translateX(-50%);
+  background-color: var(--card-bg);
+  color: var(--text-color);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-md);
+  border: 2px solid var(--palette-primary);
+  font-size: var(--font-sm);
+  font-weight: var(--font-bold);
+  box-shadow: 0 4px 12px var(--shadow-focus);
+  pointer-events: none;
+  z-index: 1001;
+  white-space: nowrap;
+  animation: fadeIn 0.15s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.slider-handle.overlap.start {
+  /* Offset left and add visual indicator */
+  transform: translate(-50%, -50%) translateX(-12px);
+  box-shadow: 0 2px 8px var(--shadow), -2px 0 0 var(--palette-primary);
+}
+
+.slider-handle.overlap.end {
+  /* Offset right and add visual indicator */
+  transform: translate(-50%, -50%) translateX(12px);
+  box-shadow: 0 2px 8px var(--shadow), 2px 0 0 var(--palette-secondary);
+}
+
+.slider-handle.overlap.start:hover,
+.slider-handle.overlap.start.dragging {
+  transform: translate(-50%, -50%) translateX(-12px) scale(1.15);
+}
+
+.slider-handle.overlap.end:hover,
+.slider-handle.overlap.end.dragging {
+  transform: translate(-50%, -50%) translateX(12px) scale(1.15);
+}

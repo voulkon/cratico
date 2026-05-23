@@ -1,0 +1,112 @@
+{
+  "id": null,
+  "title": "Diavgeia Performance Monitoring",
+    "tags": ["diavgeia", "performance", "celery"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Celery Task Execution Logs",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{service_name=\"diavgeia-worker\"} |~ \"Task|task\"",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 12,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "options": {
+          "showTime": true,
+          "showLabels": true,
+          "wrapLogMessage": true,
+          "enableLogDetails": true,
+          "sortOrder": "Descending"
+        }
+      },
+      {
+        "id": 2,
+        "title": "Django Request Logs",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{service_name=\"diavgeia-backend\"} |~ \"GET|POST|PUT|DELETE|HTTP\"",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 12,
+          "w": 12,
+          "x": 0,
+          "y": 12
+        },
+        "options": {
+          "showTime": true,
+          "showLabels": true,
+          "wrapLogMessage": true,
+          "enableLogDetails": true,
+          "sortOrder": "Descending"
+        }
+      },
+      {
+        "id": 3,
+        "title": "Database Query Logs",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{service_name=\"diavgeia-backend\"} |~ \"SELECT|INSERT|UPDATE|DELETE|SQL\"",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 12,
+          "w": 12,
+          "x": 12,
+          "y": 12
+        },
+        "options": {
+          "showTime": true,
+          "showLabels": true,
+          "wrapLogMessage": true,
+          "enableLogDetails": true,
+          "sortOrder": "Descending"
+        }
+      },
+      {
+        "id": 4,
+        "title": "OpenSearch Operations",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{environment=\"development\"} |~ \"opensearch|OpenSearch|elasticsearch|index\"",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 12,
+          "w": 24,
+          "x": 0,
+          "y": 24
+        },
+        "options": {
+          "showTime": true,
+          "showLabels": true,
+          "wrapLogMessage": true,
+          "enableLogDetails": true,
+          "sortOrder": "Descending"
+        }
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "30s",
+    "schemaVersion": 30,
+  "version": 1
+}

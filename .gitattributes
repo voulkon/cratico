@@ -1,0 +1,67 @@
+###############################################################################
+# Core rule: commit everything with LF.                                       #
+# Git will auto-convert to CRLF on checkout *only* on Windows workstations    #
+# that have core.autocrlf=true.                                               #
+###############################################################################
+* text=auto eol=lf
+
+###############################################################################
+# Scripts – always LF (they break if CR shows up in the shebang)              #
+###############################################################################
+*.sh       text eol=lf
+*.bash     text eol=lf
+*.zsh      text eol=lf
+*.ps1      text eol=lf
+*.py       text eol=lf
+*.rb       text eol=lf
+*.js       text eol=lf
+*.ts       text eol=lf
+*.jsx      text eol=lf
+*.tsx      text eol=lf
+*.yml      text eol=lf
+*.yaml     text eol=lf
+Dockerfile text eol=lf
+*.toml     text eol=lf
+*.json     text eol=lf
+*.md       text eol=lf
+*.sql      text eol=lf
+
+###############################################################################
+# Windows-only helpers – keep CRLF so they run with double-click              #
+###############################################################################
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+###############################################################################
+# Binary assets – NEVER touch line endings                                    #
+###############################################################################
+# Images
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.svg  binary
+*.ico  binary
+# Fonts
+*.ttf  binary
+*.otf  binary
+# Archives / media
+*.zip  binary
+*.gz   binary
+*.bz2  binary
+*.xz   binary
+*.7z   binary
+*.rar  binary
+*.pdf  binary
+*.mp4  binary
+*.mp3  binary
+*.wav  binary
+*.mov  binary
+*.avi  binary
+
+###############################################################################
+# Keep diff clean for lock files that can be huge                             #
+###############################################################################
+package-lock.json -diff
+pnpm-lock.yaml    -diff
+poetry.lock       -diff

@@ -1,0 +1,51 @@
+# name: Backend CI
+
+# on:
+#   push:
+#     branches: [ "main","dev" ]
+#     paths:
+#       - 'backend/**'
+#       - '.github/workflows/ci.yml'
+#   pull_request:
+#     branches: [ "main","dev" ]
+#     paths:
+#       - 'backend/**'
+#       - '.github/workflows/ci.yml'
+
+# jobs:
+#   test:
+#     runs-on: ubuntu-latest
+#     defaults:
+#       run:
+#         working-directory: backend
+
+#     steps:
+#     - name: Checkout code
+#       uses: actions/checkout@v4
+
+#     - name: Set up Python
+#       uses: actions/setup-python@v5
+#       with:
+#         python-version: '3.13'
+#         cache: 'pip'
+
+#     - name: Install Poetry
+#       run: pip install poetry==1.8.2
+
+#     - name: Cache Poetry dependencies
+#       uses: actions/cache@v4
+#       with:
+#         path: ~/.cache/pypoetry/virtualenvs
+#         key: ${{ runner.os }}-poetry-${{ hashFiles('backend/poetry.lock') }}
+#         restore-keys: |
+#           ${{ runner.os }}-poetry-
+
+#     - name: Install dependencies
+#       run: poetry install
+
+#     - name: Run fast tests
+#       run: poetry run pytest -m fast -k "not django_db"
+#       env:
+#         DEBUG: 'False'
+#         SECRET_KEY: 'ci-secret-key'
+#         ALLOWED_HOSTS: '*'

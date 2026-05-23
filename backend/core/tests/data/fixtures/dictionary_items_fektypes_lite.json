@@ -1,0 +1,20 @@
+{
+    "name": "FEKTYPES",
+    "items": [
+        {
+            "uid": "fektype_A",
+            "label": "(Α) - Τεύχος Πρώτο",
+            "parent": null
+        },
+        {
+            "uid": "fektype_B",
+            "label": "(Β) - Τεύχος Δεύτερο",
+            "parent": null
+        },
+        {
+            "uid": "fektype_C",
+            "label": "(Γ) - Τεύχος Τρίτο",
+            "parent": null
+        }
+    ]
+}

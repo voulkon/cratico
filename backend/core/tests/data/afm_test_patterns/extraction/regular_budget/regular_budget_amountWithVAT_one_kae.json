@@ -1,0 +1,39 @@
+{
+  "id": "amountWithVAT_2",
+  "description": "amountWithVAT and no amountWithKae - no recipient",
+  "ada": "6ΖΚ646ΝΛ2Α-ΡΦΚ",
+  "extra_field_values_json": {
+    "budgettype": "Τακτικός Προϋπολογισμός",
+    "partialead": false,
+    "awardAmount": null,
+    "entryNumber": "9879",
+    "documentType": "ΠΡΑΞΗ",
+    "amountWithKae": [],
+    "amountWithVAT": {
+      "amount": 1150000000.0,
+      "currency": "EUR"
+    },
+    "financialYear": 2026,
+    "relatedDecisions": [],
+    "relatedPartialADA": null,
+    "recalledExpenseDecision": false
+  },
+  "expected": {
+    "entities": 0,
+    "amounts": 1,
+    "total_amount": 1150000000.0
+  },
+  "_analysis": {
+    "entities_found": [],
+    "amounts_found": [
+      {
+        "amount": 1150000000.0,
+        "currency": "EUR",
+        "path": "amountWithVAT",
+        "source_field": "amount",
+        "linked": false
+      }
+    ],
+    "unlinked_pattern": "amountWithVAT"
+  }
+}

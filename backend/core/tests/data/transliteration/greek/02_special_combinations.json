@@ -1,0 +1,84 @@
+{
+  "category": "special_combinations",
+  "description": "Test cases for two-character combinations (TH, CH, PH, PS)",
+  "test_cases": [
+    {
+      "id": "th_uppercase",
+      "input": "THESSA",
+      "expected_output": "ΘΕΣΣΑ",
+      "notes": "TH -> Θ (Theta) uppercase"
+    },
+    {
+      "id": "th_lowercase",
+      "input": "thessaloniki",
+      "expected_output": "θεσσαλονικι",
+      "notes": "th -> θ lowercase"
+    },
+    {
+      "id": "th_mixed",
+      "input": "Thessalia",
+      "expected_output": "Θεσσαλια",
+      "notes": "Th -> Θ mixed case"
+    },
+    {
+      "id": "ph_uppercase",
+      "input": "PHOS",
+      "expected_output": "ΦΟΣ",
+      "notes": "PH -> Φ (Phi) uppercase"
+    },
+    {
+      "id": "ph_lowercase",
+      "input": "philosophia",
+      "expected_output": "φιλοσοφια",
+      "notes": "ph -> φ lowercase"
+    },
+    {
+      "id": "ph_mixed",
+      "input": "Philosophos",
+      "expected_output": "Φιλοσοφοσ",
+      "notes": "Ph -> Φ mixed case"
+    },
+    {
+      "id": "ch_uppercase",
+      "input": "CHANIA",
+      "expected_output": "ΧΑΝΙΑ",
+      "notes": "CH -> Χ (Chi) uppercase"
+    },
+    {
+      "id": "ch_lowercase",
+      "input": "choros",
+      "expected_output": "χοροσ",
+      "notes": "ch -> χ lowercase"
+    },
+    {
+      "id": "ch_mixed",
+      "input": "Chorografia",
+      "expected_output": "Χορογραφια",
+      "notes": "Ch -> Χ mixed case"
+    },
+    {
+      "id": "ps_uppercase",
+      "input": "PSYCHOLOGIA",
+      "expected_output": "ΨΥΧΟΛΟΓΙΑ",
+      "notes": "PS -> Ψ (Psi) uppercase"
+    },
+    {
+      "id": "ps_lowercase",
+      "input": "psomi",
+      "expected_output": "ψομι",
+      "notes": "ps -> ψ lowercase"
+    },
+    {
+      "id": "ps_mixed",
+      "input": "Psalidi",
+      "expected_output": "Ψαλιδι",
+      "notes": "Ps -> Ψ mixed case"
+    },
+    {
+      "id": "multiple_combinations",
+      "input": "PHILOSOPHIA PSYCHOLOGIAS",
+      "expected_output": "ΦΙΛΟΣΟΦΙΑ ΨΥΧΟΛΟΓΙΑΣ",
+      "notes": "Multiple special combinations in one text"
+    }
+  ]
+}

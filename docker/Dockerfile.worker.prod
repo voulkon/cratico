@@ -1,0 +1,23 @@
+# ──────────────────────────────────────────────────────────
+# Production Worker Image - Uses pre-built base with dependencies
+# Base image contains all heavy dependencies (PyTorch, docling, etc.)
+# This Dockerfile only copies application code for fast rebuilds
+#
+# Used by: docker-compose.prod.yml (Coolify deployments)
+# Local dev uses: Dockerfile.worker (full build)
+# ──────────────────────────────────────────────────────────
+
+# Use the pre-built base image from GHCR
+# Change 'latest' to 'preview' or specific tag as needed
+ARG BASE_IMAGE_TAG=latest
+FROM ghcr.io/voulkon/crati/worker-base:${BASE_IMAGE_TAG}
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Base image already has postgresql-client and all dependencies
+# Just copy your application code - this is fast and invalidates cache only on code changes
+COPY backend/ .
+
+# Make entrypoint executable
+RUN chmod +x worker_entrypoint.sh

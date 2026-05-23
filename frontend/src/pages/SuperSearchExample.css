@@ -1,0 +1,74 @@
+/* Super Search Example Page Styles */
+
+.super-search-example {
+  min-height: 100vh;
+  background-color: var(--bg-color);
+  padding: var(--spacing-xl);
+}
+
+.example-container {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.super-search-example h1 {
+  color: var(--text-color);
+  text-align: center;
+  margin-bottom: var(--spacing-lg);
+  font-size: var(--font-xxl);
+  font-weight: var(--font-bold);
+}
+
+.super-search-example p {
+  color: var(--muted-text);
+  text-align: center;
+  margin-bottom: var(--spacing-xxxl);
+  font-size: var(--font-lg);
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.example-section {
+  margin-bottom: var(--spacing-xxxl);
+  padding: var(--spacing-xl);
+  background-color: var(--card-bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.example-section h2 {
+  color: var(--text-color);
+  margin-bottom: var(--spacing-lg);
+  font-size: var(--font-xl);
+  font-weight: var(--font-bold);
+  text-align: center;
+}
+
+.example-section .super-search-container {
+  margin: 0 auto;
+}
+
+.custom-search {
+  max-width: 700px;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .super-search-example {
+    padding: var(--spacing-lg);
+  }
+
+  .example-section {
+    padding: var(--spacing-lg);
+  }
+
+  .super-search-example h1 {
+    font-size: var(--font-xl);
+  }
+
+  .super-search-example p {
+    font-size: var(--font-md);
+  }
+}

@@ -1,0 +1,39 @@
+{
+    "id": "payment_with_typo_in_decimals",
+    "description": "Payment with a typo in the decimals of the amount. The amount should be 28 thousands but it is written as 2+ millions",
+    "ada": "9ΨΑ146ΝΚΟΤ-ΩΦ3",
+    "extra_field_values_json": {
+        "org": {
+            "afm": "090283815",
+            "afmType": "EL",
+            "afmCountry": "EL",
+            "name": "ΕΠΣ",
+            "enterName": false
+        },
+        "skipVatReason": null,
+        "sponsor": [
+            {
+                "sponsorAFMName": {
+                    "afm": "047472553",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "name": "ΡΩΣΣΙΔΗΣ ΞΕΝΟΦΩΝ",
+                    "enterName": false
+                },
+                "expenseAmount": {
+                    "amount": 2808600.0,
+                    "currency": "EUR"
+                },
+                "kae": "2021ΣΕ31410004"
+            }
+        ],
+        "relatedEkgrisiDapanis": [],
+        "relatedDecisions": [],
+        "documentType": "ΠΡΑΞΗ"
+    },
+    "expected": {
+        "entities": 1,
+        "amounts": 1,
+        "total_amount": 2808600.00
+    }
+}

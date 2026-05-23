@@ -1,0 +1,57 @@
+# ──────────── STAGE 1: Build dependencies ────────────
+FROM python:3.12-slim AS deps-builder
+
+# Install build tools
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    make \
+    && rm -rf /var/lib/apt/lists/*
+
+
+# Install Poetry
+RUN pip install poetry==1.8.2
+
+WORKDIR /code
+
+# Copy poetry files
+COPY backend/pyproject.toml backend/poetry.lock ./
+COPY backend/gemi ./gemi/
+
+# Configure poetry
+RUN poetry config virtualenvs.create false
+
+# Install dependencies (excluding worker group)
+# Use BuildKit cache mounts to persist both pip and poetry caches
+RUN --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=cache,target=/root/.cache/pypoetry \
+    poetry install --no-root --no-interaction --no-ansi --without worker
+
+# ──────────── STAGE 2: Final runtime image ────────────
+FROM python:3.12-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    postgresql-client \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /code
+
+# Copy ONLY the installed packages from the builder stage
+COPY --from=deps-builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=deps-builder /usr/local/bin /usr/local/bin
+
+# Copy application code
+COPY backend/ .
+
+RUN chmod +x entrypoint.sh
+
+# Set entrypoint
+ENTRYPOINT ["/code/entrypoint.sh"]
+
+# Default command
+CMD ["gunicorn", "diavgeia_project.wsgi:application", "--bind", "0.0.0.0:8000"]

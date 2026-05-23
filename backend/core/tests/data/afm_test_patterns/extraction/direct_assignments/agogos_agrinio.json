@@ -1,0 +1,61 @@
+{
+  "id": "agogos_agrinio",
+  "description": "agogos_agrinio",
+  "ada": "92ΚΕΟΡΜ9-ΜΔΧ",
+  "extra_field_values_json": {
+    "cpv": [
+      "45252126-7",
+      "42912300-5",
+      "45231300-8",
+      "09331200-0"
+    ],
+    "person": [
+      {
+        "afm": "996768755",
+        "name": "ΚΟΙΝΟΠΡΑΞΙΑ  ΜΕΣΟΓΕΙΟΣ ΑΕ ΜΤ ΑΤΕ",
+        "afmType": "EL",
+        "enterName": false
+      }
+    ],
+    "budgettype": null,
+    "partialead": null,
+    "awardAmount": {
+      "amount": 34327800.97,
+      "currency": "EUR"
+    },
+    "entryNumber": null,
+    "documentType": "ΠΡΑΞΗ",
+    "amountWithKae": null,
+    "amountWithVAT": null,
+    "financialYear": null,
+    "assignmentType": "Έργα",
+    "textRelatedADA": null,
+    "relatedDecisions": [],
+    "recalledExpenseDecision": null
+  },
+  "expected": {
+    "entities": 1,
+    "amounts": 1,
+    "total_amount": 34327800.97
+  },
+  "_analysis": {
+    "entities_found": [
+      {
+        "afm": "996768755",
+        "name": "ΚΟΙΝΟΠΡΑΞΙΑ  ΜΕΣΟΓΕΙΟΣ ΑΕ ΜΤ ΑΤΕ",
+        "role": "person",
+        "path": "person"
+      }
+    ],
+    "amounts_found": [
+      {
+        "amount": 34327800.97,
+        "currency": "EUR",
+        "path": "awardAmount",
+        "source_field": "amount",
+        "linked": false
+      }
+    ],
+    "unlinked_pattern": "awardAmount"
+  }
+}

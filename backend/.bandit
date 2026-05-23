@@ -1,0 +1,26 @@
+[bandit]
+# Bandit configuration for diavgeia-backend
+# https://bandit.readthedocs.io/en/latest/config.html
+
+# Tests skipped globally
+# B101: assert_used - Expected in test files
+skips = B101
+
+# Exclude directories with safe SQL patterns (using Django's quote_name)
+# Note: INI format uses 'exclude' (not 'exclude_dirs' which is for YAML/TOML)
+exclude = admin_custom,management
+
+# Additional test cases
+# data =
+
+# Output format (json, csv, txt, xml, html, screen)
+# output_file =
+
+# Verbosity level (0-3)
+# verbose =
+
+# Include additional info
+# reports = true
+
+# Total score
+# total score

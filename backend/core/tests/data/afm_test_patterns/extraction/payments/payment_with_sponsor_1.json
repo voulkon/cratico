@@ -1,0 +1,36 @@
+{
+    "id": "payment_without_counterpart_1",
+    "description": "Payment decision without counterpart - ΚΤΙΡΙΑΚΕΣ ΥΠΟΔΟΜΕΣ",
+    "ada": "ΨΤ78ΟΞΧΔ-04Δ",
+    "extra_field_values_json": {
+        "org": {
+            "afm": "997476340",
+            "name": "ΚΤΙΡΙΑΚΕΣ ΥΠΟΔΟΜΕΣ ΑΝΩΝΥΜΗ ΕΤΑΙΡΕΙΑ",
+            "afmType": "EL"
+        },
+        "sponsor": [
+            {
+                "kae": "4510, 6501",
+                "expenseAmount": {
+                    "amount": 2569760.0,
+                    "currency": "EUR"
+                },
+                "sponsorAFMName": {
+                    "afmType": "INT",
+                    "noVATOrg": "10001"
+                }
+            }
+        ],
+        "documentType": "ΠΡΑΞΗ",
+        "relatedDecisions": [],
+        "relatedEkgrisiDapanis": [
+            {
+                "textRelatedADA": "6Α0ΤΟΞΧΔ-6ΧΔ"
+            }
+        ]
+    },
+    "expected": {
+        "entities": 0,
+        "amounts": 1
+    }
+}

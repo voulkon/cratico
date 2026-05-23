@@ -1,0 +1,940 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}AFM Fetch Queue Management{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+.afm-cockpit {
+    padding: 20px;
+    max-width: 1600px;
+}
+
+/* Header */
+.cockpit-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.cockpit-title {
+    font-size: 28px;
+    font-weight: bold;
+    color: var(--body-fg);
+}
+
+.cockpit-subtitle {
+    color: var(--body-quiet-color);
+    margin-top: 5px;
+}
+
+/* Stats Grid */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background: var(--body-bg);
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 4px;
+    padding: 20px;
+    text-align: center;
+    transition: transform 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    background: var(--darkened-bg);
+}
+
+.stat-number {
+    font-size: 2.5em;
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: var(--primary);
+}
+
+.stat-label {
+    color: var(--body-quiet-color);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Control Panel */
+.control-panel {
+    background: var(--body-bg);
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 30px;
+}
+
+.control-panel h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.control-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.control-action {
+    background: var(--darkened-bg);
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 4px;
+    padding: 15px;
+}
+
+.control-action h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 16px;
+    color: var(--body-fg);
+}
+
+.control-action p {
+    font-size: 13px;
+    color: var(--body-quiet-color);
+    margin-bottom: 15px;
+}
+
+.control-action form {
+    margin: 0;
+}
+
+.control-action input[type="number"],
+.control-action input[type="text"] {
+    width: 100%;
+    padding: 6px 10px;
+    margin-bottom: 10px;
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 4px;
+}
+
+.control-action label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.control-action button {
+    width: 100%;
+}
+
+/* Tables */
+.data-table {
+    background: var(--body-bg);
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 4px;
+    margin-bottom: 30px;
+    overflow: hidden;
+}
+
+.data-table h2 {
+    background: var(--darkened-bg);
+    margin: 0;
+    padding: 15px 20px;
+    font-size: 18px;
+    font-weight: bold;
+    border-bottom: 1px solid var(--border-color, #ccc);
+}
+
+.data-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.data-table th {
+    background: var(--darkened-bg);
+    padding: 12px 15px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border-color, #ccc);
+    white-space: nowrap;
+}
+
+.data-table td {
+    padding: 10px 15px;
+    border-bottom: 1px solid var(--hairline-color, #e0e0e0);
+    font-size: 13px;
+}
+
+.data-table tr:hover {
+    background: var(--darkened-bg);
+}
+
+/* Priority badges */
+.priority-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+    color: white;
+}
+
+.priority-top10 { background: #d9534f; }
+.priority-top50 { background: #f0ad4e; }
+.priority-top100 { background: #ffc107; color: #333; }
+.priority-other { background: #6c757d; }
+
+/* Status badges */
+.status-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.status-success { background: #dff0d8; color: #3c763d; }
+.status-failed { background: #f2dede; color: #a94442; }
+.status-pending { background: #fcf8e3; color: #8a6d3b; }
+.status-processing { background: #d9edf7; color: #31708f; }
+
+/* Progress bar */
+.progress-bar {
+    width: 100%;
+    height: 20px;
+    background: var(--darkened-bg);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-top: 10px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+    transition: width 0.3s ease;
+}
+
+/* Config info box */
+.config-info {
+    background: var(--darkened-bg);
+    border-left: 4px solid var(--primary);
+    padding: 15px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+}
+
+.config-info strong {
+    color: var(--primary);
+}
+
+/* Alert messages */
+.alert {
+    padding: 12px 20px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    border-left: 4px solid;
+}
+
+.alert-info { background: var(--darkened-bg); border-color: var(--primary); color: var(--primary); }
+.alert-warning { background: var(--body-bg); border-color: #f0ad4e; color: #856404; }
+.alert-danger { background: var(--body-bg); border-color: #d9534f; color: #d9534f; }
+.alert-success { background: var(--body-bg); border-color: #5cb85c; color: #3c763d; }
+
+/* Responsive */
+@media (max-width: 768px) {
+    .control-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="afm-cockpit">
+    <div class="cockpit-header">
+        <div>
+            <h1 class="cockpit-title">AFM Fetch Queue Management</h1>
+            <p class="cockpit-subtitle">Monitor and control company data fetching from GEMI registry</p>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Active Configuration -->
+    {% if config %}
+    <div class="config-info">
+        <strong>Active Configuration:</strong> {{ config.name }} |
+        <strong>Weights:</strong> Frequency {{ config.frequency_weight|floatformat:0 }}%,
+        Amount {{ config.amount_weight|floatformat:0 }}%,
+        Org {{ config.organization_weight|floatformat:0 }}% |
+        <strong>Thresholds:</strong> ≥{{ config.min_appearances }} apps,
+        ≥€{{ config.min_total_amount|floatformat:0 }},
+        ≥{{ config.min_unique_organizations }} orgs
+        | <a href="{% url 'admin:core_afmscoringconfig_change' config.id %}">Edit Config</a>
+    </div>
+    {% else %}
+    <div class="alert alert-warning">
+        ⚠️ No active scoring configuration! <a href="{% url 'admin:core_afmscoringconfig_add' %}">Create one</a>
+    </div>
+    {% endif %}
+
+    <!-- Quick Start Guide -->
+    {% if total_scored == 0 %}
+    <div class="alert alert-info">
+        <h3 style="margin-top: 0;">Quick Start Guide</h3>
+        <p><strong>Follow these 3 steps to get started:</strong></p>
+        <ol style="line-height: 1.8; font-size: 15px;">
+            <li><strong>Step 1: Create/Edit Configuration</strong><br/>
+                <small style="color: #666;">
+                    {% if config %}
+                    You already have an active config: <strong>{{ config.name }}</strong>.
+                    <a href="{% url 'admin:core_afmscoringconfig_change' config.id %}">Edit it</a> to adjust weights and thresholds, or use as-is.
+                    {% else %}
+                    Go to <a href="{% url 'admin:core_afmscoringconfig_add' %}">AFM Scoring Configurations</a> and create a new config with your desired scoring weights.
+                    {% endif %}
+                </small>
+            </li>
+            <li><strong>Step 2: Run Scoring Algorithm</strong><br/>
+                <small style="color: #666;">Click the "Run Scoring Now" button below in the Control Panel to calculate importance scores for all AFM entities.</small>
+            </li>
+            <li><strong>Step 3: Populate & Process Queue</strong><br/>
+                <small style="color: #666;">After scoring, use "Populate Queue" and "Process Batch" to start fetching company data in priority order.</small>
+            </li>
+        </ol>
+    </div>
+    {% endif %}
+
+    <!-- Stats Overview -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-number">{{ queue_status.pending|default:0 }}</div>
+            <div class="stat-label">Pending in Queue</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ queue_status.active|default:0 }}</div>
+            <div class="stat-label">Currently Processing</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ queue_status.fetched|default:0 }}</div>
+            <div class="stat-label">Successfully Fetched</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ queue_status.failed|default:0 }}</div>
+            <div class="stat-label">Failed</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ eligible_count }}</div>
+            <div class="stat-label">Total Eligible</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ total_scored }}</div>
+            <div class="stat-label">Total Scored</div>
+        </div>
+    </div>
+
+    <!-- Active Job Status -->
+    {% if active_job %}
+    <div class="data-table" style="border-left: 4px solid var(--primary);">
+        <h2>Active Scoring Job</h2>
+        <div style="padding: 20px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                <div>
+                    <strong>Job ID:</strong> {{ active_job.job_id|slice:":8" }}...<br/>
+                    <strong>Status:</strong>
+                    <span class="status-badge status-{{ active_job.status }}">{{ active_job.get_status_display }}</span><br/>
+                    <strong>Config:</strong> {{ active_job.config.name }}
+                </div>
+                <div>
+                    <strong>Progress:</strong> {{ active_job.processed_count }} / {{ active_job.total_entities }}<br/>
+                    <strong>Scored:</strong> {{ active_job.scored_count }}<br/>
+                    <strong>Eligible:</strong> {{ active_job.eligible_count }}
+                </div>
+                <div>
+                    <strong>Rate:</strong> {{ active_job.entities_per_second }} entities/sec<br/>
+                    <strong>Duration:</strong> {{ active_job.duration_seconds|floatformat:0 }}s<br/>
+                    {% if active_job.estimated_completion %}
+                    <strong>ETA:</strong> {{ active_job.estimated_completion|timesince }}
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: {{ active_job.progress_percentage }}%">
+                    {{ active_job.progress_percentage }}%
+                </div>
+            </div>
+
+            <div style="margin-top: 15px;">
+                {% if active_job.status == 'running' %}
+                <a href="{% url 'admin:core_afmscoringjob_pause' active_job.id %}" class="button" style="background: #ffc107; color: #333;">Pause Job</a>
+                {% endif %}
+                {% if active_job.status == 'paused' %}
+                <a href="{% url 'admin:core_afmscoringjob_resume' active_job.id %}" class="button">Resume Job</a>
+                {% endif %}
+                <a href="{% url 'admin:core_afmscoringjob_cancel' active_job.id %}" class="button" style="background: #dc3545; color: white;">Cancel Job</a>
+                <a href="{% url 'admin:core_afmscoringjob_change' active_job.id %}" class="button">View Details</a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Progress Bar -->
+    <div class="data-table">
+        <h2>Fetch Progress</h2>
+        <div style="padding: 20px;">
+            <p><strong>{{ fetched_count }}</strong> of <strong>{{ eligible_count }}</strong> eligible entities fetched ({{ fetch_percentage }}%)</p>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: {{ fetch_percentage }}%">
+                    {{ fetch_percentage }}%
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Control Panel -->
+    <div class="control-panel">
+        <h2>Queue Controls {% if total_scored > 0 %}<small style="font-weight: normal; color: var(--body-quiet-color);">({{ total_scored }} entities scored)</small>{% endif %}</h2>
+        <div class="control-actions">
+            <!-- Run Scoring -->
+            <div class="control-action">
+                <h3>1. Run Scoring Algorithm</h3>
+                <p>Calculate importance scores for all AFM entities based on active configuration.</p>
+                <form method="POST" action="{% url 'admin:afm_run_scoring' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="button" {% if active_job %}disabled title="A job is already running"{% endif %}>
+                        Run Scoring Now
+                    </button>
+                </form>
+                <small style="color: var(--body-quiet-color); display: block; margin-top: 8px;">
+                    {% if active_job %}
+                    Job in progress: {{ active_job.get_status_display }} ({{ active_job.progress_percentage }}%)
+                    {% elif total_scored > 0 %}
+                    Last scored: {{ total_scored }} entities | {{ eligible_count }} eligible
+                    {% else %}
+                    Not run yet - click above to calculate scores
+                    {% endif %}
+                </small>
+            </div>
+
+            <!-- Populate Queue -->
+            <div class="control-action">
+                <h3>2. Populate Redis Queue</h3>
+                <p>Load scored entities into the priority queue for processing.</p>
+                <form method="POST" action="{% url 'admin:afm_populate_queue' %}">
+                    {% csrf_token %}
+                    <label for="limit">Limit (optional):</label>
+                    <input type="number" id="limit" name="limit" placeholder="All eligible entities" min="1">
+
+                    <label>
+                        <input type="checkbox" name="force_refresh"> Force refresh (clear existing queue)
+                    </label>
+
+                    <button type="submit" class="button" {% if eligible_count == 0 %}disabled title="Run scoring first"{% endif %}>
+                        Populate Queue
+                    </button>
+                </form>
+                <small style="color: var(--body-quiet-color); display: block; margin-top: 8px;">
+                    Queue: {{ queue_status.pending|default:0 }} pending
+                </small>
+            </div>
+
+            <!-- Process Queue -->
+            <div class="control-action">
+                <h3>3. Process Queue (Worker)</h3>
+                <p>Start background worker to process the entire queue (respects GEMI rate limits).</p>
+                <form method="POST" action="{% url 'admin:afm_process_batch' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="max_items" value="">
+
+                    <button type="submit" class="button" {% if queue_status.pending == 0 %}disabled title="Populate queue first"{% endif %}>
+                        Start Processing
+                    </button>
+                </form>
+                <small style="color: var(--body-quiet-color); display: block; margin-top: 8px;">
+                    Processes all {{ queue_status.pending|default:0 }} pending items via Celery worker<br/>
+                    Rate limit: 6 req/min (~10 sec per entity)
+                </small>
+            </div>
+
+            <!-- Recover Stuck Items -->
+            <div class="control-action">
+                <h3>⚠️ Recover Stuck Items</h3>
+                <p>Move items stuck in ACTIVE set back to queue (use if processing appears hung).</p>
+                <form method="POST" action="{% url 'admin:afm_recover_stuck' %}">
+                    {% csrf_token %}
+
+                    <button type="submit" class="button" style="background-color: #f0ad4e; border-color: #eea236;" {% if queue_status.active == 0 %}disabled title="No items in ACTIVE set"{% endif %}>
+                        Recover Stuck Items
+                    </button>
+                </form>
+                <small style="color: var(--body-quiet-color); display: block; margin-top: 8px;">
+                    Active: {{ queue_status.active|default:0 }} items
+                    {% if queue_status.active > 0 %}
+                    <br/><span style="color: #f0ad4e;">⚠️ Items might be processing or stuck</span>
+                    {% endif %}
+                </small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Currently Processing (Active) -->
+    {% if active_processing %}
+    <div class="data-table" style="border-left: 4px solid #007bff;">
+        <h2>⚡ Currently Being Processed ({{ queue_status.active }} active)</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>AFM</th>
+                    <th>Name</th>
+                    <th>Score</th>
+                    <th>Appearances</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for score in active_processing %}
+                <tr style="background: #e3f2fd;">
+                    <td><strong>{{ score.entity.afm }}</strong></td>
+                    <td>{{ score.entity.name|default:"—"|truncatewords:8 }}</td>
+                    <td><strong>{{ score.total_score|floatformat:1 }}</strong></td>
+                    <td>{{ score.total_appearances }}</td>
+                    <td><span class="status-badge status-processing">Fetching from GEMI...</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div style="padding: 15px; background: var(--darkened-bg); text-align: center;">
+            <small style="color: var(--body-quiet-color);">
+                These entities are currently being fetched. They will move to "Successfully Fetched" or "Failed" when complete.
+            </small>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Current Queue Contents (Redis) -->
+    {% if queue_contents %}
+    <div class="data-table" style="border-left: 4px solid var(--primary);">
+        <h2>Current Queue Contents ({{ queue_status.pending }} in Redis)</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Position</th>
+                    <th>AFM</th>
+                    <th>Name</th>
+                    <th>Queue Score</th>
+                    <th>Appearances</th>
+                    <th>Total Amount</th>
+                    <th>Orgs</th>
+                    <th>Direct Assign</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for score in queue_contents %}
+                <tr>
+                    <td><span class="priority-badge priority-top10">#{{ forloop.counter }}</span></td>
+                    <td><strong>{{ score.entity.afm }}</strong></td>
+                    <td>{{ score.entity.name|default:"—"|truncatewords:8 }}</td>
+                    <td><strong>{{ score.redis_score|floatformat:1 }}</strong></td>
+                    <td>{{ score.total_appearances }}</td>
+                    <td>€{{ score.total_amount|floatformat:0 }}</td>
+                    <td>{{ score.unique_organizations }}</td>
+                    <td>
+                        <small>
+                            {{ score.direct_assignment_count }} ({{ score.direct_assignment_percentage|floatformat:0 }}%)
+                        </small>
+                    </td>
+                    <td style="white-space: nowrap;">
+                        <form method="POST" action="{% url 'admin:afm_boost_priority' %}" style="display: inline;">
+                            {% csrf_token %}
+                            <input type="hidden" name="afm" value="{{ score.entity.afm }}">
+                            <button type="submit" class="button" style="font-size: 11px; padding: 3px 8px; background: #ffc107; color: #333;"
+                                    title="Move to front of queue">
+                                Boost
+                            </button>
+                        </form>
+                        <form method="POST" action="{% url 'admin:afm_remove_from_queue' %}" style="display: inline;"
+                              onsubmit="return confirm('Remove {{ score.entity.afm }} from queue?');">
+                            {% csrf_token %}
+                            <input type="hidden" name="afm" value="{{ score.entity.afm }}">
+                            <button type="submit" class="button" style="font-size: 11px; padding: 3px 8px; background: #dc3545; color: white;"
+                                    title="Remove from queue">
+                                Remove
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div style="padding: 15px; background: var(--darkened-bg); text-align: center;">
+            <small style="color: var(--body-quiet-color);">
+                These {{ queue_contents|length }} entities are currently in the Redis queue and will be processed in this order.
+                Click "Process Batch" above to start fetching them.
+            </small>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Top Unfetched Entities -->
+    <div class="data-table">
+        <h2>
+            All Eligible Entities ({{ eligible_count }} total)
+            <span style="float: right; font-size: 14px; font-weight: normal;">
+                <label style="margin-right: 15px; cursor: pointer;">
+                    <input type="checkbox" id="hideFailedGemi" checked style="vertical-align: middle; margin-right: 5px;">
+                    Hide Failed GEMI Lookups
+                </label>
+                <input type="text" id="searchInput" placeholder="Search by AFM or Name..."
+                       style="padding: 6px 10px; border: 1px solid var(--border-color, #ccc); border-radius: 4px; width: 300px;">
+            </span>
+        </h2>
+
+        <!-- Bulk Actions -->
+        <div style="padding: 15px; background: var(--darkened-bg); border-bottom: 1px solid var(--border-color, #ccc);">
+            <span style="font-weight: 500; margin-right: 15px;">Bulk Actions:</span>
+            <button type="button" id="bulkAddBtn" class="button" style="font-size: 12px; padding: 5px 12px;" disabled>
+                Add Selected to Queue
+            </button>
+            <label style="font-size: 12px; margin-left: 10px;">
+                <input type="checkbox" id="bulkPriority" style="vertical-align: middle;">
+                With Priority
+            </label>
+            <button type="button" id="bulkExcludeBtn" class="button" style="font-size: 12px; padding: 5px 12px; background: #6c757d; color: white; margin-left: 10px;" disabled>
+                Exclude Selected
+            </button>
+            <span id="selectedCount" style="margin-left: 15px; color: var(--body-quiet-color); font-size: 12px;"></span>
+        </div>
+
+        <table id="unfetchedTable">
+            <thead>
+                <tr>
+                    <th style="width: 30px;">
+                        <input type="checkbox" id="selectAll" style="vertical-align: middle;">
+                    </th>
+                    <th>Score</th>
+                    <th>AFM</th>
+                    <th>Name</th>
+                    <th>Appearances</th>
+                    <th>Total Amount</th>
+                    <th>Orgs</th>
+                    <th>Direct Assign</th>
+                    <th>GEMI Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for score in top_unfetched %}
+                <tr>
+                    <td>
+                        <input type="checkbox" class="row-checkbox" data-afm="{{ score.entity.afm }}" style="vertical-align: middle;">
+                    </td>
+                    <td><strong>{{ score.total_score|floatformat:1 }}</strong></td>
+                    <td><strong class="afm-cell"><a href="/entity/afm/{{ score.entity.afm }}" target="_blank" style="color: inherit; text-decoration: none;">{{ score.entity.afm }}</a></strong></td>
+                    <td class="name-cell">{{ score.entity.name|default:"—"|truncatewords:8 }}</td>
+                    <td>{{ score.total_appearances }}</td>
+                    <td>€{{ score.total_amount|floatformat:0 }}</td>
+                    <td>{{ score.unique_organizations }}</td>
+                    <td>
+                        <small>
+                            {{ score.direct_assignment_count }} assignments<br/>
+                            ({{ score.direct_assignment_percentage|floatformat:0 }}% of total)
+                        </small>
+                    </td>
+                    <td>
+                        {% if score.entity.gemi_lookup_attempted %}
+                            <span class="status-badge status-failed">⚠ Failed ({{ score.entity.error_count }}x)</span>
+                        {% else %}
+                            <span class="status-badge status-pending">Not attempted</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="9" style="text-align: center; color: #6c757d;">
+                        No eligible unfetched entities. Run scoring first!
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+    // Unified filtering function that respects both search and GEMI filter
+    function applyFilters() {
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+        const hideFailed = document.getElementById('hideFailedGemi').checked;
+        const table = document.getElementById('unfetchedTable');
+        const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+
+        for (let i = 0; i < rows.length; i++) {
+            const afmCell = rows[i].querySelector('.afm-cell');
+            const nameCell = rows[i].querySelector('.name-cell');
+            const statusBadge = rows[i].querySelector('.status-badge.status-failed');
+
+            if (afmCell && nameCell) {
+                const afmText = afmCell.textContent || afmCell.innerText;
+                const nameText = nameCell.textContent || nameCell.innerText;
+
+                // Check if row matches search
+                const matchesSearch = searchTerm === '' ||
+                    afmText.toLowerCase().indexOf(searchTerm) > -1 ||
+                    nameText.toLowerCase().indexOf(searchTerm) > -1;
+
+                // Check if row should be hidden due to failed GEMI lookup
+                const hasFailedGemi = statusBadge !== null;
+                const shouldHideFailed = hideFailed && hasFailedGemi;
+
+                // Show row only if it matches search AND is not hidden by filter
+                rows[i].style.display = (matchesSearch && !shouldHideFailed) ? '' : 'none';
+            }
+        }
+    }
+
+    // Search functionality for the table
+    document.getElementById('searchInput').addEventListener('keyup', applyFilters);
+
+    // Filter to hide failed GEMI lookups
+    document.getElementById('hideFailedGemi').addEventListener('change', applyFilters);
+
+    // Trigger the filter on page load (since checkbox is checked by default)
+    document.getElementById('hideFailedGemi').dispatchEvent(new Event('change'));
+
+    // Bulk selection functionality
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const rowCheckboxes = document.querySelectorAll('.row-checkbox');
+    const bulkAddBtn = document.getElementById('bulkAddBtn');
+    const bulkExcludeBtn = document.getElementById('bulkExcludeBtn');
+    const selectedCountSpan = document.getElementById('selectedCount');
+
+    function updateBulkButtons() {
+        const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
+        const count = checkedBoxes.length;
+
+        bulkAddBtn.disabled = count === 0;
+        bulkExcludeBtn.disabled = count === 0;
+        selectedCountSpan.textContent = count > 0 ? `${count} selected` : '';
+    }
+
+    // Select all checkbox
+    selectAllCheckbox.addEventListener('change', function() {
+        const visibleRows = Array.from(rowCheckboxes).filter(cb => {
+            return cb.closest('tr').style.display !== 'none';
+        });
+        visibleRows.forEach(cb => cb.checked = this.checked);
+        updateBulkButtons();
+    });
+
+    // Individual row checkboxes with Shift-click range selection
+    let lastCheckedCheckbox = null;
+
+    rowCheckboxes.forEach(cb => {
+        cb.addEventListener('click', function(e) {
+            // Shift-click range selection
+            if (e.shiftKey && lastCheckedCheckbox) {
+                const checkboxArray = Array.from(rowCheckboxes);
+                const fromIndex = checkboxArray.indexOf(lastCheckedCheckbox);
+                const toIndex = checkboxArray.indexOf(this);
+
+                if (fromIndex !== -1 && toIndex !== -1) {
+                    const start = Math.min(fromIndex, toIndex);
+                    const end = Math.max(fromIndex, toIndex);
+
+                    for (let i = start; i <= end; i++) {
+                        // Only check visible rows
+                        if (checkboxArray[i].closest('tr').style.display !== 'none') {
+                            checkboxArray[i].checked = true;
+                        }
+                    }
+                }
+            }
+
+            // Track this as the last checked checkbox (only if checked)
+            if (this.checked) {
+                lastCheckedCheckbox = this;
+            } else {
+                lastCheckedCheckbox = null;
+            }
+
+            updateBulkButtons();
+        });
+    });
+
+    // Bulk Add to Queue
+    bulkAddBtn.addEventListener('click', function() {
+        const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
+        const afms = Array.from(checkedBoxes).map(cb => cb.dataset.afm);
+        const withPriority = document.getElementById('bulkPriority').checked;
+
+        if (afms.length === 0) return;
+
+        if (!confirm(`Add ${afms.length} AFM(s) to queue${withPriority ? ' with priority' : ''}?`)) return;
+
+        // Create form and submit
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{% url "admin:afm_bulk_add_to_queue" %}';
+
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrfmiddlewaretoken';
+        csrfInput.value = '{{ csrf_token }}';
+        form.appendChild(csrfInput);
+
+        afms.forEach(afm => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'afms';
+            input.value = afm;
+            form.appendChild(input);
+        });
+
+        const priorityInput = document.createElement('input');
+        priorityInput.type = 'hidden';
+        priorityInput.name = 'jump_queue';
+        priorityInput.value = withPriority ? 'on' : '';
+        form.appendChild(priorityInput);
+
+        document.body.appendChild(form);
+        form.submit();
+    });
+
+    // Bulk Exclude
+    bulkExcludeBtn.addEventListener('click', function() {
+        const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
+        const afms = Array.from(checkedBoxes).map(cb => cb.dataset.afm);
+
+        if (afms.length === 0) return;
+
+        if (!confirm(`Mark ${afms.length} AFM(s) as excluded?\n\nThis will treat them as fake/typo companies and they will no longer appear in eligible entities.`)) return;
+
+        // Create form and submit
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{% url "admin:afm_bulk_mark_excluded" %}';
+
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrfmiddlewaretoken';
+        csrfInput.value = '{{ csrf_token }}';
+        form.appendChild(csrfInput);
+
+        afms.forEach(afm => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'afms';
+            input.value = afm;
+            form.appendChild(input);
+        });
+
+        document.body.appendChild(form);
+        form.submit();
+    });
+    </script>
+
+    <!-- Recently Fetched -->
+    <div class="data-table">
+        <h2>Recently Fetched</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>AFM</th>
+                    <th>Name</th>
+                    <th>Companies Found</th>
+                    <th>Fetched At</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entity in recently_fetched %}
+                <tr>
+                    <td><strong>{{ entity.afm }}</strong></td>
+                    <td>{{ entity.name|default:"—"|truncatewords:10 }}</td>
+                    <td><span class="status-badge status-success">{{ entity.gemi_companies_count }} companies</span></td>
+                    <td>{{ entity.gemi_lookup_attempted|date:"Y-m-d H:i" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" style="text-align: center; color: #6c757d;">
+                        No fetched entities yet
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Recent Scoring Jobs -->
+    {% if recent_jobs %}
+    <div class="data-table">
+        <h2>Recent Scoring Jobs</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Job ID</th>
+                    <th>Config</th>
+                    <th>Status</th>
+                    <th>Progress</th>
+                    <th>Scored</th>
+                    <th>Eligible</th>
+                    <th>Duration</th>
+                    <th>Completed</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for job in recent_jobs %}
+                <tr>
+                    <td><strong>{{ job.job_id|slice:":8" }}...</strong></td>
+                    <td>{{ job.config.name }}</td>
+                    <td><span class="status-badge status-{{ job.status }}">{{ job.get_status_display }}</span></td>
+                    <td>{{ job.progress_percentage }}%</td>
+                    <td>{{ job.scored_count }}</td>
+                    <td>{{ job.eligible_count }}</td>
+                    <td>{{ job.duration_seconds|floatformat:0 }}s</td>
+                    <td>{{ job.completed_at|date:"Y-m-d H:i" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div style="padding: 15px; text-align: center;">
+            <a href="{% url 'admin:core_afmscoringjob_changelist' %}">View All Scoring Jobs</a>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Quick Links -->
+    <div style="margin-top: 30px; padding: 20px; background: var(--darkened-bg); border-radius: 4px;">
+        <h3>Quick Links</h3>
+        <ul style="list-style: none; padding: 0; margin: 0;">
+            <li style="margin-bottom: 10px;">
+                <a href="{% url 'admin:core_afmscoringconfig_changelist' %}">Manage Scoring Configurations</a>
+            </li>
+            <li style="margin-bottom: 10px;">
+                <a href="{% url 'admin:core_afmentityscore_changelist' %}">Browse All Scored Entities</a>
+            </li>
+            <li style="margin-bottom: 10px;">
+                <a href="{% url 'admin:index' %}">Back to Admin Home</a>
+            </li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,66 @@
+{
+  "category": "edge_cases",
+  "description": "Edge cases and boundary conditions",
+  "test_cases": [
+    {
+      "id": "empty_string",
+      "input": "",
+      "expected": "",
+      "notes": "Empty string should remain empty"
+    },
+    {
+      "id": "only_numbers",
+      "input": "123456",
+      "expected": "123456",
+      "notes": "Numbers should remain unchanged"
+    },
+    {
+      "id": "only_punctuation",
+      "input": ".,!?;:",
+      "expected": ".,!?;:",
+      "notes": "Punctuation should remain unchanged"
+    },
+    {
+      "id": "already_greek",
+      "input": "ΔΗΜΟΣ",
+      "expected": "ΔΗΜΟΣ",
+      "notes": "Already Greek text should remain unchanged"
+    },
+    {
+      "id": "already_greek_lowercase",
+      "input": "δημος",
+      "expected": "δημος",
+      "notes": "Already Greek lowercase should remain unchanged"
+    },
+    {
+      "id": "mixed_greek_latin",
+      "input": "DHMOS ΑΘΗΝΑΙΩΝ",
+      "expected": "ΔΗΜΟΣ ΑΘΗΝΑΙΩΝ",
+      "notes": "Mixed content - only Latin part should be transliterated"
+    },
+    {
+      "id": "single_space",
+      "input": " ",
+      "expected": " ",
+      "notes": "Single space should remain space"
+    },
+    {
+      "id": "multiple_spaces",
+      "input": "DHMOS   ATHINON",
+      "expected": "ΔΗΜΟΣ   ΑΘΙΝΟΝ",
+      "notes": "Multiple spaces should be preserved"
+    },
+    {
+      "id": "tabs_and_newlines",
+      "input": "DHMOS\tATHINON\n",
+      "expected": "ΔΗΜΟΣ\tΑΘΙΝΟΝ\n",
+      "notes": "Whitespace characters should be preserved"
+    },
+    {
+      "id": "unmappable_characters",
+      "input": "DHMOS @#$%",
+      "expected": "ΔΗΜΟΣ @#$%",
+      "notes": "Unmappable special characters should remain unchanged"
+    }
+  ]
+}

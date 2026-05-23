@@ -1,0 +1,60 @@
+{
+  "id": "awardAmount_1",
+  "description": "diataktikes_stasy_1_dis",
+  "ada": "ΨΟ3ΔΟΡΛΟ-ΕΗ2",
+  "extra_field_values_json": {
+    "cpv": [
+      "30199750-2",
+      "22440000-6",
+      "30162000-2"
+    ],
+    "person": [
+      {
+        "afm": "800764388",
+        "name": "ΕΛΛΗΝΙΚΕΣ ΥΠΕΡΑΓΟΡΕΣ ΣΚΛΑΒΕΝΙΤΗΣ ΑΝΩΝΥΜΗ ΕΜΠΟΡΙΚΗ ΕΤΑΙΡΕΙΑ",
+        "afmType": "EL",
+        "enterName": false
+      }
+    ],
+    "budgettype": null,
+    "partialead": null,
+    "awardAmount": {
+      "amount": 1152000000.0,
+      "currency": "EUR"
+    },
+    "entryNumber": null,
+    "documentType": "ΠΡΑΞΗ",
+    "amountWithKae": null,
+    "amountWithVAT": null,
+    "financialYear": null,
+    "assignmentType": "Προμήθειες",
+    "textRelatedADA": "9Ε76ΟΡΛΟ-22Χ",
+    "relatedDecisions": [],
+    "recalledExpenseDecision": null
+  },
+  "expected": {
+    "entities": 1,
+    "amounts": 1,
+    "total_amount": 1152000000.0
+  },
+  "_analysis": {
+    "entities_found": [
+      {
+        "afm": "800764388",
+        "name": "ΕΛΛΗΝΙΚΕΣ ΥΠΕΡΑΓΟΡΕΣ ΣΚΛΑΒΕΝΙΤΗΣ Α.Ε.Ε.",
+        "role": "person",
+        "path": "person"
+      }
+    ],
+    "amounts_found": [
+      {
+        "amount": 1152000000.0,
+        "currency": "EUR",
+        "path": "awardAmount",
+        "source_field": "amount",
+        "linked": false
+      }
+    ],
+    "unlinked_pattern": "awardAmount"
+  }
+}

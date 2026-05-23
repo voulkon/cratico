@@ -1,0 +1,82 @@
+decision_samples/
+
+# .dockerignore
+# Version control
+**/.git
+**/.gitignore
+
+# IDE and editor files
+**/.vscode
+**/.vscode-server
+**/.idea
+**/.DS_Store
+
+# Python cache and virtual environments
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.Python
+**/.env
+**/.venv
+**/venv/
+**/env/
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.coverage
+**/htmlcov
+
+# Node.js
+**/node_modules
+**/npm-debug.log
+**/yarn-error.log
+**/.npm
+**/.yarn
+
+# Build artifacts and logs
+**/dist
+**/build
+**/*.egg-info
+**/logs
+**/log
+**/*.log
+
+# Docker volumes (if accidentally in project dir)
+**/postgres_data
+**/redis_data
+**/rabbitmq_data
+**/opensearch_data
+**/loki_data
+**/grafana_data
+
+# Documentation and notes that don't need to be in containers
+**/notes
+**/docs
+# Don't exclude ALL READMEs - some packages need them (like gemi)
+# **/README.md
+**/TODO.md
+**/todo
+
+# Test files
+**/tests
+**/*_test.py
+**/test_*.py
+**/pytest.ini
+**/.pytest_cache
+
+# Terraform and infrastructure
+**/terraform
+**/*.tfvars
+**/*.tfstate
+**/*.tfstate.backup
+
+# Coolify and deployment
+**/coolify
+
+# Utilities that don't need to be in images
+**/util_scripts
+**/setup-aws-dev.ps1
+
+# Migration docs (not needed at runtime)
+**/migration_status.md

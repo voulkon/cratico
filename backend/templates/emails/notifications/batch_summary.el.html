@@ -1,0 +1,26 @@
+{% extends "emails/base.el.html" %}
+
+{% block title %}Νέες Αποφάσεις που Ταιριάζουν με τη Συνδρομή σου - {{ app_name }}{% endblock %}
+
+{% block content %}
+<h2>Βρέθηκαν Νέες Αποφάσεις</h2>
+
+<p>Γεια σου {{ username }},</p>
+
+<p>Η συνδρομή σου "<strong>{{ batch.subscription_name }}</strong>" βρήκε <strong>{{ batch.decision_count }}</strong> {% if batch.decision_count == 1 %}νέα απόφαση που ταιριάζει{% else %}νέες αποφάσεις που ταιριάζουν{% endif %}.</p>
+
+{% if batch.organization_name or batch.entity_name %}
+<p style="font-size: 14px; color: #6b7280;">
+    {% if batch.organization_name %}<strong>Οργανισμός:</strong> {{ batch.organization_name }}<br>{% endif %}
+    {% if batch.entity_name %}<strong>Οντότητα:</strong> {{ batch.entity_name }}<br>{% endif %}
+</p>
+{% endif %}
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ app_url }}/notifications" class="button">Προβολή Ειδοποιήσεων</a>
+</div>
+
+<p style="font-size: 14px; color: #6b7280;">
+    Μπορείς να διαχειριστείς τις συνδρομές και τις προτιμήσεις ειδοποιήσεων στις ρυθμίσεις του λογαριασμού σου.
+</p>
+{% endblock %}

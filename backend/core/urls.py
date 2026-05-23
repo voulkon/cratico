@@ -1,0 +1,3 @@
+urlpatterns = [
+    # Your other URLs...
+]

@@ -1,0 +1,162 @@
+/* Left controls container - Logo + Library button */
+.left-controls {
+  position: fixed;
+  top: var(--spacing-md);
+  left: var(--spacing-md);
+  z-index: 1003; /* Above unified overlay (1002) - keeps logo visible */
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  transition: left var(--transition-normal);
+  align-items: flex-start;
+}
+
+/* Shift right when sidebar is open */
+.left-controls.shifted {
+  left: 420px; /* sidebar width (400px) + spacing */
+}
+
+.logo-container {
+  /* Ensure logo aligns with right controls */
+  display: flex;
+  align-items: center;
+  height: 40px; /* Match the height of control buttons */
+}
+
+/* Top controls wrapper - Contains collapse button and controls */
+.top-controls-wrapper {
+  position: fixed;
+  z-index: 1003;
+  display: flex;
+  align-items: flex-start; /* Align to top, not center */
+  gap: var(--spacing-sm);
+  transition: transform var(--transition-normal), opacity var(--transition-normal);
+}
+
+/* Wrapper positioning based on layout */
+.top-controls-wrapper.horizontal-right,
+.top-controls-wrapper.vertical-right,
+.top-controls-wrapper.split-corners {
+  top: var(--spacing-md);
+  right: var(--spacing-md);
+}
+
+/* For vertical layouts, make wrapper a column too */
+.top-controls-wrapper.vertical-right {
+  flex-direction: row; /* Chevron and controls side-by-side */
+}
+
+.top-controls-wrapper.horizontal-left,
+.top-controls-wrapper.vertical-left {
+  top: var(--spacing-md);
+  left: var(--spacing-md);
+}
+
+.top-controls-wrapper.vertical-left {
+  flex-direction: row;
+}
+
+/* Collapsed state - slide to the right */
+.top-controls-wrapper.collapsed {
+  transform: translateX(calc(100% - 48px)); /* Show only the toggle button */
+}
+
+/* Collapse/Expand Toggle Button */
+.controls-collapse-toggle {
+  background: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-color);
+  transition: all var(--transition-fast);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px var(--shadow);
+  height: 40px;
+  width: 40px;
+  flex-shrink: 0;
+}
+
+.controls-collapse-toggle:hover {
+  background: var(--hover-bg);
+  border-color: var(--palette-primary);
+  transform: scale(1.05);
+}
+
+.controls-collapse-toggle:active {
+  transform: scale(0.95);
+}
+
+/* Top controls - Right side UI elements */
+.top-controls {
+  display: flex;
+  gap: var(--spacing-sm);
+  padding: 0; /* Remove padding to align perfectly with chevron */
+  transition: opacity var(--transition-normal), transform var(--transition-normal);
+}
+
+/* Hide controls when collapsed */
+.top-controls.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(20px);
+}
+
+/* Horizontal layout - right aligned (default) */
+.top-controls.horizontal-right {
+  flex-direction: row;
+  align-items: flex-start; /* Align to top for consistency */
+}
+
+/* Vertical layout - right aligned, from top to bottom */
+.top-controls.vertical-right {
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+/* Horizontal layout - left aligned */
+.top-controls.horizontal-left {
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+/* Vertical layout - left aligned, from top to bottom */
+.top-controls.vertical-left {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* Split corners layout (horizontal, right side) */
+.top-controls.split-corners {
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+/* Ensure controls don't interfere with page content */
+.top-controls > * {
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+/* Responsive adjustments for different layouts */
+@media (max-width: 768px) {
+  /* On mobile, maybe force vertical layout */
+  .left-controls.shifted {
+    left: calc(100vw - 80px); /* Move to right edge on mobile */
+  }
+
+  .top-controls {
+    flex-direction: column !important;
+    align-items: flex-end !important;
+  }
+}
+
+@media (max-width: 480px) {
+  /* On very small screens, ensure proper stacking */
+  .top-controls {
+    gap: var(--spacing-xs);
+  }
+}

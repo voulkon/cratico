@@ -1,0 +1,256 @@
+/* Django Login Form Styles - Integrated with Theme System */
+
+.django-login-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(4px);
+}
+
+.django-login-modal {
+  background: var(--bg-color);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 60px var(--shadow-focus);
+  width: 90%;
+  max-width: 400px;
+  max-height: 90vh;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+}
+
+.django-login-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-xl) var(--spacing-xxl);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.django-login-header h2 {
+  margin: 0;
+  font-size: var(--font-xl);
+  color: var(--text-color);
+}
+
+.django-login-close {
+  background: none;
+  border: none;
+  font-size: var(--font-xl);
+  color: var(--muted-text);
+  cursor: pointer;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  transition: var(--transition-fast);
+}
+
+.django-login-close:hover {
+  background: var(--hover-bg);
+  color: var(--text-color);
+}
+
+.django-login-close:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.django-login-form {
+  padding: var(--spacing-xxl);
+}
+
+.django-login-error {
+  background: var(--error-bg);
+  border: 1px solid var(--danger-color);
+  color: var(--error-text);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-lg);
+  font-size: var(--font-sm);
+}
+
+.django-login-field {
+  margin-bottom: var(--spacing-xl);
+}
+
+.django-login-field label {
+  display: block;
+  margin-bottom: var(--spacing-sm);
+  font-weight: var(--font-medium);
+  color: var(--text-color);
+}
+
+.django-login-field input {
+  width: 100%;
+  padding: var(--spacing-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: var(--font-md);
+  background: var(--card-bg);
+  color: var(--text-color);
+  transition: var(--transition-fast);
+  box-sizing: border-box;
+}
+
+.django-login-field input:focus {
+  outline: none;
+  border-color: var(--palette-primary);
+  box-shadow: 0 0 0 3px var(--bg-selected);
+}
+
+.django-login-field input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: var(--disabled-bg);
+}
+
+.django-login-actions {
+  display: flex;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-xxl);
+}
+
+.django-login-cancel,
+.django-login-submit {
+  flex: 1;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  font-size: var(--font-md);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  border: none;
+}
+
+.django-login-cancel {
+  background: var(--hover-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+}
+
+.django-login-cancel:hover:not(:disabled) {
+  background: var(--border-color);
+}
+
+.django-login-submit {
+  background: var(--palette-primary);
+  color: white;
+}
+
+.django-login-submit:hover:not(:disabled) {
+  background: var(--palette-secondary);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--shadow-hover);
+}
+
+.django-login-cancel:disabled,
+.django-login-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.django-login-footer {
+  padding: var(--spacing-lg) var(--spacing-xxl);
+  border-top: 1px solid var(--border-color);
+  background: var(--hover-bg);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.django-login-footer p {
+  margin: 0;
+  font-size: var(--font-sm);
+  color: var(--muted-text);
+  text-align: center;
+}
+
+.django-login-switch {
+  background: none;
+  border: none;
+  color: var(--palette-primary);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  transition: var(--transition-fast);
+}
+
+.django-login-switch:hover {
+  color: var(--primary-hover);
+}
+
+.django-login-switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Forgot Password Link */
+.django-login-forgot-password {
+  text-align: right;
+  margin-top: calc(var(--spacing-sm) * -1);
+  margin-bottom: var(--spacing-md);
+}
+
+.django-login-forgot-link {
+  background: none;
+  border: none;
+  color: var(--palette-primary);
+  font-size: var(--font-sm);
+  cursor: pointer;
+  padding: 0;
+  text-decoration: none;
+  transition: var(--transition-fast);
+}
+
+.django-login-forgot-link:hover:not(:disabled) {
+  color: var(--primary-hover);
+  text-decoration: underline;
+}
+
+.django-login-forgot-link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Description text for password reset forms */
+.django-login-description {
+  color: var(--muted-text);
+  font-size: var(--font-sm);
+  margin-bottom: var(--spacing-lg);
+  line-height: 1.5;
+}
+
+/* Success message */
+.django-login-success-message {
+  padding: var(--spacing-xxl);
+  text-align: center;
+}
+
+.success-icon {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto var(--spacing-lg);
+  background: var(--success-bg, #d4edda);
+  color: var(--success-text, #155724);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-xxl);
+  font-weight: bold;
+}
+
+.django-login-success-message p {
+  color: var(--text-color);
+  margin-bottom: var(--spacing-sm);
+}
+
+.success-subtitle {
+  color: var(--muted-text);
+  font-size: var(--font-sm);
+}

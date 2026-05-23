@@ -1,0 +1,6 @@
+{
+  "id": "apo_eutheias_no_space",
+  "text_content": "Απόφαση απ'ευθείας ανάθεσης υπηρεσιών",
+  "should_detect": true,
+  "notes": "Without space after apostrophe: απ'ευθείας"
+}

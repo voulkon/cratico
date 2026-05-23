@@ -1,0 +1,487 @@
+/* Base theme variables - these define the structure */
+:root {
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 20px;
+  --spacing-xxl: 24px;
+  --spacing-xxxl: 30px;
+  --spacing-xxxxl: 40px;
+
+  /* Border radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 50%;
+
+  /* Font sizes */
+  --font-xs: 12px;
+  --font-sm: 14px;
+  --font-md: 16px;
+  --font-lg: 18px;
+  --font-xl: 24px;
+  --font-xxl: 32px;
+
+  /* Font weights */
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-bold: 700;
+  --font-black: 900;
+
+  /* Transitions */
+  --transition-fast: 0.2s ease;
+  --transition-normal: 0.3s ease;
+  --transition-slow: 0.5s ease;
+}
+
+/* ===========================================
+   LIGHT THEME BASE
+   =========================================== */
+[data-theme="light"] {
+  --bg-color: #ffffff;
+  --text-color: #000000;
+  --border-color: #e0e0e0;
+  --card-bg: #ffffff;
+
+  /* Status colors for light theme */
+  --success-bg: #d4edda;
+  --success-text: #155724;
+  --error-bg: #f8d7da;
+  --error-text: #721c24;
+  --warning-bg: #fff3cd;
+  --warning-text: #856404;
+  --warning-border: #ffeaa7;
+
+  /* Functional colors */
+  --danger-color: #ff6b6b;
+  --muted-text: #666666;
+  --light-text: #888888;
+  --disabled-bg: #cccccc;
+  --disabled-text: #999999;
+
+  /* Interactive colors */
+  --hover-bg: #f5f5f5;
+  --focus-color: #0066cc;
+
+  /* Shadows */
+  --shadow: rgba(0,0,0,0.1);
+  --shadow-hover: rgba(0,0,0,0.15);
+  --shadow-focus: rgba(0,0,0,0.3);
+}
+
+/* ===========================================
+   DARK THEME BASE
+   =========================================== */
+[data-theme="dark"] {
+  --bg-color: #1a1a1a;
+  --text-color: #ffffff;
+  --border-color: #404040;
+  --card-bg: #2d2d2d;
+
+  /* Status colors for dark theme */
+  --success-bg: #1e4620;
+  --success-text: #81c784;
+  --error-bg: #5c1e1e;
+  --error-text: #ef5350;
+  --warning-bg: #5c4b1e;
+  --warning-text: #ffb74d;
+  --warning-border: #8a6914;
+
+  /* Functional colors */
+  --danger-color: #ff6b6b;
+  --muted-text: #a0a0a0;
+  --light-text: #888888;
+  --disabled-bg: #555555;
+  --disabled-text: #888888;
+
+  /* Interactive colors */
+  --hover-bg: #3a3a3a;
+  --focus-color: #66b3ff;
+
+  /* Shadows */
+  --shadow: rgba(0,0,0,0.3);
+  --shadow-hover: rgba(0,0,0,0.4);
+  --shadow-focus: rgba(0,0,0,0.5);
+}
+
+/* ===========================================
+   SOLARIZED LIGHT THEME
+   Based on Ethan Schoonover's Solarized color scheme
+   =========================================== */
+[data-theme="solarized-light"] {
+  --bg-color: #fdf6e3;
+  --text-color: #657b83;
+  --border-color: #eee8d5;
+  --card-bg: #eee8d5;
+
+  /* Status colors for solarized light */
+  --success-bg: #d9e8d8;
+  --success-text: #2aa198;
+  --error-bg: #f9dad6;
+  --error-text: #dc322f;
+  --warning-bg: #fcecc4;
+  --warning-text: #b58900;
+  --warning-border: #d9b861;
+
+  /* Functional colors */
+  --danger-color: #dc322f;
+  --muted-text: #93a1a1;
+  --light-text: #93a1a1;
+  --disabled-bg: #ccc5b0;
+  --disabled-text: #93a1a1;
+
+  /* Interactive colors */
+  --hover-bg: #eee8d5;
+  --focus-color: #268bd2;
+
+  /* Shadows */
+  --shadow: rgba(101, 123, 131, 0.1);
+  --shadow-hover: rgba(101, 123, 131, 0.15);
+  --shadow-focus: rgba(101, 123, 131, 0.25);
+}
+
+/* ===========================================
+   SOLARIZED DARK THEME
+   Based on Ethan Schoonover's Solarized color scheme
+   =========================================== */
+[data-theme="solarized-dark"] {
+  --bg-color: #002b36;
+  --text-color: #839496;
+  --border-color: #073642;
+  --card-bg: #073642;
+
+  /* Status colors for solarized dark */
+  --success-bg: #0f3d3a;
+  --success-text: #2aa198;
+  --error-bg: #441e1c;
+  --error-text: #dc322f;
+  --warning-bg: #3d3318;
+  --warning-text: #b58900;
+  --warning-border: #6c5623;
+
+  /* Functional colors */
+  --danger-color: #dc322f;
+  --muted-text: #586e75;
+  --light-text: #586e75;
+  --disabled-bg: #073642;
+  --disabled-text: #586e75;
+
+  /* Interactive colors */
+  --hover-bg: #073642;
+  --focus-color: #268bd2;
+
+  /* Shadows */
+  --shadow: rgba(0, 0, 0, 0.4);
+  --shadow-hover: rgba(0, 0, 0, 0.5);
+  --shadow-focus: rgba(0, 0, 0, 0.6);
+}
+
+/* ===========================================
+   COLOR PALETTES - BLUE (DEFAULT)
+   =========================================== */
+[data-palette="blue"] {
+  --palette-primary: #4299E1;
+  --palette-secondary: #2B6CB0;
+  --palette-bg-subtle: #C4F1F9;
+  --palette-emphasis: #1E4F72;
+  --bg-info: #e3f2fd;
+  --color-text-info: #1976d2;
+  --bg-selected: #e3f2fd;
+}
+
+[data-theme="dark"][data-palette="blue"] {
+  --palette-primary: #63B3ED;
+  --palette-secondary: #4299E1;
+  --palette-bg-subtle: #2D3748;
+  --palette-emphasis: #63B3ED;
+  --bg-info: #1e3a5c;
+  --color-text-info: #64b5f6;
+  --bg-selected: #2D3748;
+}
+
+/* Solarized themes share similar palette adaptations */
+[data-theme="solarized-light"][data-palette="blue"],
+[data-theme="solarized-dark"][data-palette="blue"] {
+  --palette-primary: #268bd2;
+  --palette-secondary: #2aa198;
+  --palette-bg-subtle: #073642;
+  --palette-emphasis: #268bd2;
+  --bg-info: rgba(38, 139, 210, 0.1);
+  --color-text-info: #268bd2;
+  --bg-selected: rgba(38, 139, 210, 0.15);
+}
+
+/* ===========================================
+   COLOR PALETTES - PURPLE
+   =========================================== */
+[data-palette="purple"] {
+  --palette-primary: #8b5cf6;
+  --palette-secondary: #7c3aed;
+  --palette-bg-subtle: #ede9fe;
+  --palette-emphasis: #5b21b6;
+  --bg-info: #ede9fe;
+  --color-text-info: #7c3aed;
+  --bg-selected: #ede9fe;
+}
+
+[data-theme="dark"][data-palette="purple"] {
+  --palette-primary: #a78bfa;
+  --palette-secondary: #8b5cf6;
+  --palette-bg-subtle: #2e1065;
+  --palette-emphasis: #a78bfa;
+  --bg-info: #2e1065;
+  --color-text-info: #a78bfa;
+  --bg-selected: #2e1065;
+}
+
+[data-theme="solarized-light"][data-palette="purple"],
+[data-theme="solarized-dark"][data-palette="purple"] {
+  --palette-primary: #6c71c4;
+  --palette-secondary: #d33682;
+  --palette-bg-subtle: #073642;
+  --palette-emphasis: #6c71c4;
+  --bg-info: rgba(108, 113, 196, 0.1);
+  --color-text-info: #6c71c4;
+  --bg-selected: rgba(108, 113, 196, 0.15);
+}
+
+/* ===========================================
+   COLOR PALETTES - GREEN
+   =========================================== */
+[data-palette="green"] {
+  --palette-primary: #10b981;
+  --palette-secondary: #059669;
+  --palette-bg-subtle: #d1fae5;
+  --palette-emphasis: #047857;
+  --bg-info: #d1fae5;
+  --color-text-info: #059669;
+  --bg-selected: #d1fae5;
+}
+
+[data-theme="dark"][data-palette="green"] {
+  --palette-primary: #34d399;
+  --palette-secondary: #10b981;
+  --palette-bg-subtle: #064e3b;
+  --palette-emphasis: #34d399;
+  --bg-info: #064e3b;
+  --color-text-info: #34d399;
+  --bg-selected: #064e3b;
+}
+
+[data-theme="solarized-light"][data-palette="green"],
+[data-theme="solarized-dark"][data-palette="green"] {
+  --palette-primary: #859900;
+  --palette-secondary: #2aa198;
+  --palette-bg-subtle: #073642;
+  --palette-emphasis: #859900;
+  --bg-info: rgba(133, 153, 0, 0.1);
+  --color-text-info: #859900;
+  --bg-selected: rgba(133, 153, 0, 0.15);
+}
+
+/* ===========================================
+   COLOR PALETTES - ORANGE
+   =========================================== */
+[data-palette="orange"] {
+  --palette-primary: #f59e0b;
+  --palette-secondary: #d97706;
+  --palette-bg-subtle: #fef3c7;
+  --palette-emphasis: #92400e;
+  --bg-info: #fef3c7;
+  --color-text-info: #d97706;
+  --bg-selected: #fef3c7;
+}
+
+[data-theme="dark"][data-palette="orange"] {
+  --palette-primary: #fbbf24;
+  --palette-secondary: #f59e0b;
+  --palette-bg-subtle: #451a03;
+  --palette-emphasis: #fbbf24;
+  --bg-info: #451a03;
+  --color-text-info: #fbbf24;
+  --bg-selected: #451a03;
+}
+
+[data-theme="solarized-light"][data-palette="orange"],
+[data-theme="solarized-dark"][data-palette="orange"] {
+  --palette-primary: #cb4b16;
+  --palette-secondary: #b58900;
+  --palette-bg-subtle: #073642;
+  --palette-emphasis: #cb4b16;
+  --bg-info: rgba(203, 75, 22, 0.1);
+  --color-text-info: #cb4b16;
+  --bg-selected: rgba(203, 75, 22, 0.15);
+}
+
+/* ===========================================
+   COLOR PALETTES - RED
+   =========================================== */
+[data-palette="red"] {
+  --palette-primary: #ef4444;
+  --palette-secondary: #dc2626;
+  --palette-bg-subtle: #fecaca;
+  --palette-emphasis: #991b1b;
+  --bg-info: #fecaca;
+  --color-text-info: #dc2626;
+  --bg-selected: #fecaca;
+}
+
+[data-theme="dark"][data-palette="red"] {
+  --palette-primary: #f87171;
+  --palette-secondary: #ef4444;
+  --palette-bg-subtle: #450a0a;
+  --palette-emphasis: #f87171;
+  --bg-info: #450a0a;
+  --color-text-info: #f87171;
+  --bg-selected: #450a0a;
+}
+
+[data-theme="solarized-light"][data-palette="red"],
+[data-theme="solarized-dark"][data-palette="red"] {
+  --palette-primary: #dc322f;
+  --palette-secondary: #cb4b16;
+  --palette-bg-subtle: #073642;
+  --palette-emphasis: #dc322f;
+  --bg-info: rgba(220, 50, 47, 0.1);
+  --color-text-info: #dc322f;
+  --bg-selected: rgba(220, 50, 47, 0.15);
+}
+
+/* ===========================================
+   COLOR PALETTES - PINK
+   =========================================== */
+[data-palette="pink"] {
+  --palette-primary: #ec4899;
+  --palette-secondary: #db2777;
+  --palette-bg-subtle: #fce7f3;
+  --palette-emphasis: #9d174d;
+  --bg-info: #fce7f3;
+  --color-text-info: #db2777;
+  --bg-selected: #fce7f3;
+}
+
+[data-theme="dark"][data-palette="pink"] {
+  --palette-primary: #f472b6;
+  --palette-secondary: #ec4899;
+  --palette-bg-subtle: #500724;
+  --palette-emphasis: #f472b6;
+  --bg-info: #500724;
+  --color-text-info: #f472b6;
+  --bg-selected: #500724;
+}
+
+[data-theme="solarized-light"][data-palette="pink"],
+[data-theme="solarized-dark"][data-palette="pink"] {
+  --palette-primary: #d33682;
+  --palette-secondary: #6c71c4;
+  --palette-bg-subtle: #073642;
+  --palette-emphasis: #d33682;
+  --bg-info: rgba(211, 54, 130, 0.1);
+  --color-text-info: #d33682;
+  --bg-selected: rgba(211, 54, 130, 0.15);
+}
+
+/* ===========================================
+   DEFAULT FALLBACK (Light Blue)
+   =========================================== */
+:root {
+  --bg-color: #ffffff;
+  --text-color: #000000;
+  --border-color: #e0e0e0;
+  --card-bg: #ffffff;
+  --palette-primary: #4299E1;
+  --palette-secondary: #2B6CB0;
+  --palette-bg-subtle: #C4F1F9;
+  --palette-emphasis: #1E4F72;
+  --bg-info: #e3f2fd;
+  --color-text-info: #1976d2;
+  --bg-selected: #e3f2fd;
+  --success-bg: #d4edda;
+  --success-text: #155724;
+  --error-bg: #f8d7da;
+  --error-text: #721c24;
+  --warning-bg: #fff3cd;
+  --warning-text: #856404;
+  --warning-border: #ffeaa7;
+  --danger-color: #ff6b6b;
+  --muted-text: #666666;
+  --light-text: #888888;
+  --disabled-bg: #cccccc;
+  --disabled-text: #999999;
+  --hover-bg: #f5f5f5;
+  --focus-color: #0066cc;
+  --shadow: rgba(0,0,0,0.1);
+  --shadow-hover: rgba(0,0,0,0.15);
+  --shadow-focus: rgba(0,0,0,0.3);
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  transition: var(--transition-normal);
+}
+
+/* Global utility for balanced content with fixed controls */
+.balanced-content {
+  padding-top: 80px; /* Account for fixed top controls */
+  padding-left: clamp(var(--spacing-xl), 10vw, 180px);
+  padding-right: clamp(var(--spacing-xl), 10vw, 180px);
+}
+
+/* Alternative: Centered content with max-width */
+.centered-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-top: 80px;
+  padding-left: clamp(var(--spacing-xl), 8vw, 160px);
+  padding-right: clamp(var(--spacing-xl), 8vw, 160px);
+}
+
+* {
+  transition: background-color var(--transition-fast),
+              color var(--transition-fast),
+              border-color var(--transition-fast);
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+}
+
+.spinner {
+  border: 4px solid var(--border-color);
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  border-left-color: var(--palette-primary);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.error-container {
+  background-color: var(--error-bg);
+  border-left: 4px solid var(--danger-color);
+  padding: var(--spacing-lg);
+  margin: var(--spacing-lg) 0;
+  color: var(--error-text);
+}

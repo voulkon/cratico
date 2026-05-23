@@ -1,0 +1,19 @@
+{% extends "emails/base.el.html" %}
+
+{% block title %}{{ notification_count }} {% if notification_count == 1 %}Νέα Ειδοποίηση{% else %}Νέες Ειδοποιήσεις{% endif %} - {{ app_name }}{% endblock %}
+
+{% block content %}
+<h2>{{ notification_count }} {% if notification_count == 1 %}Νέα Ειδοποίηση{% else %}Νέες Ειδοποιήσεις{% endif %}</h2>
+
+<p>Γεια σου {{ username }},</p>
+
+<p>Έχεις <strong>{{ notification_count }}</strong> {% if notification_count == 1 %}νέα ειδοποίηση{% else %}νέες ειδοποιήσεις{% endif %} από τις συνδρομές σου.</p>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ app_url }}/notifications" class="button">Προβολή Όλων των Ειδοποιήσεων</a>
+</div>
+
+<p style="font-size: 14px; color: #6b7280;">
+    Μπορείς να διαχειριστείς τις συνδρομές και τις προτιμήσεις ειδοποιήσεων στις ρυθμίσεις του λογαριασμού σου.
+</p>
+{% endblock %}

@@ -1,0 +1,86 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Start Frontend",
+            "type": "shell",
+            "command": "npm start",
+            "options": {
+                "cwd": "${workspaceFolder}/frontend"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Add Package",
+            "type": "shell",
+            "command": "cd backend && poetry add ${input:packageName} && cd .. && docker-compose -f docker/docker-compose.yml build backend && docker-compose -f docker/docker-compose.yml up -d --no-deps backend",
+            "problemMatcher": [],
+            "windows": {
+                "command": "cd backend; if ($?) { py -m poetry add ${input:packageName} }; if ($?) { cd .. }; if ($?) { docker-compose -f docker/docker-compose.yml build backend }; if ($?) { docker-compose -f docker/docker-compose.yml up -d --no-deps backend }"
+            }
+        },
+        {
+            "label": "Add Dev Package",
+            "type": "shell",
+            "command": "cd backend && poetry add ${input:packageName} --group dev && cd .. && docker-compose -f docker/docker-compose.yml build backend && docker-compose -f docker/docker-compose.yml up -d --no-deps backend",
+            "problemMatcher": [],
+            "windows": {
+                "command": "cd backend; if ($?) { py -m poetry add ${input:packageName} --group dev }; if ($?) { cd .. }; if ($?) { docker-compose -f docker/docker-compose.yml build backend }; if ($?) { docker-compose -f docker/docker-compose.yml up -d --no-deps backend }"
+            }
+        },
+        {
+            "label": "Docker Compose (with DB) Up",
+            "type": "shell",
+            "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets up -d",
+            "problemMatcher": []
+        },
+        {
+            "label": "Docker Compose (with DB) Up (Build)",
+            "type": "shell",
+            "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets up --build -d",
+            "problemMatcher": []
+        },
+        {
+            "label": "Docker Compose (with DB) Down",
+            "type": "shell",
+            "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets down",
+            "problemMatcher": []
+        },
+        {
+            "label": "SSH in vm",
+            "type": "shell",
+            "command": "source .env_files/.env.local.secrets && ssh -i ~/.ssh/id_ed25519 root@$VM_IP",
+            "problemMatcher": []
+        },
+        {
+            "label": "SSH in DB vm",
+            "type": "shell",
+            "command": "source .env_files/.env.local.secrets && ssh -i ~/.ssh/id_ed25519 debian@$DB_VM_IP",
+            "problemMatcher": []
+        },
+        {
+            "label": "Docker Compose (no DB) Up",
+            "type": "shell",
+            "command": "docker-compose -f docker/docker-compose-no-db.yml --env-file=.env_files/.env.local.no-db.secrets up -d",
+            "problemMatcher": []
+        },
+        {
+            "label": "Docker Compose (no DB) Down",
+            "type": "shell",
+            "command": "docker-compose -f docker/docker-compose-no-db.yml --env-file=.env_files/.env.local.no-db.secrets down",
+            "problemMatcher": []
+        }
+    ],
+    "inputs": [
+        {
+            "id": "packageName",
+            "description": "Package name to add",
+            "default": "",
+            "type": "promptString"
+        }
+    ]
+}

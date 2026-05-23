@@ -1,0 +1,46 @@
+{% extends "admin/change_list.html" %}
+{% load static %}
+
+{% block content_title %}
+<h1>{{ cl.opts.verbose_name_plural|capfirst }}</h1>
+{% endblock %}
+
+{% block object-tools %}
+<div style="display: flex; gap: 10px; align-items: center;">
+    <a href="{% url 'admin:import_job_monitor' %}" class="button" style="margin-left: 10px;">
+        Queue Monitor
+    </a>
+    {{ block.super }}
+</div>
+{% endblock %}
+
+{% block result_list %}
+{% if queue_status %}
+<div class="module" style="padding: 15px; margin-bottom: 20px;">
+    <h2>Quick Queue Status</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 10px;">
+        <div style="text-align: center;">
+            <div style="font-size: 32px; font-weight: bold; color: var(--body-fg);">{{ queue_status.active_count }}</div>
+            <div style="color: var(--body-quiet-color); font-size: 14px;">Active Jobs</div>
+        </div>
+        <div style="text-align: center;">
+            <div style="font-size: 32px; font-weight: bold; color: var(--body-fg);">{{ queue_status.pending_count }}</div>
+            <div style="color: var(--body-quiet-color); font-size: 14px;">Pending Jobs</div>
+        </div>
+        <div style="text-align: center;">
+            <div style="font-size: 32px; font-weight: bold; color: {% if queue_status.can_start_new %}var(--success-fg){% else %}var(--error-fg){% endif %};">
+                {% if queue_status.can_start_new %}Yes{% else %}No{% endif %}
+            </div>
+            <div style="color: var(--body-quiet-color); font-size: 14px;">Can Start New</div>
+        </div>
+    </div>
+    <div style="margin-top: 15px; text-align: center;">
+        <a href="{% url 'admin:import_job_monitor' %}" class="button" style="text-decoration: none;">
+            View Full Queue Monitor
+        </a>
+    </div>
+</div>
+{% endif %}
+
+{{ block.super }}
+{% endblock %}

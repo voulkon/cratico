@@ -1,0 +1,54 @@
+{
+  "category": "pure_latin",
+  "description": "Test cases with pure Latin/English text",
+  "test_cases": [
+    {
+      "id": "latin_municipality",
+      "text": "Municipality of Athens",
+      "expected_language": "latin",
+      "min_confidence": 0.95,
+      "min_latin_ratio": 0.9,
+      "notes": "English municipality name"
+    },
+    {
+      "id": "latin_company",
+      "text": "COCA COLA HELLAS",
+      "expected_language": "latin",
+      "min_confidence": 0.95,
+      "min_latin_ratio": 0.9,
+      "notes": "Company name in Latin characters"
+    },
+    {
+      "id": "latin_lowercase",
+      "text": "athens metropolitan area",
+      "expected_language": "latin",
+      "min_confidence": 0.95,
+      "min_latin_ratio": 0.9,
+      "notes": "Lowercase English text"
+    },
+    {
+      "id": "latin_with_accents",
+      "text": "Société Générale",
+      "expected_language": "latin",
+      "min_confidence": 0.95,
+      "min_latin_ratio": 0.9,
+      "notes": "Latin with French accents"
+    },
+    {
+      "id": "latin_single_word",
+      "text": "Athens",
+      "expected_language": "latin",
+      "min_confidence": 0.95,
+      "min_latin_ratio": 0.9,
+      "notes": "Single English word"
+    },
+    {
+      "id": "latin_organization",
+      "text": "European Commission",
+      "expected_language": "latin",
+      "min_confidence": 0.95,
+      "min_latin_ratio": 0.9,
+      "notes": "Organization name in English"
+    }
+  ]
+}

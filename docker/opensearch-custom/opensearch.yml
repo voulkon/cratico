@@ -1,0 +1,10 @@
+cluster.name: "diavgeia-opensearch"
+network.host: 0.0.0.0
+discovery.type: single-node
+plugins.security.disabled: true
+
+# Enable dynamic index templates
+action.auto_create_index: true
+
+# S3 repository settings
+s3.client.default.region: eu-north-1

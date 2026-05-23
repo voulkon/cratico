@@ -1,0 +1,126 @@
+/* ── Container ───────────────────────────────────────── */
+.org-chart-container {
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Node handles ────────────────────────────────────── */
+.org-chart-handle {
+  background: var(--muted-text);
+}
+
+/* ── Signer node ─────────────────────────────────────── */
+.signer-node {
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  background: var(--palette-bg-subtle);
+  border: 1px solid var(--palette-primary);
+  text-align: center;
+  width: 180px;
+  cursor: pointer;
+}
+
+.signer-node__name {
+  font-weight: var(--font-bold);
+  font-size: var(--font-xs);
+}
+
+.signer-node__title {
+  font-size: 10px;
+  color: var(--muted-text);
+}
+
+/* ── Unit node ───────────────────────────────────────── */
+.unit-node {
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  background: var(--palette-primary);
+  color: white;
+  border: 1px solid var(--palette-primary);
+  text-align: center;
+  width: 200px;
+  cursor: pointer;
+}
+
+.unit-node__name {
+  font-weight: var(--font-bold);
+  font-size: 13px;
+}
+
+.unit-node__title {
+  font-size: 11px;
+}
+
+/* ── Org node ────────────────────────────────────────── */
+.org-node {
+  padding: var(--spacing-md);
+  border-radius: var(--radius-sm);
+  background: var(--palette-secondary);
+  color: white;
+  border: 1px solid var(--palette-secondary);
+  text-align: center;
+  width: 220px;
+  cursor: pointer;
+}
+
+.org-node__name {
+  font-weight: var(--font-bold);
+  font-size: var(--font-sm);
+}
+
+.org-node__title {
+  font-size: var(--font-xs);
+}
+
+/* ── Layout options panel ────────────────────────────── */
+.org-chart-panel {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+  background-color: var(--card-bg);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 2px 4px var(--shadow);
+}
+
+.org-chart-panel__title {
+  margin: 0 0 var(--spacing-md) 0;
+}
+
+.org-chart-panel__buttons {
+  display: flex;
+  gap: var(--spacing-md);
+}
+
+.org-chart-panel__button {
+  padding: var(--spacing-xs) var(--spacing-md);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+
+.org-chart-panel__button--active {
+  background: var(--palette-primary);
+  color: white;
+}
+
+.org-chart-panel__button--inactive {
+  background: var(--hover-bg);
+  color: var(--text-color);
+}
+
+.org-chart-panel__select-container {
+  margin-top: var(--spacing-md);
+}
+
+.org-chart-panel__label {
+  display: block;
+  margin-bottom: var(--spacing-xs);
+}
+
+.org-chart-panel__select {
+  padding: var(--spacing-xs);
+  width: 100%;
+}

@@ -1,0 +1,60 @@
+name: Code Quality Checks
+
+on:
+  push:
+    branches: [ "main", "dev" ]
+  pull_request:
+    branches: [ "main", "dev" ]
+
+jobs:
+  detect-ai-slop:
+    runs-on: ubuntu-latest
+    name: Check for AI-generated code patterns
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Run AI Slop Detector
+        run: |
+          python scripts/detect_ai_slop.py backend frontend --ci
+
+      - name: Upload results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-slop-report
+          path: |
+            *.log
+          retention-days: 7
+
+  detect-hardcoded-colors:
+    runs-on: ubuntu-latest
+    name: Check for hard-coded colors in CSS
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Run CSS Color Detector
+        run: |
+          python scripts/detect_hardcoded_colors.py frontend --ci
+
+      - name: Upload results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hardcoded-colors-report
+          path: |
+            *.log
+          retention-days: 7

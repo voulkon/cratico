@@ -1,0 +1,107 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div style="padding: 20px;">
+    <h1>{{ title }}</h1>
+
+    <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; padding: 20px; margin: 20px 0;">
+        <h2 style="margin-top: 0; color: #856404;">⚠️ Configure & Confirm Validation Run</h2>
+        <p><strong>This will check historical imports and dispatch re-import tasks for incomplete days.</strong></p>
+        <p>Configure the parameters below to control the scope:</p>
+    </div>
+
+    <form method="post" style="margin-top: 20px;">
+        {% csrf_token %}
+
+        <div style="background: white; border: 1px solid #ddd; border-radius: 5px; padding: 20px; margin-bottom: 20px;">
+            <h3 style="margin-top: 0;">Validation Parameters</h3>
+
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; font-weight: bold; margin-bottom: 10px;">
+                    <input type="checkbox" id="use_custom_dates" name="use_custom_dates" style="margin-right: 5px;">
+                    📆 Use Custom End Date (instead of today)
+                </label>
+                <div id="end_date_container" style="display: none; margin-left: 25px; margin-top: 10px;">
+                    <label for="end_date" style="display: block; margin-bottom: 5px; color: #666;">
+                        End Date:
+                    </label>
+                    <input type="date" name="end_date" id="end_date" value="{{ today|date:'Y-m-d' }}"
+                           style="padding: 8px; font-size: 14px; border: 1px solid #ccc; border-radius: 3px;">
+                    <p style="margin: 5px 0 0 0; color: #666; font-size: 13px;">
+                        The validation will end on this date and count backwards
+                    </p>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label for="days_back" style="display: block; font-weight: bold; margin-bottom: 5px;">
+                    📅 Days to Check Backward:
+                </label>
+                <input type="number" name="days_back" id="days_back" value="20" min="1" max="365"
+                       style="padding: 8px; font-size: 14px; width: 200px; border: 1px solid #ccc; border-radius: 3px;">
+                <p style="margin: 5px 0 0 0; color: #666; font-size: 13px;">
+                    How many days back to check (default: 20)
+                </p>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label for="max_reimports" style="display: block; font-weight: bold; margin-bottom: 5px;">
+                    🔢 Maximum Re-imports (Safety Limit):
+                </label>
+                <input type="number" name="max_reimports" id="max_reimports" value="" min="1" placeholder="Unlimited"
+                       style="padding: 8px; font-size: 14px; width: 200px; border: 1px solid #ccc; border-radius: 3px;">
+                <p style="margin: 5px 0 0 0; color: #666; font-size: 13px;">
+                    Limit number of re-imports to dispatch (leave empty for unlimited). <br>
+                    <strong>💡 Recommended for testing:</strong> Start with 3-5 to observe system behavior.
+                </p>
+            </div>
+        </div>
+
+        <div style="background: #e3f2fd; border: 1px solid #2196f3; border-radius: 5px; padding: 15px; margin-bottom: 20px;">
+            <h4 style="margin-top: 0; color: #1976d2;">ℹ️ What This Will Do:</h4>
+            <ul style="margin: 0;">
+                <li>Check days within the specified range</li>
+                <li>Compare actual decision counts against configured thresholds</li>
+                <li>Create ImportJob entries for incomplete days</li>
+                <li>Dispatch fetch_daily_decisions_distributed Celery tasks</li>
+                <li>If max limit set, stop after dispatching that many re-imports</li>
+            </ul>
+        </div>
+
+        <button type="submit" class="button" style="background: #28a745; color: white; font-weight: bold; padding: 10px 20px;">
+            ✓ Run Validation
+        </button>
+        <a href="../../" class="button" style="margin-left: 10px;">✗ Cancel</a>
+    </form>
+</div>
+
+<script>
+    // Auto-calculate end date when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        const daysInput = document.getElementById('days_back');
+        const maxInput = document.getElementById('max_reimports');
+        const customDatesCheckbox = document.getElementById('use_custom_dates');
+        const endDateContainer = document.getElementById('end_date_container');
+
+        // Toggle end date field visibility
+        customDatesCheckbox.addEventListener('change', function() {
+            endDateContainer.style.display = this.checked ? 'block' : 'none';
+        });
+
+        // Add helpful styling on focus
+        [daysInput, maxInput].forEach(input => {
+            input.addEventListener('focus', function() {
+                this.style.borderColor = '#2196f3';
+                this.style.boxShadow = '0 0 5px rgba(33, 150, 243, 0.3)';
+            });
+            input.addEventListener('blur', function() {
+                this.style.borderColor = '#ccc';
+                this.style.boxShadow = 'none';
+            });
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,15 @@
+# docker/Dockerfile.frontend
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies first
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm ci
+
+# Copy project files
+COPY frontend/ .
+
+# Run
+EXPOSE 3000
+CMD ["npm", "start"]

@@ -1,0 +1,26 @@
+{% extends "emails/base.html" %}
+
+{% block title %}New Decisions Match Your Subscription - {{ app_name }}{% endblock %}
+
+{% block content %}
+<h2>New Decisions Found</h2>
+
+<p>Hi {{ username }},</p>
+
+<p>Your subscription "<strong>{{ batch.subscription_name }}</strong>" found <strong>{{ batch.decision_count }}</strong> new matching decision{{ batch.decision_count|pluralize }}.</p>
+
+{% if batch.organization_name or batch.entity_name %}
+<p style="font-size: 14px; color: #6b7280;">
+    {% if batch.organization_name %}<strong>Organization:</strong> {{ batch.organization_name }}<br>{% endif %}
+    {% if batch.entity_name %}<strong>Entity:</strong> {{ batch.entity_name }}<br>{% endif %}
+</p>
+{% endif %}
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ app_url }}/notifications" class="button">View Notifications</a>
+</div>
+
+<p style="font-size: 14px; color: #6b7280;">
+    You can manage your subscriptions and notification preferences in your account settings.
+</p>
+{% endblock %}

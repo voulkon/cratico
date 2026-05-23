@@ -1,0 +1,78 @@
+{
+  "category": "edge_cases",
+  "description": "Edge cases and boundary conditions",
+  "test_cases": [
+    {
+      "id": "edge_threshold_greek_71",
+      "text": "ΔΗΜΟΣΔΗΜΟΣΔΗΜΟΣ Athens",
+      "expected_language": "greek",
+      "min_confidence": 0.7,
+      "min_greek_ratio": 0.7,
+      "notes": "Just over 70% Greek threshold"
+    },
+    {
+      "id": "edge_threshold_latin_71",
+      "text": "AthensAthensAthens ΔΗΜ",
+      "expected_language": "latin",
+      "min_confidence": 0.7,
+      "min_latin_ratio": 0.7,
+      "notes": "Just over 70% Latin threshold"
+    },
+    {
+      "id": "edge_threshold_mixed_69_31",
+      "text": "ΔΗΜΟΣΔΗΜΟΣΔΗΜ Athens",
+      "expected_language": "mixed",
+      "min_confidence": 0.5,
+      "notes": "69% Greek, 31% Latin - should be mixed"
+    },
+    {
+      "id": "edge_single_greek_char",
+      "text": "Δ",
+      "expected_language": "greek",
+      "min_confidence": 0.95,
+      "notes": "Single Greek character"
+    },
+    {
+      "id": "edge_single_latin_char",
+      "text": "A",
+      "expected_language": "latin",
+      "min_confidence": 0.95,
+      "notes": "Single Latin character"
+    },
+    {
+      "id": "edge_greek_with_numbers",
+      "text": "ΔΗΜΟΣ 123456",
+      "expected_language": "greek",
+      "min_confidence": 0.95,
+      "notes": "Greek with numbers (numbers ignored)"
+    },
+    {
+      "id": "edge_latin_with_numbers",
+      "text": "Athens 123456",
+      "expected_language": "latin",
+      "min_confidence": 0.95,
+      "notes": "Latin with numbers (numbers ignored)"
+    },
+    {
+      "id": "edge_polytonic_greek",
+      "text": "Ἀθῆναι",
+      "expected_language": "greek",
+      "min_confidence": 0.95,
+      "notes": "Ancient/polytonic Greek"
+    },
+    {
+      "id": "edge_very_long_greek",
+      "text": "ΔΗΜΟΣ ΑΘΗΝΑΙΩΝ ΔΙΕΥΘΥΝΣΗ ΟΙΚΟΝΟΜΙΚΩΝ ΥΠΗΡΕΣΙΩΝ ΤΜΗΜΑ ΠΡΟΜΗΘΕΙΩΝ ΚΑΙ ΔΙΑΧΕΙΡΙΣΗΣ ΥΛΙΚΟΥ",
+      "expected_language": "greek",
+      "min_confidence": 0.95,
+      "notes": "Very long Greek text"
+    },
+    {
+      "id": "edge_greek_with_punctuation",
+      "text": "ΔΗΜΟΣ ΑΘΗΝΑΙΩΝ, Δ/ΝΣΗ ΟΙΚΟΝΟΜΙΚΩΝ",
+      "expected_language": "greek",
+      "min_confidence": 0.95,
+      "notes": "Greek with punctuation and abbreviations"
+    }
+  ]
+}

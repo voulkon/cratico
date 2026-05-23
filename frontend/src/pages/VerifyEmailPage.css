@@ -1,0 +1,133 @@
+.verify-email-page {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: var(--bg-color);
+  padding: var(--spacing-xl);
+}
+
+.verify-email-container {
+  background: var(--card-bg);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 32px var(--shadow);
+  padding: var(--spacing-xxxxl);
+  max-width: 500px;
+  width: 100%;
+  text-align: center;
+  border: 1px solid var(--border-color);
+}
+
+.verify-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+.verify-status .icon {
+  margin-bottom: var(--spacing-md);
+  color: var(--palette-primary);
+}
+
+.verify-status.success .icon {
+  color: var(--success-text);
+}
+
+.verify-status.error .icon {
+  color: var(--error-text);
+}
+
+.verify-status h1 {
+  margin: 0;
+  font-size: var(--font-xl);
+  font-weight: var(--font-bold);
+  color: var(--text-color);
+}
+
+.verify-status p {
+  margin: 0;
+  font-size: var(--font-md);
+  color: var(--muted-text);
+  line-height: 1.6;
+}
+
+/* Use global spinner from index.css */
+.verify-status .spinner {
+  width: 48px;
+  height: 48px;
+}
+
+/* Success state */
+.verify-status.success .icon {
+  animation: scaleIn 0.5s ease-out;
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Error state */
+.verify-status.error .icon {
+  animation: shake 0.5s ease-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-10px); }
+  75% { transform: translateX(10px); }
+}
+
+.error-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-xxl);
+}
+
+.verify-button {
+  background-color: var(--palette-primary);
+  color: white;
+  padding: var(--spacing-md) var(--spacing-xxxl);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--font-md);
+  font-weight: var(--font-bold);
+  cursor: pointer;
+  margin-top: var(--spacing-xl);
+  transition: background-color var(--transition-fast);
+}
+
+.verify-button:hover {
+  background-color: var(--palette-secondary);
+  opacity: 0.9;
+}
+
+.verify-button:active {
+  transform: scale(0.98);
+}
+
+/* Theme variables handle dark mode automatically */
+
+/* Responsive design */
+@media (max-width: 600px) {
+  .verify-email-container {
+    padding: var(--spacing-xxxl) var(--spacing-xxl);
+  }
+
+  .verify-status h1 {
+    font-size: var(--font-lg);
+  }
+
+  .verify-status .icon {
+    width: 48px;
+    height: 48px;
+  }
+}

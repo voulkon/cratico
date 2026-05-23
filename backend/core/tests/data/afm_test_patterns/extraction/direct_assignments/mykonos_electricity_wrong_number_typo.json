@@ -1,0 +1,58 @@
+{
+  "id": "awardAmount_3",
+  "description": "mykonos_electricity_bill_wrong_amount_typed",
+  "ada": "9ΣΞΞΟΡΦΧ-57Γ",
+  "extra_field_values_json": {
+    "cpv": [
+      "09310000-5"
+    ],
+    "person": [
+      {
+        "afm": "090000045",
+        "name": "ΔΗΜΟΣΙΑ ΕΠΙΧΕΙΡΗΣΗ ΗΛΕΚΤΡΙΣΜΟΥ ΑΝΩΝΥΜΗ ΕΤΑΙΡΙΑ",
+        "afmType": "EL",
+        "enterName": false
+      }
+    ],
+    "budgettype": null,
+    "partialead": null,
+    "awardAmount": {
+      "amount": 26962816.0,
+      "currency": "EUR"
+    },
+    "entryNumber": null,
+    "documentType": "ΠΡΑΞΗ",
+    "amountWithKae": null,
+    "amountWithVAT": null,
+    "financialYear": null,
+    "assignmentType": "Προμήθειες",
+    "textRelatedADA": "96ΦΒΟΡΦΧ-Π21",
+    "relatedDecisions": [],
+    "recalledExpenseDecision": null
+  },
+  "expected": {
+    "entities": 1,
+    "amounts": 1,
+    "total_amount": 26962816.0
+  },
+  "_analysis": {
+    "entities_found": [
+      {
+        "afm": "090000045",
+        "name": "Δ.Ε.Η  Α.Ε.",
+        "role": "person",
+        "path": "person"
+      }
+    ],
+    "amounts_found": [
+      {
+        "amount": 26962816.0,
+        "currency": "EUR",
+        "path": "awardAmount",
+        "source_field": "amount",
+        "linked": false
+      }
+    ],
+    "unlinked_pattern": "awardAmount"
+  }
+}

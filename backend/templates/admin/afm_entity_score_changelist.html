@@ -1,0 +1,32 @@
+{% extends "admin/change_list.html" %}
+
+{% block content %}
+<div style="background: var(--primary); color: white; padding: 25px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    <h2 style="margin: 0 0 10px 0; font-size: 24px; font-weight: bold;">AFM Entity Scores</h2>
+    <p style="margin: 0 0 15px 0; opacity: 0.9; font-size: 15px;">
+        View importance scores and rankings for all AFM entities. For better visualization, controls, and queue management, use the Cockpit Dashboard.
+    </p>
+    <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+        <a href="{% url 'admin:afm_cockpit' %}"
+           style="display: inline-block; background: white; color: var(--primary); padding: 12px 30px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+            Open Cockpit Dashboard
+        </a>
+        <span style="align-self: center; opacity: 0.9; font-size: 14px;">
+            Recommended: Better UI for scoring, queue management, and monitoring
+        </span>
+    </div>
+</div>
+
+{% if not cl.result_count %}
+<div class="alert alert-warning">
+    <strong>No scores yet!</strong> Follow these steps:
+    <ol style="margin: 10px 0 0 0; padding-left: 20px;">
+        <li>Create a scoring configuration in <a href="{% url 'admin:core_afmscoringconfig_changelist' %}">AFM Scoring Configurations</a></li>
+        <li>Go to the <a href="{% url 'admin:afm_cockpit' %}">Cockpit Dashboard</a></li>
+        <li>Click "Run Scoring Now" to calculate scores for all entities</li>
+    </ol>
+</div>
+{% endif %}
+
+{{ block.super }}
+{% endblock %}

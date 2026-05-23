@@ -1,0 +1,37 @@
+{
+    "id": "direct_with_counterpart_2",
+    "description": "Direct assignment with counterpart - TCS TOOLBOX",
+    "ada": "ΨΠ9446ΨΧΥΙ-ΕΛ3",
+    "extra_field_values_json": {
+        "cpv": [
+            "79400000-8"
+        ],
+        "person": [
+            {
+                "afm": "800728365",
+                "name": "TCS TOOLBOX CONSULTING SERVICES ΙΚΕ",
+                "afmType": "EL",
+                "enterName": false
+            }
+        ],
+        "budgettype": null,
+        "partialead": null,
+        "awardAmount": {
+            "amount": 37200.0,
+            "currency": "EUR"
+        },
+        "entryNumber": null,
+        "documentType": "ΠΡΑΞΗ",
+        "amountWithKae": null,
+        "amountWithVAT": null,
+        "financialYear": null,
+        "assignmentType": "Υπηρεσίες",
+        "textRelatedADA": null,
+        "relatedDecisions": [],
+        "recalledExpenseDecision": null
+    },
+    "expected": {
+        "entities": 1,
+        "amounts": 1
+    }
+}

@@ -1,0 +1,58 @@
+{
+  "id": "archaelogy_faliro",
+  "description": "archaelogy_faliro",
+  "ada": "ΡΔΕ546ΝΚΟΤ-ΧΩΛ",
+  "extra_field_values_json": {
+    "person": [
+      {
+        "afm": "094532970",
+        "name": "Μ.Τ. ΑΝΩΝΥΜΗ, ΤΕΧΝΙΚΗ, ΕΜΠΟΡΙΚΗ, ΤΟΥΡΙΣΤΙΚΗ, ΛΑΤΟΜΙΚΗ, ΒΙΟΜΗΧΑΝΙΚΗ ΚΑΙ ΚΤΗΜΑΤΙΚΗ ΕΤΑΙΡΕΙΑ",
+        "afmType": "EL",
+        "enterName": false
+      }
+    ],
+    "duration": null,
+    "budgettype": null,
+    "partialead": null,
+    "awardAmount": null,
+    "entryNumber": null,
+    "contractType": "Σύμβαση Έργου",
+    "documentType": "ΠΡΑΞΗ",
+    "amountWithKae": null,
+    "amountWithVAT": null,
+    "financialYear": null,
+    "contractAmount": {
+      "amount": 6342033.5,
+      "currency": "EUR"
+    },
+    "numberOfPeople": 1,
+    "financedProject": false,
+    "relatedDecisions": [],
+    "recalledExpenseDecision": null
+  },
+  "expected": {
+    "entities": 1,
+    "amounts": 1,
+    "total_amount": 6342033.5
+  },
+  "_analysis": {
+    "entities_found": [
+      {
+        "afm": "094532970",
+        "name": "Μ.Τ. ΑΝΩΝΥΜΗ, ΤΕΧΝΙΚΗ, ΕΜΠΟΡΙΚΗ, ΤΟΥΡΙΣΤΙΚΗ, ΛΑΤΟΜΙΚΗ, ΒΙΟΜΗΧΑΝΙΚΗ ΚΑΙ ΚΤΗΜΑΤΙΚΗ ΕΤΑΙΡΕΙΑ",
+        "role": "person",
+        "path": "person"
+      }
+    ],
+    "amounts_found": [
+      {
+        "amount": 6342033.5,
+        "currency": "EUR",
+        "path": "contractAmount",
+        "source_field": "amount",
+        "linked": false
+      }
+    ],
+    "unlinked_pattern": "contractAmount"
+  }
+}

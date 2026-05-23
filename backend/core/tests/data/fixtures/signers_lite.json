@@ -1,0 +1,55 @@
+{
+    "signers": [
+        {
+            "uid": "135003",
+            "firstName": "ΚΙΤΣΟΣ",
+            "lastName": "ΤΖΑΒΕΛΑΣ",
+            "active": true,
+            "activeFrom": 1262304000000,
+            "activeUntil": null,
+            "organizationId": "6174",
+            "hasOrganizationSignRights": false,
+            "units": [
+                {
+                    "uid": "81223",
+                    "positionId": "POS_10075",
+                    "positionLabel": "Με εξουσιοδότηση"
+                }
+            ]
+        },
+        {
+            "uid": "100084253",
+            "firstName": "ΕΛΕΟΝΩΡΑ",
+            "lastName": "ΓΕΩΡΓΑ",
+            "active": true,
+            "activeFrom": 1703980800000,
+            "activeUntil": null,
+            "organizationId": "6174",
+            "hasOrganizationSignRights": true,
+            "units": [
+                {
+                    "uid": "81204",
+                    "positionId": "POS_10091",
+                    "positionLabel": "Δήμαρχος"
+                }
+            ]
+        },
+        {
+            "uid": "100067845",
+            "firstName": "ΛΑΣΚΑΡΙΝΑ",
+            "lastName": "ΜΠΟΥΜΠΟΥΛΙΝΑ",
+            "active": true,
+            "activeFrom": 1629331200000,
+            "activeUntil": null,
+            "organizationId": "6174",
+            "hasOrganizationSignRights": false,
+            "units": [
+                {
+                    "uid": "81223",
+                    "positionId": "POS_10092",
+                    "positionLabel": "Πρόεδρος"
+                }
+            ]
+        }
+    ]
+}

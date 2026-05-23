@@ -1,0 +1,354 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+{% load humanize %}
+
+{% block title %}Classification Job {{ job.job_id }}{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+.job-detail-container {
+    padding: 20px;
+    max-width: 1200px;
+}
+
+.job-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.job-title {
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.job-status-badge {
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.job-status-badge.completed {
+    background: #d4edda;
+    color: #155724;
+}
+
+.job-status-badge.failed {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* Stats Grid */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+.stat-box {
+    background: var(--body-bg);
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 8px;
+    padding: 15px;
+}
+
+.stat-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #666;
+    margin-bottom: 5px;
+}
+
+.stat-value {
+    font-size: 28px;
+    font-weight: bold;
+    color: var(--primary, #417690);
+}
+
+/* Configuration Section */
+.config-section {
+    background: var(--body-bg);
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 30px;
+}
+
+.config-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+}
+
+.config-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.config-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #666;
+}
+
+.config-value {
+    font-size: 16px;
+    color: var(--body-fg);
+}
+
+/* Logs Section */
+.logs-section {
+    background: var(--body-bg);
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.logs-title {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 15px;
+}
+
+.logs-container {
+    max-height: 600px;
+    overflow-y: auto;
+    background: #1e1e1e;
+    border-radius: 4px;
+    padding: 15px;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+}
+
+.log-entry {
+    margin-bottom: 8px;
+    padding: 4px 0;
+    border-bottom: 1px solid #333;
+}
+
+.log-entry:last-child {
+    border-bottom: none;
+}
+
+.log-timestamp {
+    color: #888;
+    margin-right: 10px;
+}
+
+.log-level {
+    font-weight: bold;
+    margin-right: 10px;
+}
+
+.log-level.INFO {
+    color: #17a2b8;
+}
+
+.log-level.ERROR {
+    color: #dc3545;
+}
+
+.log-level.WARNING {
+    color: #ffc107;
+}
+
+.log-message {
+    color: #e0e0e0;
+}
+
+.log-batch {
+    color: #888;
+    font-size: 11px;
+    margin-left: 10px;
+}
+
+/* Actions */
+.action-buttons {
+    margin-top: 20px;
+}
+
+.btn {
+    padding: 10px 20px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-weight: bold;
+    display: inline-block;
+    margin-right: 10px;
+}
+
+.btn-primary {
+    background: #417690;
+    color: white;
+}
+
+.btn-secondary {
+    background: #f0f0f0;
+    color: #333;
+}
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">Home</a>
+&rsaquo; <a href="{% url 'admin:classification_dashboard' %}">Classification Dashboard</a>
+&rsaquo; <a href="{% url 'admin:core_classificationjob_changelist' %}">Jobs</a>
+&rsaquo; {{ job.job_id }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="job-detail-container">
+    <div class="job-header">
+        <h1 class="job-title">Classification Job {{ job.job_id }}</h1>
+        <span class="job-status-badge {{ job.status }}">{{ job.get_status_display }}</span>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="stats-grid">
+        <div class="stat-box">
+            <div class="stat-label">Total Processed</div>
+            <div class="stat-value">{{ job.processed_count|floatformat:0|intcomma }}</div>
+        </div>
+
+        <div class="stat-box">
+            <div class="stat-label">Direct Assignments Found</div>
+            <div class="stat-value" style="color: #28a745;">{{ job.direct_assignments_found|floatformat:0|intcomma }}</div>
+        </div>
+
+        <div class="stat-box">
+            <div class="stat-label">Non-Direct Assignments</div>
+            <div class="stat-value">{{ job.non_direct_assignments|floatformat:0|intcomma }}</div>
+        </div>
+
+        <div class="stat-box">
+            <div class="stat-label">Classifications Created</div>
+            <div class="stat-value">{{ job.created_count|floatformat:0|intcomma }}</div>
+        </div>
+
+        <div class="stat-box">
+            <div class="stat-label">Classifications Updated</div>
+            <div class="stat-value">{{ job.updated_count|floatformat:0|intcomma }}</div>
+        </div>
+
+        <div class="stat-box">
+            <div class="stat-label">Errors</div>
+            <div class="stat-value" style="color: {% if job.error_count > 0 %}#dc3545{% else %}#28a745{% endif %};">
+                {{ job.error_count|floatformat:0|intcomma }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Configuration -->
+    <div class="config-section">
+        <h2>Configuration</h2>
+        <div class="config-grid">
+            <div class="config-item">
+                <span class="config-label">Processing Mode</span>
+                <span class="config-value">{{ job.get_processing_mode_display }}</span>
+            </div>
+
+            <div class="config-item">
+                <span class="config-label">Batch Size</span>
+                <span class="config-value">{{ job.batch_size }} decisions/batch</span>
+            </div>
+
+            <div class="config-item">
+                <span class="config-label">Reclassify</span>
+                <span class="config-value">{{ job.reclassify|yesno:"Yes,No" }}</span>
+            </div>
+
+            {% if job.start_date %}
+            <div class="config-item">
+                <span class="config-label">Start Date</span>
+                <span class="config-value">{{ job.start_date }}</span>
+            </div>
+            {% endif %}
+
+            {% if job.end_date %}
+            <div class="config-item">
+                <span class="config-label">End Date</span>
+                <span class="config-value">{{ job.end_date }}</span>
+            </div>
+            {% endif %}
+
+            <div class="config-item">
+                <span class="config-label">Created By</span>
+                <span class="config-value">{{ job.created_by|default:"System" }}</span>
+            </div>
+
+            <div class="config-item">
+                <span class="config-label">Created At</span>
+                <span class="config-value">{{ job.created_at }}</span>
+            </div>
+
+            {% if job.started_at %}
+            <div class="config-item">
+                <span class="config-label">Started At</span>
+                <span class="config-value">{{ job.started_at }}</span>
+            </div>
+            {% endif %}
+
+            {% if job.completed_at %}
+            <div class="config-item">
+                <span class="config-label">Completed At</span>
+                <span class="config-value">{{ job.completed_at }}</span>
+            </div>
+
+            <div class="config-item">
+                <span class="config-label">Duration</span>
+                <span class="config-value">
+                    {% if job.duration_seconds > 3600 %}
+                        {{ job.duration_seconds|floatformat:0|divisibleby:3600 }}h
+                    {% endif %}
+                    {{ job.duration_seconds|floatformat:0 }} seconds
+                </span>
+            </div>
+
+            <div class="config-item">
+                <span class="config-label">Processing Rate</span>
+                <span class="config-value">{{ job.decisions_per_second }} decisions/sec</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Information -->
+    {% if job.last_error %}
+    <div class="config-section" style="border-color: #dc3545;">
+        <h2 style="color: #dc3545;">Last Error</h2>
+        <pre style="background: #f8d7da; padding: 15px; border-radius: 4px; overflow-x: auto;">{{ job.last_error }}</pre>
+    </div>
+    {% endif %}
+
+    <!-- Logs -->
+    <div class="logs-section">
+        <h2 class="logs-title">Job Logs</h2>
+        <div class="logs-container">
+            {% for log in logs %}
+            <div class="log-entry">
+                <span class="log-timestamp">{{ log.timestamp|date:"H:i:s" }}</span>
+                <span class="log-level {{ log.level }}">{{ log.level }}</span>
+                <span class="log-message">{{ log.message }}</span>
+                {% if log.batch_number %}
+                <span class="log-batch">(Batch #{{ log.batch_number }})</span>
+                {% endif %}
+            </div>
+            {% empty %}
+            <div style="color: #888; text-align: center; padding: 20px;">
+                No logs available
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="action-buttons">
+        <a href="{% url 'admin:classification_dashboard' %}" class="btn btn-secondary">← Back to Dashboard</a>
+        <a href="{% url 'admin:core_classificationjob_changelist' %}" class="btn btn-secondary">View All Jobs</a>
+    </div>
+</div>
+{% endblock %}

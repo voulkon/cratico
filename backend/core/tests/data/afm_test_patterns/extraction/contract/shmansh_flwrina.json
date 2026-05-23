@@ -1,0 +1,62 @@
+{
+  "id": "shmansh_flwrina",
+  "description": "shmansh_flwrina",
+  "ada": "903Ο7ΛΨ-9Θ6",
+  "extra_field_values_json": {
+    "person": [
+      {
+        "afm": "998306833",
+        "name": "ΖΕΥΞΗ ΕΡΓΟΛΗΠΤΙΚΗ ΚΑΤΑΣΚΕΥΑΣΤΙΚΗ ΤΕΧΝΙΚΗ ΜΕΛΕΤΗΤΙΚΗ ΑΝΩΝΥΜΗ ΤΕΧΝΙΚΗ ΕΤΑΙΡΕΙΑ",
+        "afmType": "EL",
+        "enterName": false
+      }
+    ],
+    "duration": "240 Ημερολογιακές Ημέρες",
+    "budgettype": null,
+    "partialead": null,
+    "awardAmount": null,
+    "entryNumber": null,
+    "contractType": "Σύμβαση Έργου",
+    "documentType": "ΠΡΑΞΗ",
+    "amountWithKae": null,
+    "amountWithVAT": null,
+    "financialYear": null,
+    "contractAmount": {
+      "amount": 5899715.0,
+      "currency": "EUR"
+    },
+    "numberOfPeople": null,
+    "financedProject": false,
+    "relatedDecisions": [
+      {
+        "relatedDecisionsADA": "ΨΤ8Ω7ΛΨ-ΓΕΩ"
+      }
+    ],
+    "recalledExpenseDecision": null
+  },
+  "expected": {
+    "entities": 1,
+    "amounts": 1,
+    "total_amount": 5899715.0
+  },
+  "_analysis": {
+    "entities_found": [
+      {
+        "afm": "998306833",
+        "name": "ΖΕΥΞΗ Α.Τ.Ε. ΑΝΩΝΥΜΗ ΤΕΧΝΙΚΗ ΕΤΑΙΡΕΙΑ",
+        "role": "person",
+        "path": "person"
+      }
+    ],
+    "amounts_found": [
+      {
+        "amount": 5899715.0,
+        "currency": "EUR",
+        "path": "contractAmount",
+        "source_field": "amount",
+        "linked": false
+      }
+    ],
+    "unlinked_pattern": "contractAmount"
+  }
+}

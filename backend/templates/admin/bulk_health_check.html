@@ -1,0 +1,97 @@
+{% extends "admin/base_site.html" %}
+{% load admin_urls static %}
+
+{% block title %}Bulk Health Check{% endblock %}
+
+{% block content %}
+<div style="padding: 20px;">
+    <h1>Bulk Health Check</h1>
+
+    <p>Run health checks on multiple decisions at once. This will analyze the pipeline status for each decision.</p>
+
+    <form method="post" style="max-width: 600px;">
+        {% csrf_token %}
+
+        <div style="margin-bottom: 20px;">
+            <label for="days_back" style="display: block; margin-bottom: 5px; font-weight: bold;">
+                Check decisions from the last N days:
+            </label>
+            <input type="number" id="days_back" name="days_back" value="7" min="1" max="365"
+                   style="width: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            <small style="color: #666; margin-left: 10px;">
+                Default: 7 days (adjust based on your needs)
+            </small>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <label for="organization_id" style="display: block; margin-bottom: 5px; font-weight: bold;">
+                Filter by organization UID (optional):
+            </label>
+            <input type="text" id="organization_id" name="organization_id" placeholder="e.g., ministry_123"
+                   style="width: 300px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            <small style="color: #666; margin-left: 10px;">
+                Leave empty to check all organizations
+            </small>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <label for="limit" style="display: block; margin-bottom: 5px; font-weight: bold;">
+                Maximum decisions to check:
+            </label>
+            <input type="number" id="limit" name="limit" value="100" min="1" max="1000"
+                   style="width: 100px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+            <small style="color: #666; margin-left: 10px;">
+                Start with smaller numbers for testing (default: 100)
+            </small>
+        </div>
+
+        <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+            <strong>⚠️ Note:</strong> This operation may take some time depending on the number of decisions.
+            Each decision is checked for:
+            <ul style="margin: 10px 0 0 20px;">
+                <li>Basic ingestion (required fields present)</li>
+                <li>Relations (signers, units, organization linked)</li>
+                <li>Entity extraction (AFM entities associated)</li>
+                <li>Document extraction (PDF processed and text extracted)</li>
+                <li>OpenSearch indexing (document indexed and searchable)</li>
+                <li>Coverage tracking (DateCoverage records updated)</li>
+            </ul>
+        </div>
+
+        <button type="submit"
+                style="background-color: #007cba; color: white; border: none; padding: 12px 24px;
+                       border-radius: 4px; cursor: pointer; font-size: 16px;">
+            🔄 Start Health Check
+        </button>
+
+        <a href="{% url 'admin:core_decisionhealthcheck_changelist' %}"
+           style="margin-left: 15px; text-decoration: none; color: #666;">
+            Cancel
+        </a>
+    </form>
+
+    <div style="margin-top: 40px; border-top: 1px solid #eee; padding-top: 20px;">
+        <h2>Quick Actions</h2>
+        <ul style="list-style-type: none; padding: 0;">
+            <li style="margin-bottom: 10px;">
+                <a href="{% url 'admin:health_dashboard' %}"
+                   style="text-decoration: none; color: #007cba;">
+                    📊 View Health Dashboard
+                </a>
+            </li>
+            <li style="margin-bottom: 10px;">
+                <a href="{% url 'admin:core_decisionhealthcheck_changelist' %}?has_errors=1"
+                   style="text-decoration: none; color: #dc3545;">
+                    ❌ View Decisions with Errors
+                </a>
+            </li>
+            <li style="margin-bottom: 10px;">
+                <a href="{% url 'admin:core_decisionhealthcheck_changelist' %}?has_warnings=1"
+                   style="text-decoration: none; color: #ffc107;">
+                    ⚠️ View Decisions with Warnings
+                </a>
+            </li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

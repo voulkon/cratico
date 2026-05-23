@@ -1,0 +1,90 @@
+{% extends "admin/change_form.html" %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+        .auto-refresh-indicator {
+            position: fixed;
+            top: 40px;
+            right: 20px;
+            background-color: #2196F3;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 9999;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .auto-refresh-indicator.refreshing {
+            background-color: #4CAF50;
+        }
+        .logs-container {
+            position: relative;
+        }
+        .logs-container pre {
+            max-height: 600px !important;
+            overflow-y: auto;
+        }
+    </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if this backup is in progress by looking at the status field
+            const statusField = document.querySelector('.field-status .readonly');
+            if (!statusField) return;
+
+            const status = statusField.textContent.trim();
+            const isInProgress = status === 'Pending' || status === 'In Progress';
+
+            if (isInProgress) {
+                // Add indicator
+                const indicator = document.createElement('div');
+                indicator.className = 'auto-refresh-indicator';
+                indicator.innerHTML = '🔄 Auto-refresh: <span id="countdown">10</span>s';
+                document.body.appendChild(indicator);
+
+                let countdown = 10;
+
+                // Countdown timer
+                const countdownInterval = setInterval(() => {
+                    countdown--;
+                    const countdownEl = document.getElementById('countdown');
+                    if (countdownEl) {
+                        countdownEl.textContent = countdown;
+                    }
+
+                    if (countdown <= 0) {
+                        clearInterval(countdownInterval);
+                        indicator.classList.add('refreshing');
+                        indicator.innerHTML = '✅ Refreshing...';
+
+                        // Before refresh, scroll to bottom of logs
+                        const logsContainer = document.querySelector('.field-logs_display pre');
+                        if (logsContainer) {
+                            logsContainer.scrollTop = logsContainer.scrollHeight;
+                        }
+
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 500);
+                    }
+                }, 1000);
+
+                // Allow clicking indicator to refresh immediately
+                indicator.style.cursor = 'pointer';
+                indicator.title = 'Click to refresh now';
+                indicator.addEventListener('click', () => {
+                    clearInterval(countdownInterval);
+                    window.location.reload();
+                });
+
+                // Auto-scroll logs to bottom on page load
+                const logsContainer = document.querySelector('.field-logs_display pre');
+                if (logsContainer) {
+                    setTimeout(() => {
+                        logsContainer.scrollTop = logsContainer.scrollHeight;
+                    }, 100);
+                }
+            }
+        });
+    </script>
+{% endblock %}

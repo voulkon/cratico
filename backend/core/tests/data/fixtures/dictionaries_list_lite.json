@@ -1,0 +1,20 @@
+{
+    "dictionaries": [
+        {
+            "uid": "THK",
+            "label": "Τύπος Θεματικής Κατηγορίας"
+        },
+        {
+            "uid": "CURRENCY",
+            "label": "Currencies available"
+        },
+        {
+            "uid": "FEKTYPES",
+            "label": "Τύποι τευχών ΦΕΚ"
+        },
+        {
+            "uid": "ORG_CATEGORY",
+            "label": "Κατηγορίες οργανισμών"
+        }
+    ]
+}

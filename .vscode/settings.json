@@ -1,0 +1,41 @@
+{
+    "workbench.colorCustomizations": {
+        "activityBar.activeBackground": "#2791d8",
+        "activityBar.background": "#2791d8",
+        "activityBar.foreground": "#e7e7e7",
+        "activityBar.inactiveForeground": "#e7e7e799",
+        "activityBarBadge.background": "#a21d6d",
+        "activityBarBadge.foreground": "#e7e7e7",
+        "commandCenter.border": "#e7e7e799",
+        "sash.hoverBorder": "#2791d8",
+        "statusBar.background": "#1f74ad",
+        "statusBar.foreground": "#e7e7e7",
+        "statusBarItem.hoverBackground": "#2791d8",
+        "statusBarItem.remoteBackground": "#1f74ad",
+        "statusBarItem.remoteForeground": "#e7e7e7",
+        "titleBar.activeBackground": "#1f74ad",
+        "titleBar.activeForeground": "#e7e7e7",
+        "titleBar.inactiveBackground": "#1f74ad99",
+        "titleBar.inactiveForeground": "#e7e7e799"
+    },
+    "peacock.color": "#1f74ad",
+    "[dockercompose]": {
+        "editor.formatOnSave": false
+    },
+    "[yaml]": {
+        "editor.formatOnSave": false,
+        "editor.defaultFormatter": null
+    },
+    "python.testing.pytestArgs": [
+        "core/tests",
+        "gemi/tests",
+    ],
+    "python.testing.cwd": "${workspaceFolder}/backend",
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "python.envFile": "${workspaceFolder}/backend/.env",
+    "shifty.colorThemes.ignoreLightColorThemes": true,
+    "python-envs.defaultEnvManager": "ms-python.python:poetry",
+    "python-envs.defaultPackageManager": "ms-python.python:poetry",
+    // "shifty.colorThemes.ignoreDarkColorThemes":  true
+}

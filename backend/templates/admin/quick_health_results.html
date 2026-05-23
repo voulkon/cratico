@@ -1,0 +1,88 @@
+{% extends "admin/base_site.html" %}
+{% load admin_urls static %}
+
+{% block title %}Quick Health Check Results{% endblock %}
+
+{% block content %}
+<div style="padding: 20px;">
+    <h1>🔍 Quick Health Check Results</h1>
+
+    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <p><strong>Checked:</strong> {{ checked_decisions }} decision{{ checked_decisions|pluralize }} from the last {{ days }} day{{ days|pluralize }}</p>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 30px;">
+        <div style="background: white; border: 1px solid #ddd; border-radius: 8px; padding: 15px; text-align: center;">
+            <div style="font-size: 2em; font-weight: bold; color: #28a745;">{{ results.summary.healthy }}</div>
+            <div>Healthy</div>
+        </div>
+        <div style="background: white; border: 1px solid #ddd; border-radius: 8px; padding: 15px; text-align: center;">
+            <div style="font-size: 2em; font-weight: bold; color: #ffc107;">{{ results.summary.warnings }}</div>
+            <div>Warnings</div>
+        </div>
+        <div style="background: white; border: 1px solid #ddd; border-radius: 8px; padding: 15px; text-align: center;">
+            <div style="font-size: 2em; font-weight: bold; color: #dc3545;">{{ results.summary.errors }}</div>
+            <div>Errors</div>
+        </div>
+        <div style="background: white; border: 1px solid #ddd; border-radius: 8px; padding: 15px; text-align: center;">
+            <div style="font-size: 2em; font-weight: bold; color: #6c757d;">{{ results.summary.unknown }}</div>
+            <div>Unknown</div>
+        </div>
+    </div>
+
+    {% if results.summary.errors > 0 or results.summary.warnings > 0 %}
+    <h2>Issues Found</h2>
+    <table style="width: 100%; border-collapse: collapse; background: white; border: 1px solid #ddd; border-radius: 8px; overflow: hidden;">
+        <thead>
+            <tr style="background-color: #f8f9fa;">
+                <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd;">Decision</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd;">Status</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 1px solid #ddd;">Issues</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for health_check in results.health_checks %}
+                {% if health_check.overall_status != 'HEALTHY' %}
+                <tr>
+                    <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                        <a href="{% url 'admin:core_decision_change' health_check.decision.id %}">
+                            {{ health_check.decision.ada }}
+                        </a>
+                    </td>
+                    <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                        {% if health_check.overall_status == 'ERROR' %}
+                            <span style="background-color: #dc3545; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">ERROR</span>
+                        {% else %}
+                            <span style="background-color: #ffc107; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">WARNING</span>
+                        {% endif %}
+                    </td>
+                    <td style="padding: 12px; border-bottom: 1px solid #eee;">
+                        {% for component in health_check.failed_components %}
+                            <span style="background-color: #dc3545; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-right: 5px;">{{ component }}</span>
+                        {% endfor %}
+                        {% for component in health_check.warning_components %}
+                            <span style="background-color: #ffc107; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-right: 5px;">{{ component }}</span>
+                        {% endfor %}
+                    </td>
+                </tr>
+                {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="background-color: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 4px; color: #155724;">
+        <strong>🎉 All decisions are healthy!</strong><br>
+        No issues found in the checked decisions.
+    </div>
+    {% endif %}
+
+    <div style="margin-top: 30px;">
+        <a href="{% url 'admin:quick_health_check' %}" class="button" style="margin-right: 10px;">
+            ← Run Another Check
+        </a>
+        <a href="{% url 'admin:health_dashboard' %}" class="button">
+            📊 Full Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}

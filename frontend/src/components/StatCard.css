@@ -1,0 +1,214 @@
+/**
+ * Centralized StatCard Component Styles
+ *
+ * Used across multiple pages and components for displaying statistics.
+ * Provides consistent layout with title above and value below.
+ * Handles large numbers (millions+) without wrapping.
+ */
+
+/* Base Card Styles */
+.stat-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md, 8px);
+  padding: var(--spacing-xl, 1.5rem);
+  box-shadow: 0 2px 4px var(--shadow);
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm, 0.5rem);
+}
+
+.stat-card:hover {
+  border-color: var(--palette-primary);
+  box-shadow: 0 4px 12px var(--shadow-hover, rgba(0, 0, 0, 0.1));
+  transform: translateY(-2px);
+}
+
+/* Card Variants */
+.stat-card.full-width {
+  grid-column: 1 / -1;
+}
+
+.stat-card.wide {
+  grid-column: 1 / -1;
+}
+
+/* Card with Icon Layout (icon on left, content on right) */
+.stat-card-icon-layout {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--spacing-lg, 1rem);
+}
+
+.stat-icon {
+  color: var(--palette-primary);
+  flex-shrink: 0;
+}
+
+.stat-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs, 0.25rem);
+  min-width: 0; /* Allow content to shrink */
+}
+
+/* Title/Label Styles */
+.stat-card h3,
+.stat-title {
+  margin: 0;
+  font-size: var(--font-md, 1rem);
+  color: var(--palette-primary);
+  font-weight: var(--font-semibold, 600);
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: var(--font-xs, 0.75rem);
+  color: var(--muted-text);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: var(--font-medium, 500);
+  margin: 0;
+  line-height: 1.2;
+}
+
+/* Value Styles - Handle Large Numbers */
+.stat-value {
+  font-size: var(--font-xxxl, 2rem);
+  font-weight: var(--font-bold, 700);
+  color: var(--palette-secondary);
+  line-height: 1.1;
+  margin: 0;
+
+  /* Prevent wrapping for large numbers */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  /* Use tabular numbers for better alignment */
+  font-variant-numeric: tabular-nums;
+}
+
+/* Smaller value variant for date ranges, etc. */
+.stat-value.date-range {
+  font-size: var(--font-md, 1rem);
+  font-weight: var(--font-medium, 500);
+  color: var(--text-color);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm, 0.5rem);
+  flex-wrap: wrap;
+  white-space: normal; /* Allow wrapping for date ranges */
+}
+
+.stat-value .arrow {
+  font-size: var(--font-lg, 1.25rem);
+  color: var(--muted-text);
+}
+
+/* Highlight variant for important values */
+.stat-value.highlight {
+  color: var(--accent-color, var(--palette-primary));
+}
+
+/* Context/Description Styles */
+.stat-context {
+  font-size: var(--font-sm, 0.875rem);
+  color: var(--muted-text);
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* Period Display */
+.stat-period {
+  font-size: var(--font-lg, 1.125rem);
+  font-weight: var(--font-medium, 500);
+  color: var(--text-color);
+  line-height: 1.2;
+}
+
+.stat-date-range {
+  font-size: var(--font-sm, 0.875rem);
+  color: var(--muted-text);
+  margin-top: var(--spacing-xs, 0.25rem);
+}
+
+/* Special Elements within Stat Cards */
+.most-frequent-org {
+  background: var(--bg-selected);
+  border: 1px solid var(--palette-primary);
+  color: var(--palette-primary);
+  padding: var(--spacing-xs, 0.25rem) var(--spacing-sm, 0.5rem);
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+  transition: var(--transition-fast, all 0.2s);
+  font-size: var(--font-xs, 0.75rem);
+  margin-top: var(--spacing-xs, 0.25rem);
+  display: inline-block;
+}
+
+.most-frequent-org:hover {
+  background: var(--palette-primary);
+  color: white;
+}
+
+/* Discrepancy Warning */
+.discrepancy-warning {
+  background-color: var(--warning-bg);
+  color: var(--warning-text);
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius-sm, 4px);
+  padding: var(--spacing-xs, 0.25rem);
+  margin-top: var(--spacing-xs, 0.25rem);
+  font-size: var(--font-xs, 0.75rem);
+}
+
+/* Decision Types and Badges within Stats */
+.decision-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm, 0.5rem);
+  margin-top: var(--spacing-xs, 0.25rem);
+}
+
+.type-badge {
+  background: var(--bg-color, var(--card-bg));
+  border: 1px solid var(--border-color);
+  padding: 0.4rem 0.8rem;
+  border-radius: var(--radius-sm, 4px);
+  font-size: var(--font-xs, 0.75rem);
+  font-weight: var(--font-medium, 500);
+  color: var(--text-color);
+  white-space: nowrap;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .stat-card {
+    padding: var(--spacing-lg, 1rem);
+  }
+
+  .stat-value {
+    font-size: var(--font-xxl, 1.5rem);
+  }
+
+  .stat-card h3,
+  .stat-title {
+    font-size: var(--font-sm, 0.875rem);
+  }
+}
+
+@media (max-width: 480px) {
+  .stat-value {
+    font-size: var(--font-xl, 1.25rem);
+  }
+
+  /* For very small screens, allow wrapping if needed */
+  .stat-value {
+    white-space: normal;
+    word-break: break-word;
+  }
+}
