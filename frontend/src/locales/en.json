@@ -206,6 +206,17 @@
     "showText" : "Show Decision's Text",
     "hideText" : "Hide Decision's Text"
   },
+  "personPage": {
+    "errorTitle": "Error Loading Person",
+    "backButton": "Back",
+    "breadcrumbPerson": "Person",
+    "involvements": "{count} {count, plural, one {involvement} other {involvements}}",
+    "roleDates": "From {from} to {to}",
+    "representsAloneTitle": "Represents alone",
+    "representsAloneBadge": "Alone",
+    "representsInCommonTitle": "Represents jointly",
+    "representsInCommonBadge": "Jointly"
+  },
   "entityDetail": {
     "loadingEntity": "Loading {entityType} details...",
     "loadingData": "Loading data for ID: {entityId}",

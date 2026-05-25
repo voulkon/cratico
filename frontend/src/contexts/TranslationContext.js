@@ -58,8 +58,18 @@ export const TranslationProvider = ({ children }) => {
       return key;
     }
 
-    // Replace interpolation parameters {param} with actual values
-    return value.replace(/\{(\w+)\}/g, (match, param) => {
+    // Handle plural syntax: {param, plural, one {text} other {text}}
+    let result = value.replace(
+      /\{(\w+),\s*plural,\s*one\s*\{([^}]*)\}\s*other\s*\{([^}]*)\}\}/g,
+      (match, param, one, other) => {
+        const n = params[param];
+        if (n === undefined) return match;
+        return n === 1 ? one : other;
+      }
+    );
+
+    // Replace simple interpolation parameters {param} with actual values
+    return result.replace(/\{(\w+)\}/g, (match, param) => {
       return params[param] !== undefined ? params[param] : match;
     });
   };

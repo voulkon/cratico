@@ -206,6 +206,17 @@
     "showText" : "Κείμενο Απόφασης",
     "hideText" : "Απόκρυψη Κειμένου Απόφασης"
   },
+  "personPage": {
+    "errorTitle": "Σφάλμα Φόρτωσης Προσώπου",
+    "backButton": "Πίσω",
+    "breadcrumbPerson": "Πρόσωπο",
+    "involvements": "{count} {count, plural, one {εμπλοκή} other {εμπλοκές}}",
+    "roleDates": "Από {from} έως {to}",
+    "representsAloneTitle": "Εκπροσωπεί μόνος",
+    "representsAloneBadge": "Μόνος",
+    "representsInCommonTitle": "Εκπροσωπεί από κοινού",
+    "representsInCommonBadge": "Από κοινού"
+  },
   "entityDetail": {
     "loadingEntity": "Φόρτωση λεπτομερειών {entityType}...",
     "loadingData": "Φόρτωση δεδομένων για ID: {entityId}",

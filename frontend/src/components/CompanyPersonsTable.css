@@ -80,6 +80,17 @@
   font-weight: var(--font-bold);
 }
 
+.person-name-link {
+  color: var(--text-color);
+  text-decoration: none;
+  font-weight: var(--font-bold);
+}
+
+.person-name-link:hover {
+  color: var(--palette-primary);
+  text-decoration: underline;
+}
+
 .business-name-secondary {
   font-size: var(--font-xs);
   color: var(--muted-text);

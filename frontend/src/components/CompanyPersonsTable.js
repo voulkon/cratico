@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
 import './CompanyPersonsTable.css';
 
@@ -33,7 +34,16 @@ const CompanyPersonsTable = ({ persons }) => {
             {persons.map((person, index) => (
               <tr key={index}>
                 <td className="person-name">
-                  {person.person_name || person.business_name || '—'}
+                  {person.person_name ? (
+                    <Link
+                      to={`/person/${encodeURIComponent(person.person_name)}`}
+                      className="person-name-link"
+                    >
+                      {person.person_name}
+                    </Link>
+                  ) : (
+                    person.business_name || '—'
+                  )}
                   {person.person_name && person.business_name && (
                     <div className="business-name-secondary">{person.business_name}</div>
                   )}

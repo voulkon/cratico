@@ -12,6 +12,7 @@ from api.views.companies.details import (
     company_decision_stats,
     company_decisions,
     company_detail,
+    person_companies,
 )
 from api.views.summary import amounts as summary_amounts_views
 
@@ -25,6 +26,11 @@ urlpatterns = [
         "afm/<str:afm>/",
         company_by_afm,
         name="company-by-afm",
+    ),
+    path(
+        "persons/<str:person_name>/",
+        person_companies,
+        name="person-companies",
     ),
     path(
         "<str:afm>/transactions/",

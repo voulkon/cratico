@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from core.models.companies import Company
+from core.models.companies import Company, CompanyPerson
 from core.models.entities import AFMEntity, DecisionEntityRelationship
 from core.services.financial_calculation_service import financial_service
 from core.utils.performance_monitoring import monitor_query_performance
@@ -185,6 +185,50 @@ def company_by_afm(request, afm):
             ],
         }
         return Response(data)
+
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+def person_companies(request, person_name):
+    """Get all companies where a person (by name) is involved."""
+    try:
+        involvements = (
+            CompanyPerson.objects
+            .filter(person_name=person_name)
+            .select_related("company")
+            .order_by("company__co_name_el")
+        )
+
+        if not involvements.exists():
+            return Response({"error": "Person not found"}, status=404)
+
+        results = []
+        for inv in involvements:
+            c = inv.company
+            results.append({
+                "company": {
+                    "id": c.id,
+                    "ar_gemi": c.ar_gemi,
+                    "afm": c.afm,
+                    "co_name_el": c.co_name_el,
+                    "co_names_en": c.co_names_en,
+                    "legal_type_name": c.legal_type_name,
+                    "status_name": c.status_name,
+                    "city": c.city,
+                    "is_branch": c.is_branch,
+                },
+                "role": inv.role,
+                "date_from": inv.date_from,
+                "date_to": inv.date_to,
+                "is_representative_alone": inv.is_representative_alone,
+                "is_representative_in_common": inv.is_representative_in_common,
+                "business_name": inv.business_name,
+            })
+
+        return Response({"person_name": person_name, "involvements": results})
 
     except Exception as e:
         return Response({"error": str(e)}, status=500)
