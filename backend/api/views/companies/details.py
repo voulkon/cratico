@@ -105,6 +105,93 @@ def company_detail(request, company_id):
 
 @api_view(["GET"])
 @permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+def company_by_afm(request, afm):
+    """Get the main (non-branch) company for a given AFM, with all related data."""
+
+    try:
+        company = (
+            Company.objects.prefetch_related("activities", "persons", "capital", "stocks")
+            .filter(afm=afm, is_branch=False)
+            .first()
+        )
+        if company is None:
+            return Response({"error": "Company not found"}, status=404)
+
+        data = {
+            "id": company.id,
+            "ar_gemi": company.ar_gemi,
+            "afm": company.afm,
+            "co_name_el": company.co_name_el,
+            "co_names_en": company.co_names_en,
+            "co_titles_el": company.co_titles_el,
+            "co_titles_en": company.co_titles_en,
+            "legal_type_name": company.legal_type_name,
+            "status_name": company.status_name,
+            "municipality_name": company.municipality_name,
+            "prefecture_name": company.prefecture_name,
+            "city": company.city,
+            "street": company.street,
+            "street_number": company.street_number,
+            "zip_code": company.zip_code,
+            "po_box": company.po_box,
+            "url": company.url,
+            "email": company.email,
+            "is_branch": company.is_branch,
+            "objective": company.objective,
+            "gemi_office_name": company.gemi_office_name,
+            "incorporation_date": company.incorporation_date,
+            "last_status_change": company.last_status_change,
+            "auto_registered": company.auto_registered,
+            "branch_gemi_numbers": company.branch_gemi_numbers,
+            "last_updated": company.last_updated,
+            "activities": [
+                {
+                    "activity_id": a.activity_id,
+                    "activity_name": a.activity_name,
+                    "activity_type": a.activity_type,
+                    "date_from": a.date_from,
+                    "date_to": a.date_to,
+                }
+                for a in company.activities.all()
+            ],
+            "persons": [
+                {
+                    "person_name": p.person_name,
+                    "business_name": p.business_name,
+                    "role": p.role,
+                    "date_from": p.date_from,
+                    "date_to": p.date_to,
+                    "is_representative_alone": p.is_representative_alone,
+                    "is_representative_in_common": p.is_representative_in_common,
+                }
+                for p in company.persons.all()
+            ],
+            "capital": [
+                {
+                    "capital_stock": float(c.capital_stock) if c.capital_stock else None,
+                    "currency": c.currency,
+                    "ecsokefalaiikes": float(c.ecsokefalaiikes) if c.ecsokefalaiikes else None,
+                    "eggiitikes": float(c.eggiitikes) if c.eggiitikes else None,
+                }
+                for c in company.capital.all()
+            ],
+            "stocks": [
+                {
+                    "stock_type": s.stock_type,
+                    "amount": float(s.amount) if s.amount else None,
+                    "nominal_price": float(s.nominal_price) if s.nominal_price else None,
+                }
+                for s in company.stocks.all()
+            ],
+        }
+        return Response(data)
+
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
 @monitor_query_performance(include_context=True)
 def company_decisions(request, company_id):
     """Get all decisions related to a specific company."""
