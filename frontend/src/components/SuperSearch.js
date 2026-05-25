@@ -512,7 +512,7 @@ const SuperSearch = ({
         itemUrl = `/entity/afm/${item.afm}`;
         break;
       case 'company_person':
-        itemUrl = `/entity/company-person/${item.id}`;
+        itemUrl = `/person/${encodeURIComponent(item.text || item.details?.person_name)}`;
         break;
       case 'document':
         itemUrl = `/decision/${item.details?.decision_id}`;
@@ -552,7 +552,7 @@ const SuperSearch = ({
         navigate(`/entity/afm/${item.afm}`);
         break;
       case 'company_person':
-        navigate(`/entity/company-person/${item.id}`);
+        navigate(`/person/${encodeURIComponent(item.text || item.details?.person_name)}`);
         break;
       case 'document':
         navigate(`/decision/${item.details.decision_id}`);
