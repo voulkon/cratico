@@ -7,6 +7,10 @@ import useUrlFilters from '../hooks/useUrlFilters';
 import DecisionCard from '../components/DecisionCard';
 import SortControl from '../components/SortControl';
 import TopCounterparts from '../components/TopCounterparts';
+import CompanyInfoPanel from '../components/CompanyInfoPanel';
+import CompanyPersonsTable from '../components/CompanyPersonsTable';
+import CompanyActivitiesTable from '../components/CompanyActivitiesTable';
+import CompanyCapitalStocks from '../components/CompanyCapitalStocks';
 import './AFMEntityDetailPage.css';
 
 const AFMEntityDetailPage = () => {
@@ -23,6 +27,7 @@ const AFMEntityDetailPage = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [availableRoles, setAvailableRoles] = useState([]);
   const [showRoleFilter, setShowRoleFilter] = useState(false);
+  const [companyInfo, setCompanyInfo] = useState(null);
 
   // Use URL filters hook - replaces all the manual URL state management
   const {
@@ -82,6 +87,14 @@ const AFMEntityDetailPage = () => {
   useEffect(() => {
     fetchEntityData();
   }, [afm, sortBy, selectedRoles, directAssignmentsOnly]);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiClient.get(`/companies/afm/${afm}/`)
+      .then(res => { if (!cancelled) setCompanyInfo(res.data); })
+      .catch(() => { /* feature may be disabled or entity has no company record */ });
+    return () => { cancelled = true; };
+  }, [afm]);
 
   const handleLoadMore = () => {
     if (pagination?.has_next && !loadingMore) {
@@ -254,6 +267,19 @@ const AFMEntityDetailPage = () => {
           }}
           limit={5}
         />
+      )}
+
+      {/* GEMI Company Information */}
+      {companyInfo && (
+        <div className="gemi-section">
+          <h2 className="gemi-section-title">{t('entityDetail.gemiCompanyInformation')}</h2>
+          <div className="gemi-components-grid">
+            <CompanyInfoPanel company={companyInfo} />
+            <CompanyCapitalStocks capital={companyInfo.capital} stocks={companyInfo.stocks} />
+            <CompanyPersonsTable persons={companyInfo.persons} />
+            <CompanyActivitiesTable activities={companyInfo.activities} />
+          </div>
+        </div>
       )}
 
       {/* Role Breakdown */}

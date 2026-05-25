@@ -353,6 +353,7 @@
     },
     "relatedDecisions": "Related Decisions",
     "filterByRole": "Filter by Role",
+    "gemiCompanyInformation": "Company Information from Business Registry (GEMI)",
     "noDecisionsWithFilters": "No decisions found with current filters",
     "noDecisions": "No decisions found for this entity"
   },
@@ -581,5 +582,17 @@
     "clickToEdit": "Click to edit",
     "endBeforeStart" : "End date must be after start date",
     "startAfterEnd" : "Start date must be before end date"
+  },
+  "companyPersonsTable": {
+    "sectionTitle": "Administration / Representatives",
+    "columnName": "Full Name / Business Name",
+    "columnRole": "Role",
+    "columnFrom": "From",
+    "columnTo": "To",
+    "columnRepresentation": "Representation",
+    "representsAloneTitle": "Represents alone",
+    "representsAloneBadge": "Alone",
+    "representsInCommonTitle": "Represents jointly",
+    "representsInCommonBadge": "Jointly"
   }
 }

@@ -257,6 +257,7 @@
     "lastActivity": "Τελευταία Δραστηριότητα",
     "organizationsAndPositions" : "Οργανισμοί και Θέσεις",
     "organizationsCountLabel": "οργανισμοί",
+    "gemiCompanyInformation": "Πληροφορίες Εταιρείας από το Μητρώο Επιχειρήσεων (ΓΕΜΗ)",
     "positionsCountLabel": "θέσεις"
   },
   "decisionDetail": {
@@ -578,5 +579,17 @@
     "clickToEdit": "Κάντε κλικ για επεξεργασία",
     "endBeforeStart" : "Η ημερομηνία λήξης πρέπει να είναι μετά την ημερομηνία έναρξης",
     "startAfterEnd" : "Η ημερομηνία έναρξης πρέπει να είναι πριν από την ημερομηνία λήξης"
+  },
+  "companyPersonsTable": {
+    "sectionTitle": "Διοίκηση / Εκπρόσωποι",
+    "columnName": "Ονοματεπώνυμο / Επωνυμία",
+    "columnRole": "Ιδιότητα",
+    "columnFrom": "Από",
+    "columnTo": "Έως",
+    "columnRepresentation": "Εκπροσώπηση",
+    "representsAloneTitle": "Εκπροσωπεί μόνος",
+    "representsAloneBadge": "Μόνος",
+    "representsInCommonTitle": "Εκπροσωπεί από κοινού",
+    "representsInCommonBadge": "Από κοινού"
   }
 }
