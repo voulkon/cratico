@@ -591,5 +591,42 @@
     "representsAloneBadge": "Μόνος",
     "representsInCommonTitle": "Εκπροσωπεί από κοινού",
     "representsInCommonBadge": "Από κοινού"
+  },
+  "companyInfoPanel": {
+    "viewOnBusinessPortalTitle": "Προβολή στο Business Portal",
+    "businessPortalLink": "Business Portal ↗",
+    "hideDetails": "▲ Απόκρυψη",
+    "showDetails": "▼ Προβολή στοιχείων",
+    "labelGemi": "ΓΕΜΗ",
+    "labelAfm": "ΑΦΜ",
+    "labelLegalType": "Νομική Μορφή",
+    "labelStatus": "Κατάσταση",
+    "labelIncorporationDate": "Ημ/νία Ίδρυσης",
+    "labelLastStatusChange": "Τελ. Αλλαγή Κατάστασης",
+    "labelAddress": "Διεύθυνση",
+    "labelMunicipality": "Δήμος",
+    "labelPrefecture": "Περιφέρεια",
+    "labelEmail": "Email",
+    "labelWebsite": "Website",
+    "labelGemiOffice": "Υπηρεσία ΓΕΜΗ",
+    "labelBranches": "Υποκαταστήματα",
+    "objectiveLabel": "Σκοπός Εταιρείας"
+  },
+  "companyActivitiesTable": {
+    "sectionTitle": "Δραστηριότητες (ΚΑΔ)",
+    "columnCode": "ΚΑΔ",
+    "columnDescription": "Περιγραφή",
+    "columnType": "Τύπος",
+    "columnFrom": "Από",
+    "columnTo": "Έως"
+  },
+  "companyCapitalStocks": {
+    "sectionTitle": "Κεφάλαιο & Μετοχές",
+    "labelCapitalStock": "Μετοχικό Κεφάλαιο",
+    "labelExtraCapital": "Εξωκεφαλαιικές",
+    "labelGuarantees": "Εγγυητικές",
+    "columnStockType": "Τύπος Μετοχών",
+    "columnAmount": "Αριθμός",
+    "columnNominalValue": "Ονομαστική Αξία"
   }
 }

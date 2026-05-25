@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { useTranslation } from '../contexts/TranslationContext';
 import './CompanyActivitiesTable.css';
 
 const CompanyActivitiesTable = ({ activities }) => {
   const [isOpen, setIsOpen] = useState(false);
-
+  const { t } = useTranslation();
+  
   if (!activities || activities.length === 0) return null;
 
   // Sort: primary (Κύρια) first
@@ -19,7 +21,7 @@ const CompanyActivitiesTable = ({ activities }) => {
     <div className="company-activities-table">
       <button className="section-toggle" onClick={() => setIsOpen(!isOpen)}>
         <span className="section-toggle-label">
-          Δραστηριότητες (ΚΑΔ)
+          {t('companyActivitiesTable.sectionTitle')}
           <span className="section-toggle-count">{activities.length}</span>
           {!isOpen && primaryActivity && (
             <span className="section-toggle-preview">{primaryActivity.activity_name}</span>
@@ -32,11 +34,11 @@ const CompanyActivitiesTable = ({ activities }) => {
         <table>
           <thead>
             <tr>
-              <th>ΚΑΔ</th>
-              <th>Περιγραφή</th>
-              <th>Τύπος</th>
-              <th>Από</th>
-              <th>Έως</th>
+              <th>{t('companyActivitiesTable.columnCode')}</th>
+              <th>{t('companyActivitiesTable.columnDescription')}</th>
+              <th>{t('companyActivitiesTable.columnType')}</th>
+              <th>{t('companyActivitiesTable.columnFrom')}</th>
+              <th>{t('companyActivitiesTable.columnTo')}</th>
             </tr>
           </thead>
           <tbody>

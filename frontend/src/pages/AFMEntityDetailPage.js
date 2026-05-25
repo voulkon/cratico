@@ -272,7 +272,7 @@ const AFMEntityDetailPage = () => {
       {/* GEMI Company Information */}
       {companyInfo && (
         <div className="gemi-section">
-          <h2 className="gemi-section-title">{t('entityDetail.gemiCompanyInformation')}</h2>
+          <h2 className="gemi-section-title">{t('afmEntityDetail.gemiCompanyInformation')}</h2>
           <div className="gemi-components-grid">
             <CompanyInfoPanel company={companyInfo} />
             <CompanyCapitalStocks capital={companyInfo.capital} stocks={companyInfo.stocks} />

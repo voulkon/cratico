@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import { useTranslation } from '../contexts/TranslationContext';
 import './CompanyCapitalStocks.css';
 
 const formatAmount = (amount, currency) => {
+  
   if (amount == null) return '—';
   const currencySymbols = { Euro: '€', EUR: '€', USD: '$', GBP: '£' };
   const symbol = currencySymbols[currency] || currency || '€';
@@ -12,6 +14,7 @@ const formatAmount = (amount, currency) => {
 };
 
 const CompanyCapitalStocks = ({ capital, stocks }) => {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(true);
 
   const hasCapital = capital && capital.length > 0;
@@ -22,7 +25,7 @@ const CompanyCapitalStocks = ({ capital, stocks }) => {
   return (
     <div className="company-capital-stocks">
       <button className="section-toggle" onClick={() => setIsOpen(!isOpen)}>
-        <span className="section-toggle-label">Κεφάλαιο & Μετοχές</span>
+        <span className="section-toggle-label">{t('companyCapitalStocks.sectionTitle')}</span>
         <span className="toggle-arrow">{isOpen ? '▲' : '▼'}</span>
       </button>
       {isOpen && (<>
@@ -32,18 +35,18 @@ const CompanyCapitalStocks = ({ capital, stocks }) => {
           {capital.map((c, i) => (
             <div key={i} className="capital-grid">
               <div className="capital-item">
-                <span className="info-label">Μετοχικό Κεφάλαιο</span>
+                <span className="info-label">{t('companyCapitalStocks.labelCapitalStock')}</span>
                 <span className="capital-value">{formatAmount(c.capital_stock, c.currency)}</span>
               </div>
               {c.ecsokefalaiikes != null && c.ecsokefalaiikes !== 0 && (
                 <div className="capital-item">
-                  <span className="info-label">Εξωκεφαλαιικές</span>
+                  <span className="info-label">{t('companyCapitalStocks.labelExtraCapital')}</span>
                   <span className="capital-value">{formatAmount(c.ecsokefalaiikes, c.currency)}</span>
                 </div>
               )}
               {c.eggiitikes != null && c.eggiitikes !== 0 && (
                 <div className="capital-item">
-                  <span className="info-label">Εγγυητικές</span>
+                  <span className="info-label">{t('companyCapitalStocks.labelGuarantees')}</span>
                   <span className="capital-value">{formatAmount(c.eggiitikes, c.currency)}</span>
                 </div>
               )}
@@ -58,9 +61,9 @@ const CompanyCapitalStocks = ({ capital, stocks }) => {
             <table>
               <thead>
                 <tr>
-                  <th>Τύπος Μετοχών</th>
-                  <th>Αριθμός</th>
-                  <th>Ονομαστική Αξία</th>
+                  <th>{t('companyCapitalStocks.columnStockType')}</th>
+                  <th>{t('companyCapitalStocks.columnAmount')}</th>
+                  <th>{t('companyCapitalStocks.columnNominalValue')}</th>
                 </tr>
               </thead>
               <tbody>

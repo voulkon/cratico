@@ -594,5 +594,42 @@
     "representsAloneBadge": "Alone",
     "representsInCommonTitle": "Represents jointly",
     "representsInCommonBadge": "Jointly"
+  },
+  "companyInfoPanel": {
+    "viewOnBusinessPortalTitle": "View on Business Portal",
+    "businessPortalLink": "Business Portal ↗",
+    "hideDetails": "▲ Hide",
+    "showDetails": "▼ Show details",
+    "labelGemi": "ΓΕΜΗ",
+    "labelAfm": "AFM",
+    "labelLegalType": "Legal Form",
+    "labelStatus": "Status",
+    "labelIncorporationDate": "Incorporation Date",
+    "labelLastStatusChange": "Last Status Change",
+    "labelAddress": "Address",
+    "labelMunicipality": "Municipality",
+    "labelPrefecture": "Prefecture",
+    "labelEmail": "Email",
+    "labelWebsite": "Website",
+    "labelGemiOffice": "ΓΕΜΗ Office",
+    "labelBranches": "Branches",
+    "objectiveLabel": "Company Objective"
+  },
+  "companyActivitiesTable": {
+    "sectionTitle": "Activities (KAD)",
+    "columnCode": "KAD",
+    "columnDescription": "Description",
+    "columnType": "Type",
+    "columnFrom": "From",
+    "columnTo": "To"
+  },
+  "companyCapitalStocks": {
+    "sectionTitle": "Capital & Stocks",
+    "labelCapitalStock": "Share Capital",
+    "labelExtraCapital": "Extra-Capital",
+    "labelGuarantees": "Guarantees",
+    "columnStockType": "Stock Type",
+    "columnAmount": "Number",
+    "columnNominalValue": "Nominal Value"
   }
 }
