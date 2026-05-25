@@ -8,8 +8,7 @@
   transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
-  min-height: 400px;
-  max-height: 600px;
+  overflow: hidden;
 }
 
 /* When used inside data-grid, remove margin */
@@ -140,6 +139,55 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.counterparts-grid.collapsed {
+  max-height: 440px;
+  overflow: hidden;
+}
+
+.counterparts-grid.expanded {
+  max-height: none;
+  overflow: visible;
+}
+
+/* Expand Toggle Button */
+.expand-toggle {
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  color: var(--text-color);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.expand-toggle:hover {
+  background: var(--hover-bg);
+  border-color: var(--palette-primary);
+  color: var(--palette-primary);
+}
+
+/* See All Button */
+.see-all-button {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px;
+  background: none;
+  border: 1px dashed var(--border-color);
+  border-radius: 6px;
+  color: var(--palette-primary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.see-all-button:hover {
+  background: var(--hover-bg);
+  border-color: var(--palette-primary);
 }
 
 /* Counterpart Card - Compact for Single Column */
