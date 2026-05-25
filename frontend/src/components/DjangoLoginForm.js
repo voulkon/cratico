@@ -28,10 +28,10 @@ function DjangoLoginForm({ onSuccess, onCancel, onSwitchToRegister, onForgotPass
       if (result.success) {
         if (onSuccess) onSuccess();
       } else {
-        setError(result.error || 'Login failed');
+        setError(result.error || t('auth.loginFailed'));
       }
     } catch (err) {
-      setError('An error occurred during login');
+      setError(t('auth.loginError'));
     } finally {
       setLoading(false);
     }
@@ -42,7 +42,7 @@ function DjangoLoginForm({ onSuccess, onCancel, onSwitchToRegister, onForgotPass
     <div className={`django-login-overlay ${isDarkMode ? 'dark' : 'light'}`}>
       <div className="django-login-modal">
         <div className="django-login-header">
-          <h2>{t('common.signIn') || 'Sign In'}</h2>
+          <h2>{t('auth.signIn')}</h2>
           <button
             className="django-login-close"
             onClick={onCancel}
@@ -60,13 +60,13 @@ function DjangoLoginForm({ onSuccess, onCancel, onSwitchToRegister, onForgotPass
           )}
 
           <div className="django-login-field">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="email">{t('auth.emailLabel')}</label>
             <input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
+              placeholder={t('auth.emailPlaceholder')}
               required
               disabled={loading}
               autoFocus
@@ -74,13 +74,13 @@ function DjangoLoginForm({ onSuccess, onCancel, onSwitchToRegister, onForgotPass
           </div>
 
           <div className="django-login-field">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">{t('auth.passwordLabel')}</label>
             <input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
+              placeholder={t('auth.passwordPlaceholder')}
               required
               disabled={loading}
             />
@@ -93,7 +93,7 @@ function DjangoLoginForm({ onSuccess, onCancel, onSwitchToRegister, onForgotPass
               className="django-login-forgot-link"
               disabled={loading}
             >
-              Forgot password?
+              {t('auth.forgotPassword')}
             </button>
           </div>
 
@@ -104,27 +104,27 @@ function DjangoLoginForm({ onSuccess, onCancel, onSwitchToRegister, onForgotPass
               onClick={onCancel}
               disabled={loading}
             >
-              Cancel
+              {t('auth.cancel')}
             </button>
             <button
               type="submit"
               className="django-login-submit"
               disabled={loading}
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? t('auth.signingIn') : t('auth.signIn')}
             </button>
           </div>
         </form>
 
         <div className="django-login-footer">
           <p>
-            Don't have an account?{' '}
+            {t('auth.noAccount')}{' '}
             <button
               onClick={onSwitchToRegister}
               className="django-login-switch"
               disabled={loading}
             >
-              Create Account
+              {t('auth.createAccount')}
             </button>
           </p>
         </div>

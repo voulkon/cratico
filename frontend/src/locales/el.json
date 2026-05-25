@@ -412,7 +412,17 @@
     "signInToBookmark" : "Σελιδοδείκτες",
     "signInExplanation" : "Αυτή η λειτουργία απαιτεί λογαριασμό. Παρακαλώ συνδεθείτε για να συνεχίσετε.",
     "NotificationSignInExplanation" : "Χρειαζόμαστε email για να σας στέλνουμε ειδοποιήσεις, και λογαριασμό για να θυμόμαστε τους κανόνες σας.",
-    "BookmarkSignInExplanation" : "Δεν μπορούμε να σας δείξουμε τους αποθηκευμένους σελιδοδείκτες σας αν δεν σας θυμόμαστε."
+    "BookmarkSignInExplanation" : "Δεν μπορούμε να σας δείξουμε τους αποθηκευμένους σελιδοδείκτες σας αν δεν σας θυμόμαστε.",
+    "loginFailed": "Η σύνδεση απέτυχε",
+    "loginError": "Παρουσιάστηκε σφάλμα κατά τη σύνδεση",
+    "emailLabel": "Email",
+    "emailPlaceholder": "Εισάγετε το email σας",
+    "passwordLabel": "Κωδικός",
+    "passwordPlaceholder": "Εισάγετε τον κωδικό σας",
+    "forgotPassword": "Ξεχάσατε τον κωδικό σας;",
+    "signingIn": "Σύνδεση...",
+    "noAccount": "Δεν έχετε λογαριασμό;",
+    "createAccount": "Δημιουργία Λογαριασμού"
   },
   "counterparts": {
     "topOrganizations": "Κορυφαίοι Οργανισμοί",

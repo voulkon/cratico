@@ -412,7 +412,17 @@
     "signInToBookmark": "Bookmarks",
     "signInExplanation": "This feature requires an account to work. Please sign in to continue.",
     "NotificationSignInExplanation": "We need an email address to send you notifications and an account to remember your rules.",
-    "BookmarkSignInExplanation": "We can't show you your saved bookmarks if we don't remember who you are."
+    "BookmarkSignInExplanation": "We can't show you your saved bookmarks if we don't remember who you are.",
+    "loginFailed": "Login failed",
+    "loginError": "An error occurred during login",
+    "emailLabel": "Email",
+    "emailPlaceholder": "Enter your email",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "Enter your password",
+    "forgotPassword": "Forgot password?",
+    "signingIn": "Signing in...",
+    "noAccount": "Don't have an account?",
+    "createAccount": "Create Account"
   },
   "counterparts": {
     "topOrganizations": "Top Organizations",
