@@ -18,6 +18,7 @@ from datetime import date, timedelta
 
 from celery import shared_task
 from core.models.decisions import Decision
+from core.services.coverage_service import BackfillCoverageService
 from core.services.feature_flag_service import feature_flags
 from core.services.import_job_queue import ImportJobQueue
 from django.db.models import Max
@@ -137,41 +138,40 @@ def trigger_next_backfill():
 
 def find_next_oldest_missing_day(entity_type="all", entity_id=None) -> date | None:
     """
-    Find the next missing day going backwards from the most recent data.
+    Find the next under-imported day going backwards from the most recent data.
 
     Uses actual Decision records with indexed issue_date_day field.
     Does NOT rely on DateCoverage (which may not be accurate).
 
+    Day completion is evaluated in priority order:
+
+    1. PRIMARY — A completed ImportJob exists for the exact date → day is done.
+       This is the authoritative signal: we ran a full import and it finished.
+
+    2. FALLBACK — No ImportJob found, but decision count meets the minimum
+       threshold for the day type (via PublicHolidayDetectionService):
+       - Workdays:    ≥ 14,000 decisions
+       - Weekends:    ≥ 300 decisions
+       - Holidays:    ≥ 200 decisions
+
     Algorithm (like Ctrl+Left in Excel):
     1. Find the most recent date with decisions (e.g., May 20, 2026)
     2. Go backwards day by day
-    3. Skip days WITH decisions (continuous coverage)
-    4. Return the FIRST day WITHOUT decisions (most recent gap)
-
-    Example timeline (going backwards):
-    - May-March: all present (skip)
-    - February: MISSING ← return Feb 28 (first missing day found)
-    - January: all present (won't check yet)
-    - December: missing (will find later)
-    - November: all present
+    3. Skip days that pass either the ImportJob or threshold check
+    4. Return the FIRST day that fails both checks
 
     Args:
         entity_type: 'all', 'organization', 'unit', or 'signer'
         entity_id: ID of the specific entity (if not 'all')
 
     Returns:
-        The next date to import (most recent gap), or None if no gaps found
+        The next date to import (most recent under-imported day), or None if
+        all days are considered done going back to the API launch date.
     """
-    # Build filter for Decision records based on entity type
-    decision_filter = {}
-
-    if entity_type == "organization" and entity_id:
-        decision_filter["organization__uid"] = entity_id
-    elif entity_type == "unit" and entity_id:
-        decision_filter["units__uid"] = entity_id
-    elif entity_type == "signer" and entity_id:
-        decision_filter["signers__uid"] = entity_id
-    # For 'all', no filter needed
+    # Build filters for Decision records and ImportJobs based on entity type
+    decision_filter, job_filter = BackfillCoverageService.build_entity_filters(
+        entity_type, entity_id
+    )
 
     # Find the MOST RECENT date with actual decisions in our database
     # Use issue_date_day which is indexed for efficiency
@@ -196,18 +196,42 @@ def find_next_oldest_missing_day(entity_type="all", entity_id=None) -> date | No
     api_launch_date = date(2010, 10, 1)  # Diavgeia API approximate launch
 
     while current_date >= api_launch_date:
-        # Check if this date has any decisions in our DB using indexed field
-        has_data = Decision.objects.filter(
-            **decision_filter, issue_date_day=current_date
-        ).exists()
+        verdict, details = BackfillCoverageService.classify_day(
+            current_date, decision_filter, job_filter
+        )
+        day_type = details["day_type"]
+        decision_count = details["decision_count"]
+        min_expected = details["min_expected"]
 
-        if not has_data:
-            # Found a day without data - this is our target
-            logger.info(f"Found next missing day: {current_date}")
-            return current_date
+        if verdict == "done_job":
+            logger.debug(
+                f"[{current_date}] Done — ImportJob #{details['job_id']} completed "
+                f"({details['total_decisions']:,} decisions, "
+                f"{details['chunks_completed']}/{details['total_chunks']} chunks)"
+            )
+            current_date -= timedelta(days=1)
+            continue
 
-        # This day has data, keep going backwards
-        current_date -= timedelta(days=1)
+        if details.get("job_skip_reason"):
+            logger.debug(
+                f"[{current_date}] Completed ImportJob ignored — {details['job_skip_reason']}"
+            )
+
+        if verdict == "done_threshold":
+            logger.debug(
+                f"[{current_date}] Done — no valid ImportJob, but threshold met "
+                f"(type={day_type}, count={decision_count:,}/{min_expected:,})"
+            )
+            current_date -= timedelta(days=1)
+            continue
+
+        # under_imported — neither check passed
+        logger.info(
+            f"[{current_date}] Under-imported — no valid ImportJob and below threshold "
+            f"(type={day_type}, count={decision_count:,}, min_expected={min_expected:,}) "
+            f"→ scheduling backfill"
+        )
+        return current_date
 
     logger.info(f"No gaps found going back to {api_launch_date}")
     return None
