@@ -25,7 +25,7 @@ RUN poetry config virtualenvs.create false
 # Use BuildKit cache mounts to persist both pip and poetry caches
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/root/.cache/pypoetry \
-    poetry install --no-root --no-interaction --no-ansi --only main
+    poetry install --no-root --no-interaction --no-ansi --only main,dev
 
 # ──────────── STAGE 2: Final runtime image ────────────
 FROM python:3.12-slim AS runtime
