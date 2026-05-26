@@ -107,7 +107,7 @@ class DecisionPipelineOrchestrator:
 
         # Bind ingestion_id to all logs in this context
         with logger.contextualize(ingestion_id=ingestion_id, ada=decision_ada):
-            logger.info(
+            logger.debug(
                 f"\n{self._separator()}\n"
                 f"[START] Starting pipeline for decision {decision_ada}\n"
                 f"   Ingestion ID: {ingestion_id} (use this to filter logs)\n"
