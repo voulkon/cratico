@@ -73,6 +73,7 @@ class AFMFetchQueueService:
         limit: Optional[int] = None,
         force_refresh: bool = False,
         auto_trigger: bool = True,
+        target_count: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Populate Redis queue from AFMEntityScore table.
@@ -81,9 +82,17 @@ class AFMFetchQueueService:
         Higher scores = higher priority = processed first.
 
         Args:
-            limit: Maximum number of entities to queue (None = all eligible)
+            limit: Maximum number of entities to examine from the top of the ranking.
+                   Some of those may be skipped (already processed/queued), so the
+                   actual number added can be lower.  Use `target_count` when you
+                   need an exact number of *new* additions.
             force_refresh: Clear existing queue before populating
             auto_trigger: If True, automatically trigger processing task after adding items
+            target_count: When set, paginate through the ranked list until exactly this
+                          many *new* entities have been added (ignoring already-processed
+                          ones).  Overrides `limit`.  Use this for the virtuous-cycle
+                          batch trigger so gaps in the processed set are not mistaken
+                          for "nothing left to do".
 
         Returns:
             Statistics about queue population
@@ -93,40 +102,71 @@ class AFMFetchQueueService:
         if force_refresh:
             self.clear_queue()
 
-        # Get eligible entities ordered by score (highest first)
-        queryset = (
+        # Base queryset — eligible entities ordered by score (highest first)
+        base_queryset = (
             AFMEntityScore.objects.filter(is_eligible=True)
             .select_related("entity")
             .order_by("-total_score")
-        )  # Higher score = higher priority
-
-        if limit:
-            queryset = queryset[:limit]
+        )
 
         added = 0
         skipped_already_queued = 0
         skipped_already_processed = 0
 
-        for score in queryset:
-            afm = score.entity.afm
+        if target_count is not None:
+            # Paginate through the ranked list until we have added exactly
+            # target_count new entries.  This correctly skips over already-
+            # processed entities without stopping early.
+            page_size = max(target_count * 10, 100)
+            offset = 0
 
-            # Skip if already in any completion set
-            if self._is_processed(afm):
-                skipped_already_processed += 1
-                continue
+            while added < target_count:
+                page = list(base_queryset[offset : offset + page_size])
+                if not page:
+                    break  # Exhausted all eligible entities
 
-            # Skip if already in pending queue
-            if self.redis_client.zscore(self.PENDING_KEY, afm) is not None:
-                skipped_already_queued += 1
-                continue
+                for score in page:
+                    afm = score.entity.afm
 
-            # Add to pending queue (score determines sort order)
-            # Use score directly - higher scores processed first
-            self.redis_client.zadd(
-                self.PENDING_KEY,
-                {afm: float(score.total_score)},  # Higher score = higher priority
-            )
-            added += 1
+                    if self._is_processed(afm):
+                        skipped_already_processed += 1
+                        continue
+
+                    if self.redis_client.zscore(self.PENDING_KEY, afm) is not None:
+                        skipped_already_queued += 1
+                        continue
+
+                    self.redis_client.zadd(
+                        self.PENDING_KEY, {afm: float(score.total_score)}
+                    )
+                    added += 1
+
+                    if added >= target_count:
+                        break
+
+                offset += page_size
+        else:
+            # Original behaviour: examine the top `limit` records (or all if None)
+            queryset = base_queryset
+            if limit:
+                queryset = queryset[:limit]
+
+            for score in queryset:
+                afm = score.entity.afm
+
+                if self._is_processed(afm):
+                    skipped_already_processed += 1
+                    continue
+
+                if self.redis_client.zscore(self.PENDING_KEY, afm) is not None:
+                    skipped_already_queued += 1
+                    continue
+
+                self.redis_client.zadd(
+                    self.PENDING_KEY,
+                    {afm: float(score.total_score)},
+                )
+                added += 1
 
         stats = {
             "added": added,

@@ -206,6 +206,17 @@ class FeatureFlag(models.Model):
                 )
                 trigger_next_backfill.delay()
 
+        # Trigger company GEMI cycle when AUTO_COMPANY_GEMI_IMPORT_ENABLED is turned on
+        if self.key == "AUTO_COMPANY_GEMI_IMPORT_ENABLED" and self.value_type == "boolean":
+            if self.enabled and (old_enabled is False or old_enabled is None):
+                from core.tasks.tasks_auto_import import trigger_next_company_gemi_batch
+                from loguru import logger
+
+                logger.info(
+                    "AUTO_COMPANY_GEMI_IMPORT_ENABLED was just enabled - triggering first batch"
+                )
+                trigger_next_company_gemi_batch.delay()
+
     def delete(self, *args, **kwargs):
         """Override delete to invalidate cache."""
         cache_key = f"feature_flag:{self.key}"

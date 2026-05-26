@@ -235,3 +235,80 @@ def find_next_oldest_missing_day(entity_type="all", entity_id=None) -> date | No
 
     logger.info(f"No gaps found going back to {api_launch_date}")
     return None
+
+
+@shared_task
+def trigger_next_company_gemi_batch(batch_size: int = 3, _previous_result=None):
+    """
+    Continuous virtuous-cycle GEMI company fetcher (autofarming).
+
+    Called automatically after each batch of AFM fetches completes.
+    Grabs the next `batch_size` top-ranked eligible companies that have not
+    yet been fetched, adds them to the AFMFetchQueueService priority queue,
+    dispatches process_afm_fetch_queue for exactly that batch, and chains
+    itself as the completion callback so the cycle continues.
+
+    Cycle stops naturally when:
+    - AUTO_COMPANY_GEMI_IMPORT_ENABLED is turned off  (checked every iteration)
+    - No more unfetched eligible entities remain
+
+    Args:
+        batch_size: How many companies to grab per iteration (default: 3)
+        _previous_result: Ignored — present so Celery can pass it when used
+                          as a success link from process_afm_fetch_queue.
+    """
+    if not feature_flags.is_enabled("AUTO_COMPANY_GEMI_IMPORT_ENABLED"):
+        logger.debug(
+            "AUTO_COMPANY_GEMI_IMPORT_ENABLED is disabled, stopping company GEMI cycle"
+        )
+        return {"status": "skipped", "reason": "feature_flag_disabled"}
+
+    from core.services.afm_fetch_queue_service import AFMFetchQueueService
+    from core.tasks.tasks_entities import process_afm_fetch_queue
+
+    queue_service = AFMFetchQueueService()
+
+    # Guard: if there are already pending items another cycle iteration is in
+    # flight (e.g. beat triggered while cycle was running).  Let it finish.
+    pending = queue_service.get_pending_count()
+    if pending > 0:
+        logger.info(
+            f"Company GEMI cycle already in flight ({pending} pending), skipping duplicate trigger"
+        )
+        return {"status": "skipped", "reason": "already_running", "pending": pending}
+
+    # Grab the next batch from the ranked eligible list
+    stats = queue_service.populate_queue_from_scores(
+        target_count=batch_size,
+        force_refresh=False,
+        auto_trigger=False,
+    )
+
+    added = stats.get("added", 0)
+
+    if added == 0:
+        logger.info(
+            "Company GEMI cycle complete — no more eligible entities to fetch"
+        )
+        return {
+            "status": "completed",
+            "message": "All eligible entities have been processed",
+        }
+
+    logger.info(
+        f"Company GEMI cycle: queued {added} companies, dispatching fetch + next trigger"
+    )
+
+    # Dispatch fetch for exactly this batch; on success, chain the next trigger.
+    # .si() makes the signature immutable so Celery does not inject the
+    # preceding task's result as a positional argument.
+    process_afm_fetch_queue.apply_async(
+        kwargs={"max_items": added},
+        link=trigger_next_company_gemi_batch.si(batch_size=batch_size),
+    )
+
+    return {
+        "status": "queued",
+        "added": added,
+        "batch_size": batch_size,
+    }

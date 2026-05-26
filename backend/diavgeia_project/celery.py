@@ -177,6 +177,9 @@ def get_auto_import_time():
 
 auto_import_hour, auto_import_minute = get_auto_import_time()
 
+
+
+
 app.conf.beat_schedule = {
     # "persist-analytics-daily": {
     #     "task": "api.tasks.persist_analytics_task",
@@ -246,5 +249,13 @@ app.conf.beat_schedule = {
     "auto-daily-import": {
         "task": "core.tasks.tasks_auto_import.auto_daily_import_task",
         "schedule": crontab(hour=auto_import_hour, minute=auto_import_minute),
+    },
+    # Auto Company GEMI Import — virtuous-cycle recovery heartbeat (daily at 02:00)
+    # The cycle is self-sustaining once started (chains itself via Celery link);
+    # this beat entry only restarts the chain if it died unexpectedly.
+    # Start/stop is controlled entirely by the AUTO_COMPANY_GEMI_IMPORT_ENABLED flag.
+    "auto-company-gemi-import": {
+        "task": "core.tasks.tasks_auto_import.trigger_next_company_gemi_batch",
+        "schedule": crontab(hour=2, minute=0),
     },
 }
