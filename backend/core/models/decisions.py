@@ -1,7 +1,9 @@
 import decimal
 from enum import Enum
+from zoneinfo import ZoneInfo
 
 from core.models.organizations import Organization, Signer, Unit
+from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
@@ -238,10 +240,14 @@ class Decision(models.Model):
 
     def save(self, *args, **kwargs):
         # Auto-populate the computed fields
+        # Diavgeia encodes issue dates as midnight Athens time, so we must
+        # convert to Europe/Athens before extracting the date — otherwise UTC
+        # midnight (22:00 UTC previous day) would land on the wrong calendar day.
         if self.issue_date:
-            self.issue_date_day = self.issue_date.date()
-            self.issue_date_month = self.issue_date.replace(day=1).date()
-            self.issue_date_year = self.issue_date.year
+            athens_dt = self.issue_date.astimezone(ZoneInfo(settings.TIME_ZONE))
+            self.issue_date_day = athens_dt.date()
+            self.issue_date_month = athens_dt.date().replace(day=1)
+            self.issue_date_year = athens_dt.year
         super().save(*args, **kwargs)
 
     # ------------------------------------------------------------------

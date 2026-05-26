@@ -526,7 +526,7 @@ def update_coverage(request, pk):
         # Recalculate decision count
         actual_count = Decision.objects.filter(
             organization=decision.organization,
-            issue_date__date=decision.issue_date.date(),
+            issue_date_day=decision.issue_date_day,
         ).count()
 
         old_count = coverage.decision_count

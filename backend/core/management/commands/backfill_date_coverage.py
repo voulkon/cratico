@@ -1,5 +1,6 @@
 from core.models.decisions import Decision
 from core.models.import_jobs import DateCoverage
+from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models import Count
@@ -29,19 +30,19 @@ class Command(BaseCommand):
 
         org_counts = (
             Decision.objects.exclude(organization__isnull=True)
-            .values("organization", "issue_date__date")
+            .values("organization", "issue_date_day")
             .annotate(decision_count=Count("id"))
         )
 
         with transaction.atomic():
             for item in org_counts:
-                if not item["issue_date__date"] or not item["organization"]:
+                if not item["issue_date_day"] or not item["organization"]:
                     continue
 
                 # Handle potential duplicates by using get_or_create with exception handling
                 try:
                     coverage, created = DateCoverage.objects.get_or_create(
-                        date=item["issue_date__date"],
+                        date=item["issue_date_day"],
                         organization_id=item["organization"],
                         unit=None,
                         signer=None,
@@ -55,12 +56,12 @@ class Command(BaseCommand):
                     # Handle duplicates by deleting all and creating a new one
                     self.stdout.write(
                         self.style.WARNING(
-                            f'Found duplicates for date {item["issue_date__date"]} '
+                            f'Found duplicates for date {item["issue_date_day"]} '
                             f'and organization {item["organization"]}. Cleaning up...'
                         )
                     )
                     DateCoverage.objects.filter(
-                        date=item["issue_date__date"],
+                        date=item["issue_date_day"],
                         organization_id=item["organization"],
                         unit=None,
                         signer=None,
@@ -68,7 +69,7 @@ class Command(BaseCommand):
 
                     # Create new record
                     DateCoverage.objects.create(
-                        date=item["issue_date__date"],
+                        date=item["issue_date_day"],
                         organization_id=item["organization"],
                         unit=None,
                         signer=None,
@@ -91,7 +92,7 @@ class Command(BaseCommand):
                 """
                 SELECT
                     s.uid as signer_id,
-                    d.issue_date::date as decision_date,
+                    (d.issue_date AT TIME ZONE %(tz)s)::date as decision_date,
                     COUNT(DISTINCT d.id) as decision_count
                 FROM
                     core_decision d
@@ -102,8 +103,9 @@ class Command(BaseCommand):
                 WHERE
                     d.issue_date IS NOT NULL
                 GROUP BY
-                    s.uid, d.issue_date::date
-            """
+                    s.uid, (d.issue_date AT TIME ZONE %(tz)s)::date
+            """,
+                {"tz": settings.TIME_ZONE},
             )
 
             signer_rows = cursor.fetchall()
