@@ -165,7 +165,7 @@ def update_coverage_stats(
     current_date = start
     while current_date <= end:
         # Build filter for decisions on this date
-        date_filter = {"issue_date__date": current_date}
+        date_filter = {"issue_date_day": current_date}
 
         if organization_id:
             date_filter["organization__uid"] = organization_id

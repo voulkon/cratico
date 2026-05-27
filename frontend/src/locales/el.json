@@ -128,7 +128,8 @@
     "fiters" : "Φίλτρα",
     "all": "Όλα",
     "loadMore": "Φόρτωση Περισσότερων",
-    "register" : "Εγγραφή"
+    "register" : "Εγγραφή",
+    "notSignedIn": "Δεν έχετε συνδεθεί"
   },
   "errors": {
     "failedToLoad": "Αποτυχία φόρτωσης δεδομένων",
@@ -205,6 +206,17 @@
     "showText" : "Κείμενο Απόφασης",
     "hideText" : "Απόκρυψη Κειμένου Απόφασης"
   },
+  "personPage": {
+    "errorTitle": "Σφάλμα Φόρτωσης Προσώπου",
+    "backButton": "Πίσω",
+    "breadcrumbPerson": "Πρόσωπο",
+    "involvements": "{count} {count, plural, one {εμπλοκή} other {εμπλοκές}}",
+    "roleDates": "Από {from} έως {to}",
+    "representsAloneTitle": "Εκπροσωπεί μόνος",
+    "representsAloneBadge": "Μόνος",
+    "representsInCommonTitle": "Εκπροσωπεί από κοινού",
+    "representsInCommonBadge": "Από κοινού"
+  },
   "entityDetail": {
     "loadingEntity": "Φόρτωση λεπτομερειών {entityType}...",
     "loadingData": "Φόρτωση δεδομένων για ID: {entityId}",
@@ -256,6 +268,7 @@
     "lastActivity": "Τελευταία Δραστηριότητα",
     "organizationsAndPositions" : "Οργανισμοί και Θέσεις",
     "organizationsCountLabel": "οργανισμοί",
+    "gemiCompanyInformation": "Πληροφορίες Εταιρείας από το Μητρώο Επιχειρήσεων (ΓΕΜΗ)",
     "positionsCountLabel": "θέσεις"
   },
   "decisionDetail": {
@@ -406,7 +419,22 @@
     "signInRequired": "Παρακαλώ συνδεθείτε για να αποκτήσετε πρόσβαση σε αυτή τη λειτουργία",
     "signInTitle": "Απαιτείται Σύνδεση",
     "signIn": "Σύνδεση",
-    "cancel": "Ακύρωση"
+    "cancel": "Ακύρωση",
+    "signInToSubscribe" : "Ειδοποιήσεις",
+    "signInToBookmark" : "Σελιδοδείκτες",
+    "signInExplanation" : "Αυτή η λειτουργία απαιτεί λογαριασμό. Παρακαλώ συνδεθείτε για να συνεχίσετε.",
+    "NotificationSignInExplanation" : "Χρειαζόμαστε email για να σας στέλνουμε ειδοποιήσεις, και λογαριασμό για να θυμόμαστε τους κανόνες σας.",
+    "BookmarkSignInExplanation" : "Δεν μπορούμε να σας δείξουμε τους αποθηκευμένους σελιδοδείκτες σας αν δεν σας θυμόμαστε.",
+    "loginFailed": "Η σύνδεση απέτυχε",
+    "loginError": "Παρουσιάστηκε σφάλμα κατά τη σύνδεση",
+    "emailLabel": "Email",
+    "emailPlaceholder": "Εισάγετε το email σας",
+    "passwordLabel": "Κωδικός",
+    "passwordPlaceholder": "Εισάγετε τον κωδικό σας",
+    "forgotPassword": "Ξεχάσατε τον κωδικό σας;",
+    "signingIn": "Σύνδεση...",
+    "noAccount": "Δεν έχετε λογαριασμό;",
+    "createAccount": "Δημιουργία Λογαριασμού"
   },
   "counterparts": {
     "topOrganizations": "Κορυφαίοι Οργανισμοί",
@@ -562,5 +590,54 @@
     "clickToEdit": "Κάντε κλικ για επεξεργασία",
     "endBeforeStart" : "Η ημερομηνία λήξης πρέπει να είναι μετά την ημερομηνία έναρξης",
     "startAfterEnd" : "Η ημερομηνία έναρξης πρέπει να είναι πριν από την ημερομηνία λήξης"
+  },
+  "companyPersonsTable": {
+    "sectionTitle": "Διοίκηση / Εκπρόσωποι",
+    "columnName": "Ονοματεπώνυμο / Επωνυμία",
+    "columnRole": "Ιδιότητα",
+    "columnFrom": "Από",
+    "columnTo": "Έως",
+    "columnRepresentation": "Εκπροσώπηση",
+    "representsAloneTitle": "Εκπροσωπεί μόνος",
+    "representsAloneBadge": "Μόνος",
+    "representsInCommonTitle": "Εκπροσωπεί από κοινού",
+    "representsInCommonBadge": "Από κοινού"
+  },
+  "companyInfoPanel": {
+    "viewOnBusinessPortalTitle": "Προβολή στο Business Portal",
+    "businessPortalLink": "Business Portal ↗",
+    "hideDetails": "▲ Απόκρυψη",
+    "showDetails": "▼ Προβολή στοιχείων",
+    "labelGemi": "ΓΕΜΗ",
+    "labelAfm": "ΑΦΜ",
+    "labelLegalType": "Νομική Μορφή",
+    "labelStatus": "Κατάσταση",
+    "labelIncorporationDate": "Ημ/νία Ίδρυσης",
+    "labelLastStatusChange": "Τελ. Αλλαγή Κατάστασης",
+    "labelAddress": "Διεύθυνση",
+    "labelMunicipality": "Δήμος",
+    "labelPrefecture": "Περιφέρεια",
+    "labelEmail": "Email",
+    "labelWebsite": "Website",
+    "labelGemiOffice": "Υπηρεσία ΓΕΜΗ",
+    "labelBranches": "Υποκαταστήματα",
+    "objectiveLabel": "Σκοπός Εταιρείας"
+  },
+  "companyActivitiesTable": {
+    "sectionTitle": "Δραστηριότητες (ΚΑΔ)",
+    "columnCode": "ΚΑΔ",
+    "columnDescription": "Περιγραφή",
+    "columnType": "Τύπος",
+    "columnFrom": "Από",
+    "columnTo": "Έως"
+  },
+  "companyCapitalStocks": {
+    "sectionTitle": "Κεφάλαιο & Μετοχές",
+    "labelCapitalStock": "Μετοχικό Κεφάλαιο",
+    "labelExtraCapital": "Εξωκεφαλαιικές",
+    "labelGuarantees": "Εγγυητικές",
+    "columnStockType": "Τύπος Μετοχών",
+    "columnAmount": "Αριθμός",
+    "columnNominalValue": "Ονομαστική Αξία"
   }
 }

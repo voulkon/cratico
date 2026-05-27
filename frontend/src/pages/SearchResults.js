@@ -58,7 +58,7 @@ const SearchResults = () => {
         navigate(`/entity/afm/${item.afm}`);
         break;
       case 'company_person':
-        navigate(`/entity/company-person/${item.id}`);
+        navigate(`/person/${encodeURIComponent(item.text || item.details?.person_name)}`);
         break;
       case 'document':
         navigate(`/decision/${item.details.decision_id}`);

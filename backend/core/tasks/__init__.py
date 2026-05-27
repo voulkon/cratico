@@ -15,6 +15,7 @@ from .tasks_auto_import import (
     auto_daily_import_task,
     find_next_oldest_missing_day,
     trigger_next_backfill,
+    trigger_next_company_gemi_batch,
 )
 from .tasks_backups import create_backup_task, restore_backup_task
 from .tasks_db_vacuum import vacuum_multiple_tables_task, vacuum_table_task
@@ -87,6 +88,8 @@ __all__ = [
     "auto_daily_import_task",
     "trigger_next_backfill",
     "find_next_oldest_missing_day",
+    # Auto Company GEMI Import (Virtuous Cycle)
+    "trigger_next_company_gemi_batch",
     # Documents
     "process_document_task",
     "process_scanned_document_task",

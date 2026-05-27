@@ -14,6 +14,7 @@ import SuperSearchExample from "./pages/SuperSearchExample";
 import LibraryPage from "./pages/LibraryPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
 import LoginPage from "./pages/LoginPage";
+import PersonPage from "./pages/PersonPage";
 import Clock from "./components/Clock";
 import AccessDenied from "./components/AccessDenied";
 import LibrarySidebar from "./components/LibrarySidebar";
@@ -208,6 +209,9 @@ function AuthenticatedApp({ controlsLayout }) {
         <Route path="/decision/:ada" element={<DecisionDetailPage />} />
         <Route path="/health" element={<Clock />} />
         <Route path="/entity/afm/:afm" element={<AFMEntityDetailPage />} />
+
+        {/* Person page - companies where a person is involved */}
+        <Route path="/person/:personName" element={<PersonPage />} />
 
         {/* Relationship page - Entity × Organization */}
         <Route path="/relationship/entity/:afm/org/:orgUid" element={<RelationshipDetailPage />} />

@@ -5,7 +5,8 @@ import { useNotificationContext } from '../hooks/useNotificationContext';
 import { useUnreadCount } from '../hooks/useUnreadCount';
 import { useSubscriptionStatus } from '../hooks/useSubscriptionStatus';
 import { toggleSubscription } from '../api/notifications';
-import { NOTIFICATION_CONFIG } from '../config/notifications';
+import { useAuth } from '../contexts/AuthContext';
+import { useTranslation } from '../contexts/TranslationContext';
 import './NotificationButton.css';
 
 /**
@@ -20,6 +21,8 @@ export default function NotificationButton({ onSidebarToggle, isSidebarOpen }) {
   const { context, capabilities } = useNotificationContext();
   const { unreadCount, isLoading: countLoading } = useUnreadCount(); // Uses default from config
   const { subscribed, isLoading: subLoading, refetch: refetchSubscription } = useSubscriptionStatus(context);
+  const { isSignedIn } = useAuth();
+  const { t } = useTranslation();
 
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [showToast, setShowToast] = useState(false);
@@ -29,6 +32,10 @@ export default function NotificationButton({ onSidebarToggle, isSidebarOpen }) {
 
   // Build tooltip text based on context
   const getTooltipText = () => {
+    if (!isSignedIn) {
+      return t('auth.signInToSubscribe') || 'Sign in to subscribe to notifications';
+    }
+
     if (context.type === 'disabled') {
       return context.reason || 'Subscriptions not available on this page';
     }
@@ -48,8 +55,27 @@ export default function NotificationButton({ onSidebarToggle, isSidebarOpen }) {
     return `Subscribe to ${capabilities.suggestedName || 'notifications'}`;
   };
 
+  // Get chevron tooltip text
+  const getChevronTooltipText = () => {
+    if (!isSignedIn) {
+      return t('auth.signInToSubscribe') || 'Sign in to view notifications';
+    }
+    return isSidebarOpen ? 'Close notifications' : 'Open notifications';
+  };
+
   // Handle bell click (subscribe/unsubscribe or open sidebar)
   const handleBellClick = async () => {
+    // Not signed in - prompt to sign in
+    if (!isSignedIn) {
+      window.dispatchEvent(new CustomEvent('authRequired', {
+        detail: {
+          supertitle: t('auth.signInToSubscribe') || 'This feature requires sign-in.',
+          message: t('auth.NotificationSignInExplanation') || 'Please sign in to create notification rules and receive updates about new decisions that match your interests.'
+        }
+      }));
+      return;
+    }
+
     // Disabled pages - do nothing
     if (context.type === 'disabled') {
       return;
@@ -104,6 +130,15 @@ export default function NotificationButton({ onSidebarToggle, isSidebarOpen }) {
 
   // Handle chevron click (toggle sidebar)
   const handleToggleSidebar = () => {
+    if (!isSignedIn) {
+      window.dispatchEvent(new CustomEvent('authRequired', {
+        detail: {
+          supertitle: t('auth.signInToSubscribe') || 'This feature requires sign-in.',
+          message: t('auth.NotificationSignInExplanation') || 'Please sign in to create notification rules and receive updates about new decisions that match your interests.'
+        }
+      }));
+      return;
+    }
     onSidebarToggle?.(!isSidebarOpen);
   };
 
@@ -144,6 +179,7 @@ export default function NotificationButton({ onSidebarToggle, isSidebarOpen }) {
 
   const displayCount = formatCount(unreadCount);
   const isDisabled = context.type === 'disabled';
+  const isAuthRequired = !isSignedIn;
 
   return (
     <>
@@ -152,14 +188,14 @@ export default function NotificationButton({ onSidebarToggle, isSidebarOpen }) {
         onMainClick={handleBellClick}
         onChevronClick={handleToggleSidebar}
         mainActive={subscribed}
-        mainClassName={`notification-button ${isLoading ? 'loading' : ''} ${isDisabled ? 'disabled' : ''}`}
-        chevronClassName="notification-chevron"
+        mainClassName={`notification-button ${isLoading ? 'loading' : ''} ${isDisabled ? 'disabled' : ''} ${isAuthRequired ? 'auth-required' : ''}`}
+        chevronClassName={`notification-chevron ${isAuthRequired ? 'auth-required' : ''}`}
         className={`notification-split-btn ${isSidebarOpen ? 'sidebar-open' : ''}`}
         mainTitle={getTooltipText()}
-        chevronTitle={isSidebarOpen ? 'Close notifications' : 'Open notifications'}
-        mainDisabled={isDisabled || isLoading}
+        chevronTitle={getChevronTooltipText()}
+        mainDisabled={isAuthRequired ? false : (isDisabled || isLoading)}
         chevronDisabled={false}
-        badge={displayCount}
+        badge={isAuthRequired ? null : displayCount}
       >
         <span className="notification-icon" data-testid="bell-icon">
           {isLoading ? <Loader2 className="icon-spin" size={18} /> : <Bell size={18} />}

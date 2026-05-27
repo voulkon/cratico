@@ -101,6 +101,20 @@ class SearchService:
         else:
             return {"available": False, "reason": f"Unknown search method: {method}"}
 
+    @staticmethod
+    def _build_prefix_search_query(query: str, config: str = "greek") -> SearchQuery:
+        """
+        Build a prefix-matching FTS query so partial inputs like 'ΠΕΙΡΑ' match
+        lexemes like 'πειραιωσ' stored in the tsvector.
+
+        Each whitespace-separated word is lowercased and suffixed with ':*'
+        (PostgreSQL's prefix operator), then joined with '&'.
+        Example: 'ΠΕΙΡΑ ΤΡΑΠ' → 'πειρα:* & τραπ:*'
+        """
+        words = query.strip().lower().split()
+        raw = " & ".join(f"{w}:*" for w in words if w)
+        return SearchQuery(raw, search_type="raw", config=config)
+
     # ==================== ORGANIZATION SEARCH (3-TIER) ====================
 
     @query_debugger
@@ -152,8 +166,8 @@ class SearchService:
         # Detect query language for smart weighting
         query_lang = TransliterationService.detect_language(query)
 
-        # Create search query (using Greek config for better stemming)
-        search_query = SearchQuery(query, config="greek")
+        # Create prefix search query so partial inputs (e.g. 'ΠΕΙΡΑ') match longer lexemes
+        search_query = self._build_prefix_search_query(query)
 
         # Get dynamic weights based on query language
         weights = TransliterationService.get_search_rank_weights(query)
@@ -231,7 +245,7 @@ class SearchService:
     ) -> QuerySet:
         """PostgreSQL Full-Text Search with smart language detection (Tier 2)"""
         TransliterationService.detect_language(query)
-        search_query = SearchQuery(query, config="greek")
+        search_query = self._build_prefix_search_query(query)
         weights = TransliterationService.get_search_rank_weights(query)
 
         qs = Unit.objects.annotate(
@@ -299,7 +313,7 @@ class SearchService:
     ) -> QuerySet:
         """PostgreSQL Full-Text Search with smart language detection (Tier 2)"""
         TransliterationService.detect_language(query)
-        search_query = SearchQuery(query, config="greek")
+        search_query = self._build_prefix_search_query(query)
         weights = TransliterationService.get_search_rank_weights(query)
 
         qs = Signer.objects.annotate(
@@ -594,7 +608,7 @@ class SearchService:
 
         # Try PostgreSQL full-text search first
         try:
-            search_query = SearchQuery(query, config="greek")
+            search_query = self._build_prefix_search_query(query)
             vector_results = (
                 qs.filter(search_vector=search_query)
                 .annotate(rank=SearchRank("search_vector", search_query))
@@ -844,7 +858,7 @@ class SearchService:
         so language detection helps prioritize the right fields.
         """
         TransliterationService.detect_language(query)
-        search_query = SearchQuery(query, config="greek")
+        search_query = self._build_prefix_search_query(query)
         weights = TransliterationService.get_search_rank_weights(query)
 
         qs = (
@@ -912,7 +926,7 @@ class SearchService:
     ) -> QuerySet:
         """PostgreSQL Full-Text Search with smart language detection (Tier 2)"""
         TransliterationService.detect_language(query)
-        search_query = SearchQuery(query, config="greek")
+        search_query = self._build_prefix_search_query(query)
         weights = TransliterationService.get_search_rank_weights(query)
 
         qs = CompanyPerson.objects.annotate(

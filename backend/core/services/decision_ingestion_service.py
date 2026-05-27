@@ -365,7 +365,7 @@ class DecisionIngestionService:
         current_date = start_date
         while current_date <= end_date:
             # Build filter for decisions on this date
-            date_filter = {"issue_date__date": current_date}
+            date_filter = {"issue_date_day": current_date}
 
             # Handle organization coverage
             if organization_id:
@@ -450,7 +450,7 @@ class DecisionIngestionService:
             # Handle signer coverage
             if signer_id:
                 # Reset filter and add signer condition
-                date_filter = {"issue_date__date": current_date}
+                date_filter = {"issue_date_day": current_date}
                 date_filter["signers__uid"] = signer_id
                 decision_count = Decision.objects.filter(**date_filter).count()
 

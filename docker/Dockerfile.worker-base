@@ -44,9 +44,9 @@ RUN if [ "$PYTORCH_VERSION" = "cpu" ]; then \
         --index-url https://download.pytorch.org/whl/cpu; \
     fi
 
-# Install ALL dependencies (including worker group with docling)
+# Install ALL dependencies (main + worker groups, excluding dev dependencies)
 # This is the most time-consuming step and will be cached in the base image
-RUN poetry install --no-root --no-interaction --no-ansi --with worker
+RUN poetry install --no-root --no-interaction --no-ansi --only main,worker
 
 # Clean up to reduce image size
 RUN apt-get purge -y gcc g++ make && \

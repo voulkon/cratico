@@ -128,7 +128,8 @@
     "filters" : "Filters",
     "all": "All",
     "loadMore": "Load More",
-    "register" : "Register"
+    "register" : "Register",
+    "notSignedIn": "Not signed in"
   },
   "errors": {
     "failedToLoad": "Failed to load data",
@@ -204,6 +205,17 @@
     "entityRelationships" : "Εntity Relationships",
     "showText" : "Show Decision's Text",
     "hideText" : "Hide Decision's Text"
+  },
+  "personPage": {
+    "errorTitle": "Error Loading Person",
+    "backButton": "Back",
+    "breadcrumbPerson": "Person",
+    "involvements": "{count} {count, plural, one {involvement} other {involvements}}",
+    "roleDates": "From {from} to {to}",
+    "representsAloneTitle": "Represents alone",
+    "representsAloneBadge": "Alone",
+    "representsInCommonTitle": "Represents jointly",
+    "representsInCommonBadge": "Jointly"
   },
   "entityDetail": {
     "loadingEntity": "Loading {entityType} details...",
@@ -352,6 +364,7 @@
     },
     "relatedDecisions": "Related Decisions",
     "filterByRole": "Filter by Role",
+    "gemiCompanyInformation": "Company Information from Business Registry (GEMI)",
     "noDecisionsWithFilters": "No decisions found with current filters",
     "noDecisions": "No decisions found for this entity"
   },
@@ -406,7 +419,22 @@
     "signInRequired": "Please sign in to access this feature",
     "signInTitle": "Sign In Required",
     "signIn": "Sign In",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "signInToSubscribe": "Notifications",
+    "signInToBookmark": "Bookmarks",
+    "signInExplanation": "This feature requires an account to work. Please sign in to continue.",
+    "NotificationSignInExplanation": "We need an email address to send you notifications and an account to remember your rules.",
+    "BookmarkSignInExplanation": "We can't show you your saved bookmarks if we don't remember who you are.",
+    "loginFailed": "Login failed",
+    "loginError": "An error occurred during login",
+    "emailLabel": "Email",
+    "emailPlaceholder": "Enter your email",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "Enter your password",
+    "forgotPassword": "Forgot password?",
+    "signingIn": "Signing in...",
+    "noAccount": "Don't have an account?",
+    "createAccount": "Create Account"
   },
   "counterparts": {
     "topOrganizations": "Top Organizations",
@@ -565,5 +593,54 @@
     "clickToEdit": "Click to edit",
     "endBeforeStart" : "End date must be after start date",
     "startAfterEnd" : "Start date must be before end date"
+  },
+  "companyPersonsTable": {
+    "sectionTitle": "Administration / Representatives",
+    "columnName": "Full Name / Business Name",
+    "columnRole": "Role",
+    "columnFrom": "From",
+    "columnTo": "To",
+    "columnRepresentation": "Representation",
+    "representsAloneTitle": "Represents alone",
+    "representsAloneBadge": "Alone",
+    "representsInCommonTitle": "Represents jointly",
+    "representsInCommonBadge": "Jointly"
+  },
+  "companyInfoPanel": {
+    "viewOnBusinessPortalTitle": "View on Business Portal",
+    "businessPortalLink": "Business Portal ↗",
+    "hideDetails": "▲ Hide",
+    "showDetails": "▼ Show details",
+    "labelGemi": "ΓΕΜΗ",
+    "labelAfm": "AFM",
+    "labelLegalType": "Legal Form",
+    "labelStatus": "Status",
+    "labelIncorporationDate": "Incorporation Date",
+    "labelLastStatusChange": "Last Status Change",
+    "labelAddress": "Address",
+    "labelMunicipality": "Municipality",
+    "labelPrefecture": "Prefecture",
+    "labelEmail": "Email",
+    "labelWebsite": "Website",
+    "labelGemiOffice": "ΓΕΜΗ Office",
+    "labelBranches": "Branches",
+    "objectiveLabel": "Company Objective"
+  },
+  "companyActivitiesTable": {
+    "sectionTitle": "Activities (KAD)",
+    "columnCode": "KAD",
+    "columnDescription": "Description",
+    "columnType": "Type",
+    "columnFrom": "From",
+    "columnTo": "To"
+  },
+  "companyCapitalStocks": {
+    "sectionTitle": "Capital & Stocks",
+    "labelCapitalStock": "Share Capital",
+    "labelExtraCapital": "Extra-Capital",
+    "labelGuarantees": "Guarantees",
+    "columnStockType": "Stock Type",
+    "columnAmount": "Number",
+    "columnNominalValue": "Nominal Value"
   }
 }

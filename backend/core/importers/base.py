@@ -75,9 +75,9 @@ class BaseImporter:
         total = 0
         for i, (dto) in enumerate(dtos):
             if i % 50 == 0:
-                logger.info(f"Processing item number {i}...")
+                logger.debug(f"Processing item number {i}...")
                 percentage_done = (i / len(dtos)) * 100
-                logger.info(f"Progress: {percentage_done:.2f}%")
+                logger.debug(f"Progress: {percentage_done:.2f}%")
             mapped = self._to_defaults(dto)
             # merge in extra defaults (e.g. dictionary instance):
             combined = {**mapped, **defaults}
