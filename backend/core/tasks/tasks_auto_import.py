@@ -18,6 +18,7 @@ from datetime import date, timedelta
 
 from celery import shared_task
 from core.models.decisions import Decision
+from core.models.import_jobs import ImportJob, ImportJobStatus
 from core.services.coverage_service import BackfillCoverageService
 from core.services.feature_flag_service import feature_flags
 from core.services.import_job_queue import ImportJobQueue
@@ -150,7 +151,7 @@ def find_next_oldest_missing_day(entity_type="all", entity_id=None) -> date | No
 
     2. FALLBACK — No ImportJob found, but decision count meets the minimum
        threshold for the day type (via PublicHolidayDetectionService):
-       - Workdays:    ≥ 14,000 decisions
+       - Workdays:    ≥ 10,000 decisions
        - Weekends:    ≥ 300 decisions
        - Holidays:    ≥ 200 decisions
 
@@ -226,6 +227,32 @@ def find_next_oldest_missing_day(entity_type="all", entity_id=None) -> date | No
             continue
 
         # under_imported — neither check passed
+        # Before scheduling, check if there's already an active job for this date.
+        # An active job means data is still being imported; returning this date
+        # would either be a no-op (skip_duplicates catches it) or, in a brief
+        # status-transition window, spawn a duplicate import.  Skip it and keep
+        # looking for a date that has no active coverage attempt.
+        active_job = ImportJob.objects.filter(
+            **job_filter,
+            start_date=current_date,
+            end_date=current_date,
+            status__in=[
+                ImportJobStatus.PENDING,
+                ImportJobStatus.FETCHING,
+                ImportJobStatus.RUNNING,
+                ImportJobStatus.PROCESSING,
+                ImportJobStatus.SPLITTING,
+            ],
+        ).first()
+
+        if active_job:
+            logger.debug(
+                f"[{current_date}] Skipping — active ImportJob #{active_job.id} "
+                f"already in progress (status={active_job.status})"
+            )
+            current_date -= timedelta(days=1)
+            continue
+
         logger.info(
             f"[{current_date}] Under-imported — no valid ImportJob and below threshold "
             f"(type={day_type}, count={decision_count:,}, min_expected={min_expected:,}) "
