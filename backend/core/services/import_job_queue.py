@@ -322,7 +322,7 @@ class ImportJobQueue:
                 # This creates the autofarming loop
                 from core.tasks.tasks_auto_import import trigger_next_backfill
 
-                logger.debug(
+                logger.info(
                     "ImportJobQueue: No pending jobs, triggering backfill check"
                 )
                 trigger_next_backfill.delay()

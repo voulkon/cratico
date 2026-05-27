@@ -166,28 +166,38 @@ class ImportJob(models.Model):
         ImportJob.objects.filter(pk=self.pk).update(**update_dict)
         self.refresh_from_db()
 
-        # Auto-complete if all chunks done
+        # Auto-complete if all chunks done.
+        # Use an atomic conditional UPDATE (WHERE status='processing') so that
+        # when multiple workers finish their last chunks near-simultaneously,
+        # only ONE of them transitions the status and fires on_job_completed.
+        # Without this guard, every worker that sees is_complete==True would
+        # call on_job_completed, spawning duplicate trigger_next_backfill tasks.
         if self.is_complete and self.status == ImportJobStatus.PROCESSING:
-            if self.chunks_failed == 0:
-                self.status = ImportJobStatus.COMPLETED
-            else:
-                self.status = ImportJobStatus.PARTIALLY_COMPLETED
-            self.completed_at = timezone.now()
-            self.save(update_fields=["status", "completed_at"])
+            terminal_status = (
+                ImportJobStatus.COMPLETED
+                if self.chunks_failed == 0
+                else ImportJobStatus.PARTIALLY_COMPLETED
+            )
+            rows_updated = ImportJob.objects.filter(
+                pk=self.pk,
+                status=ImportJobStatus.PROCESSING,  # guard: only one worker wins
+            ).update(status=terminal_status, completed_at=timezone.now())
 
-            # Notify queue to dispatch next job
-            from core.services.import_job_queue import ImportJobQueue
+            if rows_updated == 1:
+                self.refresh_from_db()
+                # Notify queue to dispatch next job
+                from core.services.import_job_queue import ImportJobQueue
 
-            try:
-                queue = ImportJobQueue()
-                queue.on_job_completed(self.id)
-            except Exception as e:
-                # Don't fail the job if queue notification fails
-                import logging
+                try:
+                    queue = ImportJobQueue()
+                    queue.on_job_completed(self.id)
+                except Exception as e:
+                    # Don't fail the job if queue notification fails
+                    import logging
 
-                logging.getLogger(__name__).warning(
-                    f"Failed to notify queue of job completion: {e}"
-                )
+                    logging.getLogger(__name__).warning(
+                        f"Failed to notify queue of job completion: {e}"
+                    )
 
     def mark_chunk_failed(self, error_msg: str = None, decisions_count: int = 0):
         """Atomically increment failed chunk counter"""
@@ -206,28 +216,33 @@ class ImportJob(models.Model):
             self.error_details += f"\n[{timezone.now().isoformat()}] {error_msg}"
             self.save(update_fields=["error_details"])
 
-        # Auto-complete/fail if all chunks done
+        # Auto-complete/fail if all chunks done (same atomic guard as mark_chunk_completed)
         if self.is_complete and self.status == ImportJobStatus.PROCESSING:
-            if self.chunks_completed == 0:
-                self.status = ImportJobStatus.FAILED
-            else:
-                self.status = ImportJobStatus.PARTIALLY_COMPLETED
-            self.completed_at = timezone.now()
-            self.save(update_fields=["status", "completed_at"])
+            terminal_status = (
+                ImportJobStatus.FAILED
+                if self.chunks_completed == 0
+                else ImportJobStatus.PARTIALLY_COMPLETED
+            )
+            rows_updated = ImportJob.objects.filter(
+                pk=self.pk,
+                status=ImportJobStatus.PROCESSING,
+            ).update(status=terminal_status, completed_at=timezone.now())
 
-            # Notify queue to dispatch next job
-            from core.services.import_job_queue import ImportJobQueue
+            if rows_updated == 1:
+                self.refresh_from_db()
+                # Notify queue to dispatch next job
+                from core.services.import_job_queue import ImportJobQueue
 
-            try:
-                queue = ImportJobQueue()
-                queue.on_job_completed(self.id)
-            except Exception as e:
-                # Don't fail the job if queue notification fails
-                import logging
+                try:
+                    queue = ImportJobQueue()
+                    queue.on_job_completed(self.id)
+                except Exception as e:
+                    # Don't fail the job if queue notification fails
+                    import logging
 
-                logging.getLogger(__name__).warning(
-                    f"Failed to notify queue of job completion: {e}"
-                )
+                    logging.getLogger(__name__).warning(
+                        f"Failed to notify queue of job completion: {e}"
+                    )
 
 
 class ImportFailure(models.Model):
