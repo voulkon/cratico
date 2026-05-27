@@ -211,6 +211,17 @@ class FeatureFlagService:
             "category": "data_ingestion",
             "requires_restart": False,
         },
+        "AUTO_COMPANY_GEMI_IMPORT_ENABLED": {
+            "name": "Auto Company GEMI Import",
+            "description": "Automatically populate the AFM fetch queue from scored entities and start processing "
+            "at a scheduled time each day. Mirrors the 'Populate Queue' + 'Start Processing' "
+            "actions in the AFM Scoring cockpit. "
+            "Runs daily at the time specified in AUTO_COMPANY_GEMI_IMPORT_TIME.",
+            "default": False,
+            "env_var": "AUTO_COMPANY_GEMI_IMPORT_ENABLED",
+            "category": "data_enrichment",
+            "requires_restart": False,
+        },
     }
 
     def __init__(self):

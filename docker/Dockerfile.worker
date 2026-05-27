@@ -33,15 +33,15 @@ RUN poetry config virtualenvs.create false
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/root/.cache/pypoetry \
     if [ "$LIGHT_WORKER" = "true" ]; then \
-        echo "🪶 LIGHT_WORKER mode: Installing core + analytics (no Docling)..."; \
-        poetry install --no-root --no-interaction --no-ansi --without docling; \
+        echo "🪶 LIGHT_WORKER mode: Installing core + analytics (no Docling, no dev)..."; \
+        poetry install --no-root --no-interaction --no-ansi --only main,worker; \
     else \
-        echo "🚀 FULL_WORKER mode: Installing ALL dependencies (including Docling)..."; \
+        echo "🚀 FULL_WORKER mode: Installing ALL dependencies (including Docling, no dev)..."; \
         # Let Poetry/Docling handle PyTorch installation
         # Set pip index to prefer CPU-only wheels to avoid 4GB+ CUDA packages
         PIP_INDEX_URL=https://download.pytorch.org/whl/cpu \
         PIP_EXTRA_INDEX_URL=https://pypi.org/simple \
-        poetry install --no-root --no-interaction --no-ansi --with docling; \
+        poetry install --no-root --no-interaction --no-ansi --only main,worker,docling; \
     fi
 
 # ──────────── STAGE 2: Final runtime image ────────────

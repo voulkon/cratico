@@ -328,7 +328,7 @@ def store_decisions_from_redis(
     """
     # [WARN]️ BUG FIX (2026-01-04): Delay INSIDE task instead of countdown parameter
     if delay_seconds > 0:
-        logger.info(
+        logger.debug(
             f"Task {self.request.id}: Sleeping {delay_seconds:.2f}s to prevent race conditions"
         )
         time.sleep(delay_seconds)

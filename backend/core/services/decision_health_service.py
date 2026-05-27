@@ -481,7 +481,7 @@ class DecisionHealthService:
                     coverage_records += 1
                     # Check if count seems reasonable (not zero and not wildly off)
                     actual_count = Decision.objects.filter(
-                        organization=decision.organization, issue_date__date=issue_date
+                        organization=decision.organization, issue_date_day=issue_date
                     ).count()
 
                     if org_coverage.decision_count == 0:

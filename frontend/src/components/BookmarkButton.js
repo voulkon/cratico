@@ -42,7 +42,10 @@ export default function BookmarkButton({ onLibraryToggle, isLibraryOpen, bookmar
     // Prompt user to sign in if not authenticated
     if (!isSignedIn) {
       window.dispatchEvent(new CustomEvent('authRequired', {
-        detail: { message: t('auth.signInToBookmark') || 'Please sign in to bookmark pages' }
+        detail: {
+          supertitle: t('auth.signInToBookmark') || 'This feature requires sign-in.',
+          message: t('auth.BookmarkSignInExplanation') || 'Please sign in to save bookmarks and organize your favorite pages in your library.'
+        }
       }));
       return;
     }
@@ -66,18 +69,32 @@ export default function BookmarkButton({ onLibraryToggle, isLibraryOpen, bookmar
     }
   }
 
+  function handleLibraryToggle() {
+    // Prompt user to sign in if not authenticated
+    if (!isSignedIn) {
+      window.dispatchEvent(new CustomEvent('authRequired', {
+        detail: {
+          supertitle: t('auth.signInToBookmark') || 'This feature requires sign-in.',
+          message: t('auth.BookmarkSignInExplanation') || 'Please sign in to save bookmarks and organize your favorite pages in your library.'
+        }
+      }));
+      return;
+    }
+    onLibraryToggle();
+  }
+
   return (
     <>
       <SplitButton
         isOpen={isLibraryOpen}
         onMainClick={handleToggleBookmark}
-        onChevronClick={onLibraryToggle}
+        onChevronClick={handleLibraryToggle}
         mainActive={isBookmarked}
-        mainClassName={`bookmark-button ${isLoading ? 'loading' : ''}`}
-        chevronClassName="bookmark-chevron"
+        mainClassName={`bookmark-button ${isLoading ? 'loading' : ''} ${!isSignedIn ? 'auth-required' : ''}`}
+        chevronClassName={`bookmark-chevron ${!isSignedIn ? 'auth-required' : ''}`}
         className={`bookmark-split-btn ${isLibraryOpen ? 'library-open' : ''}`}
-        mainTitle={isBookmarked ? t('library.removeBookmark') : t('library.bookmarkThisPage')}
-        chevronTitle={isLibraryOpen ? t('library.close') : t('library.myLibrary')}
+        mainTitle={!isSignedIn ? (t('auth.signInToBookmark') || 'Sign in to bookmark pages') : (isBookmarked ? t('library.removeBookmark') : t('library.bookmarkThisPage'))}
+        chevronTitle={!isSignedIn ? (t('auth.signInToBookmark') || 'Sign in to access your library') : (isLibraryOpen ? t('library.close') : t('library.myLibrary'))}
         disabled={isLoading}
       >
         <span className="bookmark-icon">

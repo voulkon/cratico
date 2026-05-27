@@ -30,7 +30,7 @@ class DecisionAnalysisService:
         logger.info(f"Quick summary for {target_date}")
 
         # Base queryset for the target date
-        decisions_qs = Decision.objects.filter(issue_date__date=target_date)
+        decisions_qs = Decision.objects.filter(issue_date_day=target_date)
         total_count = decisions_qs.count()
 
         # Get day of week info
@@ -105,7 +105,7 @@ class DecisionAnalysisService:
         logger.info(f"Analyzing decisions for {target_date}")
 
         # Base queryset for the target date
-        decisions_qs = Decision.objects.filter(issue_date__date=target_date)
+        decisions_qs = Decision.objects.filter(issue_date_day=target_date)
         total_count = decisions_qs.count()
 
         # Get day of week info
@@ -427,7 +427,7 @@ class DecisionAnalysisService:
         )
 
         decisions_qs = Decision.objects.filter(
-            issue_date__date__gte=start_date, issue_date__date__lte=end_date
+            issue_date_day__gte=start_date, issue_date_day__lte=end_date
         )
 
         # Group by time period
@@ -572,7 +572,7 @@ class DecisionAnalysisService:
         )
 
         # Base queryset for the target date with related data
-        decisions_qs = Decision.objects.filter(issue_date__date=target_date)
+        decisions_qs = Decision.objects.filter(issue_date_day=target_date)
 
         if decision_type_uid:
             decisions_qs = decisions_qs.filter(decision_type__uid=decision_type_uid)

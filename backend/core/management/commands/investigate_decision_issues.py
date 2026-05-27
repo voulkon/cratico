@@ -446,7 +446,7 @@ class Command(BaseCommand):
         else:
             # Check count accuracy
             actual_count = Decision.objects.filter(
-                organization=decision.organization, issue_date__date=issue_date
+                organization=decision.organization, issue_date_day=issue_date
             ).count()
 
             if abs(coverage.decision_count - actual_count) > 1:

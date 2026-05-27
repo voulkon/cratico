@@ -18,10 +18,10 @@ export const useTranslation = () => {
 };
 
 export const TranslationProvider = ({ children }) => {
-  // Get saved language from localStorage or default to English
+  // Get saved language from localStorage or default to Greek
   const [language, setLanguage] = useState(() => {
     const saved = localStorage.getItem('preferred-language');
-    return saved || 'en';
+    return saved || 'el';
   });
 
   // Save language preference
@@ -58,8 +58,18 @@ export const TranslationProvider = ({ children }) => {
       return key;
     }
 
-    // Replace interpolation parameters {param} with actual values
-    return value.replace(/\{(\w+)\}/g, (match, param) => {
+    // Handle plural syntax: {param, plural, one {text} other {text}}
+    let result = value.replace(
+      /\{(\w+),\s*plural,\s*one\s*\{([^}]*)\}\s*other\s*\{([^}]*)\}\}/g,
+      (match, param, one, other) => {
+        const n = params[param];
+        if (n === undefined) return match;
+        return n === 1 ? one : other;
+      }
+    );
+
+    // Replace simple interpolation parameters {param} with actual values
+    return result.replace(/\{(\w+)\}/g, (match, param) => {
       return params[param] !== undefined ? params[param] : match;
     });
   };
@@ -73,8 +83,8 @@ export const TranslationProvider = ({ children }) => {
   };
 
   const availableLanguages = [
-    { code: 'en', name: 'English', nativeName: 'English' },
-    { code: 'el', name: 'Greek', nativeName: 'Ελληνικά' }
+    { code: 'el', name: 'Greek', nativeName: 'Ελληνικά' },
+    { code: 'en', name: 'English', nativeName: 'English' }
   ];
 
   const getCurrentLanguage = () => {

@@ -54,7 +54,7 @@ def run_decision_pipeline_task(
         force_reprocess=force_reprocess,
     ):
         try:
-            logger.info("Starting FULL pipeline for decision")
+            logger.debug("Starting FULL pipeline for decision")
 
             orchestrator = DecisionPipelineOrchestrator()
             health_check = orchestrator.run_pipeline(
@@ -63,7 +63,7 @@ def run_decision_pipeline_task(
                 skip_opensearch=skip_opensearch,
             )
 
-            logger.info(
+            logger.debug(
                 "[OK] PIPELINE COMPLETED",
                 overall_status=health_check.overall_status,
                 ingestion_status=health_check.ingestion_status,

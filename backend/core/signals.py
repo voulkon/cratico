@@ -79,7 +79,7 @@ def update_organization_coverage(sender, instance, **kwargs):
     with transaction.atomic():
         # Get organization count
         current_count = Decision.objects.filter(
-            organization=instance.organization, issue_date__date=date_obj
+            organization=instance.organization, issue_date_day=date_obj
         ).count()
 
         # Handle race condition: multiple workers may try to create simultaneously
@@ -134,7 +134,7 @@ def update_signer_coverage(sender, instance, action, pk_set, **kwargs):
         if action == "post_add" and pk_set:
             for signer_id in pk_set:
                 current_count = Decision.objects.filter(
-                    signers__uid=signer_id, issue_date__date=date_obj
+                    signers__uid=signer_id, issue_date_day=date_obj
                 ).count()
 
                 try:
@@ -177,7 +177,7 @@ def update_coverage_on_delete(sender, instance, **kwargs):
     with transaction.atomic():
         if instance.organization:
             current_count = Decision.objects.filter(
-                organization=instance.organization, issue_date__date=date_obj
+                organization=instance.organization, issue_date_day=date_obj
             ).count()
 
             if current_count > 0:

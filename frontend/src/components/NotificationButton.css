@@ -73,6 +73,26 @@
   }
 }
 
+/* Auth-required state - grayed out when not signed in */
+.notification-button.auth-required,
+.notification-chevron.auth-required {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: auto; /* Allow click to trigger auth prompt */
+}
+
+.notification-button.auth-required:hover,
+.notification-chevron.auth-required:hover {
+  background-color: var(--hover-bg);
+  opacity: 0.5;
+  transform: none;
+}
+
+.notification-button.auth-required:active,
+.notification-chevron.auth-required:active {
+  transform: none;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .notification-button,

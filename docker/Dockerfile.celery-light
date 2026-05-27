@@ -23,11 +23,11 @@ COPY backend/gemi ./gemi/
 # Configure poetry
 RUN poetry config virtualenvs.create false
 
-# Install main dependencies (no worker group) + flower
+# Install main dependencies (no worker group, no dev dependencies) + flower
 # Use BuildKit cache mounts to persist both pip and poetry caches
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/root/.cache/pypoetry \
-    poetry install --no-root --no-interaction --no-ansi --without worker
+    poetry install --no-root --no-interaction --no-ansi --only main
 
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install flower
