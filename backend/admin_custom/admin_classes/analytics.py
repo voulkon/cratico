@@ -69,17 +69,18 @@ class ImportJobAdmin(admin.ModelAdmin):
     list_display = (
         "id",
         "start_date",
-        "end_date",
-        "entity_name",
-        "status",
-        "stuck_indicator",
-        "created_by",
-        "created_at",
         "start_date_day",
-        "end_date_day",
-        "decisions_count",
+        "status",
+        "created_at",
+        "completed_at",
         "chunk_progress_display",
         "pipeline_progress_display",
+        "entity_name",
+        "stuck_indicator",
+        "created_by",
+        "end_date",
+        "end_date_day",
+        "decisions_count",
         "no_health_check_count",
         "no_health_check_link",
         "healthy_count",
@@ -90,7 +91,7 @@ class ImportJobAdmin(admin.ModelAdmin):
         "warning_health_checks_link",
         "failed_health_checks_link",
     )
-    list_per_page = 10
+    list_per_page = 3
     list_filter = ("status", "created_by", "created_at")
     search_fields = (
         "organization__label",
