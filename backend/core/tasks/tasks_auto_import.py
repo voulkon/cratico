@@ -253,6 +253,34 @@ def find_next_oldest_missing_day(entity_type="all", entity_id=None) -> date | No
             current_date -= timedelta(days=1)
             continue
 
+        # Guard against infinite re-import of dates with genuinely low data.
+        #
+        # When a COMPLETED / PARTIALLY_COMPLETED job exists but was rejected by
+        # is_job_substantive (e.g. total_decisions=32 < MIN_DECISIONS_FOR_VALID_JOB=50),
+        # AND the fallback threshold is also not met (e.g. Easter Sunday has only 32
+        # real decisions, well below THRESHOLD_WEEKEND=300), classify_day returns
+        # "under_imported" forever.  Re-importing will never change the API's answer,
+        # so we must accept the result and move on.
+        terminal_job = ImportJob.objects.filter(
+            **job_filter,
+            start_date=current_date,
+            end_date=current_date,
+            status__in=[
+                ImportJobStatus.COMPLETED,
+                ImportJobStatus.PARTIALLY_COMPLETED,
+            ],
+        ).first()
+
+        if terminal_job:
+            logger.warning(
+                f"[{current_date}] Skipping — ImportJob #{terminal_job.id} already "
+                f"completed (status={terminal_job.status}, "
+                f"decisions={terminal_job.total_decisions}) but below threshold "
+                f"(min_expected={min_expected}). Accepting as-is to avoid infinite loop."
+            )
+            current_date -= timedelta(days=1)
+            continue
+
         logger.info(
             f"[{current_date}] Under-imported — no valid ImportJob and below threshold "
             f"(type={day_type}, count={decision_count:,}, min_expected={min_expected:,}) "
