@@ -253,15 +253,42 @@ def find_next_oldest_missing_day(entity_type="all", entity_id=None) -> date | No
             current_date -= timedelta(days=1)
             continue
 
-        # Guard against infinite re-import of dates with genuinely low data.
+        # Guard against infinite re-import when classify_day returned
+        # "under_imported" but we have reason to believe the date is already
+        # as good as it's going to get.
         #
-        # When a COMPLETED / PARTIALLY_COMPLETED job exists but was rejected by
-        # is_job_substantive (e.g. total_decisions=32 < MIN_DECISIONS_FOR_VALID_JOB=50),
-        # AND the fallback threshold is also not met (e.g. Easter Sunday has only 32
-        # real decisions, well below THRESHOLD_WEEKEND=300), classify_day returns
-        # "under_imported" forever.  Re-importing will never change the API's answer,
-        # so we must accept the result and move on.
-        terminal_job = ImportJob.objects.filter(
+        # The API is queried by issueDate (from_issue_date / to_issue_date), so
+        # `decision_count` — already computed by classify_day using the indexed
+        # issue_date_day field — is the correct and cheapest signal.
+        # (submission_timestamp / publish_timestamp casts are ~10× slower and
+        # measure a different dimension.)
+        #
+        # NOTE: The Easter Sunday case (32 real decisions, all chunks done) never
+        # reaches this guard — classify_day returns "done_job" for it.
+        #
+        # Two sub-cases:
+        #
+        # 1. DB already has a meaningful number of decisions (decision_count >=
+        #    COVERED_FLOOR): the date is covered well enough — decisions arrived
+        #    via other import runs even if this job reported 0.  Accept it.
+        #
+        # 2. DB has almost nothing (< COVERED_FLOOR): the job probably failed at
+        #    the API level.  Allow one retry; give up after two 0-decision
+        #    completed jobs to prevent an infinite loop on truly sparse dates.
+
+        COVERED_FLOOR = 30  # much lower than THRESHOLD_WORKDAY/WEEKEND/HOLIDAY
+
+        if decision_count >= COVERED_FLOOR:
+            logger.debug(
+                f"[{current_date}] Non-substantive ImportJob but DB already has "
+                f"{decision_count:,} decisions — accepting as sufficiently covered."
+            )
+            current_date -= timedelta(days=1)
+            continue
+
+        # DB has < COVERED_FLOOR decisions — check how many 0-decision completed
+        # jobs have already run to decide whether to retry or give up.
+        zero_decision_attempts = ImportJob.objects.filter(
             **job_filter,
             start_date=current_date,
             end_date=current_date,
@@ -269,14 +296,14 @@ def find_next_oldest_missing_day(entity_type="all", entity_id=None) -> date | No
                 ImportJobStatus.COMPLETED,
                 ImportJobStatus.PARTIALLY_COMPLETED,
             ],
-        ).first()
+            total_decisions=0,
+        ).count()
 
-        if terminal_job:
+        if zero_decision_attempts >= 2:
             logger.warning(
-                f"[{current_date}] Skipping — ImportJob #{terminal_job.id} already "
-                f"completed (status={terminal_job.status}, "
-                f"decisions={terminal_job.total_decisions}) but below threshold "
-                f"(min_expected={min_expected}). Accepting as-is to avoid infinite loop."
+                f"[{current_date}] Skipping — {zero_decision_attempts} completed jobs "
+                f"returned 0 decisions and DB has only {decision_count} for this date. "
+                f"Accepting as-is to avoid infinite loop."
             )
             current_date -= timedelta(days=1)
             continue
