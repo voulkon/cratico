@@ -77,9 +77,6 @@ class BackfillCoverageService:
             return cls.THRESHOLD_HOLIDAY
         return cls.THRESHOLD_WORKDAY
 
-    # Minimum decisions a "completed" job must have recorded to be trusted
-    MIN_DECISIONS_FOR_VALID_JOB = 50
-
     # ------------------------------------------------------------------ #
     #  Job sanity check                                                    #
     # ------------------------------------------------------------------ #
@@ -89,10 +86,16 @@ class BackfillCoverageService:
         """
         Return ``(is_valid, reason)`` for a completed ImportJob.
 
-        A job is only considered authoritative if ALL of the following hold:
+        A job is considered authoritative if all chunks ran to completion:
 
-        1. ``total_decisions >= MIN_DECISIONS_FOR_VALID_JOB``
-        2. ``total_chunks > 0`` and ``chunks_completed == total_chunks``
+            ``total_chunks > 0`` and ``chunks_completed == total_chunks``
+
+        The old ``total_decisions >= MIN_DECISIONS_FOR_VALID_JOB`` floor has been
+        removed.  It was redundant: if 0 decisions were fetched then total_chunks
+        is also 0 (chunks are created from fetched decision ADAs), so the chunk
+        check already rejects empty jobs.  The floor only caused problems for
+        dates with genuinely low decision counts (e.g. Easter Sunday with 32
+        decisions), making them unresolvable and creating an infinite backfill loop.
 
         NOTE: We intentionally do NOT compare decisions_assigned_to_pipeline with
         decisions_restored_from_redis.  Since the introduction of the health-check
@@ -101,12 +104,6 @@ class BackfillCoverageService:
         the job is unhealthy.  The mismatch is expected and correct; checking for
         equality would cause every valid job to be rejected.
         """
-        if job.total_decisions < cls.MIN_DECISIONS_FOR_VALID_JOB:
-            return False, (
-                f"total_decisions={job.total_decisions} "
-                f"< {cls.MIN_DECISIONS_FOR_VALID_JOB} (minimum)"
-            )
-
         if job.total_chunks == 0 or job.chunks_completed != job.total_chunks:
             return False, (
                 f"chunks_completed={job.chunks_completed} "
