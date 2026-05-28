@@ -105,6 +105,20 @@ def trigger_next_backfill():
         logger.info("Cannot start new job (concurrency limit reached)")
         return {"status": "skipped", "reason": "concurrency_limit"}
 
+    # Guard against concurrent trigger_next_backfill executions.
+    #
+    # Two workers can both pass can_start_new_job() before either enqueues a job,
+    # creating two interleaved backfill chains.  If a PENDING import job already
+    # exists, another trigger instance has already found the next date and queued it;
+    # let that chain continue via on_job_completed → dispatch_next_job().
+    pending_count = queue.get_pending_jobs_count()
+    if pending_count > 0:
+        logger.info(
+            f"Already have {pending_count} pending import job(s) — "
+            f"skipping duplicate backfill trigger"
+        )
+        return {"status": "skipped", "reason": "pending_jobs_exist", "pending": pending_count}
+
     # Find the next oldest day to import
     next_date = find_next_oldest_missing_day()
 
@@ -253,41 +267,23 @@ def find_next_oldest_missing_day(entity_type="all", entity_id=None) -> date | No
             current_date -= timedelta(days=1)
             continue
 
-        # Guard against infinite re-import when classify_day returned
-        # "under_imported" but we have reason to believe the date is already
-        # as good as it's going to get.
+        # Guard against infinite re-import of dates where the API has
+        # consistently returned nothing.
         #
-        # The API is queried by issueDate (from_issue_date / to_issue_date), so
-        # `decision_count` — already computed by classify_day using the indexed
-        # issue_date_day field — is the correct and cheapest signal.
-        # (submission_timestamp / publish_timestamp casts are ~10× slower and
-        # measure a different dimension.)
+        # We only stop retrying when ALL completed jobs for this date fetched
+        # 0 decisions (total_decisions=0 → total_chunks=0) on 2+ independent
+        # attempts.  A single 0-decision run may just be an API failure and
+        # deserves one retry.
         #
-        # NOTE: The Easter Sunday case (32 real decisions, all chunks done) never
-        # reaches this guard — classify_day returns "done_job" for it.
+        # We deliberately do NOT short-circuit based on decision_count alone:
+        # a date that has, say, 6,560 decisions in the DB (below the 10,000
+        # workday threshold) should still be retried — a successful new import
+        # job will pass is_job_substantive and classify_day will return
+        # "done_job", regardless of whether the count exceeds the threshold.
+        # Accepting it prematurely would leave it permanently under-imported.
         #
-        # Two sub-cases:
-        #
-        # 1. DB already has a meaningful number of decisions (decision_count >=
-        #    COVERED_FLOOR): the date is covered well enough — decisions arrived
-        #    via other import runs even if this job reported 0.  Accept it.
-        #
-        # 2. DB has almost nothing (< COVERED_FLOOR): the job probably failed at
-        #    the API level.  Allow one retry; give up after two 0-decision
-        #    completed jobs to prevent an infinite loop on truly sparse dates.
-
-        COVERED_FLOOR = 30  # much lower than THRESHOLD_WORKDAY/WEEKEND/HOLIDAY
-
-        if decision_count >= COVERED_FLOOR:
-            logger.debug(
-                f"[{current_date}] Non-substantive ImportJob but DB already has "
-                f"{decision_count:,} decisions — accepting as sufficiently covered."
-            )
-            current_date -= timedelta(days=1)
-            continue
-
-        # DB has < COVERED_FLOOR decisions — check how many 0-decision completed
-        # jobs have already run to decide whether to retry or give up.
+        # NOTE: The Easter Sunday case (32 real decisions, all chunks done)
+        # never reaches this guard — classify_day returns "done_job" for it.
         zero_decision_attempts = ImportJob.objects.filter(
             **job_filter,
             start_date=current_date,
@@ -302,7 +298,7 @@ def find_next_oldest_missing_day(entity_type="all", entity_id=None) -> date | No
         if zero_decision_attempts >= 2:
             logger.warning(
                 f"[{current_date}] Skipping — {zero_decision_attempts} completed jobs "
-                f"returned 0 decisions and DB has only {decision_count} for this date. "
+                f"returned 0 decisions (DB has {decision_count:,} for this date). "
                 f"Accepting as-is to avoid infinite loop."
             )
             current_date -= timedelta(days=1)
