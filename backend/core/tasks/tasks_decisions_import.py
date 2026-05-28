@@ -108,75 +108,20 @@ def fetch_daily_decisions_to_redis(
             f"Task {self.request.id}: ImportJob {import_job.id} in FETCHING status"
         )
 
-        # Create fetcher and get decisions for the full day
-        fetcher = DiavgeiaFetcher()
-
-        # Build search parameters for full day
-        if search_params is None:
-            search_params = {}
-
-        # Log any entity filters passed from caller (e.g., Coverage Explorer)
-        entity_filters = [
-            f"{key}={val}"
-            for key in ["org", "unit", "signer"]
-            if (val := search_params.get(key))
-        ]
-        if entity_filters:
-            logger.info(
-                f"Task {self.request.id}: Entity filters: {', '.join(entity_filters)}"
-            )
-
-        # Check feature flag for decision type filtering
-        from core.services.feature_flag_service import feature_flags
-
-        filtered_types = feature_flags.get_value("FILTER_DECISION_TYPES")
-        if (
-            filtered_types
-            and isinstance(filtered_types, list)
-            and len(filtered_types) > 0
-        ):
-            # Join types with semicolon (API supports this for multiple types)
-            search_params["type"] = ";".join(filtered_types)
-            logger.info(
-                f"Task {self.request.id}: Filtering by decision types: {filtered_types} "
-                f"(joined as: {search_params['type']})"
-            )
-
-        search_params.update(
-            {
-                "from_issue_date": target_date.isoformat(),
-                "to_issue_date": (target_date + timedelta(days=1)).isoformat(),
-                "page": 0,
-                "size": 500,
-            }
+        # Use centralized fetch service for consistency
+        from core.services.decision_fetch_reconcile_service import (
+            DecisionFetchReconcileService,
         )
 
-        # Fetch all pages for this full day
-        all_decisions = []
-        page = 0
-        total_pages = 1
+        fetch_service = DecisionFetchReconcileService(use_submission_date=True)
 
-        while page < total_pages:
-            search_params["page"] = page
-            response = fetcher.fetch_decisions(**search_params)
-
-            if response and response.info:
-                if page == 0 and response.info.total > 0:
-                    page_size = search_params.get("size", 500)
-                    total_pages = (response.info.total + page_size - 1) // page_size
-                    logger.info(
-                        f"Task {self.request.id}: Found {response.info.total} decisions, "
-                        f"{total_pages} pages for {target_date}"
-                    )
-
-                all_decisions.extend(response.decisions)
-                page += 1
-
-                if response.info.actualSize < search_params.get("size", 500):
-                    break
-            else:
-                logger.warning(f"Task {self.request.id}: No response for page {page}")
-                break
+        # Fetch all decisions for this day using centralized logic
+        # This handles: pagination, feature flags, entity filters, etc.
+        all_decisions, api_total = fetch_service.fetch_decisions_for_day(
+            target_date=target_date,
+            additional_params=search_params,
+            include_feature_flags=True,
+        )
 
         # Update job with total count
         import_job.total_decisions = len(all_decisions)
@@ -184,7 +129,8 @@ def fetch_daily_decisions_to_redis(
         import_job.save(update_fields=["total_decisions", "status"])
 
         logger.success(
-            f"Task {self.request.id}: Fetched {len(all_decisions)} decisions for {target_date}"
+            f"Task {self.request.id}: Fetched {len(all_decisions)} decisions for {target_date} "
+            f"(API reported {api_total} total)"
         )
 
         # Handle case with zero decisions
