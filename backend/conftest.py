@@ -6,6 +6,17 @@ and factories available to any test in any app (core, notifications, api, etc.).
 """
 
 from datetime import timedelta
+from pathlib import Path
+
+
+def pytest_addoption(parser):
+    """Register custom command-line options."""
+    parser.addoption(
+        "--run-live",
+        action="store_true",
+        default=False,
+        help="Enable live API tests (default: disabled)",
+    )
 from datetime import timezone as dt_timezone
 from decimal import Decimal
 
