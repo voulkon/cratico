@@ -26,7 +26,7 @@ from core.services.entity_amount_extraction_service import (
 pytestmark = pytest.mark.django_db
 
 # Define test data directory (relative to this file)
-TEST_DATA_DIR = Path(__file__).parent / "data" / "afm_test_patterns" / "extraction"
+TEST_DATA_DIR = Path(__file__).parent.parent / "data" / "afm_test_patterns" / "extraction"
 
 
 def load_extraction_test_cases(test_data_dir: Path) -> list:

@@ -19,7 +19,7 @@ from core.services.direct_assignment_detection_service import classification_ser
 pytestmark = pytest.mark.django_db
 
 # Define test data directory (relative to this file)
-TEST_DATA_DIR = Path(__file__).parent / "data" / "direct_assignment_text_patterns"
+TEST_DATA_DIR = Path(__file__).parent.parent / "data" / "direct_assignment_text_patterns"
 
 
 def load_text_detection_test_cases(test_data_dir: Path) -> list:
