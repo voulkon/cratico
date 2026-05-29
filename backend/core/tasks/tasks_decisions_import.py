@@ -113,7 +113,9 @@ def fetch_daily_decisions_to_redis(
             DecisionFetchReconcileService,
         )
 
-        fetch_service = DecisionFetchReconcileService(use_submission_date=True)
+        fetch_service = DecisionFetchReconcileService(
+            use_submission_date=True
+            )
 
         # Fetch all decisions AND reconcile with official count
         # This handles: pagination, feature flags, entity filters, AND validates count accuracy
@@ -134,19 +136,42 @@ def fetch_daily_decisions_to_redis(
         )
         
         # Build reconciliation log message
-        recon_msg = (
-            f"Reconciliation: Official={reconciliation.get('official_count')}, "
-            f"API_reported={reconciliation.get('api_reported_total')}, "
-            f"Ours={reconciliation.get('our_count')}, "
-            f"Diff_vs_Official={reconciliation.get('difference')} ({reconciliation.get('percentage_diff', 0):.2f}%)"
-        )
+        filters_applied = reconciliation.get('filters_applied', False)
         
-        # Add pagination mismatch info if available
-        our_vs_api = reconciliation.get('our_vs_api_diff')
-        if our_vs_api is not None and our_vs_api != 0:
-            recon_msg += f", Pagination_mismatch={our_vs_api}"
-        
-        recon_msg += f", Status={reconciliation.get('status')}"
+        if filters_applied:
+            # Filtered query - only show pagination check
+            recon_msg = (
+                f"Reconciliation (filtered query): "
+                f"API_reported={reconciliation.get('api_reported_total')}, "
+                f"Ours={reconciliation.get('our_count')}"
+            )
+            
+            our_vs_api = reconciliation.get('our_vs_api_diff')
+            if our_vs_api is not None and our_vs_api != 0:
+                recon_msg += f", Pagination_mismatch={our_vs_api}"
+            else:
+                recon_msg += f", Pagination=OK"
+            
+            recon_msg += f", Status={reconciliation.get('status')}"
+        else:
+            # Unfiltered query - show full three-way reconciliation
+            recon_msg = (
+                f"Reconciliation: Official={reconciliation.get('official_count')}, "
+                f"API_reported={reconciliation.get('api_reported_total')}, "
+                f"Ours={reconciliation.get('our_count')}"
+            )
+            
+            diff = reconciliation.get('difference')
+            pct = reconciliation.get('percentage_diff', 0)
+            if diff is not None:
+                recon_msg += f", Diff_vs_Official={diff} ({pct:.2f}%)"
+            
+            # Add pagination mismatch info if available
+            our_vs_api = reconciliation.get('our_vs_api_diff')
+            if our_vs_api is not None and our_vs_api != 0:
+                recon_msg += f", Pagination_mismatch={our_vs_api}"
+            
+            recon_msg += f", Status={reconciliation.get('status')}"
         
         logger.info(recon_msg)
 

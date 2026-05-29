@@ -483,3 +483,123 @@ class TestFetchDailyDecisionsReconciliation:
                 assert "API_reported=315" in log_output
                 assert "Ours=" in log_output  # Should show our count
                 assert "Pagination_mismatch" in log_output  # Should show mismatch
+
+    def test_filtered_query_skips_official_count(
+        self, target_date, sample_decisions, import_job, capfd
+    ):
+        """
+        When FILTER_DECISION_TYPES is active, official count comparison should be skipped.
+        
+        This is critical: official counts are for ALL decisions, while our query
+        is filtered to specific types. Comparing them would be meaningless.
+        """
+        filtered_query_result = {
+            "date": target_date.isoformat(),
+            "official_count": None,  # Not fetched for filtered query
+            "api_reported_total": 50,  # Filtered count
+            "our_count": 50,
+            "difference": None,
+            "percentage_diff": None,
+            "api_vs_official_diff": None,
+            "our_vs_api_diff": 0,
+            "filters_applied": True,
+            "status": "filtered_query",
+        }
+
+        with patch(
+            "core.services.decision_fetch_reconcile_service.DecisionFetchReconcileService"
+        ) as MockService:
+            mock_service = MagicMock()
+            MockService.return_value = mock_service
+            mock_service.fetch_and_reconcile.return_value = (
+                sample_decisions[:5],  # Only 5 decisions (filtered)
+                filtered_query_result,
+            )
+
+            with patch("core.tasks.tasks_decisions_import.RedisDecisionCache"):
+                result = fetch_daily_decisions_to_redis.run(
+                    target_date_str=target_date.isoformat(),
+                    chunk_size=5,
+                    job_id=import_job.id,
+                )
+
+                # Capture logs
+                captured = capfd.readouterr()
+                log_output = captured.err + captured.out
+                
+                # Should indicate filtered query
+                assert "filtered query" in log_output
+                assert "Status=filtered_query" in log_output
+                
+                # Should show pagination OK, not official count comparison
+                assert "Pagination=OK" in log_output
+                assert "API_reported=50" in log_output
+                
+                # Should NOT show official count (it's None for filtered queries)
+                # The log format should be different
+
+    def test_filtered_query_with_pagination_issue(
+        self, target_date, import_job, capfd
+    ):
+        """
+        Filtered query can still detect pagination bugs even without official count.
+        """
+        from datetime import datetime
+        from diavgeia_api.models.decisions import Decision, DecisionStatus
+        
+        # Create sample decisions
+        decisions = [
+            Decision(
+                ada=f"FILT{i:04d}ADA",
+                subject=f"Filtered Decision {i}",
+                decisionTypeId="Β.1.1",
+                organizationId="99999999",
+                unitIds=["1111111"],
+                signerIds=["SIGNER001"],
+                issueDate=datetime(2026, 5, 1, 10, 0, 0),
+                submissionTimestamp=datetime(2026, 5, 1, 10, 0, 0),
+                versionId=f"v{i}",
+                thematicCategoryIds=[],
+                privateData=False,
+                status=DecisionStatus.PUBLISHED,
+            )
+            for i in range(1, 6)  # Only 5 decisions
+        ]
+
+        filtered_pagination_issue = {
+            "date": target_date.isoformat(),
+            "official_count": None,
+            "api_reported_total": 50,  # API said 50
+            "our_count": 5,  # But we only got 5 (pagination bug)
+            "difference": None,
+            "percentage_diff": None,
+            "api_vs_official_diff": None,
+            "our_vs_api_diff": -45,  # Missing 45 items
+            "filters_applied": True,
+            "status": "filtered_query_pagination_mismatch",
+        }
+
+        with patch(
+            "core.services.decision_fetch_reconcile_service.DecisionFetchReconcileService"
+        ) as MockService:
+            mock_service = MagicMock()
+            MockService.return_value = mock_service
+            mock_service.fetch_and_reconcile.return_value = (
+                decisions,
+                filtered_pagination_issue,
+            )
+
+            with patch("core.tasks.tasks_decisions_import.RedisDecisionCache"):
+                result = fetch_daily_decisions_to_redis.run(
+                    target_date_str=target_date.isoformat(),
+                    chunk_size=5,
+                    job_id=import_job.id,
+                )
+
+                # Capture logs
+                captured = capfd.readouterr()
+                log_output = captured.err + captured.out
+                
+                # Should detect pagination mismatch even in filtered query
+                assert "Pagination_mismatch=-45" in log_output
+                assert "Status=filtered_query_pagination_mismatch" in log_output

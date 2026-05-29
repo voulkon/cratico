@@ -381,34 +381,83 @@ class DecisionFetchReconcileService:
         target_date: date, 
         our_count: int,
         api_reported_total: Optional[int] = None,
+        filters_applied: bool = False,
     ) -> Dict[str, Any]:
         """
         Reconcile our fetched count with the official API count.
         
         This provides detailed three-way comparison:
-        1. Official count (from daily stats endpoint)
+        1. Official count (from daily stats endpoint) - only when no filters
         2. API reported total (from response.info.total during pagination)
         3. Actual fetched count (len(all_decisions))
+        
+        IMPORTANT: When filters are applied (FILTER_DECISION_TYPES, org, unit, signer),
+        the official count represents ALL decisions, while our query is filtered.
+        In this case, we skip official count comparison and only validate pagination.
         
         Args:
             target_date: Date that was fetched
             our_count: Number of decisions we actually fetched
             api_reported_total: Optional count from response.info.total (pagination info)
+            filters_applied: If True, filters are active and official count comparison is skipped
         
         Returns:
             Dict with reconciliation results:
             {
                 "date": "2026-05-01",
-                "official_count": 313,
-                "api_reported_total": 313,  # NEW
+                "official_count": 313,  # None if filters_applied=True
+                "api_reported_total": 313,
                 "our_count": 313,
                 "difference": 0,
                 "percentage_diff": 0.0,
-                "api_vs_official_diff": 0,  # NEW: api_reported vs official
-                "our_vs_api_diff": 0,  # NEW: our_count vs api_reported
-                "status": "match"|"discrepancy"|"no_official_data"|"pagination_mismatch"
+                "api_vs_official_diff": 0,
+                "our_vs_api_diff": 0,
+                "filters_applied": True,  # NEW: indicates if filters were active
+                "status": "match"|"discrepancy"|"no_official_data"|"pagination_mismatch"|"filtered_query"
             }
         """
+        # If filters are applied, skip official count check
+        # (official count is for ALL decisions, while we're querying a filtered subset)
+        if filters_applied:
+            logger.info(
+                f"Filters applied for {target_date}, skipping official count comparison "
+                f"(official counts are for all decisions, not filtered subset)"
+            )
+            
+            result = {
+                "date": target_date.isoformat(),
+                "official_count": None,
+                "api_reported_total": api_reported_total,
+                "our_count": our_count,
+                "difference": None,
+                "percentage_diff": None,
+                "api_vs_official_diff": None,
+                "our_vs_api_diff": None,
+                "filters_applied": True,
+                "status": "filtered_query",
+            }
+            
+            # Still check pagination consistency
+            if api_reported_total is not None:
+                our_vs_api_diff = our_count - api_reported_total
+                result["our_vs_api_diff"] = our_vs_api_diff
+                
+                if our_vs_api_diff == 0:
+                    logger.success(
+                        f"Pagination OK for filtered query on {target_date}: "
+                        f"API_reported={api_reported_total}, Our={our_count}"
+                    )
+                else:
+                    result["status"] = "filtered_query_pagination_mismatch"
+                    logger.warning(
+                        f"Pagination mismatch in filtered query for {target_date}! "
+                        f"API reported {api_reported_total}, but fetched {our_count} "
+                        f"(diff: {our_vs_api_diff})"
+                    )
+            
+            return result
+        
+        # No filters - proceed with full three-way reconciliation
         official_count = self.get_official_count_for_date(target_date)
 
         if official_count is None:
@@ -422,6 +471,7 @@ class DecisionFetchReconcileService:
                 "percentage_diff": None,
                 "api_vs_official_diff": None,
                 "our_vs_api_diff": None,
+                "filters_applied": False,
                 "status": "no_official_data",
             }
             
@@ -503,6 +553,7 @@ class DecisionFetchReconcileService:
             "percentage_diff": percentage_diff,
             "api_vs_official_diff": api_vs_official_diff,
             "our_vs_api_diff": our_vs_api_diff,
+            "filters_applied": False,
             "status": status,
         }
 
@@ -529,10 +580,60 @@ class DecisionFetchReconcileService:
             include_feature_flags=include_feature_flags,
         )
 
+        # Determine if filters are applied
+        filters_applied = self._check_if_filters_applied(
+            additional_params=additional_params,
+            include_feature_flags=include_feature_flags,
+        )
+
         reconciliation = self.reconcile_counts(
             target_date=target_date, 
             our_count=len(decisions),
             api_reported_total=api_count,
+            filters_applied=filters_applied,
         )
 
         return decisions, reconciliation
+    
+    def _check_if_filters_applied(
+        self,
+        additional_params: Optional[Dict[str, Any]] = None,
+        include_feature_flags: bool = True,
+    ) -> bool:
+        """
+        Check if any filters are applied that would make official count comparison invalid.
+        
+        Filters include:
+        - FILTER_DECISION_TYPES feature flag
+        - Entity filters (org, unit, signer)
+        - Decision type filters in additional_params
+        
+        Args:
+            additional_params: Optional additional search parameters
+            include_feature_flags: Whether feature flags are being applied
+        
+        Returns:
+            True if filters are active, False otherwise
+        """
+        # Check for feature flag filtering
+        if include_feature_flags:
+            from core.services.feature_flag_service import feature_flags
+            
+            filtered_types = feature_flags.get_value("FILTER_DECISION_TYPES")
+            if filtered_types and isinstance(filtered_types, list) and len(filtered_types) > 0:
+                return True
+        
+        # Check for entity or type filters in additional params
+        if additional_params:
+            filter_keys = [
+                DiavgeiaSearchFields.ORG,
+                DiavgeiaSearchFields.UNIT,
+                DiavgeiaSearchFields.SIGNER,
+                DiavgeiaSearchFields.TYPE,
+            ]
+            
+            for key in filter_keys:
+                if key in additional_params and additional_params[key]:
+                    return True
+        
+        return False

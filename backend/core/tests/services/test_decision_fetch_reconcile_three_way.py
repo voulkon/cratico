@@ -264,3 +264,149 @@ class TestThreeWayReconciliation:
             assert result["api_vs_official_diff"] == 5  # API thinks there are 5 more
             assert result["our_vs_api_diff"] == -7  # We're 7 short of what API claimed
             assert result["status"] == "discrepancy_with_pagination_mismatch"
+
+    def test_filtered_query_skips_official_reconciliation(self, service, test_date):
+        """
+        When filters are applied, official count comparison should be skipped.
+        
+        Scenario: FILTER_DECISION_TYPES is active
+        - Official count = 1000 (all decisions)
+        - Our filtered query = 100 (specific types only)
+        - Should NOT compare against official count
+        """
+        with patch.object(
+            service, "get_official_count_for_date", return_value=1000
+        ) as mock_official:
+            result = service.reconcile_counts(
+                target_date=test_date,
+                our_count=100,
+                api_reported_total=100,
+                filters_applied=True,  # Filters are active
+            )
+
+            # Should NOT have called get_official_count_for_date
+            mock_official.assert_not_called()
+            
+            assert result["official_count"] is None  # Not fetched
+            assert result["api_reported_total"] == 100
+            assert result["our_count"] == 100
+            assert result["difference"] is None  # No official comparison
+            assert result["percentage_diff"] is None
+            assert result["our_vs_api_diff"] == 0  # Pagination OK
+            assert result["filters_applied"] is True
+            assert result["status"] == "filtered_query"
+
+    def test_filtered_query_with_pagination_mismatch(self, service, test_date):
+        """
+        Filtered query with pagination issue.
+        
+        Official reconciliation is skipped, but pagination check still catches bugs.
+        """
+        with patch.object(
+            service, "get_official_count_for_date", return_value=1000
+        ) as mock_official:
+            result = service.reconcile_counts(
+                target_date=test_date,
+                our_count=95,
+                api_reported_total=100,
+                filters_applied=True,
+            )
+
+            # Should NOT have called official count
+            mock_official.assert_not_called()
+            
+            assert result["official_count"] is None
+            assert result["api_reported_total"] == 100
+            assert result["our_count"] == 95
+            assert result["our_vs_api_diff"] == -5
+            assert result["filters_applied"] is True
+            assert result["status"] == "filtered_query_pagination_mismatch"
+
+
+class TestFilterDetection:
+    """
+    Tests for _check_if_filters_applied method.
+    """
+
+    @pytest.fixture
+    def service(self):
+        """Create service instance"""
+        return DecisionFetchReconcileService()
+
+    def test_no_filters(self, service):
+        """No filters applied"""
+        result = service._check_if_filters_applied(
+            additional_params=None,
+            include_feature_flags=False,
+        )
+        assert result is False
+
+    def test_feature_flag_filter_active(self, service):
+        """FILTER_DECISION_TYPES feature flag is active"""
+        with patch("core.services.feature_flag_service.feature_flags") as mock_ff:
+            mock_ff.get_value.return_value = ["Β.1.1", "Β.1.2"]
+            
+            result = service._check_if_filters_applied(
+                additional_params=None,
+                include_feature_flags=True,
+            )
+            assert result is True
+
+    def test_feature_flag_empty_list(self, service):
+        """FILTER_DECISION_TYPES exists but is empty list"""
+        with patch("core.services.feature_flag_service.feature_flags") as mock_ff:
+            mock_ff.get_value.return_value = []
+            
+            result = service._check_if_filters_applied(
+                additional_params=None,
+                include_feature_flags=True,
+            )
+            assert result is False
+
+    def test_org_filter(self, service):
+        """Organization filter is applied"""
+        result = service._check_if_filters_applied(
+            additional_params={"org": "99999999"},
+            include_feature_flags=False,
+        )
+        assert result is True
+
+    def test_unit_filter(self, service):
+        """Unit filter is applied"""
+        result = service._check_if_filters_applied(
+            additional_params={"unit": "1111111"},
+            include_feature_flags=False,
+        )
+        assert result is True
+
+    def test_signer_filter(self, service):
+        """Signer filter is applied"""
+        result = service._check_if_filters_applied(
+            additional_params={"signer": "SIGNER001"},
+            include_feature_flags=False,
+        )
+        assert result is True
+
+    def test_type_filter_in_params(self, service):
+        """Decision type filter in additional params"""
+        result = service._check_if_filters_applied(
+            additional_params={"decisionType": "Β.1.1"},
+            include_feature_flags=False,
+        )
+        assert result is True
+
+    def test_multiple_filters(self, service):
+        """Multiple filters applied"""
+        result = service._check_if_filters_applied(
+            additional_params={"org": "99999999", "unit": "1111111"},
+            include_feature_flags=False,
+        )
+        assert result is True
+
+    def test_internal_params_ignored(self, service):
+        """Internal params (job_id, chunk_size) don't count as filters"""
+        result = service._check_if_filters_applied(
+            additional_params={"job_id": 123, "chunk_size": 10, "force": True},
+            include_feature_flags=False,
+        )
+        assert result is False
