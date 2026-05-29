@@ -12,6 +12,7 @@ The pipeline orchestrator calls this service during Stage 8.
 """
 
 import re
+import unicodedata
 from decimal import Decimal
 from typing import Dict, Optional
 
@@ -67,12 +68,22 @@ class DirectAssignmentDetectionService:
         r"ευθεί[αά]\s+αν[άα]θεσ[ηή]",  # "ευθεία ανάθεση"
     ]
 
+    @staticmethod
+    def _strip_accents(text: str) -> str:
+        """Strip Unicode combining accent marks (e.g. ί→ι, ά→α) for Greek uppercase matching."""
+        return "".join(
+            c
+            for c in unicodedata.normalize("NFD", text)
+            if unicodedata.category(c) != "Mn"
+        )
+
     def __init__(self):
         """Initialize service with financial calculation dependency."""
         self.financial_service = financial_service
-        # Compile regex patterns for efficiency
+        # Compile accent-stripped patterns so ALL-CAPS Greek text (which drops accents) matches.
+        # e.g. 'ΑΠΕΥΘΕΙΑΣ' has plain Ι (U+0399), not accented Ί (U+038A).
         self.compiled_patterns = [
-            re.compile(pattern, re.IGNORECASE | re.UNICODE)
+            re.compile(self._strip_accents(pattern), re.IGNORECASE | re.UNICODE)
             for pattern in self.TEXT_PATTERNS
         ]
 
@@ -98,6 +109,11 @@ class DirectAssignmentDetectionService:
         text = getattr(extraction, "raw_text", None)
         if not text:
             return False
+
+        # Normalize: strip accent marks so ALL-CAPS Greek (e.g. ΑΠΕΥΘΕΙΑΣ) matches
+        # accented lowercase patterns (e.g. απευθείας). In Greek, capitalisation
+        # drops accents: ί (U+03AF) → Ι (U+0399), not Ί (U+038A).
+        text = self._strip_accents(text)
 
         # Check each compiled pattern
         for pattern in self.compiled_patterns:
