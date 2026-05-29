@@ -236,11 +236,14 @@ class AFMExtractionService:
 
     def _map_parent_key_to_role(self, parent_key: str) -> str:
         """Map parent key to EntityRole."""
+        # Strip array index suffix like [0], [1], etc. before lookup
+        base_key = parent_key.split("[")[0]
+
         # Handle array patterns like person[0], person[1], etc.
-        if parent_key.startswith("person"):
+        if base_key == "person":
             return EntityRole.PERSON
 
-        return self.role_mapping.get(parent_key, EntityRole.OTHER)
+        return self.role_mapping.get(base_key, EntityRole.OTHER)
 
     def _detect_entity_type(self, data: Dict[str, Any]) -> str:
         """Detect if entity is person, company, or organization."""
