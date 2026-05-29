@@ -115,9 +115,9 @@ def fetch_daily_decisions_to_redis(
 
         fetch_service = DecisionFetchReconcileService(use_submission_date=True)
 
-        # Fetch all decisions for this day using centralized logic
-        # This handles: pagination, feature flags, entity filters, etc.
-        all_decisions, api_total = fetch_service.fetch_decisions_for_day(
+        # Fetch all decisions AND reconcile with official count
+        # This handles: pagination, feature flags, entity filters, AND validates count accuracy
+        all_decisions, reconciliation = fetch_service.fetch_and_reconcile(
             target_date=target_date,
             additional_params=search_params,
             include_feature_flags=True,
@@ -128,9 +128,15 @@ def fetch_daily_decisions_to_redis(
         import_job.status = ImportJobStatus.SPLITTING
         import_job.save(update_fields=["total_decisions", "status"])
 
+        # Log reconciliation results
         logger.success(
-            f"Task {self.request.id}: Fetched {len(all_decisions)} decisions for {target_date} "
-            f"(API reported {api_total} total)"
+            f"Task {self.request.id}: Fetched {len(all_decisions)} decisions for {target_date}"
+        )
+        logger.info(
+            f"Reconciliation: Official={reconciliation.get('official_count')}, "
+            f"Ours={reconciliation.get('our_count')}, "
+            f"Diff={reconciliation.get('difference')} ({reconciliation.get('percentage_diff', 0):.2f}%), "
+            f"Status={reconciliation.get('status')}"
         )
 
         # Handle case with zero decisions
