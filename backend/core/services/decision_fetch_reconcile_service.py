@@ -377,66 +377,132 @@ class DecisionFetchReconcileService:
         return lowest["date"]
 
     def reconcile_counts(
-        self, target_date: date, our_count: int
+        self, 
+        target_date: date, 
+        our_count: int,
+        api_reported_total: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Reconcile our fetched count with the official API count.
         
-        This provides detailed comparison and highlights discrepancies.
+        This provides detailed three-way comparison:
+        1. Official count (from daily stats endpoint)
+        2. API reported total (from response.info.total during pagination)
+        3. Actual fetched count (len(all_decisions))
         
         Args:
             target_date: Date that was fetched
-            our_count: Number of decisions we fetched
+            our_count: Number of decisions we actually fetched
+            api_reported_total: Optional count from response.info.total (pagination info)
         
         Returns:
             Dict with reconciliation results:
             {
                 "date": "2026-05-01",
                 "official_count": 313,
+                "api_reported_total": 313,  # NEW
                 "our_count": 313,
                 "difference": 0,
                 "percentage_diff": 0.0,
-                "status": "match"|"discrepancy"|"no_official_data"
+                "api_vs_official_diff": 0,  # NEW: api_reported vs official
+                "our_vs_api_diff": 0,  # NEW: our_count vs api_reported
+                "status": "match"|"discrepancy"|"no_official_data"|"pagination_mismatch"
             }
         """
         official_count = self.get_official_count_for_date(target_date)
 
         if official_count is None:
-            return {
+            # No official data, but still check pagination consistency
+            result = {
                 "date": target_date.isoformat(),
                 "official_count": None,
+                "api_reported_total": api_reported_total,
                 "our_count": our_count,
                 "difference": None,
                 "percentage_diff": None,
+                "api_vs_official_diff": None,
+                "our_vs_api_diff": None,
                 "status": "no_official_data",
             }
+            
+            # Check pagination consistency even without official data
+            if api_reported_total is not None:
+                our_vs_api_diff = our_count - api_reported_total
+                result["our_vs_api_diff"] = our_vs_api_diff
+                
+                if our_vs_api_diff != 0:
+                    result["status"] = "pagination_mismatch"
+                    logger.warning(
+                        f"Pagination mismatch for {target_date}! "
+                        f"API reported {api_reported_total}, but fetched {our_count} "
+                        f"(diff: {our_vs_api_diff})"
+                    )
+            
+            return result
 
+        # Calculate main comparison: our_count vs official_count
         difference = our_count - official_count
         percentage_diff = (
             (difference / official_count * 100) if official_count > 0 else 0
         )
 
+        # Calculate additional comparisons if API reported total is available
+        api_vs_official_diff = None
+        our_vs_api_diff = None
+        
+        if api_reported_total is not None:
+            api_vs_official_diff = api_reported_total - official_count
+            our_vs_api_diff = our_count - api_reported_total
+
+        # Determine status
         status = "match" if abs(percentage_diff) <= 1.0 else "discrepancy"
+        
+        # Check for pagination mismatch (our_count != api_reported_total)
+        if our_vs_api_diff is not None and our_vs_api_diff != 0:
+            if status == "match":
+                status = "pagination_mismatch"  # Pagination issue but matches official
+            else:
+                status = "discrepancy_with_pagination_mismatch"
 
-        logger.info(f"""
-                    Reconciliation for {target_date},
-                    Official count: {official_count}, 
-                    Our count: {our_count}, 
-                    Difference: {difference} ({percentage_diff:.2f}%)"""
-                    )
+        # Logging
+        log_msg = (
+            f"Reconciliation for {target_date}: "
+            f"Official={official_count}, "
+            f"Our={our_count}, "
+            f"Diff={difference} ({percentage_diff:.2f}%)"
+        )
+        
+        if api_reported_total is not None:
+            log_msg += (
+                f" | API_reported={api_reported_total}, "
+                f"API_vs_Official={api_vs_official_diff}, "
+                f"Our_vs_API={our_vs_api_diff}"
+            )
+        
+        logger.info(log_msg)
 
-        if status == "discrepancy":
+        if "discrepancy" in status:
             logger.warning(
-                f"Discrepancy detected for {target_date}! "
+                f"[WARN] Discrepancy detected for {target_date}! "
                 f"Difference: {difference} ({percentage_diff:.2f}%)"
+            )
+        
+        if our_vs_api_diff is not None and our_vs_api_diff != 0:
+            logger.warning(
+                f"[WARN] Pagination mismatch for {target_date}! "
+                f"API reported {api_reported_total}, but fetched {our_count} "
+                f"(diff: {our_vs_api_diff})"
             )
 
         return {
             "date": target_date.isoformat(),
             "official_count": official_count,
+            "api_reported_total": api_reported_total,
             "our_count": our_count,
             "difference": difference,
             "percentage_diff": percentage_diff,
+            "api_vs_official_diff": api_vs_official_diff,
+            "our_vs_api_diff": our_vs_api_diff,
             "status": status,
         }
 
@@ -464,7 +530,9 @@ class DecisionFetchReconcileService:
         )
 
         reconciliation = self.reconcile_counts(
-            target_date=target_date, our_count=len(decisions)
+            target_date=target_date, 
+            our_count=len(decisions),
+            api_reported_total=api_count,
         )
 
         return decisions, reconciliation

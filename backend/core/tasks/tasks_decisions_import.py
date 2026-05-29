@@ -132,12 +132,23 @@ def fetch_daily_decisions_to_redis(
         logger.success(
             f"Task {self.request.id}: Fetched {len(all_decisions)} decisions for {target_date}"
         )
-        logger.info(
+        
+        # Build reconciliation log message
+        recon_msg = (
             f"Reconciliation: Official={reconciliation.get('official_count')}, "
+            f"API_reported={reconciliation.get('api_reported_total')}, "
             f"Ours={reconciliation.get('our_count')}, "
-            f"Diff={reconciliation.get('difference')} ({reconciliation.get('percentage_diff', 0):.2f}%), "
-            f"Status={reconciliation.get('status')}"
+            f"Diff_vs_Official={reconciliation.get('difference')} ({reconciliation.get('percentage_diff', 0):.2f}%)"
         )
+        
+        # Add pagination mismatch info if available
+        our_vs_api = reconciliation.get('our_vs_api_diff')
+        if our_vs_api is not None and our_vs_api != 0:
+            recon_msg += f", Pagination_mismatch={our_vs_api}"
+        
+        recon_msg += f", Status={reconciliation.get('status')}"
+        
+        logger.info(recon_msg)
 
         # Handle case with zero decisions
         if len(all_decisions) == 0:

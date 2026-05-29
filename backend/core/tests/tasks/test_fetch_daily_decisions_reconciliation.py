@@ -56,13 +56,16 @@ class TestFetchDailyDecisionsReconciliation:
 
     @pytest.fixture
     def mock_reconciliation_result(self):
-        """Sample reconciliation result"""
+        """Sample reconciliation result with three-way comparison"""
         return {
             "date": "2026-05-01",
             "official_count": 313,
+            "api_reported_total": 313,  # API's pagination info
             "our_count": 10,
             "difference": -303,
             "percentage_diff": -96.81,
+            "api_vs_official_diff": 0,  # API matches official
+            "our_vs_api_diff": -303,  # But we fetched fewer (filtered)
             "status": "discrepancy",
         }
 
@@ -290,3 +293,193 @@ class TestFetchDailyDecisionsReconciliation:
                 f"\n✓ Live test completed for {low_volume_date}: "
                 f"{result['decisions_count']} decisions fetched and reconciled"
             )
+
+    def test_three_way_reconciliation_all_match(self, target_date, sample_decisions, import_job):
+        """
+        Test happy path: all three counts match.
+        Official = API reported = Our fetched
+        """
+        perfect_match_result = {
+            "date": target_date.isoformat(),
+            "official_count": 10,
+            "api_reported_total": 10,
+            "our_count": 10,
+            "difference": 0,
+            "percentage_diff": 0.0,
+            "api_vs_official_diff": 0,
+            "our_vs_api_diff": 0,
+            "status": "match",
+        }
+
+        with patch(
+            "core.services.decision_fetch_reconcile_service.DecisionFetchReconcileService"
+        ) as MockService:
+            mock_service = MagicMock()
+            MockService.return_value = mock_service
+            mock_service.fetch_and_reconcile.return_value = (
+                sample_decisions,
+                perfect_match_result,
+            )
+
+            with patch("core.tasks.tasks_decisions_import.RedisDecisionCache"):
+                result = fetch_daily_decisions_to_redis.run(
+                    target_date_str=target_date.isoformat(),
+                    chunk_size=5,
+                    job_id=import_job.id,
+                )
+
+                assert result["status"] == "success"
+                # All three should match
+                assert perfect_match_result["official_count"] == 10
+                assert perfect_match_result["api_reported_total"] == 10
+                assert perfect_match_result["our_count"] == 10
+
+    def test_three_way_reconciliation_pagination_mismatch(
+        self, target_date, import_job
+    ):
+        """
+        Test pagination mismatch: API reported total doesn't match what we fetched.
+        This catches bugs in pagination logic (duplicates, missing items, etc.)
+        
+        Scenario: API says 10 items, but we only fetched 8 (missing 2 during pagination)
+        """
+        # Create 8 decisions (API reported 10 but we only got 8)
+        from datetime import datetime
+        from diavgeia_api.models.decisions import Decision, DecisionStatus
+        
+        decisions_fetched = [
+            Decision(
+                ada=f"TEST{i:04d}ADA",
+                subject=f"Test Decision {i}",
+                decisionTypeId="Β.1.1",
+                organizationId="99999999",
+                unitIds=["1111111"],
+                signerIds=["SIGNER001"],
+                issueDate=datetime(2026, 5, 1, 10, 0, 0),
+                submissionTimestamp=datetime(2026, 5, 1, 10, 0, 0),
+                versionId=f"v{i}",
+                thematicCategoryIds=[],
+                privateData=False,
+                status=DecisionStatus.PUBLISHED,
+            )
+            for i in range(1, 9)  # Only 8 decisions
+        ]
+
+        pagination_mismatch_result = {
+            "date": target_date.isoformat(),
+            "official_count": 10,
+            "api_reported_total": 10,  # API said 10
+            "our_count": 8,  # But we only fetched 8
+            "difference": -2,  # 2 short of official
+            "percentage_diff": -20.0,
+            "api_vs_official_diff": 0,  # API matches official
+            "our_vs_api_diff": -2,  # We're missing 2 items during pagination
+            "status": "pagination_mismatch",
+        }
+
+        with patch(
+            "core.services.decision_fetch_reconcile_service.DecisionFetchReconcileService"
+        ) as MockService:
+            mock_service = MagicMock()
+            MockService.return_value = mock_service
+            mock_service.fetch_and_reconcile.return_value = (
+                decisions_fetched,
+                pagination_mismatch_result,
+            )
+
+            with patch("core.tasks.tasks_decisions_import.RedisDecisionCache"):
+                result = fetch_daily_decisions_to_redis.run(
+                    target_date_str=target_date.isoformat(),
+                    chunk_size=5,
+                    job_id=import_job.id,
+                )
+
+                # Should detect pagination mismatch
+                assert pagination_mismatch_result["status"] == "pagination_mismatch"
+                assert pagination_mismatch_result["our_vs_api_diff"] == -2
+
+    def test_three_way_reconciliation_api_wrong(self, target_date, sample_decisions, import_job):
+        """
+        Test case: API's pagination info is wrong.
+        Official count = 10, Our count = 10, but API reported 12
+        
+        This catches bugs in the API's pagination metadata.
+        """
+        api_metadata_wrong_result = {
+            "date": target_date.isoformat(),
+            "official_count": 10,
+            "api_reported_total": 12,  # API pagination info is wrong
+            "our_count": 10,  # We correctly fetched all 10
+            "difference": 0,  # We match official
+            "percentage_diff": 0.0,
+            "api_vs_official_diff": 2,  # API metadata is off by 2
+            "our_vs_api_diff": -2,  # We fetched 2 fewer than API claimed
+            "status": "pagination_mismatch",  # Mismatch even though we match official
+        }
+
+        with patch(
+            "core.services.decision_fetch_reconcile_service.DecisionFetchReconcileService"
+        ) as MockService:
+            mock_service = MagicMock()
+            MockService.return_value = mock_service
+            mock_service.fetch_and_reconcile.return_value = (
+                sample_decisions,
+                api_metadata_wrong_result,
+            )
+
+            with patch("core.tasks.tasks_decisions_import.RedisDecisionCache"):
+                result = fetch_daily_decisions_to_redis.run(
+                    target_date_str=target_date.isoformat(),
+                    chunk_size=5,
+                    job_id=import_job.id,
+                )
+
+                # Even though we match official, pagination metadata is wrong
+                assert api_metadata_wrong_result["api_vs_official_diff"] == 2
+                assert api_metadata_wrong_result["our_count"] == 10
+                assert api_metadata_wrong_result["official_count"] == 10
+
+    def test_logs_include_three_way_reconciliation(
+        self, target_date, sample_decisions, import_job, capfd
+    ):
+        """
+        Verify that logs include all three counts: official, API reported, and ours.
+        """
+        three_way_result = {
+            "date": target_date.isoformat(),
+            "official_count": 313,
+            "api_reported_total": 315,  # Slightly off
+            "our_count": 313,
+            "difference": 0,
+            "percentage_diff": 0.0,
+            "api_vs_official_diff": 2,
+            "our_vs_api_diff": -2,
+            "status": "pagination_mismatch",
+        }
+
+        with patch(
+            "core.services.decision_fetch_reconcile_service.DecisionFetchReconcileService"
+        ) as MockService:
+            mock_service = MagicMock()
+            MockService.return_value = mock_service
+            mock_service.fetch_and_reconcile.return_value = (
+                sample_decisions,
+                three_way_result,
+            )
+
+            with patch("core.tasks.tasks_decisions_import.RedisDecisionCache"):
+                fetch_daily_decisions_to_redis.run(
+                    target_date_str=target_date.isoformat(),
+                    chunk_size=5,
+                    job_id=import_job.id,
+                )
+
+                # Capture logs
+                captured = capfd.readouterr()
+                log_output = captured.err + captured.out
+                
+                # Should log all three counts
+                assert "Official=313" in log_output
+                assert "API_reported=315" in log_output
+                assert "Ours=" in log_output  # Should show our count
+                assert "Pagination_mismatch" in log_output  # Should show mismatch
