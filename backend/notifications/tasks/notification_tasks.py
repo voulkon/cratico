@@ -476,3 +476,79 @@ def create_batch_for_matches(
             exc_info=True,
         )
         return {"batch_id": None, "decisions_added": 0, "error": str(e)}
+
+
+@shared_task
+def check_all_active_subscriptions(lookback_days: int = 1):
+    """
+    Fan-out task: check ALL active subscriptions for new matching decisions.
+
+    Called by the post-import orchestrator after a global daily import completes.
+    Fans out to individual check_single_subscription tasks so each subscription
+    is checked independently (retries, logging, error isolation).
+
+    Only checks subscriptions with check_frequency='daily' or 'weekly' that
+    are due for a check.  Manual-only subscriptions are skipped.
+
+    Args:
+        lookback_days: How many days back to check (default: 1 for yesterday's data).
+
+    Returns:
+        dict with total/dispatched/skipped counts.
+    """
+    from notifications.constants import CHECK_FREQUENCY_DAILY, CHECK_FREQUENCY_WEEKLY
+
+    now = timezone.now()
+
+    active_subscriptions = NotificationSubscription.objects.filter(
+        is_active=True,
+        check_frequency__in=[CHECK_FREQUENCY_DAILY, CHECK_FREQUENCY_WEEKLY],
+    )
+
+    total = active_subscriptions.count()
+    dispatched = 0
+    skipped = 0
+
+    for subscription in active_subscriptions:
+        try:
+            should_check = False
+
+            if subscription.check_frequency == CHECK_FREQUENCY_DAILY:
+                should_check = True
+            elif subscription.check_frequency == CHECK_FREQUENCY_WEEKLY:
+                if subscription.last_checked is None:
+                    should_check = True
+                elif (now - subscription.last_checked).days >= 7:
+                    should_check = True
+
+            if not should_check:
+                skipped += 1
+                continue
+
+            # Fire-and-forget each subscription check independently
+            check_single_subscription.delay(
+                subscription_id=subscription.id,
+                lookback_days=lookback_days,
+                use_batch=True,
+                send_email=False,
+            )
+            dispatched += 1
+
+        except Exception as e:
+            logger.error(
+                f"Error dispatching check for subscription {subscription.id}: {e}",
+                exc_info=True,
+            )
+            skipped += 1
+
+    logger.info(
+        f"Bulk notification check complete: "
+        f"{dispatched} dispatched, {skipped} skipped out of {total} total"
+    )
+
+    return {
+        "status": "dispatched",
+        "total": total,
+        "dispatched": dispatched,
+        "skipped": skipped,
+    }
