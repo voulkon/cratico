@@ -46,3 +46,20 @@ class DiavgeiaSearchFields:
 DIAVGEIA_OFFICIAL_COUNTS_URL = (
     "https://diavgeia.gov.gr/static/api/search/countPerDayLastMonth"
 )
+
+# ---------------------------------------------------------------------------
+# Date-type alignment for fetch ↔ coverage
+# ---------------------------------------------------------------------------
+# The Diavgeia API's `from_date` / `to_date` params filter on SUBMISSION date
+# (i.e. when the decision was uploaded), not on issue date.
+#
+# Setting USE_SUBMISSION_DATE = True (the default) means:
+#   - DecisionFetchReconcileService uses from_date / to_date  (submission)
+#   - BackfillCoverageService counts decisions via submission_date_day
+#
+# If you ever need to switch the whole pipeline to issue-date semantics, flip
+# this flag to False.  Both services read this constant so they always agree.
+USE_SUBMISSION_DATE = True
+
+# ORM field names on Decision used by BackfillCoverageService for counting
+COVERAGE_DATE_FIELD = "publish_date_day" if USE_SUBMISSION_DATE else "issue_date_day"

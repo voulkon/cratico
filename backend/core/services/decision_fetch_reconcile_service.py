@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional
 import requests
 from core.constants.decision_import_constants import (
     DIAVGEIA_OFFICIAL_COUNTS_URL,
+    USE_SUBMISSION_DATE,
     DiavgeiaSearchFields,
 )
 from core.fetchers.diavgeia_fetcher import DiavgeiaFetcher
@@ -39,7 +40,7 @@ class DecisionFetchReconcileService:
     def __init__(
         self,
         fetcher: Optional[DiavgeiaFetcher] = None,
-        use_submission_date: bool = True,
+        use_submission_date: bool = USE_SUBMISSION_DATE,
     ):
         """
         Initialize the fetch and reconcile service.
@@ -48,7 +49,8 @@ class DecisionFetchReconcileService:
             fetcher: Optional DiavgeiaFetcher instance (creates new one if not provided)
             use_submission_date: If True, use from_date/to_date (submission date).
                                 If False, use from_issue_date/to_issue_date (issue date).
-                                Default is True to match official API counts.
+                                Defaults to USE_SUBMISSION_DATE constant so the fetch
+                                service and BackfillCoverageService always agree.
         """
         self.fetcher = fetcher or DiavgeiaFetcher()
         self.use_submission_date = use_submission_date
