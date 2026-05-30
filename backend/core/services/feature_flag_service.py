@@ -266,6 +266,28 @@ class FeatureFlagService:
             "category": "notifications",
             "requires_restart": False,
         },
+        # ── User-Triggered GEMI Fetch ─────────────────────────────────
+        "GEMI_FETCH_REQUEST_PUBLIC_ACCESS": {
+            "name": "GEMI Fetch Request — Public Access",
+            "description": "Allow unauthenticated (not logged-in) users to request company data "
+            "fetching from the GEMI registry via the public API button. "
+            "When disabled, only authenticated users can trigger a fetch.",
+            "default": True,
+            "env_var": "GEMI_FETCH_REQUEST_PUBLIC_ACCESS",
+            "category": "data_enrichment",
+            "requires_restart": False,
+        },
+        "GEMI_FETCH_REQUEST_DAILY_LIMIT": {
+            "name": "GEMI Fetch Request — Daily Limit per IP",
+            "description": "Maximum number of user-triggered GEMI company fetch requests "
+            "allowed per IP address per UTC day. "
+            "Applies to both authenticated and unauthenticated users.",
+            "default": 10,
+            "env_var": "GEMI_FETCH_REQUEST_DAILY_LIMIT",
+            "category": "data_enrichment",
+            "requires_restart": False,
+            "value_type": "integer",
+        },
     }
 
     def __init__(self):
@@ -397,7 +419,7 @@ class FeatureFlagService:
             logger.error(f"Unexpected error checking feature flag '{flag_key}': {e}")
             return None
 
-    def _get_from_environment(self, flag_key: str) -> Optional[bool]:
+    def _get_from_environment(self, flag_key: str) -> Optional[Any]:
         """
         Get feature flag value from environment variable.
 
@@ -405,7 +427,7 @@ class FeatureFlagService:
             flag_key: The feature flag key (or env var name)
 
         Returns:
-            Optional[bool]: The flag value if env var exists, None otherwise
+            The flag value coerced to the correct type, or None if not set
         """
         # First try the flag_key directly
         env_value = os.getenv(flag_key)
@@ -417,7 +439,16 @@ class FeatureFlagService:
                 env_value = os.getenv(env_var_name)
 
         if env_value is not None:
-            # Convert to boolean
+            value_type = self.KNOWN_FLAGS.get(flag_key, {}).get("value_type", "boolean")
+            if value_type == "integer":
+                try:
+                    return int(env_value)
+                except (ValueError, TypeError):
+                    logger.warning(
+                        f"Could not parse env var for '{flag_key}' as integer: {env_value!r}"
+                    )
+                    return None
+            # Default: convert to boolean
             return env_value.lower() in ("true", "1", "t", "yes", "on")
 
         return None

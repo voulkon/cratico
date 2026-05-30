@@ -86,6 +86,11 @@ urlpatterns = [
         name="afm_entity_decisions",
     ),
     path(
+        "entity/afm/<str:afm>/request-fetch/",
+        entities_views.request_afm_fetch,
+        name="afm_entity_request_fetch",
+    ),
+    path(
         "entities/<str:afm>/top-organizations/",
         entity_top_organizations_api,
         name="entity_top_organizations",

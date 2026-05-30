@@ -28,6 +28,7 @@ const AFMEntityDetailPage = () => {
   const [availableRoles, setAvailableRoles] = useState([]);
   const [showRoleFilter, setShowRoleFilter] = useState(false);
   const [companyInfo, setCompanyInfo] = useState(null);
+  const [gemiFetchStatus, setGemiFetchStatus] = useState(null); // null | 'loading' | 'queued' | 'already_queued' | 'already_fetched' | 'rate_limited' | 'error'
 
   // Use URL filters hook - replaces all the manual URL state management
   const {
@@ -109,6 +110,41 @@ const AFMEntityDetailPage = () => {
     } catch (error) {
       console.error('Error fetching document content:', error);
       throw error;
+    }
+  };
+
+  const handleRequestGemiFetch = async () => {
+    setGemiFetchStatus('loading');
+    try {
+      const response = await apiClient.post(`/entity/afm/${afm}/request-fetch/`);
+      const status = response.data?.status;
+      if (status === 'queued') {
+        setGemiFetchStatus('queued');
+      } else if (status === 'already_queued') {
+        setGemiFetchStatus('already_queued');
+      } else if (status === 'already_fetched') {
+        setGemiFetchStatus('already_fetched');
+      } else {
+        setGemiFetchStatus('error');
+      }
+    } catch (err) {
+      if (err.response?.status === 429) {
+        setGemiFetchStatus('rate_limited');
+      } else if (err.response?.status === 503) {
+        // Feature flag flipped server-side between page load and click
+        setGemiFetchStatus('error');
+      } else if (err.response?.status === 401) {
+        // Use the same auth modal pattern as the rest of the app
+        setGemiFetchStatus(null);
+        window.dispatchEvent(new CustomEvent('authRequired', {
+          detail: {
+            supertitle: t('afmEntityDetail.requestGemiFetchAuthSupertitle'),
+            message: t('afmEntityDetail.requestGemiFetchAuthMessage'),
+          }
+        }));
+      } else {
+        setGemiFetchStatus('error');
+      }
     }
   };
 
@@ -279,6 +315,63 @@ const AFMEntityDetailPage = () => {
             <CompanyPersonsTable persons={companyInfo.persons} />
             <CompanyActivitiesTable activities={companyInfo.activities} />
           </div>
+        </div>
+      )}
+
+      {/* Request GEMI fetch — only when lookup has never been attempted */}
+      {!companyInfo && !entity.gemi_lookup_attempted && (
+        <div className="gemi-section gemi-fetch-request-section">
+          <h2 className="gemi-section-title">{t('afmEntityDetail.requestGemiFetchTitle')}</h2>
+          {(!gemiFetchStatus || gemiFetchStatus === 'error') && (
+            <>
+              <p className="gemi-fetch-description">{t('afmEntityDetail.requestGemiFetchDescription')}</p>
+              <button
+                type="button"
+                className="gemi-fetch-button"
+                onClick={handleRequestGemiFetch}
+              >
+                {t('afmEntityDetail.requestGemiFetch')}
+              </button>
+              {gemiFetchStatus === 'error' && (
+                <p className="gemi-fetch-message gemi-fetch-message--error">
+                  {t('afmEntityDetail.requestGemiFetchError')}
+                </p>
+              )}
+            </>
+          )}
+          {gemiFetchStatus === 'loading' && (
+            <p className="gemi-fetch-message">{t('afmEntityDetail.requestGemiFetchPending')}</p>
+          )}
+          {gemiFetchStatus === 'queued' && (
+            <p className="gemi-fetch-message gemi-fetch-message--success">
+              {t('afmEntityDetail.requestGemiFetchQueued')}
+            </p>
+          )}
+          {gemiFetchStatus === 'already_queued' && (
+            <p className="gemi-fetch-message gemi-fetch-message--info">
+              {t('afmEntityDetail.requestGemiFetchAlreadyQueued')}
+            </p>
+          )}
+          {gemiFetchStatus === 'already_fetched' && (
+            <p className="gemi-fetch-message gemi-fetch-message--info">
+              {t('afmEntityDetail.requestGemiFetchAlreadyFetched')}
+            </p>
+          )}
+          {gemiFetchStatus === 'rate_limited' && (
+            <p className="gemi-fetch-message gemi-fetch-message--warning">
+              {t('afmEntityDetail.requestGemiFetchRateLimited')}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* GEMI lookup was attempted but found no data for this tax number */}
+      {!companyInfo && entity.gemi_lookup_attempted && !entity.gemi_lookup_success && (
+        <div className="gemi-section gemi-fetch-request-section">
+          <h2 className="gemi-section-title">{t('afmEntityDetail.requestGemiFetchTitle')}</h2>
+          <p className="gemi-fetch-message gemi-fetch-message--info">
+            {t('afmEntityDetail.requestGemiFetchNotFound')}
+          </p>
         </div>
       )}
 

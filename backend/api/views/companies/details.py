@@ -2,6 +2,7 @@ from datetime import datetime
 
 from core.models.companies import Company, CompanyPerson
 from core.models.entities import AFMEntity, DecisionEntityRelationship
+from core.services.feature_flag_service import feature_flags
 from core.services.financial_calculation_service import financial_service
 from core.utils.performance_monitoring import monitor_query_performance
 from django.conf import settings
@@ -16,7 +17,7 @@ from rest_framework.response import Response
 def company_detail(request, company_id):
     """Get detailed company information."""
     # Check if company enrichment is enabled
-    if not settings.HAVE_AFM_FETCH_JOB:
+    if not feature_flags.is_enabled("HAVE_AFM_FETCH_JOB"):
         return Response(
             {
                 "error": "Company data enrichment is currently disabled",
@@ -240,7 +241,7 @@ def person_companies(request, person_name):
 def company_decisions(request, company_id):
     """Get all decisions related to a specific company."""
     # Check if company enrichment is enabled
-    if not settings.HAVE_AFM_FETCH_JOB:
+    if not feature_flags.is_enabled("HAVE_AFM_FETCH_JOB"):
         return Response(
             {
                 "error": "Company data enrichment is currently disabled",
@@ -369,7 +370,7 @@ def company_decisions(request, company_id):
 def company_decision_stats(request, company_id):
     """Get comprehensive decision statistics for a company using the financial service."""
     # Check if company enrichment is enabled
-    if not settings.HAVE_AFM_FETCH_JOB:
+    if not feature_flags.is_enabled("HAVE_AFM_FETCH_JOB"):
         return Response(
             {
                 "error": "Company data enrichment is currently disabled",
@@ -456,7 +457,7 @@ def company_decision_stats(request, company_id):
 def company_financial_timeline(request, company_id):
     """Get financial timeline for a company using the financial service."""
     # Check if company enrichment is enabled
-    if not settings.HAVE_AFM_FETCH_JOB:
+    if not feature_flags.is_enabled("HAVE_AFM_FETCH_JOB"):
         return Response(
             {
                 "error": "Company data enrichment is currently disabled",

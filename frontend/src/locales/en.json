@@ -366,7 +366,19 @@
     "filterByRole": "Filter by Role",
     "gemiCompanyInformation": "Company Information from Business Registry (GEMI)",
     "noDecisionsWithFilters": "No decisions found with current filters",
-    "noDecisions": "No decisions found for this entity"
+    "noDecisions": "No decisions found for this entity",
+    "requestGemiFetch": "Request company data",
+    "requestGemiFetchTitle": "Request GEMI Lookup",
+    "requestGemiFetchDescription": "No company registry data available yet. Click to request a lookup from the Business Registry (GEMI).",
+    "requestGemiFetchPending": "Requesting…",
+    "requestGemiFetchQueued": "Request received! Data will appear here once fetched.",
+    "requestGemiFetchAlreadyQueued": "Already in queue — data will appear here once fetched.",
+    "requestGemiFetchAlreadyFetched": "Company data has already been retrieved.",
+    "requestGemiFetchRateLimited": "Daily request limit reached. Please try again tomorrow.",
+    "requestGemiFetchNotFound": "No company data found in the GEMI Business Registry for this tax number.",
+    "requestGemiFetchError": "Failed to queue fetch request. Please try again.",
+    "requestGemiFetchAuthSupertitle": "Company Registry Lookup",
+    "requestGemiFetchAuthMessage": "Sign in to request a lookup of this company's data from the Business Registry (GEMI). Once fetched, the data will be visible to all visitors of this page."
   },
   "library": {
     "myLibrary": "My Library",
