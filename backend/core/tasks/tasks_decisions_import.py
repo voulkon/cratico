@@ -113,9 +113,7 @@ def fetch_daily_decisions_to_redis(
             DecisionFetchReconcileService,
         )
 
-        fetch_service = DecisionFetchReconcileService(
-            use_submission_date=True
-            )
+        fetch_service = DecisionFetchReconcileService()
 
         # Fetch all decisions AND reconcile with official count
         # This handles: pagination, feature flags, entity filters, AND validates count accuracy

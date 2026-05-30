@@ -294,9 +294,11 @@ class DecisionIngestionService:
         if search_params is None:
             search_params = {}
         else:
-            # Remove pagination/date params if accidentally passed
+            # Remove pagination/date params if accidentally passed (both modes)
             search_params.pop(DiavgeiaSearchFields.PAGE, None)
             search_params.pop(DiavgeiaSearchFields.SIZE, None)
+            search_params.pop(DiavgeiaSearchFields.FROM_DATE, None)
+            search_params.pop(DiavgeiaSearchFields.TO_DATE, None)
             search_params.pop(DiavgeiaSearchFields.FROM_ISSUE_DATE, None)
             search_params.pop(DiavgeiaSearchFields.TO_ISSUE_DATE, None)
 
@@ -502,8 +504,10 @@ class DecisionIngestionService:
 
         while page < total_pages:
             current_search_params = base_search_params.copy()
-            current_search_params[DiavgeiaSearchFields.FROM_ISSUE_DATE] = start_date.isoformat()
-            current_search_params[DiavgeiaSearchFields.TO_ISSUE_DATE] = end_date.isoformat()
+            from core.constants.decision_import_constants import get_api_date_fields
+            from_field, to_field = get_api_date_fields()
+            current_search_params[from_field] = start_date.isoformat()
+            current_search_params[to_field] = end_date.isoformat()
             current_search_params[DiavgeiaSearchFields.PAGE] = page
             current_search_params[DiavgeiaSearchFields.SIZE] = self.DEFAULT_PAGE_SIZE
 

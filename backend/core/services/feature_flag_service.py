@@ -222,6 +222,22 @@ class FeatureFlagService:
             "category": "data_enrichment",
             "requires_restart": False,
         },
+        # ── Date-Mode Alignment (fetch ↔ coverage) ───────────────────
+        "COVERAGE_DATE_MODE": {
+            "name": "Coverage Date Mode",
+            "description": "Controls which date field is used for both fetching from the Diavgeia API "
+            "AND counting decisions for coverage/backfill. "
+            "Options: submission (from_date/to_date & publish_date_day — when uploaded), "
+            "issue (from_issue_date/to_issue_date & issue_date_day — when issued). "
+            "WARNING: Changing this mid-backfill will cause coverage mismatches. "
+            "Only toggle for short experiments on low-traffic days.",
+            "default": "submission",
+            "env_var": "COVERAGE_DATE_MODE",
+            "category": "data_ingestion",
+            "requires_restart": False,
+            "value_type": "choice",
+            "choices": ["submission", "issue"],
+        },
         # ── Post-Import Pipeline ──────────────────────────────────────
         "POST_IMPORT_ORCHESTRATOR_ENABLED": {
             "name": "Post-Import Orchestrator",

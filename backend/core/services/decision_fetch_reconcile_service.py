@@ -20,8 +20,8 @@ from typing import Any, Dict, List, Optional
 import requests
 from core.constants.decision_import_constants import (
     DIAVGEIA_OFFICIAL_COUNTS_URL,
-    USE_SUBMISSION_DATE,
     DiavgeiaSearchFields,
+    get_api_date_fields,
 )
 from core.fetchers.diavgeia_fetcher import DiavgeiaFetcher
 from diavgeia_api.models.decisions import Decision
@@ -40,35 +40,33 @@ class DecisionFetchReconcileService:
     def __init__(
         self,
         fetcher: Optional[DiavgeiaFetcher] = None,
-        use_submission_date: bool = USE_SUBMISSION_DATE,
+        use_submission_date: Optional[bool] = None,
     ):
         """
         Initialize the fetch and reconcile service.
-        
+
         Args:
             fetcher: Optional DiavgeiaFetcher instance (creates new one if not provided)
             use_submission_date: If True, use from_date/to_date (submission date).
                                 If False, use from_issue_date/to_issue_date (issue date).
-                                Defaults to USE_SUBMISSION_DATE constant so the fetch
-                                service and BackfillCoverageService always agree.
+                                If None (default), resolves from the COVERAGE_DATE_MODE
+                                feature flag so fetch and BackfillCoverageService always agree.
         """
         self.fetcher = fetcher or DiavgeiaFetcher()
-        self.use_submission_date = use_submission_date
+        if use_submission_date is None:
+            from core.constants.decision_import_constants import _resolve_use_submission_date
+            self.use_submission_date = _resolve_use_submission_date()
+        else:
+            self.use_submission_date = use_submission_date
 
     def _get_date_fields(self) -> tuple[str, str]:
         """
         Get the appropriate date field names based on configuration.
-        
+
         Returns:
             Tuple of (from_field, to_field) field names
         """
-        if self.use_submission_date:
-            return DiavgeiaSearchFields.FROM_DATE, DiavgeiaSearchFields.TO_DATE
-        else:
-            return (
-                DiavgeiaSearchFields.FROM_ISSUE_DATE,
-                DiavgeiaSearchFields.TO_ISSUE_DATE,
-            )
+        return get_api_date_fields()
 
     def build_search_params(
         self,
