@@ -45,6 +45,8 @@ const EntityDetailPage = () => {
   // Enhanced state to handle both modes
   const [entityData, setEntityData] = useState(null);
   const [statistics, setStatistics] = useState(null);
+  const [statisticsLoading, setStatisticsLoading] = useState(false);
+  const [statisticsError, setStatisticsError] = useState(null);
   const [decisions, setDecisions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -232,6 +234,9 @@ const EntityDetailPage = () => {
   const fetchStatistics = useCallback(async () => {
     if (!timeRange) return;
 
+    setStatisticsLoading(true);
+    setStatisticsError(null);
+
     try {
       const params = new URLSearchParams({
         start_date: timeRange.startDate,
@@ -245,7 +250,7 @@ const EntityDetailPage = () => {
         endpoint = `/entity/${entityType}/${entityId}/statistics/?${params.toString()}`;
       }
 
-      const response = await apiClient.get(endpoint);
+      const response = await apiClient.get(endpoint, { timeout: 60000 });
       setStatistics(response.data);
 
       if (explorationMode === 'temporal') {
@@ -255,7 +260,9 @@ const EntityDetailPage = () => {
       }
     } catch (err) {
       console.error('Failed to fetch statistics:', err);
-      setError(t('errors.failedToLoad'));
+      setStatisticsError(t('statistics.loadError'));
+    } finally {
+      setStatisticsLoading(false);
     }
   }, [explorationMode, entityType, entityId, timeRange, t]);
 
@@ -391,13 +398,14 @@ const EntityDetailPage = () => {
       const loadData = async () => {
         try {
           await Promise.all([
-            fetchStatistics(),
             fetchDecisions(1, false),
             fetchDecisionTypes()
           ]);
         } catch (err) {
           setError(t('errors.failedToLoad'));
         }
+        // Non-blocking: statistics load independently
+        fetchStatistics();
       };
 
       loadData();
@@ -652,7 +660,23 @@ const EntityDetailPage = () => {
       </div>
 
       {/* Enhanced Statistics Cards for both modes */}
-      {statistics && (
+      {statisticsLoading ? (
+        <div className="statistics-grid">
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} className="stat-card stat-card--loading">
+              <div className="stat-skeleton stat-skeleton--title" />
+              <div className="stat-skeleton stat-skeleton--value" />
+            </div>
+          ))}
+        </div>
+      ) : statisticsError ? (
+        <div className="statistics-grid">
+          <div className="stat-card stat-card--error">
+            <span>{statisticsError}</span>
+            <button className="retry-button" onClick={fetchStatistics}>{t('common.retry')}</button>
+          </div>
+        </div>
+      ) : statistics ? (
         <div className="statistics-grid">
           <div className="stat-card">
             <h3 className="stat-title">{t('statistics.totalDecisions')}</h3>
@@ -701,7 +725,7 @@ const EntityDetailPage = () => {
             </div>
           </div>
         </div>
-      )}
+      ) : null}
 
       {/* Top Counterparts - Shows related entities/organizations */}
       {explorationMode === 'entity' && entityData && entityType === 'organization' && timeRange && (

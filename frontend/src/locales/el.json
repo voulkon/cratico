@@ -80,7 +80,8 @@
     "period": "Περίοδος",
     "days": "{count} ημέρες",
     "amountDiscrepancy": "⚠️ Εντοπίστηκε ασυμφωνία ποσού ({percentage}%)",
-    "organizationsCount": "Οργανισμοί"
+    "organizationsCount": "Οργανισμοί",
+    "loadError": "Αδυναμία φόρτωσης στατιστικών"
   },
   "filters": {
     "decisionTypes": "Τύποι Αποφάσεων",

@@ -80,7 +80,8 @@
     "period": "Period",
     "days": "{count} days",
     "amountDiscrepancy": "⚠️ Amount discrepancy detected ({percentage}%)",
-    "organizationsCount": "Organizations"
+    "organizationsCount": "Organizations",
+    "loadError": "Could not load statistics"
   },
   "filters": {
     "decisionTypes": "Decision Types",
