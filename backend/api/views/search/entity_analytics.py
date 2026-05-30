@@ -9,13 +9,7 @@ from core.utils.performance_monitoring import monitor_query_performance
 from django.conf import settings
 from django.core.paginator import Paginator
 from django.db import models
-from django.db.models.functions import (
-    TruncDay,
-    TruncMonth,
-    TruncQuarter,
-    TruncWeek,
-    TruncYear,
-)
+
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from drf_yasg import openapi
@@ -161,7 +155,7 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
         # Monthly breakdown for charts
         try:
             monthly_stats = (
-                filtered_qs.annotate(month=TruncMonth("issue_date"))
+                filtered_qs.annotate(month=models.F("issue_date_month"))
                 .values("month")
                 .annotate(count=models.Count("id"), amount=models.Sum("amount"))
                 .order_by("month")
@@ -586,25 +580,24 @@ def entity_timeline_api_dev(request, entity_type, entity_id):
             issue_date__gte=start_date, issue_date__lte=end_date
         )
 
-        # Choose appropriate truncation function based on granularity
-        if granularity == "day":
-            trunc_func = TruncDay
-        elif granularity == "week":
-            trunc_func = TruncWeek
-        elif granularity == "month":
-            trunc_func = TruncMonth
-        elif granularity == "quarter":
-            trunc_func = TruncQuarter
-        elif granularity == "year":
-            trunc_func = TruncYear
-        else:
+        # Use precomputed indexed fields; week/quarter have no precomputed equivalent
+        _PERIOD_FIELD = {
+            "day": "issue_date_day",
+            "month": "issue_date_month",
+            "year": "issue_date_year",
+        }
+        if granularity not in _PERIOD_FIELD:
             return Response(
-                {"error": f"Invalid granularity: {granularity}"}, status=400
+                {
+                    "error": f"Invalid granularity: {granularity}. Supported: day, month, year"
+                },
+                status=400,
             )
+        period_column = _PERIOD_FIELD[granularity]
 
         # Get timeline data
         timeline_data = (
-            decisions_qs.annotate(period=trunc_func("issue_date"))
+            decisions_qs.annotate(period=models.F(period_column))
             .values("period")
             .annotate(
                 count=models.Count("id"),
@@ -617,9 +610,15 @@ def entity_timeline_api_dev(request, entity_type, entity_id):
         # Format results
         formatted_timeline = []
         for item in timeline_data:
+            period_val = item["period"]
+            period_str = (
+                str(period_val)
+                if granularity == "year"
+                else (period_val.isoformat() if period_val else None)
+            )
             formatted_timeline.append(
                 {
-                    "period": item["period"].isoformat() if item["period"] else None,
+                    "period": period_str,
                     "count": item["count"],
                     "total_amount": float(item["total_amount"] or 0),
                     "avg_amount": float(item["avg_amount"] or 0),
@@ -802,23 +801,20 @@ def entity_date_range_api_dev(request, entity_type, entity_id):
         latest = date_stats["latest_date"]
         span_days = (latest - earliest).days
 
-        # Choose granularity based on data span
+        # Choose granularity based on data span (week/quarter have no precomputed field)
         if span_days <= 31:  # Less than a month - daily
             granularity = "day"
-            trunc_func = TruncDay
-        elif span_days <= 365:  # Less than a year - weekly
-            granularity = "week"
-            trunc_func = TruncWeek
-        elif span_days <= 1825:  # Less than 5 years - monthly
+            period_column = "issue_date_day"
+        elif span_days <= 1825:  # Up to 5 years - monthly
             granularity = "month"
-            trunc_func = TruncMonth
-        else:  # More than 5 years - quarterly
-            granularity = "quarter"
-            trunc_func = TruncQuarter
+            period_column = "issue_date_month"
+        else:  # More than 5 years - yearly
+            granularity = "year"
+            period_column = "issue_date_year"
 
         # Get activity data for mini chart
         activity_data = (
-            decisions_qs.annotate(period=trunc_func("issue_date"))
+            decisions_qs.annotate(period=models.F(period_column))
             .values("period")
             .annotate(count=models.Count("id"), total_amount=models.Sum("amount"))
             .order_by("period")
@@ -827,9 +823,15 @@ def entity_date_range_api_dev(request, entity_type, entity_id):
         # Format activity chart data
         chart_data = []
         for item in activity_data:
+            period_val = item["period"]
+            period_str = (
+                str(period_val)
+                if granularity == "year"
+                else (period_val.isoformat() if period_val else None)
+            )
             chart_data.append(
                 {
-                    "period": item["period"].isoformat() if item["period"] else None,
+                    "period": period_str,
                     "count": item["count"],
                     "amount": float(item["total_amount"] or 0),
                 }

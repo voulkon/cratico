@@ -9,7 +9,7 @@ from core.utils.performance_monitoring import monitor_query_performance
 from django.conf import settings
 from django.core.paginator import Paginator
 from django.db import models
-from django.db.models.functions import TruncDay, TruncMonth, TruncQuarter, TruncWeek
+
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from drf_yasg import openapi
@@ -92,23 +92,20 @@ def explore_date_range_api_dev(request):
         latest = date_stats["latest_date"]
         span_days = (latest - earliest).days
 
-        # Choose granularity based on data span
+        # Choose granularity based on data span (week/quarter have no precomputed field)
         if span_days <= 31:  # Less than a month - daily
             granularity = "day"
-            trunc_func = TruncDay
-        elif span_days <= 365:  # Less than a year - weekly
-            granularity = "week"
-            trunc_func = TruncWeek
-        elif span_days <= 1825:  # Less than 5 years - monthly
+            period_column = "issue_date_day"
+        elif span_days <= 1825:  # Up to 5 years - monthly
             granularity = "month"
-            trunc_func = TruncMonth
-        else:  # More than 5 years - quarterly
-            granularity = "quarter"
-            trunc_func = TruncQuarter
+            period_column = "issue_date_month"
+        else:  # More than 5 years - yearly
+            granularity = "year"
+            period_column = "issue_date_year"
 
         # Get activity data for mini chart - fallback to old amount for aggregation performance
         activity_data = (
-            decisions_qs.annotate(period=trunc_func("issue_date"))
+            decisions_qs.annotate(period=models.F(period_column))
             .values("period")
             .annotate(
                 count=models.Count("id"),
@@ -122,9 +119,15 @@ def explore_date_range_api_dev(request):
         # Format activity chart data
         chart_data = []
         for item in activity_data:
+            period_val = item["period"]
+            period_str = (
+                str(period_val)
+                if granularity == "year"
+                else (period_val.isoformat() if period_val else None)
+            )
             chart_data.append(
                 {
-                    "period": item["period"].isoformat() if item["period"] else None,
+                    "period": period_str,
                     "count": item["count"],
                     "amount": float(item["total_amount"] or 0),
                 }
@@ -277,7 +280,7 @@ def explore_statistics_api_dev(request):
         # Monthly breakdown for charts using legacy amounts for performance
         try:
             monthly_stats = (
-                filtered_qs.annotate(month=TruncMonth("issue_date"))
+                filtered_qs.annotate(month=models.F("issue_date_month"))
                 .values("month")
                 .annotate(
                     count=models.Count("id"),
