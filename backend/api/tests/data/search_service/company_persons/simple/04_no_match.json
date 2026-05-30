@@ -1,0 +1,14 @@
+{
+  "id": "company_person_simple_no_match",
+  "description": "Query with no matching person returns empty results",
+  "tier": "simple",
+  "entity_type": "company_person",
+  "records": [
+    {"person_name": "JOHN UMBRELLA"},
+    {"person_name": "JANE BANANA"},
+    {"person_name": "JOHN SMITH"}
+  ],
+  "query": "XXXXXXNOTEXISTS",
+  "limit": 10,
+  "expected_exact_count": 0
+}

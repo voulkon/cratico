@@ -1,0 +1,15 @@
+{
+  "id": "unit_fts_shared_word",
+  "description": "FTS: shared word returns all matching units",
+  "tier": "fts",
+  "entity_type": "unit",
+  "records": [
+    {"label": "DEPARTMENT OF FINANCE"},
+    {"label": "DEPARTMENT OF EDUCATION"},
+    {"label": "OFFICE OF PROCUREMENT"}
+  ],
+  "query": "DEPARTMENT",
+  "limit": 10,
+  "expected_in": ["DEPARTMENT OF FINANCE", "DEPARTMENT OF EDUCATION"],
+  "expected_not_in": ["OFFICE OF PROCUREMENT"]
+}

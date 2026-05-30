@@ -1,0 +1,14 @@
+{
+  "id": "unit_simple_no_match",
+  "description": "Query with no matching unit returns empty results",
+  "tier": "simple",
+  "entity_type": "unit",
+  "records": [
+    {"label": "DEPARTMENT OF FINANCE"},
+    {"label": "DEPARTMENT OF EDUCATION"},
+    {"label": "OFFICE OF PROCUREMENT"}
+  ],
+  "query": "XXXXXXNOTEXISTS",
+  "limit": 10,
+  "expected_exact_count": 0
+}

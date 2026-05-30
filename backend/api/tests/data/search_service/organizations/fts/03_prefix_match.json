@@ -1,0 +1,15 @@
+{
+  "id": "org_fts_prefix_match",
+  "description": "FTS: partial prefix matches longer lexemes via :* operator",
+  "tier": "fts",
+  "entity_type": "organization",
+  "records": [
+    {"label": "MUNICIPALITY ATHENS"},
+    {"label": "MUNICIPALITY THESSALONIKI"},
+    {"label": "PREFECTURE ATTICA"}
+  ],
+  "query": "MUNICIP",
+  "limit": 10,
+  "expected_in": ["MUNICIPALITY ATHENS", "MUNICIPALITY THESSALONIKI"],
+  "expected_not_in": ["PREFECTURE ATTICA"]
+}

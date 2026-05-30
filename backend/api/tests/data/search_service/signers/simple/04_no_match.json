@@ -1,0 +1,14 @@
+{
+  "id": "signer_simple_no_match",
+  "description": "Query with no matching signer returns empty results",
+  "tier": "simple",
+  "entity_type": "signer",
+  "records": [
+    {"first_name": "NIKOLAOS", "last_name": "GEORGIOU"},
+    {"first_name": "IOANNIS", "last_name": "PAPADOPOULOS"},
+    {"first_name": "MARIA", "last_name": "GEORGIOU"}
+  ],
+  "query": "XXXXXXNOTEXISTS",
+  "limit": 10,
+  "expected_exact_count": 0
+}

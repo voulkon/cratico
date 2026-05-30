@@ -1,0 +1,15 @@
+{
+  "id": "company_fts_prefix_match",
+  "description": "FTS: partial prefix of company name matches via :* operator",
+  "tier": "fts",
+  "entity_type": "company",
+  "records": [
+    {"co_name_el": "UMBRELLA CORPORATION EE"},
+    {"co_name_el": "BANANA GMBH"},
+    {"co_name_el": "UMBRELLA LTD"}
+  ],
+  "query": "UMBREL",
+  "limit": 10,
+  "expected_in": ["UMBRELLA CORPORATION EE", "UMBRELLA LTD"],
+  "expected_not_in": ["BANANA GMBH"]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "signer_fts_prefix_match",
+  "description": "FTS: partial prefix of last name matches via :* operator",
+  "tier": "fts",
+  "entity_type": "signer",
+  "records": [
+    {"first_name": "NIKOLAOS", "last_name": "GEORGIOU"},
+    {"first_name": "IOANNIS", "last_name": "PAPADOPOULOS"},
+    {"first_name": "MARIA", "last_name": "GEORGIOU"}
+  ],
+  "query": "PAPADOP",
+  "limit": 10,
+  "expected_in": ["IOANNIS PAPADOPOULOS"],
+  "expected_not_in": ["NIKOLAOS GEORGIOU", "MARIA GEORGIOU"]
+}

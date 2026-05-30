@@ -1,0 +1,15 @@
+{
+  "id": "company_fts_unique_word",
+  "description": "FTS: unique word returns exactly one company",
+  "tier": "fts",
+  "entity_type": "company",
+  "records": [
+    {"co_name_el": "UMBRELLA CORPORATION EE"},
+    {"co_name_el": "BANANA GMBH"},
+    {"co_name_el": "UMBRELLA LTD"}
+  ],
+  "query": "CORPORATION",
+  "limit": 10,
+  "expected_in": ["UMBRELLA CORPORATION EE"],
+  "expected_not_in": ["BANANA GMBH", "UMBRELLA LTD"]
+}

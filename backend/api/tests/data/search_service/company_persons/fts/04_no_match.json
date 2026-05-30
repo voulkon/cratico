@@ -1,0 +1,14 @@
+{
+  "id": "company_person_fts_no_match",
+  "description": "FTS: query with no matching lexemes returns empty results",
+  "tier": "fts",
+  "entity_type": "company_person",
+  "records": [
+    {"person_name": "JOHN UMBRELLA"},
+    {"person_name": "JANE BANANA"},
+    {"person_name": "JOHN SMITH"}
+  ],
+  "query": "XXXXXXNOTEXISTS",
+  "limit": 10,
+  "expected_exact_count": 0
+}

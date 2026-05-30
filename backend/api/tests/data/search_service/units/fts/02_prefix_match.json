@@ -1,0 +1,15 @@
+{
+  "id": "unit_fts_prefix_match",
+  "description": "FTS: partial prefix matches longer lexemes via :* operator",
+  "tier": "fts",
+  "entity_type": "unit",
+  "records": [
+    {"label": "DEPARTMENT OF FINANCE"},
+    {"label": "DEPARTMENT OF EDUCATION"},
+    {"label": "OFFICE OF PROCUREMENT"}
+  ],
+  "query": "DEPART",
+  "limit": 10,
+  "expected_in": ["DEPARTMENT OF FINANCE", "DEPARTMENT OF EDUCATION"],
+  "expected_not_in": ["OFFICE OF PROCUREMENT"]
+}

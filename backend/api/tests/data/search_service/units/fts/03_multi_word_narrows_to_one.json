@@ -1,0 +1,15 @@
+{
+  "id": "unit_fts_multi_word_narrows_to_one",
+  "description": "FTS: multi-word query uses AND logic — narrows to one unit",
+  "tier": "fts",
+  "entity_type": "unit",
+  "records": [
+    {"label": "DEPARTMENT OF FINANCE"},
+    {"label": "DEPARTMENT OF EDUCATION"},
+    {"label": "OFFICE OF PROCUREMENT"}
+  ],
+  "query": "DEPARTMENT FINANCE",
+  "limit": 10,
+  "expected_in": ["DEPARTMENT OF FINANCE"],
+  "expected_not_in": ["DEPARTMENT OF EDUCATION", "OFFICE OF PROCUREMENT"]
+}

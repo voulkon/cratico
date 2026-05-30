@@ -1,0 +1,19 @@
+{
+  "id": "unit_simple_filter_by_org",
+  "description": "organization_id filter excludes units from other organizations",
+  "tier": "simple",
+  "entity_type": "unit",
+  "records": [
+    {"label": "DEPARTMENT OF FINANCE"},
+    {"label": "DEPARTMENT OF EDUCATION"},
+    {"label": "OFFICE OF PROCUREMENT"}
+  ],
+  "other_records": [
+    {"label": "DEPARTMENT OF FINANCE"}
+  ],
+  "query": "DEPARTMENT",
+  "limit": 10,
+  "filter_by_primary": true,
+  "expected_in": ["DEPARTMENT OF FINANCE", "DEPARTMENT OF EDUCATION"],
+  "expected_exact_count": 2
+}
