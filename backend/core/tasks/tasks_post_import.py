@@ -144,12 +144,21 @@ def warm_analytics_cache(reference_date_str: str | None = None):
     cache hit.  Uses the SAME key format as the cached_view decorator so the
     cache keys match exactly.
 
+    Views warmed:
+      - explore_orgs  (explore/organizations/)
+      - da_top_pairs  (direct-assignments/top-pairs/)
+
     Args:
         reference_date_str: ISO-format date string. Defaults to today.
     """
     if not feature_flags.is_enabled("ANALYTICS_WARMUP_ENABLED"):
         logger.debug("ANALYTICS_WARMUP_ENABLED is disabled, skipping cache warmup")
         return {"status": "skipped", "reason": "feature_flag_disabled"}
+
+    from core.services.analytics_precalc_service import (
+        warm_da_top_pairs_window,
+        warm_explore_orgs_window,
+    )
 
     ref = (
         date.fromisoformat(reference_date_str)
@@ -166,18 +175,45 @@ def warm_analytics_cache(reference_date_str: str | None = None):
 
     logger.info(f"Warming analytics cache for {len(windows)} windows (ref={ref})")
 
-    # TODO: Implement cache warming per view per window
-    # Views to warm:
-    #   - direct_assignment_top_pairs_global
-    #   - top_organizations
-    #   - recent high-value decisions
-    # for label, start, end in windows:
-    #     _warm_window(label, start, end)
+    warmed = 0
+    errors = []
+
+    for label, start, end in windows:
+        start_str = start.isoformat()
+        end_str = end.isoformat()
+
+        for view_name, warm_fn, kwargs in [
+            ("explore_orgs", warm_explore_orgs_window, {"limit": 6}),
+            ("da_top_pairs", warm_da_top_pairs_window, {"limit": 20, "offset": 0}),
+        ]:
+            try:
+                warm_fn(
+                    start_date_str=start_str,
+                    end_date_str=end_str,
+                    end_date=end,
+                    **kwargs,
+                )
+                warmed += 1
+            except Exception as exc:
+                logger.warning(
+                    f"[warm_analytics_cache] Failed to warm {view_name} "
+                    f"for window {label} ({start_str} → {end_str}): {exc}"
+                )
+                errors.append(
+                    {"window": label, "view": view_name, "error": str(exc)}
+                )
+
+    logger.info(
+        f"Analytics cache warming complete: {warmed} keys warmed, "
+        f"{len(errors)} errors (ref={ref})"
+    )
 
     return {
-        "status": "stub",
+        "status": "completed",
         "reference_date": str(ref),
         "windows_warmed": len(windows),
+        "keys_warmed": warmed,
+        "errors": errors,
     }
 
 

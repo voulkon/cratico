@@ -166,7 +166,7 @@ class TestComputeEntityRankings:
 # ---------------------------------------------------------------------------
 
 class TestWarmAnalyticsCache:
-    """Tests for the cache-warming stub task."""
+    """Tests for the cache-warming task."""
 
     def test_skips_when_flag_disabled(self):
         from core.tasks.tasks_post_import import warm_analytics_cache
@@ -179,18 +179,72 @@ class TestWarmAnalyticsCache:
 
         assert result == {"status": "skipped", "reason": "feature_flag_disabled"}
 
-    def test_returns_stub_when_flag_enabled(self):
+    def test_warms_all_windows_when_flag_enabled(self):
+        """Warming should attempt every view × window combination."""
         from core.tasks.tasks_post_import import warm_analytics_cache
 
-        with patch(
-            "core.tasks.tasks_post_import.feature_flags.is_enabled",
-            side_effect=_flag_enabled("ANALYTICS_WARMUP_ENABLED"),
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                side_effect=_flag_enabled("ANALYTICS_WARMUP_ENABLED"),
+            ),
+            patch(
+                "core.services.analytics_precalc_service.warm_explore_orgs_window"
+            ) as mock_orgs,
+            patch(
+                "core.services.analytics_precalc_service.warm_da_top_pairs_window"
+            ) as mock_pairs,
         ):
             result = warm_analytics_cache(reference_date_str="2026-05-29")
 
-        assert result["status"] == "stub"
+        assert result["status"] == "completed"
         assert result["reference_date"] == "2026-05-29"
-        assert result["windows_warmed"] == 4
+        assert result["windows_warmed"] == 4  # daily/weekly/monthly/yearly
+        assert result["keys_warmed"] == 8    # 4 windows × 2 views
+        assert result["errors"] == []
+
+    def test_errors_are_collected_not_raised(self):
+        """A failing warm function should be recorded in errors, not crash the task."""
+        from core.tasks.tasks_post_import import warm_analytics_cache
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                side_effect=_flag_enabled("ANALYTICS_WARMUP_ENABLED"),
+            ),
+            patch(
+                "core.services.analytics_precalc_service.warm_explore_orgs_window",
+                side_effect=Exception("DB connection lost"),
+            ),
+            patch(
+                "core.services.analytics_precalc_service.warm_da_top_pairs_window"
+            ),
+        ):
+            result = warm_analytics_cache(reference_date_str="2026-05-29")
+
+        assert result["status"] == "completed"
+        # 4 windows × 1 failing view = 4 errors; da_top_pairs still warmed (4 keys)
+        assert len(result["errors"]) == 4
+        assert result["keys_warmed"] == 4
+
+    def test_defaults_to_today_when_no_date_given(self):
+        from core.tasks.tasks_post_import import warm_analytics_cache
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                side_effect=_flag_enabled("ANALYTICS_WARMUP_ENABLED"),
+            ),
+            patch("core.tasks.tasks_post_import.date") as mock_date,
+            patch("core.services.analytics_precalc_service.warm_explore_orgs_window"),
+            patch("core.services.analytics_precalc_service.warm_da_top_pairs_window"),
+        ):
+            mock_date.today.return_value = date(2026, 5, 30)
+            mock_date.fromisoformat.side_effect = date.fromisoformat
+
+            result = warm_analytics_cache()
+
+        assert result["reference_date"] == "2026-05-30"
 
 
 # ---------------------------------------------------------------------------

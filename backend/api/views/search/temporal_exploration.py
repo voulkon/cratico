@@ -855,68 +855,9 @@ def explore_organizations_api_dev(request):
     limit = int(request.GET.get("limit", 50))
 
     try:
-        # Get all decisions (no entity filtering)
-        decisions_qs = Decision.objects.all()
+        from core.services.analytics_precalc_service import compute_explore_orgs
 
-        # Apply date filters if provided
-        if start_date_str:
-            start_date_parsed = parse_date(start_date_str)
-            if start_date_parsed:
-                start_date = timezone.make_aware(
-                    datetime.combine(start_date_parsed, datetime.min.time())
-                )
-                decisions_qs = decisions_qs.filter(issue_date__gte=start_date)
-
-        if end_date_str:
-            end_date_parsed = parse_date(end_date_str)
-            if end_date_parsed:
-                end_date = timezone.make_aware(
-                    datetime.combine(end_date_parsed, datetime.max.time())
-                )
-                decisions_qs = decisions_qs.filter(issue_date__lte=end_date)
-
-        # Get organizations with decision activity
-        organizations = (
-            decisions_qs.values("organization__uid", "organization__label")
-            .annotate(
-                count=models.Count("id", distinct=True),
-                total_amount=models.Sum(
-                    "amount_fields__amount",
-                    filter=models.Q(
-                        amount_fields__associated_relationship__isnull=False
-                    ),
-                ),
-                # Use legacy amount for max as approximation
-                max_amount=models.Max("amount"),
-            )
-            .filter(
-                organization__uid__isnull=False  # Exclude decisions without organizations
-            )
-            .order_by("-count")[:limit]
-        )
-
-        # Format response
-        formatted_organizations = []
-        for org in organizations:
-            count = org["count"]
-            total = float(org["total_amount"] or 0)
-            formatted_organizations.append(
-                {
-                    "uid": org["organization__uid"],
-                    "label": org["organization__label"],
-                    "count": count,
-                    "total_amount": total,
-                    "avg_amount": total / count if count > 0 else 0,
-                    "max_amount": float(org["max_amount"] or 0),
-                }
-            )
-
-        return Response(
-            {
-                "organizations": formatted_organizations,
-                "total_organizations": len(formatted_organizations),
-            }
-        )
+        return Response(compute_explore_orgs(start_date_str, end_date_str, limit))
 
     except Exception as e:
         import traceback
