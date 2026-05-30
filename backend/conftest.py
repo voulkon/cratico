@@ -159,6 +159,47 @@ class SignerFactory(DjangoModelFactory):
     has_organization_sign_rights = True
 
 
+class UnitFactory(DjangoModelFactory):
+    """Factory for Unit model"""
+
+    class Meta:
+        model = "core.Unit"
+
+    uid = factory.Sequence(lambda n: f"UNIT{n:06d}")
+    label = factory.Faker("company")
+    category = "ΤΜΗΜΑ"
+    active = True
+    organization = factory.SubFactory(OrganizationFactory)
+
+
+class CompanyFactory(DjangoModelFactory):
+    """Factory for Company model"""
+
+    class Meta:
+        model = "core.Company"
+        django_get_or_create = ("ar_gemi",)
+
+    ar_gemi = factory.Sequence(lambda n: 100000 + n)
+    co_name_el = factory.Faker("company")
+    co_names_en = factory.LazyFunction(list)
+    co_titles_el = factory.LazyFunction(list)
+    co_titles_en = factory.LazyFunction(list)
+    is_branch = False
+
+
+class CompanyPersonFactory(DjangoModelFactory):
+    """Factory for CompanyPerson model"""
+
+    class Meta:
+        model = "core.CompanyPerson"
+
+    company = factory.SubFactory(CompanyFactory)
+    person_name = factory.LazyAttribute(
+        lambda obj: f"{fake.last_name()} {fake.first_name()}"
+    )
+    role = "ΔΙΕΥΘΥΝΤΗΣ"
+
+
 class DecisionTypeFactory(DjangoModelFactory):
     """Factory for ActType model (referenced as decision_type in Decision)"""
 
