@@ -7,10 +7,7 @@ import useUrlFilters from '../hooks/useUrlFilters';
 import DecisionCard from '../components/DecisionCard';
 import SortControl from '../components/SortControl';
 import TopCounterparts from '../components/TopCounterparts';
-import CompanyInfoPanel from '../components/CompanyInfoPanel';
-import CompanyPersonsTable from '../components/CompanyPersonsTable';
-import CompanyActivitiesTable from '../components/CompanyActivitiesTable';
-import CompanyCapitalStocks from '../components/CompanyCapitalStocks';
+import GemiSection from '../components/GemiSection';
 import './AFMEntityDetailPage.css';
 
 const AFMEntityDetailPage = () => {
@@ -305,75 +302,13 @@ const AFMEntityDetailPage = () => {
         />
       )}
 
-      {/* GEMI Company Information */}
-      {companyInfo && (
-        <div className="gemi-section">
-          <h2 className="gemi-section-title">{t('afmEntityDetail.gemiCompanyInformation')}</h2>
-          <div className="gemi-components-grid">
-            <CompanyInfoPanel company={companyInfo} />
-            <CompanyCapitalStocks capital={companyInfo.capital} stocks={companyInfo.stocks} />
-            <CompanyPersonsTable persons={companyInfo.persons} />
-            <CompanyActivitiesTable activities={companyInfo.activities} />
-          </div>
-        </div>
-      )}
-
-      {/* Request GEMI fetch — only when lookup has never been attempted */}
-      {!companyInfo && !entity.gemi_lookup_attempted && (
-        <div className="gemi-section gemi-fetch-request-section">
-          <h2 className="gemi-section-title">{t('afmEntityDetail.requestGemiFetchTitle')}</h2>
-          {(!gemiFetchStatus || gemiFetchStatus === 'error') && (
-            <>
-              <p className="gemi-fetch-description">{t('afmEntityDetail.requestGemiFetchDescription')}</p>
-              <button
-                type="button"
-                className="gemi-fetch-button"
-                onClick={handleRequestGemiFetch}
-              >
-                {t('afmEntityDetail.requestGemiFetch')}
-              </button>
-              {gemiFetchStatus === 'error' && (
-                <p className="gemi-fetch-message gemi-fetch-message--error">
-                  {t('afmEntityDetail.requestGemiFetchError')}
-                </p>
-              )}
-            </>
-          )}
-          {gemiFetchStatus === 'loading' && (
-            <p className="gemi-fetch-message">{t('afmEntityDetail.requestGemiFetchPending')}</p>
-          )}
-          {gemiFetchStatus === 'queued' && (
-            <p className="gemi-fetch-message gemi-fetch-message--success">
-              {t('afmEntityDetail.requestGemiFetchQueued')}
-            </p>
-          )}
-          {gemiFetchStatus === 'already_queued' && (
-            <p className="gemi-fetch-message gemi-fetch-message--info">
-              {t('afmEntityDetail.requestGemiFetchAlreadyQueued')}
-            </p>
-          )}
-          {gemiFetchStatus === 'already_fetched' && (
-            <p className="gemi-fetch-message gemi-fetch-message--info">
-              {t('afmEntityDetail.requestGemiFetchAlreadyFetched')}
-            </p>
-          )}
-          {gemiFetchStatus === 'rate_limited' && (
-            <p className="gemi-fetch-message gemi-fetch-message--warning">
-              {t('afmEntityDetail.requestGemiFetchRateLimited')}
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* GEMI lookup was attempted but found no data for this tax number */}
-      {!companyInfo && entity.gemi_lookup_attempted && !entity.gemi_lookup_success && (
-        <div className="gemi-section gemi-fetch-request-section">
-          <h2 className="gemi-section-title">{t('afmEntityDetail.requestGemiFetchTitle')}</h2>
-          <p className="gemi-fetch-message gemi-fetch-message--info">
-            {t('afmEntityDetail.requestGemiFetchNotFound')}
-          </p>
-        </div>
-      )}
+      {/* Unified GEMI Section */}
+      <GemiSection
+        companyInfo={companyInfo}
+        entity={entity}
+        gemiFetchStatus={gemiFetchStatus}
+        onRequestFetch={handleRequestGemiFetch}
+      />
 
       {/* Role Breakdown */}
       {availableRoles && availableRoles.length > 0 && (
