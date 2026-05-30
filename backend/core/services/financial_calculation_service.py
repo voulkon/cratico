@@ -16,8 +16,7 @@ from core.models.entities import (
 )
 from core.models.organizations import Organization
 from core.utils.performance_monitoring import monitor_query_performance
-from django.db.models import Avg, Count, QuerySet, Sum
-from django.db.models.functions import TruncDay, TruncMonth, TruncYear
+from django.db.models import Avg, Count, F, QuerySet, Sum
 
 
 class FinancialCalculationService:
@@ -187,13 +186,16 @@ class FinancialCalculationService:
             entity, start_date, end_date, self.MONEY_RECEIVED_ROLES
         )
 
-        # Choose truncation function based on granularity
-        trunc_function = {"day": TruncDay, "month": TruncMonth, "year": TruncYear}.get(
-            granularity, TruncMonth
-        )
+        # Use precomputed indexed fields instead of Trunc functions to allow
+        # direct B-tree index scans rather than per-row function evaluation.
+        period_column = {
+            "day": "decision__issue_date_day",
+            "month": "decision__issue_date_month",
+            "year": "decision__issue_date_year",
+        }.get(granularity, "decision__issue_date_month")
 
         timeline = (
-            qs.annotate(period=trunc_function("decision__issue_date"))
+            qs.annotate(period=F(period_column))
             .values("period")
             .annotate(
                 total_amount=Sum("linked_amounts__amount"),
@@ -204,10 +206,12 @@ class FinancialCalculationService:
 
         return [
             {
-                "period": item["period"].strftime(
-                    "%Y-%m-%d"
-                    if granularity == "day"
-                    else "%Y-%m" if granularity == "month" else "%Y"
+                "period": (
+                    str(item["period"])
+                    if granularity == "year"
+                    else item["period"].strftime(
+                        "%Y-%m-%d" if granularity == "day" else "%Y-%m"
+                    )
                 ),
                 "total_amount": float(item["total_amount"] or 0),
                 "decision_count": item["decision_count"],
@@ -269,9 +273,13 @@ class FinancialCalculationService:
             )
 
         elif group_by in ["month", "year"]:
-            trunc_function = TruncMonth if group_by == "month" else TruncYear
+            period_column = (
+                "decision__issue_date_month"
+                if group_by == "month"
+                else "decision__issue_date_year"
+            )
             breakdown = (
-                qs.annotate(period=trunc_function("decision__issue_date"))
+                qs.annotate(period=F(period_column))
                 .values("period")
                 .annotate(
                     total_amount=Sum("linked_amounts__amount"),
