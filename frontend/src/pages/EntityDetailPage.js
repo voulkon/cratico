@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Filter } from 'lucide-react';
-import { OrganizationIcon } from '../components/Icons';
+import { NetworkIcon } from '../components/Icons';
 import apiClient from '../api/client';
 import DualRangeSlider from '../components/DualRangeSlider';
 import DecisionCard from '../components/DecisionCard';
@@ -474,10 +474,6 @@ const EntityDetailPage = () => {
   if (entityDateRange && !entityDateRange.has_data) {
     return (
       <div style={{ padding: '20px' }}>
-        <button onClick={() => navigate('/dev')} className="back-button">
-          {t('entityDetail.backToOrgChart')}
-        </button>
-
         <div style={{
           backgroundColor: '#fff3cd',
           border: '1px solid #ffeaa7',
@@ -506,9 +502,6 @@ const EntityDetailPage = () => {
         }}>
           <strong>{t('common.error')}:</strong> {error}
         </div>
-        <button onClick={() => navigate('/dev')}>
-          {t('entityDetail.backToOrgChart')}
-        </button>
       </div>
     );
   }
@@ -518,22 +511,21 @@ const EntityDetailPage = () => {
   return (
     <div className="entity-detail-page">
       <div className="entity-header">
-        <div className="header-actions">
-          {/* Organization Chart Button for organization entities */}
+        <div className="page-breadcrumb">{pageInfo.breadcrumb}</div>
+
+        <div className="entity-title-row">
+          <h1 className="entity-title">{pageInfo.title}</h1>
           {entityType === 'organization' && explorationMode !== 'temporal' && (
             <button
               onClick={handleViewOrganizationChart}
-              className="org-chart-button"
+              className="org-chart-button-icon"
               title={t('entityDetail.viewOrganizationChart')}
+              aria-label={t('entityDetail.viewOrganizationChart')}
             >
-              <OrganizationIcon /> {t('entityDetail.viewOrganizationChart')}
+              <NetworkIcon />
             </button>
           )}
         </div>
-
-        <div className="page-breadcrumb">{pageInfo.breadcrumb}</div>
-
-        <h1 className="entity-title">{pageInfo.title}</h1>
         <div className="entity-subtitle">{pageInfo.subtitle}</div>
 
         {/* Signer Organizations and Positions - Collapsible */}
@@ -565,7 +557,7 @@ const EntityDetailPage = () => {
                         onClick={() => navigate(`/entity/organization/${orgData.organization.uid}`)}
                         title={t('entityDetail.viewOrganizationDetails')}
                       >
-                        <OrganizationIcon /> {orgData.organization.label}
+                        <NetworkIcon /> {orgData.organization.label}
                       </button>
                       {orgData.decision_count && (
                         <span className="decision-count">

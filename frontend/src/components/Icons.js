@@ -26,7 +26,8 @@ export {
     Boxes as UnitIcon,
     Store as CompanyIcon,
     Timer as TimerIcon,
-    Trash2 as TrashIcon
+    Trash2 as TrashIcon,
+    Network as NetworkIcon,
 } from 'lucide-react';
 export {
     LibraryBig as LibraryToggleIcon,
