@@ -5,9 +5,11 @@ from api.utils.common import get_client_ip
 from core.models.entities import AFMEntity, DecisionEntityRelationship
 from core.services.feature_flag_service import feature_flags
 from core.services.financial_calculation_service import financial_service
+from core.services.search_service import SearchService
 from core.utils.performance_monitoring import monitor_query_performance
 from django.conf import settings
 from django.db.models import Sum
+from django.utils.dateparse import parse_date
 from django_redis import get_redis_connection
 from loguru import logger
 from rest_framework.decorators import api_view, permission_classes
@@ -146,6 +148,31 @@ def afm_entity_decisions(request, afm):
         if direct_assignments_only:
             relationships = relationships.filter(
                 decision__classification__is_direct_assignment=True
+            )
+
+        # Apply date range filter (uses indexed issue_date_day for performance)
+        start_date_str = request.GET.get("start_date")
+        end_date_str = request.GET.get("end_date")
+
+        if start_date_str:
+            parsed = parse_date(start_date_str)
+            if parsed:
+                relationships = relationships.filter(
+                    decision__issue_date_day__gte=parsed
+                )
+
+        if end_date_str:
+            parsed = parse_date(end_date_str)
+            if parsed:
+                relationships = relationships.filter(
+                    decision__issue_date_day__lte=parsed
+                )
+
+        # Apply full-text search filter (delegates to SearchService for tiered search)
+        search_query = request.GET.get("q", "").strip()
+        if search_query:
+            relationships = relationships.filter(
+                SearchService().build_decision_search_q(search_query, prefix="decision")
             )
 
         # Apply sorting with proper NULL handling

@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 
 from core.models.organizations import Organization, Signer, Unit
 from django.conf import settings
+from django.contrib.postgres.search import SearchVectorField
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
@@ -252,6 +253,9 @@ class Decision(models.Model):
             "Matches the from_date / to_date Diavgeia API parameters."
         ),
     )
+
+    # PostgreSQL Full-Text Search
+    search_vector = SearchVectorField(null=True, blank=True)
 
     def save(self, *args, **kwargs):
         # Auto-populate the computed fields

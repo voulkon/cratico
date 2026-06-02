@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional
 
 from core.constants.search_service import SearchMethod
 from core.models.companies import Company, CompanyPerson
+from core.models.decisions import Decision
 from core.models.document_analysis import DocumentExtraction, ProcessingStatus
 from core.models.organizations import Organization, Signer, Unit
 from core.services.feature_flag_service import feature_flags
@@ -653,6 +654,58 @@ class SearchService:
             "source": "postgresql",
             "highlights": {},
         }
+
+    # ==================== DECISION SEARCH (3-TIER) ====================
+
+    def build_decision_search_q(self, query: str, prefix: str = "") -> Q:
+        """
+        Return a Q object for decision text search, usable on any queryset.
+
+        ``prefix`` lets callers traverse a relation before reaching Decision
+        fields.  Pass ``prefix="decision"`` when filtering a
+        DecisionEntityRelationship queryset so the generated lookups become
+        ``decision__search_vector``, ``decision__subject__icontains``, etc.
+        Leave empty (default) when filtering a Decision queryset directly.
+
+        The correct tier is selected and validated automatically.
+        """
+        p = f"{prefix}__" if prefix else ""
+
+        requested_method = feature_flags.get_value(
+            "ENTITY_SEARCH_METHOD", SearchMethod.DEFAULT
+        )
+        method = self._get_validated_search_method(requested_method)
+
+        if method == SearchMethod.POSTGRES_FTS:
+            fts_query = self._build_prefix_search_query(query)
+            return (
+                Q(**{f"{p}search_vector": fts_query})
+                | Q(**{f"{p}text_extraction__search_vector": fts_query})
+            )
+        else:  # POSTGRES_SIMPLE (and OPENSEARCH fallback until implemented)
+            if method == SearchMethod.OPENSEARCH:
+                logger.warning(
+                    "OpenSearch decision search not yet implemented, falling back to simple"
+                )
+            return Q(**{f"{p}subject__icontains": query})
+
+    @query_debugger
+    def filter_decisions_by_search(
+        self,
+        query: str,
+        decisions_qs: QuerySet,
+    ) -> QuerySet:
+        """
+        Filter a Decision queryset by text search using the configured search method.
+
+        Prefer ``build_decision_search_q`` with ``prefix="decision"`` when the
+        caller already has a related queryset (e.g. DecisionEntityRelationship)
+        so the filter can be applied in a single pass without an intermediate
+        Decision subquery.
+        """
+        if not query:
+            return decisions_qs
+        return decisions_qs.filter(self.build_decision_search_q(query))
 
     @query_debugger
     def search_all_entities(

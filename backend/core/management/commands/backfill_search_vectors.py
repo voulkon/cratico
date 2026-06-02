@@ -1,12 +1,21 @@
 """
-Regenerate search_vector data from existing raw_text.
+Regenerate search_vector data from existing data.
 
-This command backfills search_vector data for DocumentExtraction table,
+This command backfills search_vector data for all registered FTS models,
 allowing PostgreSQL full-text search to work on existing records.
 
 Usage:
-    # Backfill all DocumentExtraction records
+    # Backfill all models
     python manage.py backfill_search_vectors
+
+    # Backfill only extraction model
+    python manage.py backfill_search_vectors --extraction-only
+
+    # Backfill only decision model
+    python manage.py backfill_search_vectors --decisions-only
+
+    # Backfill only entity models (skip extraction and decision)
+    python manage.py backfill_search_vectors --others-only
 
     # Backfill only records without search_vector (NULL)
     python manage.py backfill_search_vectors --only-null
@@ -53,9 +62,14 @@ class Command(BaseCommand):
             help="Backfill only extraction model",
         )
         parser.add_argument(
+            "--decisions-only",
+            action="store_true",
+            help="Backfill only decision model",
+        )
+        parser.add_argument(
             "--others-only",
             action="store_true",
-            help="Backfill only other models (afmentity, organization, unit, signer, company, companyperson)",
+            help="Backfill all models except extraction and decision (afmentity, organization, unit, signer, company, companyperson)",
         )
 
         # Operation arguments
@@ -85,22 +99,27 @@ class Command(BaseCommand):
         """Main command handler"""
         # Determine which models to operate on
         extraction_only = options.get("extraction_only", False)
+        decisions_only = options.get("decisions_only", False)
         others_only = options.get("others_only", False)
 
-        if extraction_only and others_only:
+        exclusive_flags = sum([extraction_only, decisions_only, others_only])
+        if exclusive_flags > 1:
             raise CommandError(
-                "Cannot specify both --extraction-only and --others-only"
+                "--extraction-only, --decisions-only, and --others-only are mutually exclusive"
             )
 
         if extraction_only:
             models = ["extraction"]
             model_description = "Extraction Model"
+        elif decisions_only:
+            models = ["decision"]
+            model_description = "Decision Model"
         elif others_only:
-            models = [m for m in self.MODELS.keys() if m != "extraction"]
+            models = [m for m in self.MODELS.keys() if m not in ("extraction", "decision")]
             model_description = "Other Models (6 models)"
         else:
             models = list(self.MODELS.keys())
-            model_description = "All Models (7 models)"
+            model_description = "All Models (8 models)"
 
         # Check trigger status
         if not options["force"]:
