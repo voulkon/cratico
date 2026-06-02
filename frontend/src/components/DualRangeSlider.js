@@ -249,8 +249,8 @@ const DualRangeSlider = ({
   const displayStartValue = isDragging ? localStartValue : startValue;
   const displayEndValue = isDragging ? localEndValue : endValue;
 
-  const startPercentage = ((displayStartValue - min) / (max - min)) * 100;
-  const endPercentage = ((displayEndValue - min) / (max - min)) * 100;
+  const startPercentage = Math.max(0, Math.min(100, ((displayStartValue - min) / (max - min)) * 100));
+  const endPercentage = Math.max(0, Math.min(100, ((displayEndValue - min) / (max - min)) * 100));
 
   const startLabel = formatValue(displayStartValue);
   const endLabel = formatValue(displayEndValue);

@@ -76,9 +76,16 @@ const RelationshipDetailPage = () => {
         const urlEnd = searchParams.get('end_date');
 
         if (urlStart && urlEnd) {
-          const startIdx = dateUtils.dateToIndex(new Date(urlStart));
-          const endIdx = dateUtils.dateToIndex(new Date(urlEnd));
-          setMonthRange({ startIndex: startIdx, endIndex: endIdx });
+          const rawStartIdx = dateUtils.dateToIndex(new Date(urlStart));
+          const rawEndIdx = dateUtils.dateToIndex(new Date(urlEnd));
+          // Clamp to valid range to prevent slider handles overflowing the track
+          const maxIdx = dateUtils.totalMonths - 1;
+          const startIdx = Math.max(0, Math.min(maxIdx, rawStartIdx));
+          const endIdx = Math.max(0, Math.min(maxIdx, rawEndIdx));
+          setMonthRange({
+            startIndex: Math.min(startIdx, endIdx),
+            endIndex: Math.max(startIdx, endIdx),
+          });
           setTimeRange({ startDate: urlStart, endDate: urlEnd });
         } else {
           const defaultRange = dateUtils.getDefaultRange();
