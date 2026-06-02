@@ -401,7 +401,7 @@ const AFMEntityDetailPage = () => {
       {dynamicDateUtils && monthRange && (
         <details open className="time-range-container collapsible-section">
           <summary className="section-summary">
-            <span className="summary-title">{t('filters.timeRange')}</span>
+            <span className="summary-title">{t('exploration.timeRange')}</span>
             <span className="summary-count">
               {t('exploration.availableDataShort', {
                 days: entityDateRange.date_range.span_days

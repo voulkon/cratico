@@ -14,6 +14,7 @@ from django.db import models
 from django.utils.dateparse import parse_date
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
+from loguru import logger
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -123,8 +124,8 @@ def relationship_date_range_api(request, afm, orgUid):
             {
                 "has_data": True,
                 "date_range": {
-                    "earliest": earliest.date().isoformat(),
-                    "latest": latest.date().isoformat(),
+                    "earliest": earliest.isoformat(),
+                    "latest": latest.isoformat(),
                     "span_days": span_days,
                     "recommended_granularity": granularity,
                 },
@@ -143,12 +144,15 @@ def relationship_date_range_api(request, afm, orgUid):
         )
 
     except Exception as e:
-        import traceback
-
+        logger.exception(
+            "Error in relationship_date_range_api for afm={}, orgUid={}",
+            afm,
+            orgUid,
+        )
         return Response(
             {
                 "error": f"Internal server error: {str(e)}",
-                "traceback": traceback.format_exc() if settings.DEBUG else None,
+                "traceback": None,
             },
             status=500,
         )
@@ -248,12 +252,15 @@ def relationship_statistics_api(request, afm, orgUid):
         )
 
     except Exception as e:
-        import traceback
-
+        logger.exception(
+            "Error in relationship_statistics_api for afm={}, orgUid={}",
+            afm,
+            orgUid,
+        )
         return Response(
             {
                 "error": f"Internal server error: {str(e)}",
-                "traceback": traceback.format_exc() if settings.DEBUG else None,
+                "traceback": None,
             },
             status=500,
         )
