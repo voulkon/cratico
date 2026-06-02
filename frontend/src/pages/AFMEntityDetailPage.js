@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Filter } from 'lucide-react';
 import apiClient from '../api/client';
 import { useTranslation } from '../contexts/TranslationContext';
 import useUrlFilters from '../hooks/useUrlFilters';
-import DecisionCard from '../components/DecisionCard';
+import useDocumentContent from '../hooks/useDocumentContent';
 import SortControl from '../components/SortControl';
 import TopCounterparts from '../components/TopCounterparts';
 import GemiSection from '../components/GemiSection';
+import DecisionList from '../components/DecisionList';
+import FilterPanel from '../components/FilterPanel';
+import StatisticsGrid from '../components/StatisticsGrid';
 import './AFMEntityDetailPage.css';
 
 const AFMEntityDetailPage = () => {
@@ -23,7 +25,6 @@ const AFMEntityDetailPage = () => {
   const [pagination, setPagination] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [availableRoles, setAvailableRoles] = useState([]);
-  const [showRoleFilter, setShowRoleFilter] = useState(false);
   const [companyInfo, setCompanyInfo] = useState(null);
   const [gemiFetchStatus, setGemiFetchStatus] = useState(null); // null | 'loading' | 'queued' | 'already_queued' | 'already_fetched' | 'rate_limited' | 'error'
 
@@ -100,15 +101,7 @@ const AFMEntityDetailPage = () => {
     }
   };
 
-  const handleViewDocumentContent = async (decisionId) => {
-    try {
-      const response = await apiClient.get(`/decision/${decisionId}/content/`);
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching document content:', error);
-      throw error;
-    }
-  };
+  const { fetchContent: handleViewDocumentContent } = useDocumentContent();
 
   const handleRequestGemiFetch = async () => {
     setGemiFetchStatus('loading');
@@ -152,6 +145,42 @@ const AFMEntityDetailPage = () => {
       maximumFractionDigits: 2
     })}`;
   };
+
+  // Build statistics cards for StatisticsGrid
+  const statCards = statistics ? [
+    {
+      title: t('afmEntityDetail.totalDecisions'),
+      value: statistics.total_decisions?.toLocaleString(),
+      subtitle: t('afmEntityDetail.acrossRoles', { count: statistics.unique_roles }),
+    },
+    {
+      title: t('afmEntityDetail.totalAmount'),
+      value: statistics.total_amount ? formatAmount(statistics.total_amount) : t('common.noAmount'),
+      subtitle: statistics.decisions_with_amounts ? (
+        <span>{t('afmEntityDetail.decisionsWithAmounts', { count: statistics.decisions_with_amounts })}</span>
+      ) : undefined,
+    },
+    {
+      title: t('afmEntityDetail.organizationsWorkedWith'),
+      value: statistics.unique_organizations?.toLocaleString(),
+      subtitle: statistics.most_frequent_organization ? (
+        <button
+          className="most-frequent-org clickable-entity"
+          onClick={() => navigate(`/entity/organization/${statistics.most_frequent_organization.uid}`)}
+          title={t('afmEntityDetail.viewMostFrequentOrg')}
+        >
+          {t('afmEntityDetail.mostFrequent')}: {statistics.most_frequent_organization.label}
+        </button>
+      ) : undefined,
+    },
+    {
+      title: t('afmEntityDetail.activityPeriod'),
+      value: `${Math.ceil((new Date(entity.last_seen) - new Date(entity.first_seen)) / (1000 * 60 * 60 * 24))} ${t('common.days')}`,
+      subtitle: statistics.avg_decisions_per_month ? (
+        <span>{t('afmEntityDetail.avgPerMonth', { count: statistics.avg_decisions_per_month.toFixed(1) })}</span>
+      ) : undefined,
+    },
+  ] : null;
 
   if (loading && !entity) {
     return (
@@ -233,61 +262,11 @@ const AFMEntityDetailPage = () => {
       </div>
 
       {/* Statistics Grid */}
-      {statistics && (
-        <div className="statistics-grid">
-          <div className="stat-card">
-            <h3>{t('afmEntityDetail.totalDecisions')}</h3>
-            <div className="stat-value">{statistics.total_decisions?.toLocaleString()}</div>
-            <div className="stat-context">
-              {t('afmEntityDetail.acrossRoles', { count: statistics.unique_roles })}
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <h3>{t('afmEntityDetail.totalAmount')}</h3>
-            <div className="stat-value">
-              {statistics.total_amount ? formatAmount(statistics.total_amount) : t('common.noAmount')}
-            </div>
-            <div className="stat-context">
-              {statistics.decisions_with_amounts && (
-                <span>
-                  {t('afmEntityDetail.decisionsWithAmounts', { count: statistics.decisions_with_amounts })}
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <h3>{t('afmEntityDetail.organizationsWorkedWith')}</h3>
-            <div className="stat-value">{statistics.unique_organizations?.toLocaleString()}</div>
-            <div className="stat-context">
-              {statistics.most_frequent_organization && (
-                <button
-                  className="most-frequent-org clickable-entity"
-                  onClick={() => navigate(`/entity/organization/${statistics.most_frequent_organization.uid}`)}
-                  title={t('afmEntityDetail.viewMostFrequentOrg')}
-                >
-                  {t('afmEntityDetail.mostFrequent')}: {statistics.most_frequent_organization.label}
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <h3>{t('afmEntityDetail.activityPeriod')}</h3>
-            <div className="stat-value">
-              {Math.ceil((new Date(entity.last_seen) - new Date(entity.first_seen)) / (1000 * 60 * 60 * 24))} {t('common.days')}
-            </div>
-            <div className="stat-context">
-              {statistics.avg_decisions_per_month && (
-                <span>
-                  {t('afmEntityDetail.avgPerMonth', { count: statistics.avg_decisions_per_month.toFixed(1) })}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <StatisticsGrid
+        loading={false}
+        error={null}
+        cards={statCards}
+      />
 
       {/* Top Organizations - Shows top organizations this entity worked with */}
       {entity && (
@@ -356,52 +335,29 @@ const AFMEntityDetailPage = () => {
         </div>
 
         {/* Role Filters */}
-        <div className="filters-section">
-          <div
-            className="filters-header clickable"
-            onClick={() => setShowRoleFilter(!showRoleFilter)}
-          >
-            <div className="filter-toggle-content">
-              <Filter size={18} />
-              <span>{t('afmEntityDetail.filterByRole')}</span>
-              <span className="toggle-arrow">{showRoleFilter ? '▲' : '▼'}</span>
-            </div>
-
-            {activeFiltersCount > 0 && (
-              <button
-                className="clear-filters-button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  clearAllFilters();
-                }}
-              >
-                {t('common.clearFilters')} ({activeFiltersCount})
-              </button>
-            )}
+        <FilterPanel
+          activeFiltersCount={activeFiltersCount}
+          onClearAll={clearAllFilters}
+          filterLabel={t('afmEntityDetail.filterByRole')}
+        >
+          <div className="role-filters">
+            {availableRoles.map(role => (
+              <label key={role.role} className="role-filter-checkbox">
+                <input
+                  type="checkbox"
+                  checked={selectedRoles.includes(role.role)}
+                  onChange={() => toggleRole(role.role)}
+                />
+                <span className="checkbox-content">
+                  <span className="role-label">
+                    {t(`afmEntityDetail.roles.${role.role}`, role.role)}
+                  </span>
+                  <span className="role-stats">({role.count})</span>
+                </span>
+              </label>
+            ))}
           </div>
-
-          {showRoleFilter && (
-            <div className="filters-panel">
-              <div className="role-filters">
-                {availableRoles.map(role => (
-                  <label key={role.role} className="role-filter-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={selectedRoles.includes(role.role)}
-                      onChange={() => toggleRole(role.role)}
-                    />
-                    <span className="checkbox-content">
-                      <span className="role-label">
-                        {t(`afmEntityDetail.roles.${role.role}`, role.role)}
-                      </span>
-                      <span className="role-stats">({role.count})</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        </FilterPanel>
 
         {/* Active Filters Display */}
         {selectedRoles.length > 0 && (
@@ -430,52 +386,21 @@ const AFMEntityDetailPage = () => {
         </div>
 
         {/* Decisions List */}
-        {loading && decisions.length === 0 ? (
-          <div className="loading-text">{t('common.loading')}</div>
-        ) : (
-          <>
-            {decisions.length === 0 ? (
-              <div className="no-decisions-message">
-                {selectedRoles.length > 0
-                  ? t('afmEntityDetail.noDecisionsWithFilters')
-                  : t('afmEntityDetail.noDecisions')
-                }
-              </div>
-            ) : (
-              <div className="decisions-list">
-                {decisions.map((decision, index) => (
-                  <DecisionCard
-                    key={decision.id}
-                    decision={decision}
-                    formatAmount={formatAmount}
-                    index={index}
-                    isLastItem={index === decisions.length - 1}
-                    onViewDocumentContent={handleViewDocumentContent}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Load More Button */}
-            {pagination?.has_next && (
-              <div className="load-more-container">
-                <button
-                  onClick={handleLoadMore}
-                  disabled={loadingMore}
-                  className={`load-more-button ${loadingMore ? 'loading' : ''}`}
-                >
-                  {loadingMore ? t('common.loading') : t('common.loadMore')}
-                </button>
-              </div>
-            )}
-
-            {loadingMore && (
-              <div className="loading-more-container">
-                <div className="loading-more-text">{t('common.loadingMore')}</div>
-              </div>
-            )}
-          </>
-        )}
+        <DecisionList
+          decisions={decisions}
+          loading={loading}
+          loadingMore={loadingMore}
+          error={null}
+          pagination={pagination}
+          hasSearchQuery={selectedRoles.length > 0}
+          formatAmount={formatAmount}
+          onViewDocumentContent={handleViewDocumentContent}
+          onLoadMore={handleLoadMore}
+          emptyMessage={t('afmEntityDetail.noDecisions')}
+          emptyFilterMessage={t('afmEntityDetail.noDecisionsWithFilters')}
+          showPaginationInfo={true}
+          getDecisionKey={(d) => d.id}
+        />
       </div>
     </div>
   );

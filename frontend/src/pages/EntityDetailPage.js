@@ -1,14 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Filter } from 'lucide-react';
 import { NetworkIcon } from '../components/Icons';
 import apiClient from '../api/client';
 import DualRangeSlider from '../components/DualRangeSlider';
-import DecisionCard from '../components/DecisionCard';
 import SortControl from '../components/SortControl';
 import TopCounterparts from '../components/TopCounterparts';
 import TopRelationshipPairs from '../components/TopRelationshipPairs';
+import SearchInput from '../components/SearchInput';
+import DecisionList from '../components/DecisionList';
+import FilterPanel from '../components/FilterPanel';
+import StatisticsGrid from '../components/StatisticsGrid';
 import useUrlFilters from '../hooks/useUrlFilters';
+import useDocumentContent from '../hooks/useDocumentContent';
+import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import { createDynamicDateRangeUtils, formatAmount } from '../utils/dateUtils';
 import { useTranslation } from '../contexts/TranslationContext';
 import './EntityDetailPage.css';
@@ -62,7 +66,6 @@ const EntityDetailPage = () => {
 
   // Decision type filtering state
   const [availableDecisionTypes, setAvailableDecisionTypes] = useState([]);
-  const [showDecisionTypeFilter, setShowDecisionTypeFilter] = useState(false);
   const [decisionTypesLoading, setDecisionTypesLoading] = useState(false);
   const [isOrganizationsExpanded, setIsOrganizationsExpanded] = useState(true);
   const [isTimeRangeExpanded, setIsTimeRangeExpanded] = useState(true);
@@ -125,29 +128,7 @@ const EntityDetailPage = () => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const handleViewDocumentContent = async (decisionId) => {
-    try {
-      // Use integer ID - no encoding needed!
-      const response = await apiClient.get(`/decision/${decisionId}/content/`);
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching document content:', error);
-
-      // Handle axios-specific error structure
-      if (error.response) {
-        const errorMessage = error.response.data?.error ||
-                            error.response.data?.message ||
-                            `HTTP ${error.response.status}: ${error.response.statusText}`;
-        throw new Error(errorMessage);
-      } else if (error.request) {
-        // The request was made but no response was received
-        throw new Error('No response from server');
-      } else {
-        // Something happened in setting up the request that triggered an Error
-        throw new Error(error.message || 'Request failed');
-      }
-    }
-  };
+  const { fetchContent: handleViewDocumentContent } = useDocumentContent();
   // Enhanced fetch functions for both modes
   const fetchEntityDateRange = useCallback(async () => {
     try {
@@ -413,24 +394,12 @@ const EntityDetailPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeRange, sortBy, debouncedSearchQuery, selectedDecisionTypes, amountFilters, organizationFilters]);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      if (
-        window.innerHeight + document.documentElement.scrollTop >=
-        document.documentElement.offsetHeight - 1000 &&
-        pagination &&
-        pagination.has_next &&
-        !loadingMore &&
-        !loading
-      ) {
-        loadMoreDecisions();
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagination, loadingMore, loading]);
+  const { sentinelRef } = useInfiniteScroll({
+    hasMore: pagination?.has_next ?? false,
+    loading,
+    loadingMore,
+    onLoadMore: loadMoreDecisions,
+  });
 
   // Handlers
   const handleMonthRangeChange = (startIndex, endIndex) => {
@@ -507,6 +476,39 @@ const EntityDetailPage = () => {
   }
 
   const pageInfo = getPageInfo();
+
+  // Build statistics cards for StatisticsGrid component
+  const statCards = statistics ? [
+    {
+      title: t('statistics.totalDecisions'),
+      value: statistics.summary.decisions.total_count.toLocaleString(),
+      subtitle: explorationMode === 'temporal'
+        ? t('entityDetail.acrossOrganizations', { count: temporalSummary?.organizations_count || 0 })
+        : undefined,
+    },
+    {
+      title: t('statistics.totalAmount'),
+      value: `€${statistics.summary.financial.primary_amount.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`,
+      warning: statistics.summary.financial.has_discrepancy
+        ? t('statistics.amountDiscrepancy', { percentage: statistics.summary.financial.discrepancy_percentage })
+        : undefined,
+    },
+    {
+      title: t('statistics.averageAmount'),
+      value: `€${statistics.summary.decisions.avg_amount.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`,
+    },
+    {
+      title: t('statistics.period'),
+      value: t('statistics.days', { count: statistics.period.days_count }),
+      subtitle: `${new Date(statistics.period.start_date).toLocaleDateString()} - ${new Date(statistics.period.end_date).toLocaleDateString()}`,
+    },
+  ] : null;
 
   return (
     <div className="entity-detail-page">
@@ -652,72 +654,12 @@ const EntityDetailPage = () => {
       </div>
 
       {/* Enhanced Statistics Cards for both modes */}
-      {statisticsLoading ? (
-        <div className="statistics-grid">
-          {[0, 1, 2, 3].map(i => (
-            <div key={i} className="stat-card stat-card--loading">
-              <div className="stat-skeleton stat-skeleton--title" />
-              <div className="stat-skeleton stat-skeleton--value" />
-            </div>
-          ))}
-        </div>
-      ) : statisticsError ? (
-        <div className="statistics-grid">
-          <div className="stat-card stat-card--error">
-            <span>{statisticsError}</span>
-            <button className="retry-button" onClick={fetchStatistics}>{t('common.retry')}</button>
-          </div>
-        </div>
-      ) : statistics ? (
-        <div className="statistics-grid">
-          <div className="stat-card">
-            <h3 className="stat-title">{t('statistics.totalDecisions')}</h3>
-            <div className="stat-value">
-              {statistics.summary.decisions.total_count.toLocaleString()}
-            </div>
-            {explorationMode === 'temporal' && (
-              <div className="stat-context">
-                {t('entityDetail.acrossOrganizations', { count: temporalSummary?.organizations_count || 0 })}
-              </div>
-            )}
-          </div>
-
-          <div className="stat-card">
-            <h3 className="stat-title">{t('statistics.totalAmount')}</h3>
-            <div className="stat-value">
-              €{statistics.summary.financial.primary_amount.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              })}
-            </div>
-            {statistics.summary.financial.has_discrepancy && (
-              <div className="discrepancy-warning">
-                {t('statistics.amountDiscrepancy', { percentage: statistics.summary.financial.discrepancy_percentage })}
-              </div>
-            )}
-          </div>
-
-          <div className="stat-card">
-            <h3 className="stat-title">{t('statistics.averageAmount')}</h3>
-            <div className="stat-value">
-              €{statistics.summary.decisions.avg_amount.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              })}
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <h3 className="stat-title">{t('statistics.period')}</h3>
-            <div className="stat-period">
-              {t('statistics.days', { count: statistics.period.days_count })}
-            </div>
-            <div className="stat-date-range">
-              {new Date(statistics.period.start_date).toLocaleDateString()} - {new Date(statistics.period.end_date).toLocaleDateString()}
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <StatisticsGrid
+        loading={statisticsLoading}
+        error={statisticsError}
+        cards={statCards}
+        onRetry={fetchStatistics}
+      />
 
       {/* Top Counterparts - Shows related entities/organizations */}
       {explorationMode === 'entity' && entityData && entityType === 'organization' && timeRange && (
@@ -751,23 +693,12 @@ const EntityDetailPage = () => {
           </h3>
 
           <div className="controls-container">
-            <div className="search-container">
-              <label className="search-label">{t('entityDetail.search')}:</label>
-              <div className="search-input-wrapper">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={t('entityDetail.searchInDecisions')}
-                  className="search-input"
-                />
-                {searchQuery && (
-                  <button onClick={() => setSearchQuery('')} className="clear-button">
-                    ×
-                  </button>
-                )}
-              </div>
-            </div>
+            <SearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder={t('entityDetail.searchInDecisions')}
+              label={`${t('entityDetail.search')}:`}
+            />
 
             <label className="checkbox-label" style={{ marginRight: '1rem' }}>
               <input
@@ -782,93 +713,70 @@ const EntityDetailPage = () => {
           </div>
         </div>
 
-        <div className="filters-section">
-          <div
-            className="filters-header clickable"
-            onClick={() => setShowDecisionTypeFilter(!showDecisionTypeFilter)}
-          >
-            <div className="filter-toggle-content">
-              <Filter size={18} />
-              <span>{t('entityDetail.filters')} {activeFiltersCount > 0 && `(${activeFiltersCount})`}</span>
-              <span className="toggle-arrow">{showDecisionTypeFilter ? '▲' : '▼'}</span>
+        <FilterPanel
+          activeFiltersCount={activeFiltersCount}
+          onClearAll={clearAllFilters}
+          filterLabel={t('entityDetail.filters')}
+        >
+          {/* Amount Filters */}
+          <div className="filter-group">
+            <h4>{t('entityDetail.amountRange')}</h4>
+            <div className="amount-filters">
+              <input
+                type="number"
+                placeholder={t('entityDetail.minAmountPlaceholder')}
+                value={amountFilters.minAmount}
+                onChange={(e) => handleAmountFilterChange('minAmount', e.target.value)}
+                className="amount-input"
+              />
+              <span className="amount-separator">{t('entityDetail.amountTo')}</span>
+              <input
+                type="number"
+                placeholder={t('entityDetail.maxAmountPlaceholder')}
+                value={amountFilters.maxAmount}
+                onChange={(e) => handleAmountFilterChange('maxAmount', e.target.value)}
+                className="amount-input"
+              />
             </div>
+          </div>
 
-            {activeFiltersCount > 0 && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  clearAllFilters();
-                }}
-                className="clear-filters-button"
-              >
-                {t('entityDetail.clearAllFilters')}
-              </button>
+          {/* Decision Type Filters */}
+          <div className="filter-group">
+            <h4>{t('entityDetail.decisionTypes')}</h4>
+            {decisionTypesLoading ? (
+              <div className="loading-text">{t('entityDetail.loadingDecisionTypes')}</div>
+            ) : (
+              <div className="decision-types-grid">
+                {availableDecisionTypes.map(type => (
+                  <label key={type.uid} className="decision-type-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={selectedDecisionTypes.includes(type.uid)}
+                      onChange={(e) => handleDecisionTypeToggle(type.uid, e.target.checked)}
+                    />
+                    <span className="checkbox-content">
+                      <span className="type-label">{type.label}</span>
+                      <span className="type-stats">
+                        {t('entityDetail.decisionTypesCount', {
+                          count: type.count,
+                          amount: type.total_amount.toLocaleString()
+                        })}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
             )}
           </div>
 
-          {showDecisionTypeFilter && (
-            <div className="filters-panel">
-              {/* Amount Filters */}
-              <div className="filter-group">
-                <h4>{t('entityDetail.amountRange')}</h4>
-                <div className="amount-filters">
-                  <input
-                    type="number"
-                    placeholder={t('entityDetail.minAmountPlaceholder')}
-                    value={amountFilters.minAmount}
-                    onChange={(e) => handleAmountFilterChange('minAmount', e.target.value)}
-                    className="amount-input"
-                  />
-                  <span className="amount-separator">{t('entityDetail.amountTo')}</span>
-                  <input
-                    type="number"
-                    placeholder={t('entityDetail.maxAmountPlaceholder')}
-                    value={amountFilters.maxAmount}
-                    onChange={(e) => handleAmountFilterChange('maxAmount', e.target.value)}
-                    className="amount-input"
-                  />
-                </div>
-              </div>
-
-              {/* Decision Type Filters */}
-              <div className="filter-group">
-                <h4>{t('entityDetail.decisionTypes')}</h4>
-                {decisionTypesLoading ? (
-                  <div className="loading-text">{t('entityDetail.loadingDecisionTypes')}</div>
-                ) : (
-                  <div className="decision-types-grid">
-                    {availableDecisionTypes.map(type => (
-                      <label key={type.uid} className="decision-type-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={selectedDecisionTypes.includes(type.uid)}
-                          onChange={(e) => handleDecisionTypeToggle(type.uid, e.target.checked)}
-                        />
-                        <span className="checkbox-content">
-                          <span className="type-label">{type.label}</span>
-                          <span className="type-stats">
-                            {t('entityDetail.decisionTypesCount', {
-                              count: type.count,
-                              amount: type.total_amount.toLocaleString()
-                            })}
-                          </span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Organization Filters - only for temporal mode */}
-              {explorationMode === 'temporal' && (
-                <div className="filter-group">
-                  <h4>{t('entityDetail.organizations')}</h4>
-                  {/* Add organization filter UI */}
-                </div>
-              )}
+          {/* Organization Filters - only for temporal mode */}
+          {explorationMode === 'temporal' && (
+            <div className="filter-group">
+              <h4>{t('entityDetail.organizations')}</h4>
+              {/* Add organization filter UI */}
             </div>
           )}
-        </div>
+        </FilterPanel>
 
         {/* Search Results Info */}
         {searchQuery && (
@@ -914,56 +822,21 @@ const EntityDetailPage = () => {
 
 
 
-        {decisions.length > 0 ? (
-          <div>
-            {decisions.map((decision, index) => (
-              <DecisionCard
-                key={decision.ada}
-                decision={decision}
-                formatAmount={formatAmount}
-                index={index}
-                isLastItem={index === decisions.length - 1}
-                onViewDocumentContent={handleViewDocumentContent}
-              />
-            ))}
-
-            {loadingMore && (
-              <div className="loading-more-container">
-                <div className="loading-more-text">
-                  {t('entityDetail.loadingMoreDecisions')}
-                </div>
-              </div>
-            )}
-
-            {pagination && (
-              <div className="pagination-info">
-                {t('entityDetail.showingDecisions', {
-                  current: decisions.length,
-                  total: pagination.total_count
-                })}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="no-decisions-message">
-            {t('entityDetail.noDecisionsFound')}
-          </div>
-        )}
-
-        {pagination && pagination.has_next && (
-          <div className="load-more-container">
-            <button
-              onClick={loadMoreDecisions}
-              disabled={loadingMore}
-              className={`load-more-button ${loadingMore ? 'loading' : ''}`}
-            >
-              {loadingMore ?
-                t('entityDetail.loadingMoreButton') :
-                t('entityDetail.loadMoreButton', { remaining: pagination.total_count - decisions.length })
-              }
-            </button>
-          </div>
-        )}
+        <DecisionList
+          decisions={decisions}
+          loading={loading}
+          loadingMore={loadingMore}
+          error={null}
+          pagination={pagination}
+          hasSearchQuery={!!(searchQuery || activeFiltersCount > 0)}
+          formatAmount={formatAmount}
+          onViewDocumentContent={handleViewDocumentContent}
+          onLoadMore={loadMoreDecisions}
+          emptyMessage={t('entityDetail.noDecisionsFound')}
+          showPaginationInfo={true}
+          getDecisionKey={(d) => d.ada}
+        />
+        <div ref={sentinelRef} />
       </div>
     </div>
   );
