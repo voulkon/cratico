@@ -5,9 +5,16 @@ Provides cached prerequisite checks for search methods and other features.
 This service is independent to avoid circular dependencies between SearchService and FeatureFlagService.
 """
 
+from api.redis_keys import (
+    PREREQUISITE_CHECK_CACHE_MIGRATION,
+    PREREQUISITE_CHECK_CACHE_BACKFILL_STATUS,  
+    PREREQUISITE_CHECK_CACHE_FULL_CHECK
+)
 from typing import Any, Dict
 
-from core.constants.search_service import POSTGRES_FTS_MIGRATION, POSTGRES_FTS_MODELS
+from core.constants.search_service import (
+    POSTGRES_FTS_MIGRATION, POSTGRES_FTS_MODELS
+    )
 from django.core.cache import cache
 from django.db import connection
 from loguru import logger
@@ -34,7 +41,7 @@ class PrerequisiteCheckService:
         Returns:
             bool: True if migration exists, False otherwise
         """
-        cache_key = "prerequisite:postgres_fts:migration"
+        cache_key = PREREQUISITE_CHECK_CACHE_MIGRATION
         cached_result = cache.get(cache_key)
 
         if cached_result is not None:
@@ -67,7 +74,7 @@ class PrerequisiteCheckService:
                 - 'missing_models': list - Models that need backfilling
                 - 'summary': str - Human-readable summary
         """
-        cache_key = "prerequisite:postgres_fts:backfill_status"
+        cache_key = PREREQUISITE_CHECK_CACHE_BACKFILL_STATUS
         cached_result = cache.get(cache_key)
 
         if cached_result is not None:
@@ -157,7 +164,8 @@ class PrerequisiteCheckService:
                 - 'migration_applied': bool - Migration status
                 - 'backfill_ready': bool - Backfill status
         """
-        cache_key = "prerequisite:postgres_fts:full_check"
+        # TODO: Replace with centralized value
+        cache_key = PREREQUISITE_CHECK_CACHE_FULL_CHECK
         cached_result = cache.get(cache_key)
 
         if cached_result is not None:
@@ -208,9 +216,9 @@ class PrerequisiteCheckService:
     @staticmethod
     def clear_cache():
         """Clear all prerequisite check caches."""
-        cache.delete("prerequisite:postgres_fts:migration")
-        cache.delete("prerequisite:postgres_fts:backfill_status")
-        cache.delete("prerequisite:postgres_fts:full_check")
+        cache.delete(PREREQUISITE_CHECK_CACHE_MIGRATION)
+        cache.delete(PREREQUISITE_CHECK_CACHE_BACKFILL_STATUS)
+        cache.delete(PREREQUISITE_CHECK_CACHE_FULL_CHECK)
         logger.info("Cleared all prerequisite check caches")
 
 
