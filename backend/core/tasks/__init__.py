@@ -2,6 +2,7 @@
 Import all tasks to maintain backward compatibility
 """
 
+from .afm_entity_stats_tasks import recompute_all_entity_stats
 from .health_check_tasks import (
     auto_fix_simple_issues,
     backfill_health_checks_for_import_job,
@@ -143,4 +144,5 @@ __all__ = [
     "periodic_validation_task",
     "vacuum_table_task",
     "vacuum_multiple_tables_task",
+    "recompute_all_entity_stats"
 ]
