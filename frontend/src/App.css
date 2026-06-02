@@ -2,6 +2,13 @@
   text-align: center;
 }
 
+/* Offset page content below the fixed top controls (logo + action buttons).
+   The fixed controls sit at top: var(--spacing-md) (12px) and are ~30px tall,
+   so ~54px with some breathing room. */
+.app-content {
+  padding-top: 60px;
+}
+
 .App-logo {
   height: 40vmin;
   pointer-events: none;

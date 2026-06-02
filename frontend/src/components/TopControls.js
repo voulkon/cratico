@@ -46,7 +46,7 @@ const TopControls = ({
       {!hideLogo && (
         <div className={`left-controls ${isLibraryOpen ? 'shifted' : ''}`}>
           <div className="logo-container">
-            <Logo size="medium" />
+            <Logo size="small" />
           </div>
         </div>
       )}

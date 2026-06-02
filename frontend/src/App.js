@@ -185,45 +185,48 @@ function AuthenticatedApp({ controlsLayout }) {
       <RateLimitModal />
       <AuthPromptModal />
 
-      <Routes>
-        {/* NEW: Use HomePage as the main landing page */}
-        <Route path="/" element={<HomePage />} />
+      {/* Content wrapper - adds top offset to clear fixed controls (logo + top buttons) */}
+      <div className={!isHomePage && !isAuthPage ? 'app-content' : ''}>
+        <Routes>
+          {/* NEW: Use HomePage as the main landing page */}
+          <Route path="/" element={<HomePage />} />
 
-        {/* Email Verification Page */}
-        <Route path="/verify-email" element={<VerifyEmailPage />} />
+          {/* Email Verification Page */}
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
 
-        {/* Library - bookmark management */}
-        <Route path="/library" element={<LibraryPage />} />
+          {/* Library - bookmark management */}
+          <Route path="/library" element={<LibraryPage />} />
 
-        {/* RENAMED: Change from /dev to /organizations */}
-        <Route path="/organizations" element={<DevPage />} />
-        <Route path="/dev" element={<Navigate to="/organizations" />} />
+          {/* RENAMED: Change from /dev to /organizations */}
+          <Route path="/organizations" element={<DevPage />} />
+          <Route path="/dev" element={<Navigate to="/organizations" />} />
 
-        {/* Search Results Page */}
-        <Route path="/search" element={<SearchResults />} />
+          {/* Search Results Page */}
+          <Route path="/search" element={<SearchResults />} />
 
-        {/* Super Search Example Page */}
-        <Route path="/search-example" element={<SuperSearchExample />} />
+          {/* Super Search Example Page */}
+          <Route path="/search-example" element={<SuperSearchExample />} />
 
-        <Route path="/entity/:entityType/:entityId" element={<EntityDetailPage />} />
-        <Route path="/decision/:ada" element={<DecisionDetailPage />} />
-        <Route path="/health" element={<Clock />} />
-        <Route path="/entity/afm/:afm" element={<AFMEntityDetailPage />} />
+          <Route path="/entity/:entityType/:entityId" element={<EntityDetailPage />} />
+          <Route path="/decision/:ada" element={<DecisionDetailPage />} />
+          <Route path="/health" element={<Clock />} />
+          <Route path="/entity/afm/:afm" element={<AFMEntityDetailPage />} />
 
-        {/* Person page - companies where a person is involved */}
-        <Route path="/person/:personName" element={<PersonPage />} />
+          {/* Person page - companies where a person is involved */}
+          <Route path="/person/:personName" element={<PersonPage />} />
 
-        {/* Relationship page - Entity × Organization */}
-        <Route path="/relationship/entity/:afm/org/:orgUid" element={<RelationshipDetailPage />} />
+          {/* Relationship page - Entity × Organization */}
+          <Route path="/relationship/entity/:afm/org/:orgUid" element={<RelationshipDetailPage />} />
 
-        {/* Notification Batch Detail */}
-        <Route path="/batch/:batchId" element={<NotificationBatchDetailPage />} />
+          {/* Notification Batch Detail */}
+          <Route path="/batch/:batchId" element={<NotificationBatchDetailPage />} />
 
-        {/* Subscription History - All decisions from a subscription */}
-        <Route path="/notifications/subscriptions/:subscriptionId/history" element={<SubscriptionHistoryPage />} />
+          {/* Subscription History - All decisions from a subscription */}
+          <Route path="/notifications/subscriptions/:subscriptionId/history" element={<SubscriptionHistoryPage />} />
 
-        <Route path="/reset-password" element={<PasswordResetPage />} />
-      </Routes>
+          <Route path="/reset-password" element={<PasswordResetPage />} />
+        </Routes>
+      </div>
     </>
   );
 }
