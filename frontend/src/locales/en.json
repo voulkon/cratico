@@ -473,7 +473,8 @@
     "noData": "No Relationship Data Found",
     "noDataMessage": "No decisions found linking this entity and organization",
     "noDecisions": "No decisions found for this relationship",
-    "noDecisionsWithFilters": "No decisions match your filters"
+    "noDecisionsWithFilters": "No decisions match your filters",
+    "withAmounts": "with amounts"
   },
   "entityTypes": {
     "person": "Person",
