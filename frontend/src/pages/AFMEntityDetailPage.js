@@ -4,12 +4,16 @@ import apiClient from '../api/client';
 import { useTranslation } from '../contexts/TranslationContext';
 import useUrlFilters from '../hooks/useUrlFilters';
 import useDocumentContent from '../hooks/useDocumentContent';
+import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import SortControl from '../components/SortControl';
 import TopCounterparts from '../components/TopCounterparts';
 import GemiSection from '../components/GemiSection';
 import DecisionList from '../components/DecisionList';
 import FilterPanel from '../components/FilterPanel';
 import StatisticsGrid from '../components/StatisticsGrid';
+import SearchInput from '../components/SearchInput';
+import DualRangeSlider from '../components/DualRangeSlider';
+import { createDynamicDateRangeUtils, formatAmount } from '../utils/dateUtils';
 import './AFMEntityDetailPage.css';
 
 const AFMEntityDetailPage = () => {
@@ -28,64 +32,163 @@ const AFMEntityDetailPage = () => {
   const [companyInfo, setCompanyInfo] = useState(null);
   const [gemiFetchStatus, setGemiFetchStatus] = useState(null); // null | 'loading' | 'queued' | 'already_queued' | 'already_fetched' | 'rate_limited' | 'error'
 
+  // Enhanced date range state
+  const [entityDateRange, setEntityDateRange] = useState(null);
+  const [dateRangeLoading, setDateRangeLoading] = useState(true);
+  const [dynamicDateUtils, setDynamicDateUtils] = useState(null);
+  const [timeRange, setTimeRange] = useState(null);
+  const [monthRange, setMonthRange] = useState(null);
+
+  // Statistics state (non-blocking)
+  const [statisticsLoading, setStatisticsLoading] = useState(false);
+  const [statisticsError, setStatisticsError] = useState(null);
+
   // Use URL filters hook - replaces all the manual URL state management
   const {
     sortBy,
+    searchQuery,
     selectedRoles,
     directAssignmentsOnly,
     activeFiltersCount,
     setSortBy,
+    setSearchQuery,
     toggleRole,
     setDirectAssignmentsOnly,
     clearAllFilters
   } = useUrlFilters({ sortBy: 'amount_desc' });
 
-  const fetchEntityData = useCallback(async (loadMore = false) => {
-    try {
-      if (!loadMore) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
-      }
+  // Debounced search query
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
 
-      // Fetch entity details
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchQuery(searchQuery), 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Fetch entity metadata (name, type, roles) - fast, blocks nothing else
+  const fetchEntityMetadata = useCallback(async () => {
+    try {
       const entityResponse = await apiClient.get(`/entity/afm/${afm}/`);
       setEntity(entityResponse.data.entity);
-      setStatistics(entityResponse.data.statistics);
       setAvailableRoles(entityResponse.data.available_roles);
+    } catch (err) {
+      console.error('Failed to fetch entity metadata:', err);
+      setError(err.response?.data?.error || err.message);
+    }
+  }, [afm]);
 
-      // Fetch decisions with current filters
-      const decisionsParams = new URLSearchParams({
+  // Fetch date range for slider - fast, separate from decisions
+  const fetchDateRange = useCallback(async () => {
+    setDateRangeLoading(true);
+    try {
+      const res = await apiClient.get(`/entity/afm/${afm}/date-range/`);
+      setEntityDateRange(res.data);
+
+      if (res.data.has_data) {
+        const dateUtils = createDynamicDateRangeUtils(res.data);
+        setDynamicDateUtils(dateUtils);
+        const defaultRange = dateUtils.getDefaultRange();
+        setMonthRange(defaultRange);
+        setTimeRange({
+          startDate: dateUtils.indexToDateString(defaultRange.startIndex),
+          endDate: dateUtils.indexToDateString(defaultRange.endIndex, true)
+        });
+      }
+    } catch (err) {
+      console.error('Failed to fetch date range:', err);
+    } finally {
+      setDateRangeLoading(false);
+    }
+  }, [afm]);
+
+  // Fetch decisions with date range, search, and role filters
+  const fetchDecisions = useCallback(async (page = 1, append = false) => {
+    if (!timeRange) return;
+
+    try {
+      if (!append) setLoading(true);
+      else setLoadingMore(true);
+
+      const params = new URLSearchParams({
         sort: sortBy,
-        page: loadMore ? (pagination?.current_page + 1 || 2) : 1,
+        page: page.toString(),
+        start_date: timeRange.startDate,
+        end_date: timeRange.endDate,
         ...(selectedRoles.length > 0 && { roles: selectedRoles.join(',') }),
         ...(directAssignmentsOnly && { direct_assignments_only: 'true' })
       });
 
-      const decisionsResponse = await apiClient.get(`/entity/afm/${afm}/decisions/?${decisionsParams}`);
-
-      if (loadMore) {
-        setDecisions(prev => [...prev, ...decisionsResponse.data.results]);
-      } else {
-        setDecisions(decisionsResponse.data.results);
+      if (debouncedSearchQuery.trim()) {
+        params.append('q', debouncedSearchQuery.trim());
       }
 
-      setPagination(decisionsResponse.data.pagination);
+      const res = await apiClient.get(`/entity/afm/${afm}/decisions/?${params}`);
+
+      if (append) {
+        setDecisions(prev => [...prev, ...res.data.results]);
+      } else {
+        setDecisions(res.data.results);
+      }
+      setPagination(res.data.pagination);
 
     } catch (err) {
-      console.error('Error fetching AFM entity data:', err);
+      console.error('Error fetching decisions:', err);
       setError(err.response?.data?.error || err.message);
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
+      if (!append) setLoading(false);
+      else setLoadingMore(false);
     }
-  }, [afm, sortBy, selectedRoles, directAssignmentsOnly, pagination]);
+  }, [afm, timeRange, sortBy, selectedRoles, directAssignmentsOnly, debouncedSearchQuery]);
 
-  // Fetch data when filters change - omitting fetchEntityData to avoid infinite loop
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Fetch statistics - non-blocking, fire-and-forget
+  const fetchStatistics = useCallback(async () => {
+    if (!timeRange) return;
+    setStatisticsLoading(true);
+    setStatisticsError(null);
+    try {
+      const params = new URLSearchParams({
+        start_date: timeRange.startDate,
+        end_date: timeRange.endDate
+      });
+      const res = await apiClient.get(`/entity/afm/${afm}/statistics/?${params}`, { timeout: 60000 });
+      setStatistics(res.data);
+    } catch (err) {
+      setStatisticsError(err.message);
+    } finally {
+      setStatisticsLoading(false);
+    }
+  }, [afm, timeRange]);
+
+  // Initial load: fetch entity metadata + date range in parallel
   useEffect(() => {
-    fetchEntityData();
-  }, [afm, sortBy, selectedRoles, directAssignmentsOnly]);
+    const loadInitialData = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        await Promise.all([
+          fetchEntityMetadata(),
+          fetchDateRange()
+        ]);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        // loading stays true until decisions arrive via timeRange effect
+      }
+    };
+
+    loadInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [afm]);
+
+  // Load decisions & statistics when timeRange or filters change
+  useEffect(() => {
+    if (timeRange) {
+      fetchDecisions(1, false);
+      fetchStatistics();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeRange, sortBy, selectedRoles, directAssignmentsOnly, debouncedSearchQuery]);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,11 +198,19 @@ const AFMEntityDetailPage = () => {
     return () => { cancelled = true; };
   }, [afm]);
 
-  const handleLoadMore = () => {
+  const loadMoreDecisions = useCallback(() => {
     if (pagination?.has_next && !loadingMore) {
-      fetchEntityData(true);
+      fetchDecisions(pagination.current_page + 1, true);
     }
-  };
+  }, [pagination, loadingMore, fetchDecisions]);
+
+  const { sentinelRef } = useInfiniteScroll({
+    hasMore: pagination?.has_next || false,
+    loading,
+    loadingMore,
+    onLoadMore: loadMoreDecisions,
+    enabled: true
+  });
 
   const { fetchContent: handleViewDocumentContent } = useDocumentContent();
 
@@ -138,13 +249,21 @@ const AFMEntityDetailPage = () => {
     }
   };
 
-  const formatAmount = (amount) => {
-    if (!amount || amount === 0) return t('common.noAmount');
-    return `€${amount.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    })}`;
+  // Month range slider handler
+  const handleMonthRangeChange = (startIndex, endIndex) => {
+    if (!dynamicDateUtils) return;
+
+    setMonthRange({ startIndex, endIndex });
+    setTimeRange({
+      startDate: dynamicDateUtils.indexToDateString(startIndex),
+      endDate: dynamicDateUtils.indexToDateString(endIndex, true)
+    });
   };
+
+  const formatSliderValue = useCallback((value) => {
+    if (!dynamicDateUtils) return '';
+    return dynamicDateUtils.formatMonth(value);
+  }, [dynamicDateUtils]);
 
   // Build statistics cards for StatisticsGrid
   const statCards = statistics ? [
@@ -155,7 +274,7 @@ const AFMEntityDetailPage = () => {
     },
     {
       title: t('afmEntityDetail.totalAmount'),
-      value: statistics.total_amount ? formatAmount(statistics.total_amount) : t('common.noAmount'),
+      value: formatAmount(statistics.total_amount),
       subtitle: statistics.decisions_with_amounts ? (
         <span>{t('afmEntityDetail.decisionsWithAmounts', { count: statistics.decisions_with_amounts })}</span>
       ) : undefined,
@@ -175,14 +294,12 @@ const AFMEntityDetailPage = () => {
     },
     {
       title: t('afmEntityDetail.activityPeriod'),
-      value: `${Math.ceil((new Date(entity.last_seen) - new Date(entity.first_seen)) / (1000 * 60 * 60 * 24))} ${t('common.days')}`,
-      subtitle: statistics.avg_decisions_per_month ? (
-        <span>{t('afmEntityDetail.avgPerMonth', { count: statistics.avg_decisions_per_month.toFixed(1) })}</span>
-      ) : undefined,
+      value: timeRange ? `${Math.ceil((new Date(timeRange.endDate) - new Date(timeRange.startDate)) / 86400000)} ${t('common.days')}` : '-',
+      subtitle: timeRange ? `${timeRange.startDate} — ${timeRange.endDate}` : undefined,
     },
   ] : null;
 
-  if (loading && !entity) {
+  if (dateRangeLoading || (loading && !entity)) {
     return (
       <div className="loading-container">
         <h2>{t('afmEntityDetail.loadingEntity', { afm })}</h2>
@@ -211,6 +328,16 @@ const AFMEntityDetailPage = () => {
         <button onClick={() => navigate(-1)} className="back-button">
           {t('common.goBack')}
         </button>
+      </div>
+    );
+  }
+
+  // No data available for this entity
+  if (entityDateRange && !entityDateRange.has_data) {
+    return (
+      <div className="not-found-container">
+        <h2>{t('entityDetail.noDataAvailable')}</h2>
+        <p>{entityDateRange.message || t('afmEntityDetail.noDataForAfm', { afm })}</p>
       </div>
     );
   }
@@ -261,21 +388,57 @@ const AFMEntityDetailPage = () => {
         </div>
       </div>
 
-      {/* Statistics Grid */}
+      {/* Search bar - context-aware, filters within this entity */}
+      <div className="entity-search-bar">
+        <SearchInput
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder={t('search.searchInEntity', { name: entity.name })}
+        />
+      </div>
+
+      {/* Date range slider - Collapsible */}
+      {dynamicDateUtils && monthRange && (
+        <details open className="time-range-container collapsible-section">
+          <summary className="section-summary">
+            <span className="summary-title">{t('filters.timeRange')}</span>
+            <span className="summary-count">
+              {t('exploration.availableDataShort', {
+                days: entityDateRange.date_range.span_days
+              })}
+            </span>
+            <span className="toggle-icon">▼</span>
+          </summary>
+          <div className="section-content">
+            <DualRangeSlider
+              min={0}
+              max={dynamicDateUtils.totalMonths - 1}
+              startValue={monthRange.startIndex}
+              endValue={monthRange.endIndex}
+              onChange={handleMonthRangeChange}
+              formatValue={formatSliderValue}
+              activityData={entityDateRange?.activity_chart}
+            />
+          </div>
+        </details>
+      )}
+
+      {/* Statistics Grid - non-blocking loading */}
       <StatisticsGrid
-        loading={false}
-        error={null}
+        loading={statisticsLoading && !statistics}
+        error={statisticsError}
         cards={statCards}
+        onRetry={fetchStatistics}
       />
 
-      {/* Top Organizations - Shows top organizations this entity worked with */}
+      {/* Top Organizations - respects timeRange */}
       {entity && (
         <TopCounterparts
           type="entity"
           id={entity.afm}
           dateRange={{
-            start_date: entity.first_seen,
-            end_date: entity.last_seen
+            start_date: timeRange?.startDate || entity.first_seen,
+            end_date: timeRange?.endDate || entity.last_seen
           }}
           limit={5}
         />
@@ -372,6 +535,15 @@ const AFMEntityDetailPage = () => {
           </div>
         )}
 
+        {/* Search Results Info */}
+        {searchQuery && (
+          <div className="search-results-info">
+            <span className="search-results-count">
+              {t('entityDetail.resultsFound', { count: pagination?.total_items || 0 })}
+            </span>
+          </div>
+        )}
+
         {/* Results Info */}
         <div className="search-results-info">
           {pagination && (
@@ -392,15 +564,18 @@ const AFMEntityDetailPage = () => {
           loadingMore={loadingMore}
           error={null}
           pagination={pagination}
-          hasSearchQuery={selectedRoles.length > 0}
+          hasSearchQuery={!!(searchQuery || selectedRoles.length > 0)}
           formatAmount={formatAmount}
           onViewDocumentContent={handleViewDocumentContent}
-          onLoadMore={handleLoadMore}
+          onLoadMore={loadMoreDecisions}
           emptyMessage={t('afmEntityDetail.noDecisions')}
           emptyFilterMessage={t('afmEntityDetail.noDecisionsWithFilters')}
           showPaginationInfo={true}
           getDecisionKey={(d) => d.id}
         />
+
+        {/* Infinite scroll sentinel */}
+        <div ref={sentinelRef} />
       </div>
     </div>
   );
