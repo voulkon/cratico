@@ -671,6 +671,10 @@ const EntityDetailPage = () => {
             end_date: timeRange.endDate
           }}
           limit={5}
+          onCounterpartClick={(counterpart) => {
+            const afm = counterpart.entity__afm;
+            navigate(`/relationship/entity/${afm}/org/${entityId}?start_date=${timeRange.startDate}&end_date=${timeRange.endDate}`);
+          }}
         />
       )}
 

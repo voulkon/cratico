@@ -253,10 +253,13 @@ const AFMEntityDetailPage = () => {
   const handleMonthRangeChange = (startIndex, endIndex) => {
     if (!dynamicDateUtils) return;
 
+    const startDate = dynamicDateUtils.indexToDateString(startIndex);
+    const endDate = dynamicDateUtils.indexToDateString(endIndex, true);
+
     setMonthRange({ startIndex, endIndex });
     setTimeRange({
-      startDate: dynamicDateUtils.indexToDateString(startIndex),
-      endDate: dynamicDateUtils.indexToDateString(endIndex, true)
+      startDate,
+      endDate
     });
   };
 
@@ -441,6 +444,12 @@ const AFMEntityDetailPage = () => {
             end_date: timeRange?.endDate || entity.last_seen
           }}
           limit={5}
+          onCounterpartClick={(counterpart) => {
+            const orgUid = counterpart.decision__organization__uid;
+            const sd = timeRange?.startDate || entity.first_seen;
+            const ed = timeRange?.endDate || entity.last_seen;
+            navigate(`/relationship/entity/${entity.afm}/org/${orgUid}?start_date=${sd}&end_date=${ed}`);
+          }}
         />
       )}
 

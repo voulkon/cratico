@@ -13,7 +13,8 @@ const TopCounterparts = ({
   type, // 'entity' or 'organization'
   id, // AFM for entity, UID for organization
   dateRange, // { start_date, end_date }
-  limit = 5
+  limit = 5,
+  onCounterpartClick // callback: (counterpart) => void - parent controls navigation URL
 }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -67,7 +68,12 @@ const TopCounterparts = ({
   };
 
   const handleCounterpartClick = (counterpart) => {
-    // Navigate to relationship page
+    // Use parent-provided callback if available, otherwise fall back to prop-based URL
+    if (onCounterpartClick) {
+      onCounterpartClick(counterpart);
+      return;
+    }
+    // Fallback: navigate using dateRange from props
     if (type === 'entity') {
       const orgUid = counterpart.decision__organization__uid;
       navigate(`/relationship/entity/${id}/org/${orgUid}?start_date=${dateRange.start_date}&end_date=${dateRange.end_date}`);

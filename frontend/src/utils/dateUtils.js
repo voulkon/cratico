@@ -118,12 +118,14 @@ export const createDynamicDateRangeUtils = (entityDateRange) => {
 
     // Convert to date string for API
     indexToDateString: (index, isEndOfMonth = false) => {
-      const date = new Date(startYear, startMonth + index, isEndOfMonth ? 0 : 1);
+      const targetYear = startYear + Math.floor((startMonth + index) / 12);
+      const targetMonth = (startMonth + index) % 12;
       if (isEndOfMonth) {
-        date.setMonth(date.getMonth() + 1);
-        date.setDate(0);
+        // Last day of targetMonth: day 0 of the next month
+        const lastDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+        return `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
       }
-      return date.toISOString().split('T')[0];
+      return `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-01`;
     },
 
     // Get default range (last 12 months or full range if less)
