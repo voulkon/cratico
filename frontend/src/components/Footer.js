@@ -40,9 +40,6 @@ const Footer = () => {
             </Link>
           ))}
         </div>
-        <div className="footer-brand">
-          <span>Crati</span>
-        </div>
       </div>
     </footer>
   );
