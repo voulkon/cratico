@@ -427,7 +427,11 @@
     "showingOf": "Showing {current} of {total}",
     "folder": "Folder",
     "title": "Title",
-    "noFolder": "No folder"
+    "noFolder": "No folder",
+    "bookmarks": "Bookmarks",
+    "dragToReorder": "Drag to move into a folder",
+    "dropBookmarksHere": "Drop bookmarks here",
+    "clickToRename": "Click to rename"
   },
   "auth": {
     "signInRequired": "Please sign in to access this feature",
