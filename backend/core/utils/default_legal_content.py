@@ -1,29 +1,50 @@
 """
 Default legal page content for Crati.
 Fallback used when no custom content has been set by an admin.
+
+Each document type has a default title and default markdown content
+for both English and Greek.
 """
 
+# Registry of default document types: slug → {en_title, el_title}
+_DEFAULT_DOCS = {
+    "tos": {"en": "Terms of Service", "el": "Όροι Χρήσης"},
+    "privacy": {"en": "Privacy Policy", "el": "Πολιτική Απορρήτου"},
+    "cookies": {"en": "Cookie Policy", "el": "Πολιτική Cookies"},
+}
 
-def get_default_legal_page(language):
+
+def get_available_types():
+    """Return the list of known document type slugs."""
+    return list(_DEFAULT_DOCS.keys())
+
+
+def get_default_legal_content(doc_type, field, language="en"):
     """
-    Returns the full default legal page in Markdown for the given language.
-    Combines Terms of Service, Privacy Policy, and Cookie Policy.
+    Return the default value for a document type and field.
+
+    Args:
+        doc_type: Slug like 'tos', 'privacy', 'cookies'
+        field: 'title' or 'content'
+        language: 'en' or 'el'
+
+    Returns:
+        str: The default title or content for the given document type.
     """
-    if language == "el":
-        return (
-            _get_default_terms_of_service("el")
-            + "\n\n---\n\n"
-            + _get_default_privacy_policy("el")
-            + "\n\n---\n\n"
-            + _get_default_cookie_policy("el")
-        )
-    return (
-        _get_default_terms_of_service("en")
-        + "\n\n---\n\n"
-        + _get_default_privacy_policy("en")
-        + "\n\n---\n\n"
-        + _get_default_cookie_policy("en")
-    )
+    if field == "title":
+        return _DEFAULT_DOCS.get(doc_type, {}).get(language, doc_type.title())
+
+    # field == "content"
+    content_funcs = {
+        "tos": _get_default_terms_of_service,
+        "privacy": _get_default_privacy_policy,
+        "cookies": _get_default_cookie_policy,
+    }
+    func = content_funcs.get(doc_type)
+    if func:
+        return func(language)
+    # Unknown type: return a placeholder
+    return f"# {doc_type.title()}\n\nContent coming soon."
 
 
 def _get_default_terms_of_service(language):

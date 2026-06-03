@@ -26,6 +26,8 @@ import { ConfigProvider } from './contexts/ConfigContext';
 import { TranslationProvider } from './contexts/TranslationContext';
 import { useAllowlistCheck } from './hooks/useAllowlistCheck';
 import TopControls from './components/TopControls';
+import Footer from './components/Footer';
+import LegalPage from './pages/LegalPage';
 import './index.css';
 import RateLimitIndicator from './components/RateLimitIndicator';
 import RateLimitModal from './components/RateLimitModal';
@@ -185,8 +187,13 @@ function AuthenticatedApp({ controlsLayout }) {
       <RateLimitModal />
       <AuthPromptModal />
 
-      {/* Content wrapper - adds top offset to clear fixed controls (logo + top buttons) */}
-      <div className={!isHomePage && !isAuthPage ? 'app-content' : ''}>
+      {/* Content wrapper - adds top offset to clear fixed controls (logo + top buttons).
+          Uses flex column so the footer stays at the bottom on short pages. */}
+      <div
+        className={!isHomePage && !isAuthPage ? 'app-content' : ''}
+        style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}
+      >
+        <div style={{ flex: 1 }}>
         <Routes>
           {/* NEW: Use HomePage as the main landing page */}
           <Route path="/" element={<HomePage />} />
@@ -225,7 +232,11 @@ function AuthenticatedApp({ controlsLayout }) {
           <Route path="/notifications/subscriptions/:subscriptionId/history" element={<SubscriptionHistoryPage />} />
 
           <Route path="/reset-password" element={<PasswordResetPage />} />
+          <Route path="/legal/:type" element={<LegalPage />} />
         </Routes>
+        </div>
+        {/* Footer with legal links — hidden on auth pages */}
+        {!isAuthPage && <Footer />}
       </div>
     </>
   );

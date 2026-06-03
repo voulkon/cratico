@@ -1,0 +1,58 @@
+/* ============================================
+   Footer — sits at the bottom of every page.
+   Slim, unobtrusive, with dynamic legal links.
+   ============================================ */
+
+.site-footer {
+  margin-top: auto;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-color);
+  padding: var(--spacing-md) var(--spacing-lg);
+}
+
+.footer-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  text-align: center;
+}
+
+.footer-links {
+  display: flex;
+  gap: var(--spacing-lg);
+  flex-wrap: wrap;
+}
+
+.footer-link {
+  color: var(--muted-text);
+  text-decoration: none;
+  font-size: var(--font-xs);
+  transition: color var(--transition-fast);
+}
+
+.footer-link:hover {
+  color: var(--palette-primary);
+  text-decoration: underline;
+}
+
+.footer-brand {
+  color: var(--muted-text);
+  font-size: var(--font-xs);
+  white-space: nowrap;
+}
+
+/* Responsive: stack on small screens */
+@media (max-width: 480px) {
+  .footer-content {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .footer-links {
+    justify-content: center;
+  }
+}

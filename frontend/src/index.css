@@ -44,6 +44,7 @@
   --text-color: #000000;
   --border-color: #e0e0e0;
   --card-bg: #ffffff;
+  --surface-color: var(--card-bg);
 
   /* Status colors for light theme */
   --success-bg: #d4edda;
@@ -86,6 +87,7 @@
   --text-color: #ffffff;
   --border-color: #404040;
   --card-bg: #2d2d2d;
+  --surface-color: var(--card-bg);
 
   /* Status colors for dark theme */
   --success-bg: #1e4620;
@@ -129,6 +131,7 @@
   --text-color: #657b83;
   --border-color: #eee8d5;
   --card-bg: #eee8d5;
+  --surface-color: var(--card-bg);
 
   /* Status colors for solarized light */
   --success-bg: #d9e8d8;
@@ -172,6 +175,7 @@
   --text-color: #839496;
   --border-color: #073642;
   --card-bg: #073642;
+  --surface-color: var(--card-bg);
 
   /* Status colors for solarized dark */
   --success-bg: #0f3d3a;
