@@ -391,15 +391,6 @@ const AFMEntityDetailPage = () => {
         </div>
       </div>
 
-      {/* Search bar - context-aware, filters within this entity */}
-      <div className="entity-search-bar">
-        <SearchInput
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder={t('search.searchInEntity', { name: entity.name })}
-        />
-      </div>
-
       {/* Date range slider - Collapsible */}
       {dynamicDateUtils && monthRange && (
         <details open className="time-range-container collapsible-section">
@@ -460,31 +451,6 @@ const AFMEntityDetailPage = () => {
         gemiFetchStatus={gemiFetchStatus}
         onRequestFetch={handleRequestGemiFetch}
       />
-
-      {/* Role Breakdown */}
-      {availableRoles && availableRoles.length > 0 && (
-        <div className="roles-section">
-          <h3>{t('afmEntityDetail.rolesInDecisions')}</h3>
-          <div className="roles-grid">
-            {availableRoles.map(role => (
-              <div key={role.role} className="role-card">
-                <div className="role-header">
-                  <span className="role-name">{t(`afmEntityDetail.roles.${role.role}`, role.role)}</span>
-                  <span className="role-count">{role.count}</span>
-                </div>
-                <div className="role-percentage">
-                  {((role.count / entity.total_appearances) * 100).toFixed(1)}%
-                </div>
-                {role.total_amount && (
-                  <div className="role-amount">
-                    {formatAmount(role.total_amount)}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Decisions Section */}
       <div className="decisions-section">
