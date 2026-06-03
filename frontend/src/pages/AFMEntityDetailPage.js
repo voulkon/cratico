@@ -12,7 +12,7 @@ import DecisionList from '../components/DecisionList';
 import FilterPanel from '../components/FilterPanel';
 import StatisticsGrid from '../components/StatisticsGrid';
 import SearchInput from '../components/SearchInput';
-import DualRangeSlider from '../components/DualRangeSlider';
+import TimeRangeSection from '../components/TimeRangeSection';
 import { createDynamicDateRangeUtils, formatAmount } from '../utils/dateUtils';
 import './AFMEntityDetailPage.css';
 
@@ -277,11 +277,6 @@ const AFMEntityDetailPage = () => {
     });
   };
 
-  const formatSliderValue = useCallback((value) => {
-    if (!dynamicDateUtils) return '';
-    return dynamicDateUtils.formatMonth(value);
-  }, [dynamicDateUtils]);
-
   // Build statistics cards for StatisticsGrid
   const statCards = statistics ? [
     {
@@ -407,28 +402,13 @@ const AFMEntityDetailPage = () => {
 
       {/* Date range slider - Collapsible */}
       {dynamicDateUtils && monthRange && (
-        <details open className="time-range-container collapsible-section">
-          <summary className="section-summary">
-            <span className="summary-title">{t('exploration.timeRange')}</span>
-            <span className="summary-count">
-              {t('exploration.availableDataShort', {
-                days: entityDateRange.date_range.span_days
-              })}
-            </span>
-            <span className="toggle-icon">▼</span>
-          </summary>
-          <div className="section-content">
-            <DualRangeSlider
-              min={0}
-              max={dynamicDateUtils.totalMonths - 1}
-              startValue={monthRange.startIndex}
-              endValue={monthRange.endIndex}
-              onChange={handleMonthRangeChange}
-              formatValue={formatSliderValue}
-              activityData={entityDateRange?.activity_chart}
-            />
-          </div>
-        </details>
+        <TimeRangeSection
+          dynamicDateUtils={dynamicDateUtils}
+          monthRange={monthRange}
+          onMonthRangeChange={handleMonthRangeChange}
+          dateRange={entityDateRange.date_range}
+          activityData={entityDateRange?.activity_chart}
+        />
       )}
 
       {/* Statistics Grid - non-blocking loading */}

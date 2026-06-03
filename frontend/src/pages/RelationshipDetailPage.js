@@ -5,7 +5,7 @@ import relationshipsApi from '../api/relationshipsApi';
 import useUrlFilters from '../hooks/useUrlFilters';
 import DecisionCard from '../components/DecisionCard';
 import SortControl from '../components/SortControl';
-import DualRangeSlider from '../components/DualRangeSlider';
+import TimeRangeSection from '../components/TimeRangeSection';
 import StatisticsGrid from '../components/StatisticsGrid';
 import apiClient from '../api/client';
 import { createDynamicDateRangeUtils } from '../utils/dateUtils';
@@ -234,11 +234,6 @@ const RelationshipDetailPage = () => {
     });
   };
 
-  const formatSliderValue = useCallback((value) => {
-    if (!dynamicDateUtils) return '';
-    return dynamicDateUtils.formatMonth(value);
-  }, [dynamicDateUtils]);
-
   const handleViewDocumentContent = async (decisionId) => {
     try {
       const response = await apiClient.get(`/decision/${decisionId}/content/`);
@@ -347,30 +342,13 @@ const RelationshipDetailPage = () => {
 
       {/* Time Range Slider */}
       {dynamicDateUtils && monthRange && (
-        <details open className="time-range-container collapsible-section">
-          <summary className="section-summary">
-            <span className="summary-title">{t('exploration.timeRange')}</span>
-            <span className="summary-count">
-              {entityDateRange?.date_range?.span_days
-                ? `${entityDateRange.date_range.span_days} days`
-                : ''}
-            </span>
-            <span className="toggle-icon">▼</span>
-          </summary>
-
-          <div className="section-content">
-            <DualRangeSlider
-              min={0}
-              max={dynamicDateUtils.totalMonths - 1}
-              startValue={monthRange.startIndex}
-              endValue={monthRange.endIndex}
-              onChange={handleMonthRangeChange}
-              label={t('entityDetail.selectTimePeriod')}
-              formatValue={formatSliderValue}
-              activityData={entityDateRange?.activity_chart}
-            />
-          </div>
-        </details>
+        <TimeRangeSection
+          dynamicDateUtils={dynamicDateUtils}
+          monthRange={monthRange}
+          onMonthRangeChange={handleMonthRangeChange}
+          dateRange={entityDateRange?.date_range}
+          activityData={entityDateRange?.activity_chart}
+        />
       )}
 
       {/* Statistics Section */}

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { NetworkIcon } from '../components/Icons';
 import apiClient from '../api/client';
-import DualRangeSlider from '../components/DualRangeSlider';
+import TimeRangeSection from '../components/TimeRangeSection';
 import SortControl from '../components/SortControl';
 import TopCounterparts from '../components/TopCounterparts';
 import TopRelationshipPairs from '../components/TopRelationshipPairs';
@@ -424,11 +424,6 @@ const EntityDetailPage = () => {
     });
   };
 
-  const formatSliderValue = useCallback((value) => {
-    if (!dynamicDateUtils) return '';
-    return dynamicDateUtils.formatMonth(value);
-  }, [dynamicDateUtils]);
-
   // Loading states
   if (dateRangeLoading || loading) {
     return (
@@ -608,48 +603,17 @@ const EntityDetailPage = () => {
 
         {/* Enhanced time range - Collapsible */}
         {dynamicDateUtils && monthRange && (
-          <details
-            className="time-range-container collapsible-section"
+          <TimeRangeSection
+            dynamicDateUtils={dynamicDateUtils}
+            monthRange={monthRange}
+            onMonthRangeChange={handleMonthRangeChange}
+            dateRange={entityDateRange.date_range}
+            activityData={entityDateRange.activity_chart}
+            summaryPrefix={explorationMode === 'temporal' ? t('exploration.globalData') : t('exploration.entityData')}
+            showDateSpanInfo={true}
             open={isTimeRangeExpanded}
-            onToggle={(e) => setIsTimeRangeExpanded(e.target.open)}
-          >
-            <summary className="section-summary">
-              <span className="summary-title">
-                {t('entityDetail.timeRange')}
-              </span>
-              <span className="summary-count">
-                {explorationMode === 'temporal' ? t('exploration.globalData') : t('exploration.entityData')} — {t('exploration.availableDataShort', {
-                  days: entityDateRange.date_range.span_days
-                })}
-              </span>
-              <span className="toggle-icon">
-                {isTimeRangeExpanded ? '▼' : '▶'}
-              </span>
-            </summary>
-
-            <div className="section-content">
-              <div className="time-range-header">
-                <span className="date-span-info">
-                  {t('exploration.availableData', {
-                    start: entityDateRange.date_range.earliest,
-                    end: entityDateRange.date_range.latest,
-                    days: entityDateRange.date_range.span_days
-                  })}
-                </span>
-              </div>
-
-              <DualRangeSlider
-                min={0}
-                max={dynamicDateUtils.totalMonths - 1}
-                startValue={monthRange.startIndex}
-                endValue={monthRange.endIndex}
-                onChange={handleMonthRangeChange}
-                label={t('entityDetail.selectTimePeriod')}
-                formatValue={formatSliderValue}
-                activityData={entityDateRange.activity_chart}
-              />
-            </div>
-          </details>
+            onToggle={setIsTimeRangeExpanded}
+          />
         )}
       </div>
 
