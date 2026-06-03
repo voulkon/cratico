@@ -65,3 +65,21 @@
 .logo-large .logo-text {
   font-size: 28px;
 }
+
+/* Responsive */
+@media (max-width: 480px) {
+  .logo-link {
+    height: 24px;
+    padding: var(--spacing-xs);
+  }
+
+  .logo-small .logo-text {
+    font-size: 14px;
+  }
+
+  /* Compact logo: "Crati.Co" → "C Co" on narrow screens */
+  .logo-rest,
+  .logo-dot {
+    display: none;
+  }
+}

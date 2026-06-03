@@ -9,6 +9,19 @@
   padding-top: 60px;
 }
 
+/* Responsive: tighter spacing on mobile where controls auto-collapse */
+@media (max-width: 768px) {
+  .app-content {
+    padding-top: 46px; /* spacing-sm (8px) + ~30px controls + breathing room */
+  }
+}
+
+@media (max-width: 480px) {
+  .app-content {
+    padding-top: 38px; /* spacing-xs (4px) + ~24px logo + breathing room */
+  }
+}
+
 .App-logo {
   height: 40vmin;
   pointer-events: none;
