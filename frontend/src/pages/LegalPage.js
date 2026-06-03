@@ -3,17 +3,19 @@ import { useParams, Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import apiClient from '../api/client';
+import { useTranslation } from '../contexts/TranslationContext';
 import './LegalPage.css';
 
 /**
  * LegalPage - Renders a single legal document fetched by type slug.
  *
  * Route: /legal/:type
- * Fetches the markdown content from GET /api/system/legal/?type=:type
+ * Fetches the markdown content from GET /api/system/legal/?type=:type&language=:lang
  * and renders it using react-markdown with GFM support.
  */
 const LegalPage = () => {
   const { type } = useParams();
+  const { language } = useTranslation();
   const [doc, setDoc] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -23,7 +25,7 @@ const LegalPage = () => {
     setError(null);
 
     apiClient
-      .get(`/system/legal/?type=${encodeURIComponent(type)}`)
+      .get(`/system/legal/?type=${encodeURIComponent(type)}&language=${language}`)
       .then((res) => {
         setDoc(res.data);
         setLoading(false);
@@ -36,7 +38,7 @@ const LegalPage = () => {
         }
         setLoading(false);
       });
-  }, [type]);
+  }, [type, language]);
 
   if (loading) {
     return (

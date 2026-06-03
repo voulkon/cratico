@@ -291,6 +291,7 @@ def _get_default_privacy_policy(language):
 - Προτιμήσεις (γλώσσα, θέμα)
 - Αποθηκευμένες αποφάσεις
 - Κριτήρια ειδοποιήσεων
+- Διεύθυνση IP (για περιορισμό αιτημάτων, ασφάλεια και εσωτερική ανάλυση επισκεψιμότητας)
 
 ## Χρήση Δεδομένων
 
@@ -298,6 +299,8 @@ def _get_default_privacy_policy(language):
 - Παροχή και βελτίωση της υπηρεσίας
 - Αποστολή ειδοποιήσεων που έχετε ζητήσει
 - Τεχνική υποστήριξη
+- Προστασία της υπηρεσίας από κατάχρηση (περιορισμός αιτημάτων)
+- Εσωτερική ανάλυση επισκεψιμότητας για κατανόηση των προτύπων χρήσης
 
 ## Διαμοιρασμός Δεδομένων
 
@@ -336,6 +339,7 @@ Crati respects your privacy and is committed to protecting your personal data. T
 - Preferences (language, theme)
 - Saved decisions
 - Notification criteria
+- IP address (for rate limiting, security, and internal traffic analytics)
 
 ## Data Usage
 
@@ -343,6 +347,8 @@ We use your data exclusively for:
 - Providing and improving the service
 - Sending notifications you've requested
 - Technical support
+- Protecting the service from abuse (rate limiting)
+- Internal traffic analysis to understand usage patterns
 
 ## Data Sharing
 

@@ -1,25 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import apiClient from '../api/client';
+import { useTranslation } from '../contexts/TranslationContext';
 import './Footer.css';
 
 /**
  * Footer - Site footer with dynamically loaded legal links.
  *
- * Fetches available legal document types from the API and renders
- * them as links.  Add a new document in Django admin and it appears
- * here automatically — no frontend changes needed.
+ * Fetches available legal document types from the API in the user's
+ * selected language and renders them as links.  Add a new document
+ * in Django admin and it appears here automatically.
  */
 const Footer = () => {
+  const { language } = useTranslation();
   const [docs, setDocs] = useState([]);
   const [error, setError] = useState(false);
 
   useEffect(() => {
     apiClient
-      .get('/system/legal/')
+      .get(`/system/legal/?language=${language}`)
       .then((res) => setDocs(res.data))
       .catch(() => setError(true));
-  }, []);
+  }, [language]);
 
   // Don't render anything if there are no documents or the request failed
   if (error || !docs.length) return null;
