@@ -125,9 +125,9 @@
 }
 
 .library-tab.active {
-  background-color: var(--accent-color);
+  background-color: var(--accent-color, var(--palette-primary));
   color: white;
-  border-color: var(--accent-color);
+  border-color: var(--accent-color, var(--palette-primary));
 }
 
 /* Search */
@@ -149,7 +149,7 @@
 
 .library-search-input:focus {
   outline: none;
-  border-color: var(--accent-color);
+  border-color: var(--accent-color, var(--palette-primary));
   box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb, 59, 130, 246), 0.1);
 }
 
@@ -190,7 +190,7 @@
 }
 
 .library-btn-sm {
-  background-color: var(--accent-color);
+  background-color: var(--accent-color, var(--palette-primary));
   color: white;
   border: none;
   border-radius: var(--radius-sm);
@@ -230,9 +230,9 @@
 }
 
 .library-folder-item.active {
-  background-color: var(--accent-color);
+  background-color: var(--accent-color, var(--palette-primary));
   color: white;
-  border-color: var(--accent-color);
+  border-color: var(--accent-color, var(--palette-primary));
 }
 
 .folder-icon {
@@ -334,11 +334,11 @@
 
 .library-bookmark-item:hover {
   background-color: var(--hover-bg);
-  border-color: var(--accent-color);
+  border-color: var(--accent-color, var(--palette-primary));
 }
 
 .library-bookmark-item.expanded {
-  border-color: var(--accent-color);
+  border-color: var(--accent-color, var(--palette-primary));
   background-color: var(--hover-bg);
 }
 
@@ -373,7 +373,7 @@
 }
 
 .bookmark-notes-toggle-btn:hover {
-  color: var(--accent-color);
+  color: var(--accent-color, var(--palette-primary));
   transform: scale(1.15);
 }
 
@@ -468,7 +468,7 @@
 }
 
 .bookmark-action-btn.primary {
-  background-color: var(--accent-color);
+  background-color: var(--accent-color, var(--palette-primary));
   color: white;
 }
 
@@ -507,7 +507,7 @@
 
 .notes-edit-btn:hover {
   background-color: var(--hover-bg);
-  border-color: var(--accent-color);
+  border-color: var(--accent-color, var(--palette-primary));
 }
 
 .notes-editor {
@@ -532,7 +532,7 @@
 
 .notes-textarea:focus {
   outline: none;
-  border-color: var(--accent-color);
+  border-color: var(--accent-color, var(--palette-primary));
   box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb, 59, 130, 246), 0.1);
 }
 
@@ -567,7 +567,7 @@
 }
 
 .notes-btn.save {
-  background-color: var(--accent-color);
+  background-color: var(--accent-color, var(--palette-primary));
   color: white;
 }
 
@@ -603,8 +603,8 @@
   width: 100%;
   padding: var(--spacing-md);
   background-color: transparent;
-  color: var(--accent-color);
-  border: 1px solid var(--accent-color);
+  color: var(--accent-color, var(--palette-primary));
+  border: 1px solid var(--accent-color, var(--palette-primary));
   border-radius: var(--radius-md);
   cursor: pointer;
   font-size: var(--font-sm);
@@ -613,7 +613,7 @@
 }
 
 .library-full-link:hover {
-  background-color: var(--accent-color);
+  background-color: var(--accent-color, var(--palette-primary));
   color: white;
 }
 
@@ -624,7 +624,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
+  background-color: var(--shadow-focus);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -686,7 +686,7 @@
 .modal-input:focus,
 .modal-textarea:focus {
   outline: none;
-  border-color: var(--accent-color);
+  border-color: var(--accent-color, var(--palette-primary));
   box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb, 59, 130, 246), 0.1);
 }
 
@@ -731,7 +731,7 @@
 }
 
 .modal-btn-primary {
-  background-color: var(--accent-color);
+  background-color: var(--accent-color, var(--palette-primary));
   color: white;
 }
 
