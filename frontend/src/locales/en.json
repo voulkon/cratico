@@ -371,6 +371,7 @@
     "requestGemiFetch": "Request company data",
     "requestGemiFetchTitle": "Request GEMI Lookup",
     "requestGemiFetchDescription": "No company registry data available yet. Click to request a lookup from the Business Registry (GEMI).",
+    "requestGemiFetchDataMissing": "Company data appears to be missing. Click to re-request a lookup from the Business Registry (GEMI).",
     "requestGemiFetchPending": "Requesting…",
     "requestGemiFetchQueued": "Request received! Data will appear here once fetched.",
     "requestGemiFetchAlreadyQueued": "Already in queue — data will appear here once fetched.",
