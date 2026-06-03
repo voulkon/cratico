@@ -151,7 +151,21 @@ const AFMEntityDetailPage = () => {
         end_date: timeRange.endDate
       });
       const res = await apiClient.get(`/entity/afm/${afm}/statistics/?${params}`, { timeout: 60000 });
-      setStatistics(res.data);
+      // Map the nested response to the flat shape expected by statCards
+      const data = res.data;
+      const stats = data.statistics || {};
+      const topOrg = data.financial_summary?.top_organizations?.[0];
+      setStatistics({
+        total_decisions: stats.total_decisions,
+        unique_roles: stats.unique_roles,
+        total_amount: stats.total_amount,
+        unique_organizations: stats.unique_organizations,
+        decisions_with_amounts: stats.total_decisions, // financial_service counts only decisions with amounts
+        most_frequent_organization: topOrg ? {
+          uid: topOrg.decision__organization__uid,
+          label: topOrg.decision__organization__label,
+        } : null,
+      });
     } catch (err) {
       setStatisticsError(err.message);
     } finally {
