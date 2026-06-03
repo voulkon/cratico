@@ -28,6 +28,8 @@ export {
     Timer as TimerIcon,
     Trash2 as TrashIcon,
     Network as NetworkIcon,
+    NotebookPen as NotebookPenIcon,
+    FolderOpen as FolderOpenIcon,
 } from 'lucide-react';
 export {
     LibraryBig as LibraryToggleIcon,

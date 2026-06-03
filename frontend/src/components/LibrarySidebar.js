@@ -12,7 +12,17 @@ import {
 import { useTranslation } from '../contexts/TranslationContext';
 import { useAuth } from '../contexts/AuthContext';
 import './LibrarySidebar.css';
-import {LibraryIconInSidebar, LibraryFavoriteInSidebar, LibraryTimerInSidebar} from './Icons.js';
+import {
+  LibraryIconInSidebar,
+  LibraryFavoriteInSidebar,
+  LibraryTimerInSidebar,
+  NotebookPenIcon,
+  TrashIcon,
+  PencilIcon,
+  XIcon,
+  EyeIcon,
+  FolderOpenIcon
+} from './Icons.js';
 
 /**
  * Library Sidebar - Collapsible bookmark manager (like ChatGPT sidebar)
@@ -29,12 +39,11 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
   const [folders, setFolders] = useState([]);
   const [bookmarks, setBookmarks] = useState([]);
   const [selectedFolder, setSelectedFolder] = useState(null);
-  const [selectedBookmark, setSelectedBookmark] = useState(null);
   const [viewMode, setViewMode] = useState('all'); // 'all', 'favorites', 'recent'
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [editingNotes, setEditingNotes] = useState(null); // {id, notes}
-  const [expandedBookmark, setExpandedBookmark] = useState(null); // id of expanded bookmark
+  const [expandedBookmark, setExpandedBookmark] = useState(null); // id of expanded bookmark (notes panel)
+  const notesDraftRef = useRef({}); // { [bookmarkId]: current draft text }
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem('librarySidebarWidth');
     return saved ? parseInt(saved, 10) : 400;
@@ -157,13 +166,43 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
 
   function handleFolderClick(folder) {
     setSelectedFolder(folder?.id === selectedFolder?.id ? null : folder);
-    setSelectedBookmark(null);
     setViewMode('all');
   }
 
   function handleBookmarkClick(bookmark) {
-    // Toggle expand to show details and notes editor
-    setExpandedBookmark(expandedBookmark === bookmark.id ? null : bookmark.id);
+    // Navigate to the bookmarked page
+    handleNavigateToBookmark(bookmark);
+  }
+
+  function handleToggleNotes(bookmark, e) {
+    e.stopPropagation();
+    // If closing the currently expanded one, auto-save first
+    if (expandedBookmark && expandedBookmark !== bookmark.id && notesDraftRef.current[expandedBookmark] !== undefined) {
+      const draft = notesDraftRef.current[expandedBookmark];
+      delete notesDraftRef.current[expandedBookmark];
+      updateBookmark(expandedBookmark, { notes: draft }).then(() => loadBookmarks()).catch(console.error);
+    }
+    const newExpanded = expandedBookmark === bookmark.id ? null : bookmark.id;
+    if (newExpanded) {
+      notesDraftRef.current[newExpanded] = bookmark.notes || '';
+    } else if (notesDraftRef.current[bookmark.id] !== undefined) {
+      // Closing: save draft if changed
+      const draft = notesDraftRef.current[bookmark.id];
+      delete notesDraftRef.current[bookmark.id];
+      if (draft !== (bookmark.notes || '')) {
+        updateBookmark(bookmark.id, { notes: draft }).then(() => loadBookmarks()).catch(console.error);
+      }
+    }
+    setExpandedBookmark(newExpanded);
+  }
+
+  function handleNotesBlur(bookmark) {
+    // Auto-save on blur
+    const draft = notesDraftRef.current[bookmark.id];
+    if (draft !== undefined && draft !== (bookmark.notes || '')) {
+      delete notesDraftRef.current[bookmark.id];
+      updateBookmark(bookmark.id, { notes: draft }).then(() => loadBookmarks()).catch(console.error);
+    }
   }
 
   function handleNavigateToBookmark(bookmark) {
@@ -179,16 +218,6 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
       loadBookmarks();
     } catch (error) {
       console.error('Failed to toggle favorite:', error);
-    }
-  }
-
-  async function handleSaveNotes(bookmarkId) {
-    try {
-      await updateBookmark(bookmarkId, { notes: editingNotes.notes });
-      setEditingNotes(null);
-      loadBookmarks();
-    } catch (error) {
-      console.error('Failed to save notes:', error);
     }
   }
 
@@ -317,7 +346,7 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
                 className={`library-folder-item ${selectedFolder?.id === folder.id ? 'active' : ''}`}
                 onClick={() => handleFolderClick(folder)}
               >
-                <span className="folder-icon">{folder.icon || '📁'}</span>
+                <span className="folder-icon">{folder.icon || <FolderOpenIcon size={16} />}</span>
                 <span className="folder-name">{folder.name}</span>
                 <span className="folder-count">{folder.bookmark_count}</span>
                 <div className="folder-actions">
@@ -329,14 +358,14 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
                     }}
                     title={t('library.edit')}
                   >
-                    ✏️
+                    <PencilIcon size={14} />
                   </button>
                   <button
                     className="folder-action-btn"
                     onClick={(e) => handleDeleteFolder(folder.id, e)}
                     title={t('library.delete')}
                   >
-                    🗑️
+                    <TrashIcon size={14} />
                   </button>
                 </div>
               </div>
@@ -358,7 +387,7 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
               <div className="library-loading">{t('common.loading')}</div>
             ) : filteredBookmarks.length === 0 ? (
               <div className="library-empty">
-                <div className="empty-icon">📑</div>
+                <div className="empty-icon"><LibraryIconInSidebar size={48} /></div>
                 <div className="empty-text">
                   {searchQuery ? t('library.noMatchesFound') : t('library.noBookmarksYet')}
                 </div>
@@ -369,7 +398,6 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
             ) : (
               filteredBookmarks.map(bookmark => {
                 const isExpanded = expandedBookmark === bookmark.id;
-                const isEditingThis = editingNotes?.id === bookmark.id;
 
                 return (
                   <div key={bookmark.id} className="library-bookmark-item-wrapper">
@@ -380,84 +408,62 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
                       <button
                         className="bookmark-favorite-btn"
                         onClick={(e) => handleToggleFavorite(bookmark, e)}
+                        title={bookmark.is_favorite ? t('library.unfavorite') : t('library.favorite')}
                       >
-                        {bookmark.is_favorite ? '⭐' : '☆'}
+                        <LibraryFavoriteInSidebar
+                          size={16}
+                          fill={bookmark.is_favorite ? 'currentColor' : 'none'}
+                        />
                       </button>
                       <div className="bookmark-content">
                         <div className="bookmark-title">{bookmark.title}</div>
                         <div className="bookmark-url">{bookmark.url}</div>
                         <div className="bookmark-meta">
                           {bookmark.folder_name && (
-                            <span className="bookmark-folder">📁 {bookmark.folder_name}</span>
+                            <span className="bookmark-folder"><FolderOpenIcon size={12} /> {bookmark.folder_name}</span>
                           )}
                           {bookmark.visit_count > 0 && (
-                            <span className="bookmark-visits">👁️ {bookmark.visit_count}</span>
+                            <span className="bookmark-visits"><EyeIcon size={12} /> {bookmark.visit_count}</span>
                           )}
                         </div>
                       </div>
                       <button
+                        className="bookmark-notes-toggle-btn"
+                        onClick={(e) => handleToggleNotes(bookmark, e)}
+                        title={t('library.notes')}
+                      >
+                        <NotebookPenIcon size={16} />
+                      </button>
+                      <button
                         className="bookmark-delete-btn"
                         onClick={(e) => handleDeleteBookmark(bookmark.id, e)}
-                        title="Delete"
+                        title={t('library.delete')}
                       >
-                        ✕
+                        <XIcon size={16} />
                       </button>
                     </div>
 
-                    {/* Expanded details with notes editor */}
+                    {/* Expanded notes editor */}
                     {isExpanded && (
                       <div className="bookmark-expanded-details">
-                        <div className="bookmark-actions-row">
-                          <button
-                            className="bookmark-action-btn primary"
-                            onClick={() => handleNavigateToBookmark(bookmark)}
-                          >
-                            🔗 {t('library.openPage')}
-                          </button>
-                        </div>
-
                         <div className="bookmark-notes-section">
                           <div className="notes-header">
-                            <span className="notes-label">📝 {t('library.notes')}</span>
-                            {!isEditingThis && (
-                              <button
-                                className="notes-edit-btn"
-                                onClick={() => setEditingNotes({ id: bookmark.id, notes: bookmark.notes || '' })}
-                              >
-                                {bookmark.notes ? `✏️ ${t('library.edit')}` : `+ ${t('library.addNote')}`}
-                              </button>
-                            )}
+                            <span className="notes-label">
+                              <NotebookPenIcon size={14} /> {t('library.notes')}
+                            </span>
                           </div>
-
-                          {isEditingThis ? (
-                            <div className="notes-editor">
-                              <textarea
-                                className="notes-textarea"
-                                value={editingNotes.notes}
-                                onChange={(e) => setEditingNotes({ ...editingNotes, notes: e.target.value })}
-                                placeholder={t('library.notesPlaceholder')}
-                                autoFocus
-                              />
-                              <div className="notes-actions">
-                                <button
-                                  className="notes-btn cancel"
-                                  onClick={() => setEditingNotes(null)}
-                                >
-                                  {t('common.cancel')}
-                                </button>
-                                <button
-                                  className="notes-btn save"
-                                  onClick={() => handleSaveNotes(bookmark.id)}
-                                >
-                                  {t('common.save')}
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="notes-display">
-                              {bookmark.notes || <span className="notes-empty">{t('library.noNotesYet')}</span>}
-                            </div>
-                          )}
+                          <div className="notes-editor">
+                            <textarea
+                              className="notes-textarea"
+                              defaultValue={bookmark.notes || ''}
+                              onChange={(e) => {
+                                notesDraftRef.current[bookmark.id] = e.target.value;
+                              }}
+                              onBlur={() => handleNotesBlur(bookmark)}
+                              placeholder={t('library.notesPlaceholder')}
+                              autoFocus
+                            />
+                          </div>
                         </div>
                       </div>
                     )}

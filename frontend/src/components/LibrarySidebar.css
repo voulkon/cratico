@@ -355,6 +355,28 @@
   transform: scale(1.2);
 }
 
+.bookmark-notes-toggle-btn {
+  background: none;
+  border: none;
+  color: var(--muted-text);
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  opacity: 0;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.library-bookmark-item:hover .bookmark-notes-toggle-btn {
+  opacity: 1;
+}
+
+.bookmark-notes-toggle-btn:hover {
+  color: var(--accent-color);
+  transform: scale(1.15);
+}
+
 .bookmark-content {
   flex: 1;
   min-width: 0;
