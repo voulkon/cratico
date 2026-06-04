@@ -273,6 +273,6 @@ class TestAFMExtractionService:
         # All should be PERSON role
         for entity in extracted_entities:
             assert (
-                entity["role"] == "PERSON"
+                entity["role"] == "person"
             ), f"Expected PERSON role, got {entity['role']}"
             assert entity["source_field_name"] == "afm", f"Expected 'afm' field"

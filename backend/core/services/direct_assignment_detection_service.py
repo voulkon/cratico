@@ -12,6 +12,7 @@ The pipeline orchestrator calls this service during Stage 8.
 """
 
 import re
+import unicodedata
 from decimal import Decimal
 from typing import Dict, Optional
 
@@ -67,12 +68,22 @@ class DirectAssignmentDetectionService:
         r"ευθεί[αά]\s+αν[άα]θεσ[ηή]",  # "ευθεία ανάθεση"
     ]
 
+    @staticmethod
+    def _strip_accents(text: str) -> str:
+        """Strip Unicode combining accent marks (e.g. ί→ι, ά→α) for Greek uppercase matching."""
+        return "".join(
+            c
+            for c in unicodedata.normalize("NFD", text)
+            if unicodedata.category(c) != "Mn"
+        )
+
     def __init__(self):
         """Initialize service with financial calculation dependency."""
         self.financial_service = financial_service
-        # Compile regex patterns for efficiency
+        # Compile accent-stripped patterns so ALL-CAPS Greek text (which drops accents) matches.
+        # e.g. 'ΑΠΕΥΘΕΙΑΣ' has plain Ι (U+0399), not accented Ί (U+038A).
         self.compiled_patterns = [
-            re.compile(pattern, re.IGNORECASE | re.UNICODE)
+            re.compile(self._strip_accents(pattern), re.IGNORECASE | re.UNICODE)
             for pattern in self.TEXT_PATTERNS
         ]
 
@@ -82,28 +93,46 @@ class DirectAssignmentDetectionService:
 
     def _check_text_content(self, decision: Decision) -> bool:
         """
-        Check if decision's text content contains direct assignment keywords.
+        Check if decision's subject or extracted text contains direct assignment keywords.
+
+        Checks in order:
+        1. ``decision.subject`` — always present, often contains a concise description.
+        2. ``decision.text_extraction.raw_text`` — full document text when available.
 
         Args:
             decision: Decision to check
 
         Returns:
-            True if text contains direct assignment patterns
+            True if any text source contains direct assignment patterns
         """
-        # Use getattr for safer access - missing text_extraction is expected
+        texts_to_check: list[str] = []
+
+        # Subject is always available and frequently names the assignment directly
+        if decision.subject:
+            texts_to_check.append(decision.subject)
+
+        # Full extracted text (may not be available for all decisions)
         extraction = getattr(decision, "text_extraction", None)
-        if not extraction:
+        if extraction:
+            raw_text = getattr(extraction, "raw_text", None)
+            if raw_text:
+                texts_to_check.append(raw_text)
+
+        if not texts_to_check:
             return False
 
-        text = getattr(extraction, "raw_text", None)
-        if not text:
-            return False
-
-        # Check each compiled pattern
-        for pattern in self.compiled_patterns:
-            if pattern.search(text):
-                logger.debug(f"Found direct assignment pattern in {decision.ada} text")
-                return True
+        for raw in texts_to_check:
+            # Normalize: strip accent marks so ALL-CAPS Greek (e.g. ΑΠΕΥΘΕΙΑΣ) matches
+            # accented lowercase patterns (e.g. απευθείας). In Greek, capitalisation
+            # drops accents: ί (U+03AF) → Ι (U+0399), not Ί (U+038A).
+            normalized = self._strip_accents(raw)
+            for pattern in self.compiled_patterns:
+                if pattern.search(normalized):
+                    logger.debug(
+                        f"Found direct assignment pattern in {decision.ada} "
+                        f"({'subject' if raw is decision.subject else 'text_extraction'})"
+                    )
+                    return True
 
         return False
 

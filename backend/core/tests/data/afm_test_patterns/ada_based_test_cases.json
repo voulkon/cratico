@@ -27,7 +27,7 @@
       "expected_results": [
         {
           "afm": "099759170",
-          "role": "PERSON",
+          "role": "person",
           "source_field_name": "afm",
           "parent_key_path": "person[0]",
           "entity_name": "ΤΑΧΥΜΕΤΑΦΟΡΕΣ ΕΛΤΑ ΑΝΩΝΥΜΟΣ ΕΤΑΙΡΕΙΑ",
@@ -77,7 +77,7 @@
       "expected_results": [
         {
           "afm": "094201878",
-          "role": "PERSON",
+          "role": "person",
           "source_field_name": "afm",
           "parent_key_path": "person[0]",
           "entity_name": "FERI TRI ΑΝΩΝΥΜΗ ΒΙΟΤΕΧΝΙΚΗ  ΚΑΙ ΕΜΠΟΡΙΚΗ ΕΤΑΙΡΕΙΑ ΠΡΟΙΟΝΤΩΝ ΚΑΤΕΡΓΑΣΙΑΣ ΝΕΡΟΥ ΚΑΙ ΑΠΟΝΕΡΩΝ",
@@ -124,7 +124,7 @@
       "expected_results": [
         {
           "afm": "046909641",
-          "role": "PERSON",
+          "role": "person",
           "source_field_name": "afm",
           "parent_key_path": "person[0]",
           "entity_name": "ΤΣΙΜΟΥΡΗ,,ΜΑΡΙΑ,ΧΡΗΣΤΟΣ",
@@ -173,7 +173,7 @@
       "expected_results": [
         {
           "afm": "094079008",
-          "role": "PERSON",
+          "role": "person",
           "source_field_name": "afm",
           "parent_key_path": "person[0]",
           "entity_name": "Δ  Φ  ΣΑΡΑΝΤΟΠΟΥΛΟΣ  ΑΝΩΝΥΜΟΣ ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΟΙΚΟΔΟΜΙΚΗ ΚΑΙ ΤΕΧΝΙΚΗ  ΕΤΑΙΡΕΙΑ",
@@ -220,7 +220,7 @@
       "expected_results": [
         {
           "afm": "050887493",
-          "role": "PERSON",
+          "role": "person",
           "source_field_name": "afm",
           "parent_key_path": "person[0]",
           "entity_name": "ΠΑΠΑΔΗΜΗΤΡΙΟΥ,,ΚΩΝΣΤΑΝΤΙΝΟΣ,ΣΩΖΩΝ",
@@ -277,7 +277,7 @@
       "expected_results": [
         {
           "afm": "041630259",
-          "role": "PERSON",
+          "role": "person",
           "source_field_name": "afm",
           "parent_key_path": "person[0]",
           "entity_name": "ΚΑΡΑΣΤΡΑΤΙΔΗΣ,,ΔΗΜΗΤΡΙΟΣ,ΚΩΝΣΤΑΝΤΙΝΟΣ",
@@ -285,7 +285,7 @@
         },
         {
           "afm": "132451539",
-          "role": "PERSON",
+          "role": "person",
           "source_field_name": "afm",
           "parent_key_path": "person[1]",
           "entity_name": "ΧΡΥΣΟΠΟΥΛΟΣ,,ΧΡΙΣΤΟΦΟΡΟΣ,ΑΘΑΝΑΣΙΟΣ",
@@ -345,7 +345,7 @@
       "expected_results": [
         {
           "afm": "997402349",
-          "role": "PERSON",
+          "role": "person",
           "source_field_name": "afm",
           "parent_key_path": "person[0]",
           "entity_name": "ΕΙΔΙΚΗ ΥΠΗΡΕΣΙΑ ΟΛΟΚΛΗΡΩΜΕΝΟΥ ΠΛΗΡΟΦΟΡΙΑΚΟΥ ΣΥΣΤΗΜΑΤΟΣ",
@@ -353,7 +353,7 @@
         },
         {
           "afm": "800854996",
-          "role": "PERSON",
+          "role": "person",
           "source_field_name": "afm",
           "parent_key_path": "person[1]",
           "entity_name": "ITACC SOLUTIONS ΜΟΝΟΠΡΟΣΩΠΗ Ι Κ Ε",
@@ -413,7 +413,7 @@
       "expected_results": [
         {
           "afm": "997402349",
-          "role": "PERSON",
+          "role": "person",
           "source_field_name": "afm",
           "parent_key_path": "person[0]",
           "entity_name": "ΕΙΔΙΚΗ ΥΠΗΡΕΣΙΑ ΟΛΟΚΛΗΡΩΜΕΝΟΥ ΠΛΗΡΟΦΟΡΙΑΚΟΥ ΣΥΣΤΗΜΑΤΟΣ",
@@ -421,7 +421,7 @@
         },
         {
           "afm": "997521037",
-          "role": "PERSON",
+          "role": "person",
           "source_field_name": "afm",
           "parent_key_path": "person[1]",
           "entity_name": "G V PRINTER PLANET LTD",
@@ -481,7 +481,7 @@
       "expected_results": [
         {
           "afm": "997402349",
-          "role": "PERSON",
+          "role": "person",
           "source_field_name": "afm",
           "parent_key_path": "person[0]",
           "entity_name": "ΕΙΔΙΚΗ ΥΠΗΡΕΣΙΑ ΟΛΟΚΛΗΡΩΜΕΝΟΥ ΠΛΗΡΟΦΟΡΙΑΚΟΥ ΣΥΣΤΗΜΑΤΟΣ",
@@ -489,7 +489,7 @@
         },
         {
           "afm": "099995491",
-          "role": "PERSON",
+          "role": "person",
           "source_field_name": "afm",
           "parent_key_path": "person[1]",
           "entity_name": "INFINITUM  ΣΥΣΤΗΜΑΤΑ ΚΑΙ ΥΠΗΡΕΣΙΕΣ ΠΛΗΡΟΦΟΡΙΚΗΣ ΑΝΩΝΥΜΗ ΕΜΠΟΡΙΚΗ ΕΤΑΙΡΕΙΑ",
@@ -565,7 +565,7 @@
       "expected_results": [
         {
           "afm": "999457577",
-          "role": "PERSON",
+          "role": "person",
           "source_field_name": "afm",
           "parent_key_path": "person[0]",
           "entity_name": "ΖΑΧΑΡΟΓΙΑΝΝΗΣ ΑΝΩΝΥΜΗ ΕΤΑΙΡΕΙΑ ΕΜΠΟΡΙΑΣ ΑΥΤΟΚΙΝΗΤΩΝ ΑΝΤΑΛΛΑΚΤΙΚΩΝ ΚΑΙ ΣΕΡΒΙΣ",
@@ -573,7 +573,7 @@
         },
         {
           "afm": "110098372",
-          "role": "PERSON",
+          "role": "person",
           "source_field_name": "afm",
           "parent_key_path": "person[1]",
           "entity_name": "ΠΑΠΑΣ,,ΠΕΤΡΟΣ,ΦΙΛΙΠΠΟΣ",
@@ -581,7 +581,7 @@
         },
         {
           "afm": "802190925",
-          "role": "PERSON",
+          "role": "person",
           "source_field_name": "afm",
           "parent_key_path": "person[2]",
           "entity_name": "ΑΦΟΙ ΠΑΝΤΖΗ Ο Ε",
@@ -589,7 +589,7 @@
         },
         {
           "afm": "021412032",
-          "role": "PERSON",
+          "role": "person",
           "source_field_name": "afm",
           "parent_key_path": "person[3]",
           "entity_name": "ΕΥΤΥΧΙΑΚΟΣ,,ΝΙΚΟΛΑΟΣ,ΗΛΙΑΣ",
@@ -661,7 +661,7 @@
       "expected_results": [
         {
           "afm": "800189144",
-          "role": "ORGANIZATION",
+          "role": "org",
           "source_field_name": "afm",
           "parent_key_path": "org",
           "entity_name": "ΔΗΜΟΣ ΛΗΜΝΟΥ",
@@ -669,7 +669,7 @@
         },
         {
           "afm": "301434528",
-          "role": "SPONSOR",
+          "role": "sponsorAFMName",
           "source_field_name": "afm",
           "parent_key_path": "sponsor[0].sponsorAFMName",
           "entity_name": "ΣΟΥΓΛΕΡΗΣ,,ΓΕΩΡΓΙΟΣ,ΔΗΜΗΤΡΙΟΣ",
@@ -730,7 +730,7 @@
       "expected_results": [
         {
           "afm": "800189144",
-          "role": "ORGANIZATION",
+          "role": "org",
           "source_field_name": "afm",
           "parent_key_path": "org",
           "entity_name": "ΔΗΜΟΣ ΛΗΜΝΟΥ",
@@ -738,7 +738,7 @@
         },
         {
           "afm": "117417697",
-          "role": "SPONSOR",
+          "role": "sponsorAFMName",
           "source_field_name": "afm",
           "parent_key_path": "sponsor[0].sponsorAFMName",
           "entity_name": "ΦΙΚΑΡΗ,,ΑΙΚΑΤΕΡΙΝΗ,ΓΕΩΡΓΙΟΣ",
@@ -797,7 +797,7 @@
       "expected_results": [
         {
           "afm": "800189144",
-          "role": "ORGANIZATION",
+          "role": "org",
           "source_field_name": "afm",
           "parent_key_path": "org",
           "entity_name": "ΔΗΜΟΣ ΛΗΜΝΟΥ",
@@ -805,7 +805,7 @@
         },
         {
           "afm": "099832284",
-          "role": "SPONSOR",
+          "role": "sponsorAFMName",
           "source_field_name": "afm",
           "parent_key_path": "sponsor[0].sponsorAFMName",
           "entity_name": "ΑΝΩΝΥΜΗ ΤΕΧΝΙΚΗ ΕΡΓΟΛΗΠΤΙΚΗ ΕΜΠΟΡΙΚΗ ΛΑΤΟΜΙΚΗ ΕΤΑΙΡΕΙΑ",
@@ -866,7 +866,7 @@
       "expected_results": [
         {
           "afm": "800189144",
-          "role": "ORGANIZATION",
+          "role": "org",
           "source_field_name": "afm",
           "parent_key_path": "org",
           "entity_name": "ΔΗΜΟΣ ΛΗΜΝΟΥ",
@@ -874,7 +874,7 @@
         },
         {
           "afm": "125530111",
-          "role": "SPONSOR",
+          "role": "sponsorAFMName",
           "source_field_name": "afm",
           "parent_key_path": "sponsor[0].sponsorAFMName",
           "entity_name": "ΒΟΥΡΑ,,ΓΕΩΡΓΙΑ,ΔΗΜΗΤΡΙΟΣ",
@@ -935,7 +935,7 @@
       "expected_results": [
         {
           "afm": "800189144",
-          "role": "ORGANIZATION",
+          "role": "org",
           "source_field_name": "afm",
           "parent_key_path": "org",
           "entity_name": "ΔΗΜΟΣ ΛΗΜΝΟΥ",
@@ -943,7 +943,7 @@
         },
         {
           "afm": "997072577",
-          "role": "SPONSOR",
+          "role": "sponsorAFMName",
           "source_field_name": "afm",
           "parent_key_path": "sponsor[0].sponsorAFMName",
           "entity_name": "ΕΦΚΑ",
@@ -998,7 +998,7 @@
       "expected_results": [
         {
           "afm": "090390203",
-          "role": "GRANTEE",
+          "role": "grantee",
           "source_field_name": "afm",
           "parent_key_path": "grantee[0]",
           "entity_name": "ΑΘΛΗΤΙΚΟΣ ΕΚΠΟΛΙΤΙΣΤΙΚΟΣ ΣΥΛΛΟΓΟΣ ΚΟΝΤΙΑ ΦΙΛΟΚΤΗΤΗΣ",
@@ -1006,7 +1006,7 @@
         },
         {
           "afm": "800189144",
-          "role": "GRANTOR",
+          "role": "grantor",
           "source_field_name": "afm",
           "parent_key_path": "grantor",
           "entity_name": "ΔΗΜΟΣ ΛΗΜΝΟΥ",
@@ -1059,7 +1059,7 @@
       "expected_results": [
         {
           "afm": "136465640",
-          "role": "GRANTEE",
+          "role": "grantee",
           "source_field_name": "afm",
           "parent_key_path": "grantee[0]",
           "entity_name": "ΚΡΙΚΗΣ,,ΕΥΣΤΡΑΤΙΟΣ,ΠΟΛΥΧΡΟΝΗΣ",
@@ -1067,7 +1067,7 @@
         },
         {
           "afm": "800189144",
-          "role": "GRANTOR",
+          "role": "grantor",
           "source_field_name": "afm",
           "parent_key_path": "grantor",
           "entity_name": "ΔΗΜΟΣ ΛΗΜΝΟΥ",
@@ -1120,7 +1120,7 @@
       "expected_results": [
         {
           "afm": "301410752",
-          "role": "GRANTEE",
+          "role": "grantee",
           "source_field_name": "afm",
           "parent_key_path": "grantee[0]",
           "entity_name": "ΤΡΙΑΝΤΑΦΥΛΛΟΥ,,ΕΙΡΗΝΗ,ΓΡΗΓΟΡΙΟΣ",
@@ -1128,7 +1128,7 @@
         },
         {
           "afm": "800189144",
-          "role": "GRANTOR",
+          "role": "grantor",
           "source_field_name": "afm",
           "parent_key_path": "grantor",
           "entity_name": "ΔΗΜΟΣ ΛΗΜΝΟΥ",
@@ -1181,7 +1181,7 @@
       "expected_results": [
         {
           "afm": "301429893",
-          "role": "GRANTEE",
+          "role": "grantee",
           "source_field_name": "afm",
           "parent_key_path": "grantee[0]",
           "entity_name": "ΓΙΑΜΑΡΕΛΟΣ,,ΜΑΤΘΑΙΟΣ,ΓΕΩΡΓΙΟΣ",
@@ -1189,7 +1189,7 @@
         },
         {
           "afm": "800189144",
-          "role": "GRANTOR",
+          "role": "grantor",
           "source_field_name": "afm",
           "parent_key_path": "grantor",
           "entity_name": "ΔΗΜΟΣ ΛΗΜΝΟΥ",
@@ -1242,7 +1242,7 @@
       "expected_results": [
         {
           "afm": "800189144",
-          "role": "GRANTEE",
+          "role": "grantee",
           "source_field_name": "afm",
           "parent_key_path": "grantee[0]",
           "entity_name": "ΔΗΜΟΣ ΛΗΜΝΟΥ",
@@ -1250,7 +1250,7 @@
         },
         {
           "afm": "043851574",
-          "role": "GRANTOR",
+          "role": "grantor",
           "source_field_name": "afm",
           "parent_key_path": "grantor",
           "entity_name": "ΜΟΣΧΟΥΔΗ,,ΜΑΡΙΑΝΘΗ,ΚΩΝΣΤΑΝΤ",
@@ -1310,7 +1310,7 @@
       "expected_results": [
         {
           "afm": "997159799",
-          "role": "DONATION_GIVER",
+          "role": "donationGiver",
           "source_field_name": "afm",
           "parent_key_path": "donationGiver",
           "entity_name": "ΑΣΤΙΚΗ ΜΗ ΚΕΡΔΟΣΚΟΠΙΚΗ ΕΤΑΙΡΕΙΑ ΠΟΛΙΤΙΣΤΙΚΟΥ ΚΑΙ ΚΟΙΝΩΦΕΛΟΥΣ ΕΡΓΟΥ ΑΙΓΕΑΣ",
@@ -1318,7 +1318,7 @@
         },
         {
           "afm": "090169846",
-          "role": "DONATION_RECEIVER",
+          "role": "donationReceiver",
           "source_field_name": "afm",
           "parent_key_path": "donationReceiver[0]",
           "entity_name": "ΥΠΟΥΡΓΕΙΟ ΔΗΜΟΣΙΑΣ ΤΑΞΗΣ ΚΑΙ  ΠΡΟΣΤΑΣΙΑΣ ΤΟΥ ΠΟΛΙΤΗ",
@@ -1369,7 +1369,7 @@
       "expected_results": [
         {
           "afm": "997159799",
-          "role": "DONATION_GIVER",
+          "role": "donationGiver",
           "source_field_name": "afm",
           "parent_key_path": "donationGiver",
           "entity_name": "ΑΣΤΙΚΗ ΜΗ ΚΕΡΔΟΣΚΟΠΙΚΗ ΕΤΑΙΡΕΙΑ ΠΟΛΙΤΙΣΤΙΚΟΥ ΚΑΙ ΚΟΙΝΩΦΕΛΟΥΣ ΕΡΓΟΥ ΑΙΓΕΑΣ",
@@ -1414,7 +1414,7 @@
       "expected_results": [
         {
           "afm": "098037008",
-          "role": "DONATION_GIVER",
+          "role": "donationGiver",
           "source_field_name": "afm",
           "parent_key_path": "donationGiver",
           "entity_name": "NEPTUNE LINES SHIPPING AND MANAGING ENTERPRISES SA",
@@ -1459,7 +1459,7 @@
       "expected_results": [
         {
           "afm": "997612598",
-          "role": "DONATION_GIVER",
+          "role": "donationGiver",
           "source_field_name": "afm",
           "parent_key_path": "donationGiver",
           "entity_name": "ΠΕΡΙΦΕΡΕΙΑ ΚΕΝΤΡΙΚΗΣ ΜΑΚΕΔΟΝΙΑΣ",
@@ -1511,7 +1511,7 @@
       "expected_results": [
         {
           "afm": "997579470",
-          "role": "DONATION_GIVER",
+          "role": "donationGiver",
           "source_field_name": "afm",
           "parent_key_path": "donationGiver",
           "entity_name": "Η-Κ Α.Ε.Β.Ε.",
@@ -1519,7 +1519,7 @@
         },
         {
           "afm": "090169846",
-          "role": "DONATION_RECEIVER",
+          "role": "donationReceiver",
           "source_field_name": "afm",
           "parent_key_path": "donationReceiver[0]",
           "entity_name": "ΥΠΟΥΡΓΕΙΟ ΔΗΜΟΣΙΑΣ ΤΑΞΗΣ ΚΑΙ  ΠΡΟΣΤΑΣΙΑΣ ΤΟΥ ΠΟΛΙΤΗ",
@@ -1576,7 +1576,7 @@
       "expected_results": [
         {
           "afm": "800189144",
-          "role": "ORGANIZATION",
+          "role": "org",
           "source_field_name": "afm",
           "parent_key_path": "org",
           "entity_name": "ΔΗΜΟΣ ΛΗΜΝΟΥ",
@@ -1625,7 +1625,7 @@
       "expected_results": [
         {
           "afm": "800189144",
-          "role": "ORGANIZATION",
+          "role": "org",
           "source_field_name": "afm",
           "parent_key_path": "org",
           "entity_name": "ΔΗΜΟΣ ΛΗΜΝΟΥ",
@@ -1674,7 +1674,7 @@
       "expected_results": [
         {
           "afm": "800189144",
-          "role": "ORGANIZATION",
+          "role": "org",
           "source_field_name": "afm",
           "parent_key_path": "org",
           "entity_name": "ΔΗΜΟΣ ΛΗΜΝΟΥ",
@@ -1723,7 +1723,7 @@
       "expected_results": [
         {
           "afm": "800189144",
-          "role": "ORGANIZATION",
+          "role": "org",
           "source_field_name": "afm",
           "parent_key_path": "org",
           "entity_name": "ΔΗΜΟΣ ΛΗΜΝΟΥ",
@@ -1772,7 +1772,7 @@
       "expected_results": [
         {
           "afm": "800189144",
-          "role": "ORGANIZATION",
+          "role": "org",
           "source_field_name": "afm",
           "parent_key_path": "org",
           "entity_name": "ΔΗΜΟΣ ΛΗΜΝΟΥ",

@@ -1,0 +1,20 @@
+{
+  "id": "company_person_simple_filter_by_company",
+  "description": "company_id filter excludes persons from other companies",
+  "tier": "simple",
+  "entity_type": "company_person",
+  "records": [
+    {"person_name": "JOHN UMBRELLA"},
+    {"person_name": "JANE BANANA"},
+    {"person_name": "JOHN SMITH"}
+  ],
+  "other_records": [
+    {"person_name": "JOHN OTHER"}
+  ],
+  "query": "JOHN",
+  "limit": 10,
+  "filter_by_primary": true,
+  "expected_in": ["JOHN UMBRELLA", "JOHN SMITH"],
+  "expected_not_in": ["JOHN OTHER"],
+  "expected_exact_count": 2
+}

@@ -9,7 +9,7 @@ from core.utils.performance_monitoring import monitor_query_performance
 from django.conf import settings
 from django.core.paginator import Paginator
 from django.db import models
-from django.db.models.functions import TruncDay, TruncMonth, TruncQuarter, TruncWeek
+
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from drf_yasg import openapi
@@ -92,23 +92,20 @@ def explore_date_range_api_dev(request):
         latest = date_stats["latest_date"]
         span_days = (latest - earliest).days
 
-        # Choose granularity based on data span
+        # Choose granularity based on data span (week/quarter have no precomputed field)
         if span_days <= 31:  # Less than a month - daily
             granularity = "day"
-            trunc_func = TruncDay
-        elif span_days <= 365:  # Less than a year - weekly
-            granularity = "week"
-            trunc_func = TruncWeek
-        elif span_days <= 1825:  # Less than 5 years - monthly
+            period_column = "issue_date_day"
+        elif span_days <= 1825:  # Up to 5 years - monthly
             granularity = "month"
-            trunc_func = TruncMonth
-        else:  # More than 5 years - quarterly
-            granularity = "quarter"
-            trunc_func = TruncQuarter
+            period_column = "issue_date_month"
+        else:  # More than 5 years - yearly
+            granularity = "year"
+            period_column = "issue_date_year"
 
         # Get activity data for mini chart - fallback to old amount for aggregation performance
         activity_data = (
-            decisions_qs.annotate(period=trunc_func("issue_date"))
+            decisions_qs.annotate(period=models.F(period_column))
             .values("period")
             .annotate(
                 count=models.Count("id"),
@@ -122,9 +119,15 @@ def explore_date_range_api_dev(request):
         # Format activity chart data
         chart_data = []
         for item in activity_data:
+            period_val = item["period"]
+            period_str = (
+                str(period_val)
+                if granularity == "year"
+                else (period_val.isoformat() if period_val else None)
+            )
             chart_data.append(
                 {
-                    "period": item["period"].isoformat() if item["period"] else None,
+                    "period": period_str,
                     "count": item["count"],
                     "amount": float(item["total_amount"] or 0),
                 }
@@ -277,7 +280,7 @@ def explore_statistics_api_dev(request):
         # Monthly breakdown for charts using legacy amounts for performance
         try:
             monthly_stats = (
-                filtered_qs.annotate(month=TruncMonth("issue_date"))
+                filtered_qs.annotate(month=models.F("issue_date_month"))
                 .values("month")
                 .annotate(
                     count=models.Count("id"),
@@ -855,68 +858,9 @@ def explore_organizations_api_dev(request):
     limit = int(request.GET.get("limit", 50))
 
     try:
-        # Get all decisions (no entity filtering)
-        decisions_qs = Decision.objects.all()
+        from core.services.analytics_precalc_service import compute_explore_orgs
 
-        # Apply date filters if provided
-        if start_date_str:
-            start_date_parsed = parse_date(start_date_str)
-            if start_date_parsed:
-                start_date = timezone.make_aware(
-                    datetime.combine(start_date_parsed, datetime.min.time())
-                )
-                decisions_qs = decisions_qs.filter(issue_date__gte=start_date)
-
-        if end_date_str:
-            end_date_parsed = parse_date(end_date_str)
-            if end_date_parsed:
-                end_date = timezone.make_aware(
-                    datetime.combine(end_date_parsed, datetime.max.time())
-                )
-                decisions_qs = decisions_qs.filter(issue_date__lte=end_date)
-
-        # Get organizations with decision activity
-        organizations = (
-            decisions_qs.values("organization__uid", "organization__label")
-            .annotate(
-                count=models.Count("id", distinct=True),
-                total_amount=models.Sum(
-                    "amount_fields__amount",
-                    filter=models.Q(
-                        amount_fields__associated_relationship__isnull=False
-                    ),
-                ),
-                # Use legacy amount for max as approximation
-                max_amount=models.Max("amount"),
-            )
-            .filter(
-                organization__uid__isnull=False  # Exclude decisions without organizations
-            )
-            .order_by("-count")[:limit]
-        )
-
-        # Format response
-        formatted_organizations = []
-        for org in organizations:
-            count = org["count"]
-            total = float(org["total_amount"] or 0)
-            formatted_organizations.append(
-                {
-                    "uid": org["organization__uid"],
-                    "label": org["organization__label"],
-                    "count": count,
-                    "total_amount": total,
-                    "avg_amount": total / count if count > 0 else 0,
-                    "max_amount": float(org["max_amount"] or 0),
-                }
-            )
-
-        return Response(
-            {
-                "organizations": formatted_organizations,
-                "total_organizations": len(formatted_organizations),
-            }
-        )
+        return Response(compute_explore_orgs(start_date_str, end_date_str, limit))
 
     except Exception as e:
         import traceback

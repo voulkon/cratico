@@ -1,0 +1,14 @@
+{
+  "id": "org_simple_no_match",
+  "description": "Query with no matching records returns empty results",
+  "tier": "simple",
+  "entity_type": "organization",
+  "records": [
+    {"label": "MUNICIPALITY ATHENS"},
+    {"label": "MUNICIPALITY THESSALONIKI"},
+    {"label": "PREFECTURE ATTICA"}
+  ],
+  "query": "XXXXXXNOTEXISTS",
+  "limit": 10,
+  "expected_exact_count": 0
+}

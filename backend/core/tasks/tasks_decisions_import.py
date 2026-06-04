@@ -108,84 +108,70 @@ def fetch_daily_decisions_to_redis(
             f"Task {self.request.id}: ImportJob {import_job.id} in FETCHING status"
         )
 
-        # Create fetcher and get decisions for the full day
-        fetcher = DiavgeiaFetcher()
-
-        # Build search parameters for full day
-        if search_params is None:
-            search_params = {}
-
-        # Log any entity filters passed from caller (e.g., Coverage Explorer)
-        entity_filters = [
-            f"{key}={val}"
-            for key in ["org", "unit", "signer"]
-            if (val := search_params.get(key))
-        ]
-        if entity_filters:
-            logger.info(
-                f"Task {self.request.id}: Entity filters: {', '.join(entity_filters)}"
-            )
-
-        # Check feature flag for decision type filtering
-        from core.services.feature_flag_service import feature_flags
-
-        filtered_types = feature_flags.get_value("FILTER_DECISION_TYPES")
-        if (
-            filtered_types
-            and isinstance(filtered_types, list)
-            and len(filtered_types) > 0
-        ):
-            # Join types with semicolon (API supports this for multiple types)
-            search_params["type"] = ";".join(filtered_types)
-            logger.info(
-                f"Task {self.request.id}: Filtering by decision types: {filtered_types} "
-                f"(joined as: {search_params['type']})"
-            )
-
-        search_params.update(
-            {
-                "from_issue_date": target_date.isoformat(),
-                "to_issue_date": (target_date + timedelta(days=1)).isoformat(),
-                "page": 0,
-                "size": 500,
-            }
+        # Use centralized fetch service for consistency
+        from core.services.decision_fetch_reconcile_service import (
+            DecisionFetchReconcileService,
         )
 
-        # Fetch all pages for this full day
-        all_decisions = []
-        page = 0
-        total_pages = 1
+        fetch_service = DecisionFetchReconcileService()
 
-        while page < total_pages:
-            search_params["page"] = page
-            response = fetcher.fetch_decisions(**search_params)
-
-            if response and response.info:
-                if page == 0 and response.info.total > 0:
-                    page_size = search_params.get("size", 500)
-                    total_pages = (response.info.total + page_size - 1) // page_size
-                    logger.info(
-                        f"Task {self.request.id}: Found {response.info.total} decisions, "
-                        f"{total_pages} pages for {target_date}"
-                    )
-
-                all_decisions.extend(response.decisions)
-                page += 1
-
-                if response.info.actualSize < search_params.get("size", 500):
-                    break
-            else:
-                logger.warning(f"Task {self.request.id}: No response for page {page}")
-                break
+        # Fetch all decisions AND reconcile with official count
+        # This handles: pagination, feature flags, entity filters, AND validates count accuracy
+        all_decisions, reconciliation = fetch_service.fetch_and_reconcile(
+            target_date=target_date,
+            additional_params=search_params,
+            include_feature_flags=True,
+        )
 
         # Update job with total count
         import_job.total_decisions = len(all_decisions)
         import_job.status = ImportJobStatus.SPLITTING
         import_job.save(update_fields=["total_decisions", "status"])
 
+        # Log reconciliation results
         logger.success(
             f"Task {self.request.id}: Fetched {len(all_decisions)} decisions for {target_date}"
         )
+        
+        # Build reconciliation log message
+        filters_applied = reconciliation.get('filters_applied', False)
+        
+        if filters_applied:
+            # Filtered query - only show pagination check
+            recon_msg = (
+                f"Reconciliation (filtered query): "
+                f"API_reported={reconciliation.get('api_reported_total')}, "
+                f"Ours={reconciliation.get('our_count')}"
+            )
+            
+            our_vs_api = reconciliation.get('our_vs_api_diff')
+            if our_vs_api is not None and our_vs_api != 0:
+                recon_msg += f", Pagination_mismatch={our_vs_api}"
+            else:
+                recon_msg += f", Pagination=OK"
+            
+            recon_msg += f", Status={reconciliation.get('status')}"
+        else:
+            # Unfiltered query - show full three-way reconciliation
+            recon_msg = (
+                f"Reconciliation: Official={reconciliation.get('official_count')}, "
+                f"API_reported={reconciliation.get('api_reported_total')}, "
+                f"Ours={reconciliation.get('our_count')}"
+            )
+            
+            diff = reconciliation.get('difference')
+            pct = reconciliation.get('percentage_diff', 0)
+            if diff is not None:
+                recon_msg += f", Diff_vs_Official={diff} ({pct:.2f}%)"
+            
+            # Add pagination mismatch info if available
+            our_vs_api = reconciliation.get('our_vs_api_diff')
+            if our_vs_api is not None and our_vs_api != 0:
+                recon_msg += f", Pagination_mismatch={our_vs_api}"
+            
+            recon_msg += f", Status={reconciliation.get('status')}"
+        
+        logger.info(recon_msg)
 
         # Handle case with zero decisions
         if len(all_decisions) == 0:

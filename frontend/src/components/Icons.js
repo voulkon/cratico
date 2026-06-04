@@ -26,23 +26,21 @@ export {
     Boxes as UnitIcon,
     Store as CompanyIcon,
     Timer as TimerIcon,
-    Trash2 as TrashIcon
-} from 'lucide-react';
-export {
+    Trash2 as TrashIcon,
+    Network as NetworkIcon,
+    NotebookPen as NotebookPenIcon,
+    FolderOpen as FolderOpenIcon,
     LibraryBig as LibraryToggleIcon,
     BookMarked as LibraryIconInSidebar,
     Star as LibraryFavoriteInSidebar,
     Timer as LibraryTimerInSidebar,
-    } from 'lucide-react';
-
-// Centralized Chevron icons for dropdowns and expandable components
-export {
     ChevronUp,
     ChevronDown,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    GripVertical,
+    FolderPlus as FolderPlusIcon
 } from 'lucide-react';
-
 
 // export const OrganizationIcon = () => (
 //   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="metadata-icon">

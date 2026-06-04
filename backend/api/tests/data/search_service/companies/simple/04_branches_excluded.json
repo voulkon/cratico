@@ -1,0 +1,15 @@
+{
+  "id": "company_simple_branches_excluded",
+  "description": "Companies with is_branch=True are always excluded from results",
+  "tier": "simple",
+  "entity_type": "company",
+  "records": [
+    {"co_name_el": "UMBRELLA CORPORATION EE"},
+    {"co_name_el": "UMBRELLA LTD"},
+    {"co_name_el": "UMBRELLA BRANCH", "is_branch": true}
+  ],
+  "query": "UMBRELLA",
+  "limit": 10,
+  "expected_in": ["UMBRELLA CORPORATION EE", "UMBRELLA LTD"],
+  "expected_not_in": ["UMBRELLA BRANCH"]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "company_person_simple_unique_name",
+  "description": "Unique part of name returns exactly one person",
+  "tier": "simple",
+  "entity_type": "company_person",
+  "records": [
+    {"person_name": "JOHN UMBRELLA"},
+    {"person_name": "JANE BANANA"},
+    {"person_name": "JOHN SMITH"}
+  ],
+  "query": "UMBRELLA",
+  "limit": 10,
+  "expected_in": ["JOHN UMBRELLA"],
+  "expected_not_in": ["JANE BANANA", "JOHN SMITH"]
+}

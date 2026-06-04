@@ -1,0 +1,20 @@
+{
+  "id": "signer_simple_filter_by_org",
+  "description": "organization_id filter excludes signers from other organizations",
+  "tier": "simple",
+  "entity_type": "signer",
+  "records": [
+    {"first_name": "NIKOLAOS", "last_name": "GEORGIOU"},
+    {"first_name": "IOANNIS", "last_name": "PAPADOPOULOS"},
+    {"first_name": "MARIA", "last_name": "GEORGIOU"}
+  ],
+  "other_records": [
+    {"first_name": "NIKOLAOS", "last_name": "OTHER"}
+  ],
+  "query": "NIKOLAOS",
+  "limit": 10,
+  "filter_by_primary": true,
+  "expected_in": ["NIKOLAOS GEORGIOU"],
+  "expected_not_in": ["NIKOLAOS OTHER"],
+  "expected_exact_count": 1
+}

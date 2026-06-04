@@ -19,7 +19,7 @@ from core.services.direct_assignment_detection_service import classification_ser
 pytestmark = pytest.mark.django_db
 
 # Define test data directory (relative to this file)
-TEST_DATA_DIR = Path(__file__).parent / "data" / "direct_assignment_text_patterns"
+TEST_DATA_DIR = Path(__file__).parent.parent / "data" / "direct_assignment_text_patterns"
 
 
 def load_text_detection_test_cases(test_data_dir: Path) -> list:
@@ -58,6 +58,42 @@ def load_text_detection_test_cases(test_data_dir: Path) -> list:
 
 # Load all test cases from JSON files
 TEXT_DETECTION_TEST_CASES = load_text_detection_test_cases(TEST_DATA_DIR)
+
+
+class TestSubjectDetection:
+    """Same pattern tests as TestClassificationLogic, but text placed in decision.subject instead of DocumentExtraction."""
+
+    @pytest.mark.parametrize(
+        "text_content,should_detect,ada",
+        TEXT_DETECTION_TEST_CASES,
+    )
+    def test_detect_from_subject(self, text_content, should_detect, ada):
+        """
+        Verify patterns are found in decision.subject even when there is no
+        DocumentExtraction attached to the decision.
+        """
+        from conftest import DecisionFactory, DecisionTypeFactory
+
+        # Use a non-Δ.1 type so only subject text can trigger detection
+        decision_type = DecisionTypeFactory(uid="Β.1.1")
+        decision = DecisionFactory(
+            decision_type=decision_type,
+            subject=text_content,
+            ada=ada if ada else "TEST-ADA",
+        )
+
+        # Intentionally no DocumentExtractionFactory — subject only
+        result = classification_service.classify_decision(decision)
+
+        if should_detect:
+            assert result["is_direct_assignment"] is True, (
+                f"Expected subject detection for: '{text_content}'"
+            )
+            assert result["detection_method"] == DirectAssignmentDetectionMethod.TEXT
+        else:
+            assert result["is_direct_assignment"] is False, (
+                f"Should NOT detect direct assignment in subject: '{text_content}'"
+            )
 
 
 class TestClassificationLogic:

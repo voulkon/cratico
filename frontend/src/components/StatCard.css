@@ -212,3 +212,60 @@
     word-break: break-word;
   }
 }
+
+/* Loading skeleton state */
+.stat-card--loading {
+  pointer-events: none;
+}
+
+.stat-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--border-color) 25%,
+    var(--card-bg-hover) 50%,
+    var(--border-color) 75%
+  );
+  background-size: 200% 100%;
+  animation: stat-shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--radius-sm, 4px);
+}
+
+.stat-skeleton--title {
+  height: 0.875rem;
+  width: 60%;
+  margin-bottom: var(--spacing-sm, 0.5rem);
+}
+
+.stat-skeleton--value {
+  height: 2rem;
+  width: 80%;
+}
+
+@keyframes stat-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Error state */
+.stat-card--error {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md, 0.75rem);
+  color: var(--color-error);
+  font-size: var(--font-sm, 0.875rem);
+}
+
+.retry-button {
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm, 4px);
+  color: inherit;
+  cursor: pointer;
+  font-size: inherit;
+  padding: 0.25rem 0.6rem;
+}
+
+.retry-button:hover {
+  background: var(--color-error-bg);
+}

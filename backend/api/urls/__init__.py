@@ -38,7 +38,11 @@ from api.urls import (
 )
 from api.views import entities as entities_views
 from api.views.direct_assignments import entity_direct_assignment_top_organizations
-from api.views.organization_entity_relationships import entity_top_organizations_api
+from api.views.organization_entity_relationships import (
+    entity_top_organizations_api,
+    relationship_date_range_api,
+    relationship_statistics_api,
+)
 
 # Import remaining views not extracted to modules
 from api.views.organization_views import (
@@ -86,6 +90,11 @@ urlpatterns = [
         name="afm_entity_decisions",
     ),
     path(
+        "entity/afm/<str:afm>/request-fetch/",
+        entities_views.request_afm_fetch,
+        name="afm_entity_request_fetch",
+    ),
+    path(
         "entities/<str:afm>/top-organizations/",
         entity_top_organizations_api,
         name="entity_top_organizations",
@@ -100,6 +109,17 @@ urlpatterns = [
         "transactions/top/",
         summary_amounts_views.top_transactions,
         name="top-transactions",
+    ),
+    # Relationship detail endpoints
+    path(
+        "relationship/entity/<str:afm>/org/<str:orgUid>/date-range/",
+        relationship_date_range_api,
+        name="relationship_date_range",
+    ),
+    path(
+        "relationship/entity/<str:afm>/org/<str:orgUid>/statistics/",
+        relationship_statistics_api,
+        name="relationship_statistics",
     ),
     # Debug/tracing endpoints (TODO: move to debug module or remove in production)
     path(

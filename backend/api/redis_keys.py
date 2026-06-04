@@ -67,6 +67,11 @@ SEARCH_HISTORY_USER_PREFIX = (
 SEARCH_HISTORY_IP_PREFIX = f"{SEARCH_HISTORY_NS}:ip:"  # search_history:ip:<ip_address>
 SEARCH_HISTORY_EXPIRE = 60 * 60 * 24 * 90  # 90 days (recent searches)
 
+PREREQUISITE_CHECK_CACHE_PREFIX = "prerequisite:postgres_fts"
+PREREQUISITE_CHECK_CACHE_MIGRATION = f"{PREREQUISITE_CHECK_CACHE_PREFIX}:migration"
+PREREQUISITE_CHECK_CACHE_BACKFILL_STATUS = f"{PREREQUISITE_CHECK_CACHE_PREFIX}:backfill_status"
+PREREQUISITE_CHECK_CACHE_FULL_CHECK = f"{PREREQUISITE_CHECK_CACHE_PREFIX}:full_check"
+
 # API Response Cache (cached view responses for expensive queries)
 API_CACHE_NS = "api_cache"
 API_CACHE_DA_PREFIX = f"{API_CACHE_NS}:da:"  # api_cache:da:<view>:<params>

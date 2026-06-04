@@ -1,14 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Filter } from 'lucide-react';
-import { OrganizationIcon } from '../components/Icons';
+import { NetworkIcon } from '../components/Icons';
 import apiClient from '../api/client';
-import DualRangeSlider from '../components/DualRangeSlider';
-import DecisionCard from '../components/DecisionCard';
+import TimeRangeSection from '../components/TimeRangeSection';
 import SortControl from '../components/SortControl';
 import TopCounterparts from '../components/TopCounterparts';
 import TopRelationshipPairs from '../components/TopRelationshipPairs';
+import SearchInput from '../components/SearchInput';
+import DecisionList from '../components/DecisionList';
+import FilterPanel from '../components/FilterPanel';
+import StatisticsGrid from '../components/StatisticsGrid';
 import useUrlFilters from '../hooks/useUrlFilters';
+import useDocumentContent from '../hooks/useDocumentContent';
+import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import { createDynamicDateRangeUtils, formatAmount } from '../utils/dateUtils';
 import { useTranslation } from '../contexts/TranslationContext';
 import './EntityDetailPage.css';
@@ -45,6 +49,8 @@ const EntityDetailPage = () => {
   // Enhanced state to handle both modes
   const [entityData, setEntityData] = useState(null);
   const [statistics, setStatistics] = useState(null);
+  const [statisticsLoading, setStatisticsLoading] = useState(false);
+  const [statisticsError, setStatisticsError] = useState(null);
   const [decisions, setDecisions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -60,7 +66,6 @@ const EntityDetailPage = () => {
 
   // Decision type filtering state
   const [availableDecisionTypes, setAvailableDecisionTypes] = useState([]);
-  const [showDecisionTypeFilter, setShowDecisionTypeFilter] = useState(false);
   const [decisionTypesLoading, setDecisionTypesLoading] = useState(false);
   const [isOrganizationsExpanded, setIsOrganizationsExpanded] = useState(true);
   const [isTimeRangeExpanded, setIsTimeRangeExpanded] = useState(true);
@@ -123,29 +128,7 @@ const EntityDetailPage = () => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const handleViewDocumentContent = async (decisionId) => {
-    try {
-      // Use integer ID - no encoding needed!
-      const response = await apiClient.get(`/decision/${decisionId}/content/`);
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching document content:', error);
-
-      // Handle axios-specific error structure
-      if (error.response) {
-        const errorMessage = error.response.data?.error ||
-                            error.response.data?.message ||
-                            `HTTP ${error.response.status}: ${error.response.statusText}`;
-        throw new Error(errorMessage);
-      } else if (error.request) {
-        // The request was made but no response was received
-        throw new Error('No response from server');
-      } else {
-        // Something happened in setting up the request that triggered an Error
-        throw new Error(error.message || 'Request failed');
-      }
-    }
-  };
+  const { fetchContent: handleViewDocumentContent } = useDocumentContent();
   // Enhanced fetch functions for both modes
   const fetchEntityDateRange = useCallback(async () => {
     try {
@@ -232,6 +215,9 @@ const EntityDetailPage = () => {
   const fetchStatistics = useCallback(async () => {
     if (!timeRange) return;
 
+    setStatisticsLoading(true);
+    setStatisticsError(null);
+
     try {
       const params = new URLSearchParams({
         start_date: timeRange.startDate,
@@ -245,7 +231,7 @@ const EntityDetailPage = () => {
         endpoint = `/entity/${entityType}/${entityId}/statistics/?${params.toString()}`;
       }
 
-      const response = await apiClient.get(endpoint);
+      const response = await apiClient.get(endpoint, { timeout: 60000 });
       setStatistics(response.data);
 
       if (explorationMode === 'temporal') {
@@ -255,7 +241,9 @@ const EntityDetailPage = () => {
       }
     } catch (err) {
       console.error('Failed to fetch statistics:', err);
-      setError(t('errors.failedToLoad'));
+      setStatisticsError(t('statistics.loadError'));
+    } finally {
+      setStatisticsLoading(false);
     }
   }, [explorationMode, entityType, entityId, timeRange, t]);
 
@@ -391,13 +379,14 @@ const EntityDetailPage = () => {
       const loadData = async () => {
         try {
           await Promise.all([
-            fetchStatistics(),
             fetchDecisions(1, false),
             fetchDecisionTypes()
           ]);
         } catch (err) {
           setError(t('errors.failedToLoad'));
         }
+        // Non-blocking: statistics load independently
+        fetchStatistics();
       };
 
       loadData();
@@ -405,24 +394,12 @@ const EntityDetailPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeRange, sortBy, debouncedSearchQuery, selectedDecisionTypes, amountFilters, organizationFilters]);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      if (
-        window.innerHeight + document.documentElement.scrollTop >=
-        document.documentElement.offsetHeight - 1000 &&
-        pagination &&
-        pagination.has_next &&
-        !loadingMore &&
-        !loading
-      ) {
-        loadMoreDecisions();
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagination, loadingMore, loading]);
+  const { sentinelRef } = useInfiniteScroll({
+    hasMore: pagination?.has_next ?? false,
+    loading,
+    loadingMore,
+    onLoadMore: loadMoreDecisions,
+  });
 
   // Handlers
   const handleMonthRangeChange = (startIndex, endIndex) => {
@@ -447,11 +424,6 @@ const EntityDetailPage = () => {
     });
   };
 
-  const formatSliderValue = useCallback((value) => {
-    if (!dynamicDateUtils) return '';
-    return dynamicDateUtils.formatMonth(value);
-  }, [dynamicDateUtils]);
-
   // Loading states
   if (dateRangeLoading || loading) {
     return (
@@ -466,10 +438,6 @@ const EntityDetailPage = () => {
   if (entityDateRange && !entityDateRange.has_data) {
     return (
       <div style={{ padding: '20px' }}>
-        <button onClick={() => navigate('/dev')} className="back-button">
-          {t('entityDetail.backToOrgChart')}
-        </button>
-
         <div style={{
           backgroundColor: '#fff3cd',
           border: '1px solid #ffeaa7',
@@ -498,34 +466,63 @@ const EntityDetailPage = () => {
         }}>
           <strong>{t('common.error')}:</strong> {error}
         </div>
-        <button onClick={() => navigate('/dev')}>
-          {t('entityDetail.backToOrgChart')}
-        </button>
       </div>
     );
   }
 
   const pageInfo = getPageInfo();
 
+  // Build statistics cards for StatisticsGrid component
+  const statCards = statistics ? [
+    {
+      title: t('statistics.totalDecisions'),
+      value: statistics.summary.decisions.total_count.toLocaleString(),
+      subtitle: explorationMode === 'temporal'
+        ? t('entityDetail.acrossOrganizations', { count: temporalSummary?.organizations_count || 0 })
+        : undefined,
+    },
+    {
+      title: t('statistics.totalAmount'),
+      value: `€${statistics.summary.financial.primary_amount.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`,
+      warning: statistics.summary.financial.has_discrepancy
+        ? t('statistics.amountDiscrepancy', { percentage: statistics.summary.financial.discrepancy_percentage })
+        : undefined,
+    },
+    {
+      title: t('statistics.averageAmount'),
+      value: `€${statistics.summary.decisions.avg_amount.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`,
+    },
+    {
+      title: t('statistics.period'),
+      value: t('statistics.days', { count: statistics.period.days_count }),
+      subtitle: `${new Date(statistics.period.start_date).toLocaleDateString()} - ${new Date(statistics.period.end_date).toLocaleDateString()}`,
+    },
+  ] : null;
+
   return (
     <div className="entity-detail-page">
       <div className="entity-header">
-        <div className="header-actions">
-          {/* Organization Chart Button for organization entities */}
+        <div className="page-breadcrumb">{pageInfo.breadcrumb}</div>
+
+        <div className="entity-title-row">
+          <h1 className="entity-title">{pageInfo.title}</h1>
           {entityType === 'organization' && explorationMode !== 'temporal' && (
             <button
               onClick={handleViewOrganizationChart}
-              className="org-chart-button"
+              className="org-chart-button-icon"
               title={t('entityDetail.viewOrganizationChart')}
+              aria-label={t('entityDetail.viewOrganizationChart')}
             >
-              <OrganizationIcon /> {t('entityDetail.viewOrganizationChart')}
+              <NetworkIcon />
             </button>
           )}
         </div>
-
-        <div className="page-breadcrumb">{pageInfo.breadcrumb}</div>
-
-        <h1 className="entity-title">{pageInfo.title}</h1>
         <div className="entity-subtitle">{pageInfo.subtitle}</div>
 
         {/* Signer Organizations and Positions - Collapsible */}
@@ -557,7 +554,7 @@ const EntityDetailPage = () => {
                         onClick={() => navigate(`/entity/organization/${orgData.organization.uid}`)}
                         title={t('entityDetail.viewOrganizationDetails')}
                       >
-                        <OrganizationIcon /> {orgData.organization.label}
+                        <NetworkIcon /> {orgData.organization.label}
                       </button>
                       {orgData.decision_count && (
                         <span className="decision-count">
@@ -606,102 +603,27 @@ const EntityDetailPage = () => {
 
         {/* Enhanced time range - Collapsible */}
         {dynamicDateUtils && monthRange && (
-          <details
-            className="time-range-container collapsible-section"
+          <TimeRangeSection
+            dynamicDateUtils={dynamicDateUtils}
+            monthRange={monthRange}
+            onMonthRangeChange={handleMonthRangeChange}
+            dateRange={entityDateRange.date_range}
+            activityData={entityDateRange.activity_chart}
+            summaryPrefix={explorationMode === 'temporal' ? t('exploration.globalData') : t('exploration.entityData')}
+            showDateSpanInfo={true}
             open={isTimeRangeExpanded}
-            onToggle={(e) => setIsTimeRangeExpanded(e.target.open)}
-          >
-            <summary className="section-summary">
-              <span className="summary-title">
-                {t('entityDetail.timeRange')}
-              </span>
-              <span className="summary-count">
-                {explorationMode === 'temporal' ? t('exploration.globalData') : t('exploration.entityData')} — {t('exploration.availableDataShort', {
-                  days: entityDateRange.date_range.span_days
-                })}
-              </span>
-              <span className="toggle-icon">
-                {isTimeRangeExpanded ? '▼' : '▶'}
-              </span>
-            </summary>
-
-            <div className="section-content">
-              <div className="time-range-header">
-                <span className="date-span-info">
-                  {t('exploration.availableData', {
-                    start: entityDateRange.date_range.earliest,
-                    end: entityDateRange.date_range.latest,
-                    days: entityDateRange.date_range.span_days
-                  })}
-                </span>
-              </div>
-
-              <DualRangeSlider
-                min={0}
-                max={dynamicDateUtils.totalMonths - 1}
-                startValue={monthRange.startIndex}
-                endValue={monthRange.endIndex}
-                onChange={handleMonthRangeChange}
-                label={t('entityDetail.selectTimePeriod')}
-                formatValue={formatSliderValue}
-                activityData={entityDateRange.activity_chart}
-              />
-            </div>
-          </details>
+            onToggle={setIsTimeRangeExpanded}
+          />
         )}
       </div>
 
       {/* Enhanced Statistics Cards for both modes */}
-      {statistics && (
-        <div className="statistics-grid">
-          <div className="stat-card">
-            <h3 className="stat-title">{t('statistics.totalDecisions')}</h3>
-            <div className="stat-value">
-              {statistics.summary.decisions.total_count.toLocaleString()}
-            </div>
-            {explorationMode === 'temporal' && (
-              <div className="stat-context">
-                {t('entityDetail.acrossOrganizations', { count: temporalSummary?.organizations_count || 0 })}
-              </div>
-            )}
-          </div>
-
-          <div className="stat-card">
-            <h3 className="stat-title">{t('statistics.totalAmount')}</h3>
-            <div className="stat-value">
-              €{statistics.summary.financial.primary_amount.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              })}
-            </div>
-            {statistics.summary.financial.has_discrepancy && (
-              <div className="discrepancy-warning">
-                {t('statistics.amountDiscrepancy', { percentage: statistics.summary.financial.discrepancy_percentage })}
-              </div>
-            )}
-          </div>
-
-          <div className="stat-card">
-            <h3 className="stat-title">{t('statistics.averageAmount')}</h3>
-            <div className="stat-value">
-              €{statistics.summary.decisions.avg_amount.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              })}
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <h3 className="stat-title">{t('statistics.period')}</h3>
-            <div className="stat-period">
-              {t('statistics.days', { count: statistics.period.days_count })}
-            </div>
-            <div className="stat-date-range">
-              {new Date(statistics.period.start_date).toLocaleDateString()} - {new Date(statistics.period.end_date).toLocaleDateString()}
-            </div>
-          </div>
-        </div>
-      )}
+      <StatisticsGrid
+        loading={statisticsLoading}
+        error={statisticsError}
+        cards={statCards}
+        onRetry={fetchStatistics}
+      />
 
       {/* Top Counterparts - Shows related entities/organizations */}
       {explorationMode === 'entity' && entityData && entityType === 'organization' && timeRange && (
@@ -713,6 +635,10 @@ const EntityDetailPage = () => {
             end_date: timeRange.endDate
           }}
           limit={5}
+          onCounterpartClick={(counterpart) => {
+            const afm = counterpart.entity__afm;
+            navigate(`/relationship/entity/${afm}/org/${entityId}?start_date=${timeRange.startDate}&end_date=${timeRange.endDate}`);
+          }}
         />
       )}
 
@@ -735,23 +661,12 @@ const EntityDetailPage = () => {
           </h3>
 
           <div className="controls-container">
-            <div className="search-container">
-              <label className="search-label">{t('entityDetail.search')}:</label>
-              <div className="search-input-wrapper">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={t('entityDetail.searchInDecisions')}
-                  className="search-input"
-                />
-                {searchQuery && (
-                  <button onClick={() => setSearchQuery('')} className="clear-button">
-                    ×
-                  </button>
-                )}
-              </div>
-            </div>
+            <SearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder={t('entityDetail.searchInDecisions')}
+              label={`${t('entityDetail.search')}:`}
+            />
 
             <label className="checkbox-label" style={{ marginRight: '1rem' }}>
               <input
@@ -766,93 +681,70 @@ const EntityDetailPage = () => {
           </div>
         </div>
 
-        <div className="filters-section">
-          <div
-            className="filters-header clickable"
-            onClick={() => setShowDecisionTypeFilter(!showDecisionTypeFilter)}
-          >
-            <div className="filter-toggle-content">
-              <Filter size={18} />
-              <span>{t('entityDetail.filters')} {activeFiltersCount > 0 && `(${activeFiltersCount})`}</span>
-              <span className="toggle-arrow">{showDecisionTypeFilter ? '▲' : '▼'}</span>
+        <FilterPanel
+          activeFiltersCount={activeFiltersCount}
+          onClearAll={clearAllFilters}
+          filterLabel={t('entityDetail.filters')}
+        >
+          {/* Amount Filters */}
+          <div className="filter-group">
+            <h4>{t('entityDetail.amountRange')}</h4>
+            <div className="amount-filters">
+              <input
+                type="number"
+                placeholder={t('entityDetail.minAmountPlaceholder')}
+                value={amountFilters.minAmount}
+                onChange={(e) => handleAmountFilterChange('minAmount', e.target.value)}
+                className="amount-input"
+              />
+              <span className="amount-separator">{t('entityDetail.amountTo')}</span>
+              <input
+                type="number"
+                placeholder={t('entityDetail.maxAmountPlaceholder')}
+                value={amountFilters.maxAmount}
+                onChange={(e) => handleAmountFilterChange('maxAmount', e.target.value)}
+                className="amount-input"
+              />
             </div>
+          </div>
 
-            {activeFiltersCount > 0 && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  clearAllFilters();
-                }}
-                className="clear-filters-button"
-              >
-                {t('entityDetail.clearAllFilters')}
-              </button>
+          {/* Decision Type Filters */}
+          <div className="filter-group">
+            <h4>{t('entityDetail.decisionTypes')}</h4>
+            {decisionTypesLoading ? (
+              <div className="loading-text">{t('entityDetail.loadingDecisionTypes')}</div>
+            ) : (
+              <div className="decision-types-grid">
+                {availableDecisionTypes.map(type => (
+                  <label key={type.uid} className="decision-type-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={selectedDecisionTypes.includes(type.uid)}
+                      onChange={(e) => handleDecisionTypeToggle(type.uid, e.target.checked)}
+                    />
+                    <span className="checkbox-content">
+                      <span className="type-label">{type.label}</span>
+                      <span className="type-stats">
+                        {t('entityDetail.decisionTypesCount', {
+                          count: type.count,
+                          amount: type.total_amount.toLocaleString()
+                        })}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
             )}
           </div>
 
-          {showDecisionTypeFilter && (
-            <div className="filters-panel">
-              {/* Amount Filters */}
-              <div className="filter-group">
-                <h4>{t('entityDetail.amountRange')}</h4>
-                <div className="amount-filters">
-                  <input
-                    type="number"
-                    placeholder={t('entityDetail.minAmountPlaceholder')}
-                    value={amountFilters.minAmount}
-                    onChange={(e) => handleAmountFilterChange('minAmount', e.target.value)}
-                    className="amount-input"
-                  />
-                  <span className="amount-separator">{t('entityDetail.amountTo')}</span>
-                  <input
-                    type="number"
-                    placeholder={t('entityDetail.maxAmountPlaceholder')}
-                    value={amountFilters.maxAmount}
-                    onChange={(e) => handleAmountFilterChange('maxAmount', e.target.value)}
-                    className="amount-input"
-                  />
-                </div>
-              </div>
-
-              {/* Decision Type Filters */}
-              <div className="filter-group">
-                <h4>{t('entityDetail.decisionTypes')}</h4>
-                {decisionTypesLoading ? (
-                  <div className="loading-text">{t('entityDetail.loadingDecisionTypes')}</div>
-                ) : (
-                  <div className="decision-types-grid">
-                    {availableDecisionTypes.map(type => (
-                      <label key={type.uid} className="decision-type-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={selectedDecisionTypes.includes(type.uid)}
-                          onChange={(e) => handleDecisionTypeToggle(type.uid, e.target.checked)}
-                        />
-                        <span className="checkbox-content">
-                          <span className="type-label">{type.label}</span>
-                          <span className="type-stats">
-                            {t('entityDetail.decisionTypesCount', {
-                              count: type.count,
-                              amount: type.total_amount.toLocaleString()
-                            })}
-                          </span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Organization Filters - only for temporal mode */}
-              {explorationMode === 'temporal' && (
-                <div className="filter-group">
-                  <h4>{t('entityDetail.organizations')}</h4>
-                  {/* Add organization filter UI */}
-                </div>
-              )}
+          {/* Organization Filters - only for temporal mode */}
+          {explorationMode === 'temporal' && (
+            <div className="filter-group">
+              <h4>{t('entityDetail.organizations')}</h4>
+              {/* Add organization filter UI */}
             </div>
           )}
-        </div>
+        </FilterPanel>
 
         {/* Search Results Info */}
         {searchQuery && (
@@ -898,56 +790,21 @@ const EntityDetailPage = () => {
 
 
 
-        {decisions.length > 0 ? (
-          <div>
-            {decisions.map((decision, index) => (
-              <DecisionCard
-                key={decision.ada}
-                decision={decision}
-                formatAmount={formatAmount}
-                index={index}
-                isLastItem={index === decisions.length - 1}
-                onViewDocumentContent={handleViewDocumentContent}
-              />
-            ))}
-
-            {loadingMore && (
-              <div className="loading-more-container">
-                <div className="loading-more-text">
-                  {t('entityDetail.loadingMoreDecisions')}
-                </div>
-              </div>
-            )}
-
-            {pagination && (
-              <div className="pagination-info">
-                {t('entityDetail.showingDecisions', {
-                  current: decisions.length,
-                  total: pagination.total_count
-                })}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="no-decisions-message">
-            {t('entityDetail.noDecisionsFound')}
-          </div>
-        )}
-
-        {pagination && pagination.has_next && (
-          <div className="load-more-container">
-            <button
-              onClick={loadMoreDecisions}
-              disabled={loadingMore}
-              className={`load-more-button ${loadingMore ? 'loading' : ''}`}
-            >
-              {loadingMore ?
-                t('entityDetail.loadingMoreButton') :
-                t('entityDetail.loadMoreButton', { remaining: pagination.total_count - decisions.length })
-              }
-            </button>
-          </div>
-        )}
+        <DecisionList
+          decisions={decisions}
+          loading={loading}
+          loadingMore={loadingMore}
+          error={null}
+          pagination={pagination}
+          hasSearchQuery={!!(searchQuery || activeFiltersCount > 0)}
+          formatAmount={formatAmount}
+          onViewDocumentContent={handleViewDocumentContent}
+          onLoadMore={loadMoreDecisions}
+          emptyMessage={t('entityDetail.noDecisionsFound')}
+          showPaginationInfo={true}
+          getDecisionKey={(d) => d.ada}
+        />
+        <div ref={sentinelRef} />
       </div>
     </div>
   );

@@ -1,0 +1,15 @@
+{
+  "id": "org_fts_unique_word",
+  "description": "FTS: unique word returns exactly one organization",
+  "tier": "fts",
+  "entity_type": "organization",
+  "records": [
+    {"label": "MUNICIPALITY ATHENS"},
+    {"label": "MUNICIPALITY THESSALONIKI"},
+    {"label": "PREFECTURE ATTICA"}
+  ],
+  "query": "ATHENS",
+  "limit": 10,
+  "expected_in": ["MUNICIPALITY ATHENS"],
+  "expected_not_in": ["MUNICIPALITY THESSALONIKI", "PREFECTURE ATTICA"]
+}

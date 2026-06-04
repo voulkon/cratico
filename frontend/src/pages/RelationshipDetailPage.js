@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
 import relationshipsApi from '../api/relationshipsApi';
 import useUrlFilters from '../hooks/useUrlFilters';
 import DecisionCard from '../components/DecisionCard';
 import SortControl from '../components/SortControl';
+import TimeRangeSection from '../components/TimeRangeSection';
+import StatisticsGrid from '../components/StatisticsGrid';
 import apiClient from '../api/client';
+import { createDynamicDateRangeUtils } from '../utils/dateUtils';
 import './RelationshipDetailPage.css';
 
 /**
@@ -23,13 +26,18 @@ const RelationshipDetailPage = () => {
   const [decisions, setDecisions] = useState([]);
   const [pagination, setPagination] = useState(null);
   const [statistics, setStatistics] = useState(null);
+  const [statisticsLoading, setStatisticsLoading] = useState(false);
+  const [statisticsError, setStatisticsError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
 
-  // Date range from URL or default to all time
-  const startDate = searchParams.get('start_date') || '';
-  const endDate = searchParams.get('end_date') || '';
+  // Date range state
+  const [entityDateRange, setEntityDateRange] = useState(null);
+  const [dateRangeLoading, setDateRangeLoading] = useState(true);
+  const [dynamicDateUtils, setDynamicDateUtils] = useState(null);
+  const [timeRange, setTimeRange] = useState(null);
+  const [monthRange, setMonthRange] = useState(null);
 
   // Use URL filters hook
   const {
@@ -50,16 +58,97 @@ const RelationshipDetailPage = () => {
   const [availableDecisionTypes, setAvailableDecisionTypes] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
 
+  // ── Fetch date range on mount ──────────────────────────────────────────────
+  const fetchEntityDateRange = useCallback(async () => {
+    try {
+      setDateRangeLoading(true);
+      const response = await apiClient.get(
+        `/relationship/entity/${afm}/org/${orgUid}/date-range/`
+      );
+      setEntityDateRange(response.data);
+
+      if (response.data.has_data) {
+        const dateUtils = createDynamicDateRangeUtils(response.data);
+        setDynamicDateUtils(dateUtils);
+
+        // Seed from URL params if present, otherwise use default range
+        const urlStart = searchParams.get('start_date');
+        const urlEnd = searchParams.get('end_date');
+
+        if (urlStart && urlEnd) {
+          const rawStartIdx = dateUtils.dateToIndex(new Date(urlStart));
+          const rawEndIdx = dateUtils.dateToIndex(new Date(urlEnd));
+          // Clamp to valid range to prevent slider handles overflowing the track
+          const maxIdx = dateUtils.totalMonths - 1;
+          const startIdx = Math.max(0, Math.min(maxIdx, rawStartIdx));
+          const endIdx = Math.max(0, Math.min(maxIdx, rawEndIdx));
+          setMonthRange({
+            startIndex: Math.min(startIdx, endIdx),
+            endIndex: Math.max(startIdx, endIdx),
+          });
+          setTimeRange({ startDate: urlStart, endDate: urlEnd });
+        } else {
+          const defaultRange = dateUtils.getDefaultRange();
+          setMonthRange(defaultRange);
+          setTimeRange({
+            startDate: dateUtils.indexToDateString(defaultRange.startIndex),
+            endDate: dateUtils.indexToDateString(defaultRange.endIndex, true),
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch relationship date range:', err);
+      setError(err.message);
+    } finally {
+      setDateRangeLoading(false);
+    }
+  }, [afm, orgUid, searchParams]);
+
+  // Initial load
+  useEffect(() => {
+    if (afm && orgUid) {
+      fetchEntityDateRange();
+    }
+  }, [afm, orgUid]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Async statistics fetch ─────────────────────────────────────────────────
+  const fetchStatistics = useCallback(async () => {
+    if (!timeRange) return;
+
+    setStatisticsLoading(true);
+    setStatisticsError(null);
+
+    try {
+      const params = new URLSearchParams({
+        start_date: timeRange.startDate,
+        end_date: timeRange.endDate,
+      });
+      const response = await apiClient.get(
+        `/relationship/entity/${afm}/org/${orgUid}/statistics/?${params}`,
+        { timeout: 60000 }
+      );
+      setStatistics(response.data);
+    } catch (err) {
+      console.error('Failed to fetch relationship statistics:', err);
+      setStatisticsError(t('statistics.loadError'));
+    } finally {
+      setStatisticsLoading(false);
+    }
+  }, [afm, orgUid, timeRange, t]);
+
+  // ── Decisions fetch ───────────────────────────────────────────────────────
   // Fetch relationship data
   useEffect(() => {
+    if (!timeRange) return;
+
     const fetchRelationshipData = async () => {
       try {
         setLoading(true);
         setError(null);
 
         const params = {
-          start_date: startDate,
-          end_date: endDate,
+          start_date: timeRange.startDate,
+          end_date: timeRange.endDate,
           sort_by: sortBy,
           page: 1,
           page_size: 20
@@ -82,14 +171,6 @@ const RelationshipDetailPage = () => {
           const firstDecision = data.results[0];
           setOrganization(firstDecision.organization);
           setEntity(firstDecision.main_recipient || { afm, name: 'Unknown Entity' });
-
-          // Calculate statistics
-          const totalAmount = data.results.reduce((sum, d) => sum + (d.entity_amount || 0), 0);
-          setStatistics({
-            total_decisions: data.pagination.total_count,
-            total_amount: totalAmount,
-            date_range: { start: startDate, end: endDate }
-          });
         }
 
         // Get available decision types for filtering
@@ -107,19 +188,20 @@ const RelationshipDetailPage = () => {
       }
     };
 
-    if (afm && orgUid) {
-      fetchRelationshipData();
-    }
-  }, [afm, orgUid, startDate, endDate, sortBy, searchQuery, selectedTypes, amountFilters, directAssignmentsOnly]);
+    fetchRelationshipData();
+    // Non-blocking: statistics load independently
+    fetchStatistics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [afm, orgUid, timeRange, sortBy, searchQuery, selectedTypes, amountFilters, directAssignmentsOnly]);
 
   const handleLoadMore = async () => {
-    if (!pagination?.has_next || loadingMore) return;
+    if (!pagination?.has_next || loadingMore || !timeRange) return;
 
     try {
       setLoadingMore(true);
       const params = {
-        start_date: startDate,
-        end_date: endDate,
+        start_date: timeRange.startDate,
+        end_date: timeRange.endDate,
         sort_by: sortBy,
         page: pagination.current_page + 1,
         page_size: 20
@@ -141,6 +223,17 @@ const RelationshipDetailPage = () => {
     }
   };
 
+  // ── Slider handlers ────────────────────────────────────────────────────────
+  const handleMonthRangeChange = (startIndex, endIndex) => {
+    if (!dynamicDateUtils) return;
+
+    setMonthRange({ startIndex, endIndex });
+    setTimeRange({
+      startDate: dynamicDateUtils.indexToDateString(startIndex),
+      endDate: dynamicDateUtils.indexToDateString(endIndex, true),
+    });
+  };
+
   const handleViewDocumentContent = async (decisionId) => {
     try {
       const response = await apiClient.get(`/decision/${decisionId}/content/`);
@@ -159,7 +252,20 @@ const RelationshipDetailPage = () => {
     })}`;
   };
 
-  if (loading && !entity) {
+  // ── Sync timeRange to URL params for shareable links ─────────────────────
+  const [, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (timeRange) {
+      setSearchParams({
+        start_date: timeRange.startDate,
+        end_date: timeRange.endDate,
+      }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeRange]);
+
+  if ((loading || dateRangeLoading) && !entity) {
     return (
       <div className="relationship-page loading-container">
         <h2>{t('relationship.loading')}</h2>
@@ -234,29 +340,44 @@ const RelationshipDetailPage = () => {
         </div>
       </div>
 
-      {/* Statistics Section */}
-      {statistics && (
-        <div className="statistics-grid">
-          <div className="stat-card">
-            <h3>{t('relationship.totalDecisions')}</h3>
-            <div className="stat-value">{statistics.total_decisions.toLocaleString()}</div>
-          </div>
-
-          <div className="stat-card">
-            <h3>{t('relationship.totalAmount')}</h3>
-            <div className="stat-value">{formatAmount(statistics.total_amount)}</div>
-          </div>
-
-          {startDate && endDate && (
-            <div className="stat-card">
-              <h3>{t('relationship.dateRange')}</h3>
-              <div className="stat-value date-range">
-                {new Date(startDate).toLocaleDateString()} - {new Date(endDate).toLocaleDateString()}
-              </div>
-            </div>
-          )}
-        </div>
+      {/* Time Range Slider */}
+      {dynamicDateUtils && monthRange && (
+        <TimeRangeSection
+          dynamicDateUtils={dynamicDateUtils}
+          monthRange={monthRange}
+          onMonthRangeChange={handleMonthRangeChange}
+          dateRange={entityDateRange?.date_range}
+          activityData={entityDateRange?.activity_chart}
+        />
       )}
+
+      {/* Statistics Section */}
+      <StatisticsGrid
+        loading={statisticsLoading}
+        error={statisticsError}
+        columns={3}
+        cards={
+          statistics
+            ? [
+                {
+                  title: t('relationship.totalDecisions'),
+                  value: statistics.total_decisions?.toLocaleString() || '0',
+                },
+                {
+                  title: t('relationship.totalAmount'),
+                  value: formatAmount(statistics.total_amount),
+                },
+                {
+                  title: t('statistics.averageAmount'),
+                  value: formatAmount(statistics.avg_amount),
+                  subtitle: statistics.decisions_with_amounts
+                    ? `${statistics.decisions_with_amounts} ${t('relationship.withAmounts')}`
+                    : '',
+                },
+              ]
+            : null
+        }
+      />
 
       {/* Decisions Section */}
       <div className="decisions-section">

@@ -1,0 +1,15 @@
+{
+  "id": "signer_simple_unique_first_name",
+  "description": "Unique first name returns exactly one signer",
+  "tier": "simple",
+  "entity_type": "signer",
+  "records": [
+    {"first_name": "NIKOLAOS", "last_name": "GEORGIOU"},
+    {"first_name": "IOANNIS", "last_name": "PAPADOPOULOS"},
+    {"first_name": "MARIA", "last_name": "GEORGIOU"}
+  ],
+  "query": "NIKOLAOS",
+  "limit": 10,
+  "expected_in": ["NIKOLAOS GEORGIOU"],
+  "expected_not_in": ["IOANNIS PAPADOPOULOS", "MARIA GEORGIOU"]
+}

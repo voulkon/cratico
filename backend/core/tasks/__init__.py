@@ -2,6 +2,7 @@
 Import all tasks to maintain backward compatibility
 """
 
+from .afm_entity_stats_tasks import recompute_all_entity_stats
 from .health_check_tasks import (
     auto_fix_simple_issues,
     backfill_health_checks_for_import_job,
@@ -18,6 +19,10 @@ from .tasks_auto_import import (
     trigger_next_company_gemi_batch,
 )
 from .tasks_backups import create_backup_task, restore_backup_task
+from .tasks_data_migration import (
+    recompute_issue_date_fields_task,
+    recompute_publish_date_fields_task,
+)
 from .tasks_db_vacuum import vacuum_multiple_tables_task, vacuum_table_task
 from .tasks_decisions import (
     collect_results,
@@ -143,4 +148,8 @@ __all__ = [
     "periodic_validation_task",
     "vacuum_table_task",
     "vacuum_multiple_tables_task",
+    "recompute_all_entity_stats",
+    # Data migrations
+    "recompute_issue_date_fields_task",
+    "recompute_publish_date_fields_task",
 ]

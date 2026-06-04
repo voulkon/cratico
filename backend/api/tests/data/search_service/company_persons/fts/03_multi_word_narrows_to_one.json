@@ -1,0 +1,15 @@
+{
+  "id": "company_person_fts_multi_word_narrows_to_one",
+  "description": "FTS: first + last name together narrows to exactly one person",
+  "tier": "fts",
+  "entity_type": "company_person",
+  "records": [
+    {"person_name": "JOHN UMBRELLA"},
+    {"person_name": "JANE BANANA"},
+    {"person_name": "JOHN SMITH"}
+  ],
+  "query": "JOHN UMBRELLA",
+  "limit": 10,
+  "expected_in": ["JOHN UMBRELLA"],
+  "expected_not_in": ["JANE BANANA", "JOHN SMITH"]
+}

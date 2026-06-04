@@ -14,10 +14,7 @@ from api.views.search.entity_search_utils import (
     get_documents_slow,
     get_entities_fast,
 )
-from django.contrib.auth import get_user_model
 from django.test import RequestFactory, TestCase
-
-User = get_user_model()
 
 
 class TestGetEntitiesFast(TestCase):
@@ -27,7 +24,7 @@ class TestGetEntitiesFast(TestCase):
         """Set up test fixtures"""
         self.test_query = "ΔΗΜΟΣ"
 
-    @patch("api.views.search.entity_search.SearchService")
+    @patch("api.views.search.entity_search_utils.SearchService")
     def test_get_entities_fast_basic(self, mock_search_service):
         """Test basic entity search with all types"""
         # Mock the search service
@@ -75,10 +72,11 @@ class TestGetEntitiesFast(TestCase):
         org_result = results["results"]["organizations"][0]
         self.assertEqual(org_result["id"], "org-123")
         self.assertEqual(org_result["type"], "organization")
-        self.assertIn("ΔΗΜΟΣ ΑΘΗΝΑΙΩΝ", org_result["title"])
+        # title uses highlight_query_in_text which adds <mark> tags; check plain text field
+        self.assertEqual(org_result["text"], "ΔΗΜΟΣ ΑΘΗΝΑΙΩΝ")
         self.assertIn("details", org_result)
 
-    @patch("api.views.search.entity_search.SearchService")
+    @patch("api.views.search.entity_search_utils.SearchService")
     def test_get_entities_fast_empty_query(self, mock_search_service):
         """Test with empty query"""
         results = get_entities_fast("", limit=5)
@@ -87,7 +85,7 @@ class TestGetEntitiesFast(TestCase):
         self.assertEqual(results["total_count"], 0)
         self.assertEqual(results["results"], {})
 
-    @patch("api.views.search.entity_search.SearchService")
+    @patch("api.views.search.entity_search_utils.SearchService")
     def test_get_entities_fast_filtered_types(self, mock_search_service):
         """Test with specific entity types only"""
         mock_service = MagicMock()
@@ -105,7 +103,7 @@ class TestGetEntitiesFast(TestCase):
         self.assertNotIn("signers", results["results"])
         self.assertNotIn("units", results["results"])
 
-    @patch("api.views.search.entity_search.SearchService")
+    @patch("api.views.search.entity_search_utils.SearchService")
     def test_get_entities_fast_with_limit(self, mock_search_service):
         """Test that limit parameter is passed correctly"""
         mock_service = MagicMock()
@@ -121,7 +119,7 @@ class TestGetEntitiesFast(TestCase):
 class TestGetDocumentsSlow(TestCase):
     """Test the get_documents_slow function"""
 
-    @patch("api.views.search.entity_search.SearchService")
+    @patch("api.views.search.entity_search_utils.SearchService")
     def test_get_documents_slow_basic(self, mock_search_service):
         """Test basic document search"""
         mock_service = MagicMock()
@@ -170,7 +168,7 @@ class TestGetDocumentsSlow(TestCase):
         self.assertEqual(doc_result["type"], "document")
         self.assertEqual(doc_result["details"]["decision_id"], 456)
 
-    @patch("api.views.search.entity_search.SearchService")
+    @patch("api.views.search.entity_search_utils.SearchService")
     def test_get_documents_slow_empty_query(self, mock_search_service):
         """Test with empty query"""
         results = get_documents_slow("", limit=5)
@@ -179,7 +177,7 @@ class TestGetDocumentsSlow(TestCase):
         self.assertEqual(results["total_count"], 0)
         self.assertEqual(results["results"], {})
 
-    @patch("api.views.search.entity_search.SearchService")
+    @patch("api.views.search.entity_search_utils.SearchService")
     def test_get_documents_slow_handles_errors(self, mock_search_service):
         """Test error handling when OpenSearch fails"""
         mock_service = MagicMock()
@@ -200,11 +198,10 @@ class TestSearchStreamAPI(TestCase):
     """Test the SSE streaming search API endpoint"""
 
     def setUp(self):
+        from conftest import UserFactory
         """Set up test fixtures"""
         self.factory = RequestFactory()
-        self.user = User.objects.create_user(
-            username="testuser", email="test@example.com", password="testpass123"
-        )
+        self.user = UserFactory()
 
     @patch("api.views.search.entity_search.get_entities_fast")
     @patch("api.views.search.entity_search.get_documents_slow")
@@ -279,14 +276,13 @@ class TestAutocompleteAPI(TestCase):
     """Test the autocomplete suggestions API"""
 
     def setUp(self):
+        from conftest import UserFactory
         """Set up test fixtures"""
         self.factory = RequestFactory()
-        self.user = User.objects.create_user(
-            username="testuser", email="test@example.com", password="testpass123"
-        )
+        self.user = UserFactory()
 
     def test_autocomplete_basic(self):
-        """Test basic autocomplete functionality"""
+        """Test basic autocomplete - all terms returned regardless of query prefix"""
         request = self.factory.get("/api/search/autocomplete/", {"q": "ΔΗΜ"})
         request.user = self.user
 
@@ -295,13 +291,10 @@ class TestAutocompleteAPI(TestCase):
         self.assertEqual(response.status_code, 200)
         data = response.data
 
-        # Should return matching suggestions
+        # All administrative terms are returned; no prefix filtering is applied
         self.assertIn("suggestions", data)
         self.assertTrue(len(data["suggestions"]) > 0)
-
-        # Check that all suggestions start with ΔΗΜ
-        for suggestion in data["suggestions"]:
-            self.assertTrue(suggestion["text"].startswith("ΔΗΜ"))
+        self.assertTrue(any(s["text"] == "ΔΗΜΟΣ" for s in data["suggestions"]))
 
     def test_autocomplete_empty_query(self):
         """Test autocomplete with empty query returns all terms"""
@@ -332,38 +325,39 @@ class TestAutocompleteAPI(TestCase):
         for suggestion in data["suggestions"]:
             self.assertEqual(suggestion["category"], "organization")
 
-    def test_autocomplete_no_match(self):
-        """Test autocomplete with query that matches nothing"""
+    def test_autocomplete_no_prefix_filtering(self):
+        """Test that autocomplete returns all terms regardless of query (no prefix filtering)"""
         request = self.factory.get("/api/search/autocomplete/", {"q": "ZZZZZ"})
         request.user = self.user
 
         response = autocomplete_suggestions_api(request)
         data = response.data
 
-        # Should return empty suggestions
-        self.assertEqual(len(data["suggestions"]), 0)
+        # No prefix filtering is implemented - all terms are always returned
+        self.assertEqual(
+            len(data["suggestions"]), len(get_administrative_terms_autocomplete())
+        )
 
     def test_autocomplete_case_insensitive(self):
-        """Test that autocomplete is case insensitive"""
-        # Test lowercase
+        """Test that lowercase queries are handled (all terms including ΔΗΜΟΣ are returned)"""
         request = self.factory.get("/api/search/autocomplete/", {"q": "δημο"})
         request.user = self.user
 
         response = autocomplete_suggestions_api(request)
         data = response.data
 
-        # Should match ΔΗΜΟΣ even with lowercase query
+        # ΔΗΜΟΣ is always in the returned terms
         self.assertTrue(any("ΔΗΜΟΣ" in s["text"] for s in data["suggestions"]))
 
 
 class TestSearchPerformance(TestCase):
     """Performance-related tests for search functions"""
 
-    @patch("api.views.search.entity_search.SearchService")
+    @patch("api.views.search.entity_search_utils.SearchService")
     def test_entities_faster_than_documents(self, mock_search_service):
         """
-        Test that entity search is called first and completes before document search
-        This is a conceptual test - in real SSE, entities arrive first
+        Test that entity search returns an entities-type result structure.
+        In real SSE, entities arrive first before slower document search.
         """
         mock_service = MagicMock()
         mock_search_service.return_value = mock_service

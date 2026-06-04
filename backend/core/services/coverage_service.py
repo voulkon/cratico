@@ -13,6 +13,7 @@ from typing import Literal
 from core.models.decisions import Decision
 from core.models.import_jobs import ImportJob, ImportJobStatus
 from core.services.public_holiday_detection_service import PublicHolidayDetectionService
+from core.constants.decision_import_constants import get_coverage_date_field
 
 DayVerdict = Literal["done_job", "done_threshold", "under_imported"]
 
@@ -179,8 +180,9 @@ class BackfillCoverageService:
             job_skip_reason = None
 
         # ── FALLBACK: count-based threshold ──────────────────────────────
+        coverage_field = get_coverage_date_field()
         decision_count = Decision.objects.filter(
-            **decision_filter, issue_date_day=day
+            **decision_filter, **{coverage_field: day}
         ).count()
 
         details = {

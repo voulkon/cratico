@@ -80,7 +80,8 @@
     "period": "Period",
     "days": "{count} days",
     "amountDiscrepancy": "⚠️ Amount discrepancy detected ({percentage}%)",
-    "organizationsCount": "Organizations"
+    "organizationsCount": "Organizations",
+    "loadError": "Could not load statistics"
   },
   "filters": {
     "decisionTypes": "Decision Types",
@@ -366,7 +367,20 @@
     "filterByRole": "Filter by Role",
     "gemiCompanyInformation": "Company Information from Business Registry (GEMI)",
     "noDecisionsWithFilters": "No decisions found with current filters",
-    "noDecisions": "No decisions found for this entity"
+    "noDecisions": "No decisions found for this entity",
+    "requestGemiFetch": "Request company data",
+    "requestGemiFetchTitle": "Request GEMI Lookup",
+    "requestGemiFetchDescription": "No company registry data available yet. Click to request a lookup from the Business Registry (GEMI).",
+    "requestGemiFetchDataMissing": "Company data appears to be missing. Click to re-request a lookup from the Business Registry (GEMI).",
+    "requestGemiFetchPending": "Requesting…",
+    "requestGemiFetchQueued": "Request received! Data will appear here once fetched.",
+    "requestGemiFetchAlreadyQueued": "Already in queue — data will appear here once fetched.",
+    "requestGemiFetchAlreadyFetched": "Company data has already been retrieved.",
+    "requestGemiFetchRateLimited": "Daily request limit reached. Please try again tomorrow.",
+    "requestGemiFetchNotFound": "No company data found in the GEMI Business Registry for this tax number.",
+    "requestGemiFetchError": "Failed to queue fetch request. Please try again.",
+    "requestGemiFetchAuthSupertitle": "Company Registry Lookup",
+    "requestGemiFetchAuthMessage": "Sign in to request a lookup of this company's data from the Business Registry (GEMI). Once fetched, the data will be visible to all visitors of this page."
   },
   "library": {
     "myLibrary": "My Library",
@@ -413,7 +427,11 @@
     "showingOf": "Showing {current} of {total}",
     "folder": "Folder",
     "title": "Title",
-    "noFolder": "No folder"
+    "noFolder": "No folder",
+    "bookmarks": "Bookmarks",
+    "dragToReorder": "Drag to move into a folder",
+    "dropBookmarksHere": "Drop bookmarks here",
+    "clickToRename": "Click to rename"
   },
   "auth": {
     "signInRequired": "Please sign in to access this feature",
@@ -460,7 +478,8 @@
     "noData": "No Relationship Data Found",
     "noDataMessage": "No decisions found linking this entity and organization",
     "noDecisions": "No decisions found for this relationship",
-    "noDecisionsWithFilters": "No decisions match your filters"
+    "noDecisionsWithFilters": "No decisions match your filters",
+    "withAmounts": "with amounts"
   },
   "entityTypes": {
     "person": "Person",

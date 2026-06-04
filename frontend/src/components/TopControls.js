@@ -1,10 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Logo from './Logo';
 import UserMenu from './UserMenu';
 import BookmarkButton from './BookmarkButton';
 import NotificationButton from './NotificationButton';
 import { ChevronRight, ChevronLeft } from './Icons';
 import './TopControls.css';
+
+/** Matches the --mobile-breakpoint used in TopControls.css media queries */
+const MOBILE = '(max-width: 768px)';
+
+/** One-time check at mount to avoid flash on desktop */
+const isMobile = () => window.matchMedia(MOBILE).matches;
 
 /**
  * TopControls - Main navigation bar with logo and action buttons
@@ -28,7 +34,15 @@ const TopControls = ({
   isUserMenuOpen,
   hideLogo = false
 }) => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(isMobile);
+
+  // Keep collapsed state in sync with viewport resizes
+  useEffect(() => {
+    const mql = window.matchMedia(MOBILE);
+    const onChange = (e) => setIsCollapsed(e.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
 
   const toggleCollapse = () => {
     setIsCollapsed(!isCollapsed);
@@ -46,7 +60,7 @@ const TopControls = ({
       {!hideLogo && (
         <div className={`left-controls ${isLibraryOpen ? 'shifted' : ''}`}>
           <div className="logo-container">
-            <Logo size="medium" />
+            <Logo size="small" />
           </div>
         </div>
       )}

@@ -265,6 +265,10 @@ const OrganizationsPage = () => {
           id={orgUid}
           dateRange={orgDateRange}
           limit={5}
+          onCounterpartClick={(counterpart) => {
+            const afm = counterpart.entity__afm;
+            navigate(`/relationship/entity/${afm}/org/${orgUid}?start_date=${orgDateRange.start_date}&end_date=${orgDateRange.end_date}`);
+          }}
         />
       )}
 

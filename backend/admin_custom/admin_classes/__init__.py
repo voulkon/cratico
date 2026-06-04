@@ -1,3 +1,4 @@
+from .afm_entity_stats import AFMEntityStatsAdmin
 from .ai_pricing import (
     AIJobDefinitionAdmin,
     AIJobExecutionAdmin,
@@ -37,6 +38,8 @@ from .notifications import (
 from .users import CustomUserAdmin, SubscriptionAdmin
 
 __all__ = [
+    # AFM Entity Stats
+    "AFMEntityStatsAdmin",
     # Decision admin classes
     "DecisionAdmin",
     "AttachmentAdmin",

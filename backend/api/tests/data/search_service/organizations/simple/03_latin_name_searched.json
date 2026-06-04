@@ -1,0 +1,15 @@
+{
+  "id": "org_simple_latin_name_searched",
+  "description": "latin_name field is also searched alongside label",
+  "tier": "simple",
+  "entity_type": "organization",
+  "records": [
+    {"label": "MUNICIPALITY ATHENS", "latin_name": "Municipality of Athens"},
+    {"label": "MUNICIPALITY THESSALONIKI", "latin_name": "Municipality of Thessaloniki"},
+    {"label": "PREFECTURE ATTICA", "latin_name": "Prefecture of Attica"}
+  ],
+  "query": "Thessaloniki",
+  "limit": 10,
+  "expected_in": ["MUNICIPALITY THESSALONIKI"],
+  "expected_not_in": ["MUNICIPALITY ATHENS", "PREFECTURE ATTICA"]
+}

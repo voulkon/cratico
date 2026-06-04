@@ -440,6 +440,7 @@ admin_site = CustomAdminSite(name="custom_admin")
 def register_all_models():
     """Register all models with the custom admin site"""
     from admin_custom.admin_classes import (
+        AFMEntityStatsAdmin,
         AIJobDefinitionAdmin,
         AIJobExecutionAdmin,
         AIModelPricingAdmin,
@@ -561,10 +562,12 @@ def register_all_models():
     admin_site.register(ClassificationJob, ClassificationJobAdmin)
 
     # Register AFM Scoring models
+    from core.models.afm_entity_stats import AFMEntityStats
     from core.models.afm_scoring import AFMEntityScore, AFMScoringConfig
     from core.models.afm_scoring_job import AFMScoringJob
     from core.models.entities import AFMEntity
 
+    admin_site.register(AFMEntityStats, AFMEntityStatsAdmin)
     admin_site.register(AFMEntity, AFMEntityAdmin)
     admin_site.register(AFMScoringConfig, AFMScoringConfigAdmin)
     admin_site.register(AFMEntityScore, AFMEntityScoreAdmin)

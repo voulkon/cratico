@@ -22,7 +22,14 @@ POSTGRES_FTS_MODELS = {
         "table": "core_documentextraction",
         "text_fields": ["raw_text"],
         "search_config": "greek",
-        "required_for_fts": False,  # Extraction is optional (large table)
+        "required_for_fts": True,  # GIN index added in migration 0061
+    },
+    "decision": {
+        "model_path": "core.models.decisions.Decision",
+        "table": "core_decision",
+        "text_fields": ["subject"],
+        "search_config": "greek",
+        "required_for_fts": True,  # Required for decision search
     },
     "afmentity": {
         "model_path": "core.models.entities.AFMEntity",

@@ -5,8 +5,7 @@ from core.models.entities import AFMEntity, DecisionEntityRelationship
 from core.models.organizations import Organization
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
-from django.db.models import Count, Sum
-from django.db.models.functions import TruncMonth, TruncYear
+from django.db.models import Count, F, Sum
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -80,11 +79,15 @@ def company_transactions_summary(request, afm):
             ]
 
         elif group_by in ["month", "year"]:
-            # Group by time period
-            time_function = TruncMonth if group_by == "month" else TruncYear
+            # Use precomputed indexed fields instead of Trunc for direct index scans
+            period_column = (
+                "decision__issue_date_month"
+                if group_by == "month"
+                else "decision__issue_date_year"
+            )
 
             result = (
-                base_query.annotate(period=time_function("decision__issue_date"))
+                base_query.annotate(period=F(period_column))
                 .values("period")
                 .annotate(
                     total_amount=Sum("linked_amounts__amount"),
@@ -96,8 +99,10 @@ def company_transactions_summary(request, afm):
             # Format the response
             formatted_result = [
                 {
-                    "period": item["period"].strftime(
-                        "%Y-%m" if group_by == "month" else "%Y"
+                    "period": (
+                        str(item["period"])
+                        if group_by == "year"
+                        else item["period"].strftime("%Y-%m")
                     ),
                     "total_amount": float(item["total_amount"] or 0),
                     "decision_count": item["decision_count"],
@@ -216,11 +221,15 @@ def organization_expenditures_summary(request, organization_uid):
                 )
 
         elif group_by in ["month", "year"]:
-            # Group by time period
-            time_function = TruncMonth if group_by == "month" else TruncYear
+            # Use precomputed indexed fields instead of Trunc for direct index scans
+            period_column = (
+                "decision__issue_date_month"
+                if group_by == "month"
+                else "decision__issue_date_year"
+            )
 
             result = (
-                base_query.annotate(period=time_function("decision__issue_date"))
+                base_query.annotate(period=F(period_column))
                 .values("period")
                 .annotate(
                     total_amount=Sum("linked_amounts__amount"),
@@ -232,8 +241,10 @@ def organization_expenditures_summary(request, organization_uid):
             # Format the response
             formatted_result = [
                 {
-                    "period": item["period"].strftime(
-                        "%Y-%m" if group_by == "month" else "%Y"
+                    "period": (
+                        str(item["period"])
+                        if group_by == "year"
+                        else item["period"].strftime("%Y-%m")
                     ),
                     "total_amount": float(item["total_amount"] or 0),
                     "decision_count": item["decision_count"],

@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Filter } from 'lucide-react';
 import apiClient from '../api/client';
 import { useTranslation } from '../contexts/TranslationContext';
 import useUrlFilters from '../hooks/useUrlFilters';
-import DecisionCard from '../components/DecisionCard';
+import useDocumentContent from '../hooks/useDocumentContent';
+import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import SortControl from '../components/SortControl';
 import TopCounterparts from '../components/TopCounterparts';
-import CompanyInfoPanel from '../components/CompanyInfoPanel';
-import CompanyPersonsTable from '../components/CompanyPersonsTable';
-import CompanyActivitiesTable from '../components/CompanyActivitiesTable';
-import CompanyCapitalStocks from '../components/CompanyCapitalStocks';
+import GemiSection from '../components/GemiSection';
+import DecisionList from '../components/DecisionList';
+import FilterPanel from '../components/FilterPanel';
+import StatisticsGrid from '../components/StatisticsGrid';
+import SearchInput from '../components/SearchInput';
+import TimeRangeSection from '../components/TimeRangeSection';
+import { createDynamicDateRangeUtils, formatAmount } from '../utils/dateUtils';
 import './AFMEntityDetailPage.css';
 
 const AFMEntityDetailPage = () => {
@@ -26,67 +29,180 @@ const AFMEntityDetailPage = () => {
   const [pagination, setPagination] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [availableRoles, setAvailableRoles] = useState([]);
-  const [showRoleFilter, setShowRoleFilter] = useState(false);
   const [companyInfo, setCompanyInfo] = useState(null);
+  const [gemiFetchStatus, setGemiFetchStatus] = useState(null); // null | 'loading' | 'queued' | 'already_queued' | 'already_fetched' | 'rate_limited' | 'error'
+
+  // Enhanced date range state
+  const [entityDateRange, setEntityDateRange] = useState(null);
+  const [dateRangeLoading, setDateRangeLoading] = useState(true);
+  const [dynamicDateUtils, setDynamicDateUtils] = useState(null);
+  const [timeRange, setTimeRange] = useState(null);
+  const [monthRange, setMonthRange] = useState(null);
+
+  // Statistics state (non-blocking)
+  const [statisticsLoading, setStatisticsLoading] = useState(false);
+  const [statisticsError, setStatisticsError] = useState(null);
 
   // Use URL filters hook - replaces all the manual URL state management
   const {
     sortBy,
+    searchQuery,
     selectedRoles,
     directAssignmentsOnly,
     activeFiltersCount,
     setSortBy,
+    setSearchQuery,
     toggleRole,
     setDirectAssignmentsOnly,
     clearAllFilters
   } = useUrlFilters({ sortBy: 'amount_desc' });
 
-  const fetchEntityData = useCallback(async (loadMore = false) => {
-    try {
-      if (!loadMore) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
-      }
+  // Debounced search query
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
 
-      // Fetch entity details
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearchQuery(searchQuery), 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Fetch entity metadata (name, type, roles) - fast, blocks nothing else
+  const fetchEntityMetadata = useCallback(async () => {
+    try {
       const entityResponse = await apiClient.get(`/entity/afm/${afm}/`);
       setEntity(entityResponse.data.entity);
-      setStatistics(entityResponse.data.statistics);
       setAvailableRoles(entityResponse.data.available_roles);
+    } catch (err) {
+      console.error('Failed to fetch entity metadata:', err);
+      setError(err.response?.data?.error || err.message);
+    }
+  }, [afm]);
 
-      // Fetch decisions with current filters
-      const decisionsParams = new URLSearchParams({
+  // Fetch date range for slider - fast, separate from decisions
+  const fetchDateRange = useCallback(async () => {
+    setDateRangeLoading(true);
+    try {
+      const res = await apiClient.get(`/entity/afm/${afm}/date-range/`);
+      setEntityDateRange(res.data);
+
+      if (res.data.has_data) {
+        const dateUtils = createDynamicDateRangeUtils(res.data);
+        setDynamicDateUtils(dateUtils);
+        const defaultRange = dateUtils.getDefaultRange();
+        setMonthRange(defaultRange);
+        setTimeRange({
+          startDate: dateUtils.indexToDateString(defaultRange.startIndex),
+          endDate: dateUtils.indexToDateString(defaultRange.endIndex, true)
+        });
+      }
+    } catch (err) {
+      console.error('Failed to fetch date range:', err);
+    } finally {
+      setDateRangeLoading(false);
+    }
+  }, [afm]);
+
+  // Fetch decisions with date range, search, and role filters
+  const fetchDecisions = useCallback(async (page = 1, append = false) => {
+    if (!timeRange) return;
+
+    try {
+      if (!append) setLoading(true);
+      else setLoadingMore(true);
+
+      const params = new URLSearchParams({
         sort: sortBy,
-        page: loadMore ? (pagination?.current_page + 1 || 2) : 1,
+        page: page.toString(),
+        start_date: timeRange.startDate,
+        end_date: timeRange.endDate,
         ...(selectedRoles.length > 0 && { roles: selectedRoles.join(',') }),
         ...(directAssignmentsOnly && { direct_assignments_only: 'true' })
       });
 
-      const decisionsResponse = await apiClient.get(`/entity/afm/${afm}/decisions/?${decisionsParams}`);
-
-      if (loadMore) {
-        setDecisions(prev => [...prev, ...decisionsResponse.data.results]);
-      } else {
-        setDecisions(decisionsResponse.data.results);
+      if (debouncedSearchQuery.trim()) {
+        params.append('q', debouncedSearchQuery.trim());
       }
 
-      setPagination(decisionsResponse.data.pagination);
+      const res = await apiClient.get(`/entity/afm/${afm}/decisions/?${params}`);
+
+      if (append) {
+        setDecisions(prev => [...prev, ...res.data.results]);
+      } else {
+        setDecisions(res.data.results);
+      }
+      setPagination(res.data.pagination);
 
     } catch (err) {
-      console.error('Error fetching AFM entity data:', err);
+      console.error('Error fetching decisions:', err);
       setError(err.response?.data?.error || err.message);
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
+      if (!append) setLoading(false);
+      else setLoadingMore(false);
     }
-  }, [afm, sortBy, selectedRoles, directAssignmentsOnly, pagination]);
+  }, [afm, timeRange, sortBy, selectedRoles, directAssignmentsOnly, debouncedSearchQuery]);
 
-  // Fetch data when filters change - omitting fetchEntityData to avoid infinite loop
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Fetch statistics - non-blocking, fire-and-forget
+  const fetchStatistics = useCallback(async () => {
+    if (!timeRange) return;
+    setStatisticsLoading(true);
+    setStatisticsError(null);
+    try {
+      const params = new URLSearchParams({
+        start_date: timeRange.startDate,
+        end_date: timeRange.endDate
+      });
+      const res = await apiClient.get(`/entity/afm/${afm}/statistics/?${params}`, { timeout: 60000 });
+      // Map the nested response to the flat shape expected by statCards
+      const data = res.data;
+      const stats = data.statistics || {};
+      const topOrg = data.financial_summary?.top_organizations?.[0];
+      setStatistics({
+        total_decisions: stats.total_decisions,
+        unique_roles: stats.unique_roles,
+        total_amount: stats.total_amount,
+        unique_organizations: stats.unique_organizations,
+        decisions_with_amounts: stats.total_decisions, // financial_service counts only decisions with amounts
+        most_frequent_organization: topOrg ? {
+          uid: topOrg.decision__organization__uid,
+          label: topOrg.decision__organization__label,
+        } : null,
+      });
+    } catch (err) {
+      setStatisticsError(err.message);
+    } finally {
+      setStatisticsLoading(false);
+    }
+  }, [afm, timeRange]);
+
+  // Initial load: fetch entity metadata + date range in parallel
   useEffect(() => {
-    fetchEntityData();
-  }, [afm, sortBy, selectedRoles, directAssignmentsOnly]);
+    const loadInitialData = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        await Promise.all([
+          fetchEntityMetadata(),
+          fetchDateRange()
+        ]);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        // loading stays true until decisions arrive via timeRange effect
+      }
+    };
+
+    loadInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [afm]);
+
+  // Load decisions & statistics when timeRange or filters change
+  useEffect(() => {
+    if (timeRange) {
+      fetchDecisions(1, false);
+      fetchStatistics();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeRange, sortBy, selectedRoles, directAssignmentsOnly, debouncedSearchQuery]);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,31 +212,106 @@ const AFMEntityDetailPage = () => {
     return () => { cancelled = true; };
   }, [afm]);
 
-  const handleLoadMore = () => {
+  const loadMoreDecisions = useCallback(() => {
     if (pagination?.has_next && !loadingMore) {
-      fetchEntityData(true);
+      fetchDecisions(pagination.current_page + 1, true);
     }
-  };
+  }, [pagination, loadingMore, fetchDecisions]);
 
-  const handleViewDocumentContent = async (decisionId) => {
+  const { sentinelRef } = useInfiniteScroll({
+    hasMore: pagination?.has_next || false,
+    loading,
+    loadingMore,
+    onLoadMore: loadMoreDecisions,
+    enabled: true
+  });
+
+  const { fetchContent: handleViewDocumentContent } = useDocumentContent();
+
+  const handleRequestGemiFetch = async () => {
+    setGemiFetchStatus('loading');
     try {
-      const response = await apiClient.get(`/decision/${decisionId}/content/`);
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching document content:', error);
-      throw error;
+      const response = await apiClient.post(`/entity/afm/${afm}/request-fetch/`);
+      const status = response.data?.status;
+      if (status === 'queued') {
+        setGemiFetchStatus('queued');
+      } else if (status === 'already_queued') {
+        setGemiFetchStatus('already_queued');
+      } else if (status === 'already_fetched') {
+        setGemiFetchStatus('already_fetched');
+      } else {
+        setGemiFetchStatus('error');
+      }
+    } catch (err) {
+      if (err.response?.status === 429) {
+        setGemiFetchStatus('rate_limited');
+      } else if (err.response?.status === 503) {
+        // Feature flag flipped server-side between page load and click
+        setGemiFetchStatus('error');
+      } else if (err.response?.status === 401) {
+        // Use the same auth modal pattern as the rest of the app
+        setGemiFetchStatus(null);
+        window.dispatchEvent(new CustomEvent('authRequired', {
+          detail: {
+            supertitle: t('afmEntityDetail.requestGemiFetchAuthSupertitle'),
+            message: t('afmEntityDetail.requestGemiFetchAuthMessage'),
+          }
+        }));
+      } else {
+        setGemiFetchStatus('error');
+      }
     }
   };
 
-  const formatAmount = (amount) => {
-    if (!amount || amount === 0) return t('common.noAmount');
-    return `€${amount.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    })}`;
+  // Month range slider handler
+  const handleMonthRangeChange = (startIndex, endIndex) => {
+    if (!dynamicDateUtils) return;
+
+    const startDate = dynamicDateUtils.indexToDateString(startIndex);
+    const endDate = dynamicDateUtils.indexToDateString(endIndex, true);
+
+    setMonthRange({ startIndex, endIndex });
+    setTimeRange({
+      startDate,
+      endDate
+    });
   };
 
-  if (loading && !entity) {
+  // Build statistics cards for StatisticsGrid
+  const statCards = statistics ? [
+    {
+      title: t('afmEntityDetail.totalDecisions'),
+      value: statistics.total_decisions?.toLocaleString(),
+      subtitle: t('afmEntityDetail.acrossRoles', { count: statistics.unique_roles }),
+    },
+    {
+      title: t('afmEntityDetail.totalAmount'),
+      value: formatAmount(statistics.total_amount),
+      subtitle: statistics.decisions_with_amounts ? (
+        <span>{t('afmEntityDetail.decisionsWithAmounts', { count: statistics.decisions_with_amounts })}</span>
+      ) : undefined,
+    },
+    {
+      title: t('afmEntityDetail.organizationsWorkedWith'),
+      value: statistics.unique_organizations?.toLocaleString(),
+      subtitle: statistics.most_frequent_organization ? (
+        <button
+          className="most-frequent-org clickable-entity"
+          onClick={() => navigate(`/entity/organization/${statistics.most_frequent_organization.uid}`)}
+          title={t('afmEntityDetail.viewMostFrequentOrg')}
+        >
+          {t('afmEntityDetail.mostFrequent')}: {statistics.most_frequent_organization.label}
+        </button>
+      ) : undefined,
+    },
+    {
+      title: t('afmEntityDetail.activityPeriod'),
+      value: timeRange ? `${Math.ceil((new Date(timeRange.endDate) - new Date(timeRange.startDate)) / 86400000)} ${t('common.days')}` : '-',
+      subtitle: timeRange ? `${timeRange.startDate} — ${timeRange.endDate}` : undefined,
+    },
+  ] : null;
+
+  if (dateRangeLoading || (loading && !entity)) {
     return (
       <div className="loading-container">
         <h2>{t('afmEntityDetail.loadingEntity', { afm })}</h2>
@@ -153,6 +344,16 @@ const AFMEntityDetailPage = () => {
     );
   }
 
+  // No data available for this entity
+  if (entityDateRange && !entityDateRange.has_data) {
+    return (
+      <div className="not-found-container">
+        <h2>{t('entityDetail.noDataAvailable')}</h2>
+        <p>{entityDateRange.message || t('afmEntityDetail.noDataForAfm', { afm })}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="afm-entity-detail-page">
       {/* Header Section */}
@@ -171,9 +372,6 @@ const AFMEntityDetailPage = () => {
 
         <div className="entity-metadata">
           <span className="afm-badge">AFM: {entity.afm}</span>
-          <span className={`entity-type-badge ${entity.entity_type}`}>
-            {t(`afmEntityDetail.entityTypes.${entity.entity_type}`)}
-          </span>
           <span className="appearances-badge">
             {t('afmEntityDetail.totalAppearances', { count: entity.total_appearances })}
           </span>
@@ -199,113 +397,51 @@ const AFMEntityDetailPage = () => {
         </div>
       </div>
 
-      {/* Statistics Grid */}
-      {statistics && (
-        <div className="statistics-grid">
-          <div className="stat-card">
-            <h3>{t('afmEntityDetail.totalDecisions')}</h3>
-            <div className="stat-value">{statistics.total_decisions?.toLocaleString()}</div>
-            <div className="stat-context">
-              {t('afmEntityDetail.acrossRoles', { count: statistics.unique_roles })}
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <h3>{t('afmEntityDetail.totalAmount')}</h3>
-            <div className="stat-value">
-              {statistics.total_amount ? formatAmount(statistics.total_amount) : t('common.noAmount')}
-            </div>
-            <div className="stat-context">
-              {statistics.decisions_with_amounts && (
-                <span>
-                  {t('afmEntityDetail.decisionsWithAmounts', { count: statistics.decisions_with_amounts })}
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <h3>{t('afmEntityDetail.organizationsWorkedWith')}</h3>
-            <div className="stat-value">{statistics.unique_organizations?.toLocaleString()}</div>
-            <div className="stat-context">
-              {statistics.most_frequent_organization && (
-                <button
-                  className="most-frequent-org clickable-entity"
-                  onClick={() => navigate(`/entity/organization/${statistics.most_frequent_organization.uid}`)}
-                  title={t('afmEntityDetail.viewMostFrequentOrg')}
-                >
-                  {t('afmEntityDetail.mostFrequent')}: {statistics.most_frequent_organization.label}
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <h3>{t('afmEntityDetail.activityPeriod')}</h3>
-            <div className="stat-value">
-              {Math.ceil((new Date(entity.last_seen) - new Date(entity.first_seen)) / (1000 * 60 * 60 * 24))} {t('common.days')}
-            </div>
-            <div className="stat-context">
-              {statistics.avg_decisions_per_month && (
-                <span>
-                  {t('afmEntityDetail.avgPerMonth', { count: statistics.avg_decisions_per_month.toFixed(1) })}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
+      {/* Date range slider - Collapsible */}
+      {dynamicDateUtils && monthRange && (
+        <TimeRangeSection
+          dynamicDateUtils={dynamicDateUtils}
+          monthRange={monthRange}
+          onMonthRangeChange={handleMonthRangeChange}
+          dateRange={entityDateRange.date_range}
+          activityData={entityDateRange?.activity_chart}
+        />
       )}
 
-      {/* Top Organizations - Shows top organizations this entity worked with */}
+      {/* Statistics Grid - non-blocking loading */}
+      <StatisticsGrid
+        loading={statisticsLoading && !statistics}
+        error={statisticsError}
+        cards={statCards}
+        onRetry={fetchStatistics}
+      />
+
+      {/* Top Organizations - respects timeRange */}
       {entity && (
         <TopCounterparts
           type="entity"
           id={entity.afm}
           dateRange={{
-            start_date: entity.first_seen,
-            end_date: entity.last_seen
+            start_date: timeRange?.startDate || entity.first_seen,
+            end_date: timeRange?.endDate || entity.last_seen
           }}
           limit={5}
+          onCounterpartClick={(counterpart) => {
+            const orgUid = counterpart.decision__organization__uid;
+            const sd = timeRange?.startDate || entity.first_seen;
+            const ed = timeRange?.endDate || entity.last_seen;
+            navigate(`/relationship/entity/${entity.afm}/org/${orgUid}?start_date=${sd}&end_date=${ed}`);
+          }}
         />
       )}
 
-      {/* GEMI Company Information */}
-      {companyInfo && (
-        <div className="gemi-section">
-          <h2 className="gemi-section-title">{t('afmEntityDetail.gemiCompanyInformation')}</h2>
-          <div className="gemi-components-grid">
-            <CompanyInfoPanel company={companyInfo} />
-            <CompanyCapitalStocks capital={companyInfo.capital} stocks={companyInfo.stocks} />
-            <CompanyPersonsTable persons={companyInfo.persons} />
-            <CompanyActivitiesTable activities={companyInfo.activities} />
-          </div>
-        </div>
-      )}
-
-      {/* Role Breakdown */}
-      {availableRoles && availableRoles.length > 0 && (
-        <div className="roles-section">
-          <h3>{t('afmEntityDetail.rolesInDecisions')}</h3>
-          <div className="roles-grid">
-            {availableRoles.map(role => (
-              <div key={role.role} className="role-card">
-                <div className="role-header">
-                  <span className="role-name">{t(`afmEntityDetail.roles.${role.role}`, role.role)}</span>
-                  <span className="role-count">{role.count}</span>
-                </div>
-                <div className="role-percentage">
-                  {((role.count / entity.total_appearances) * 100).toFixed(1)}%
-                </div>
-                {role.total_amount && (
-                  <div className="role-amount">
-                    {formatAmount(role.total_amount)}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Unified GEMI Section */}
+      <GemiSection
+        companyInfo={companyInfo}
+        entity={entity}
+        gemiFetchStatus={gemiFetchStatus}
+        onRequestFetch={handleRequestGemiFetch}
+      />
 
       {/* Decisions Section */}
       <div className="decisions-section">
@@ -328,52 +464,29 @@ const AFMEntityDetailPage = () => {
         </div>
 
         {/* Role Filters */}
-        <div className="filters-section">
-          <div
-            className="filters-header clickable"
-            onClick={() => setShowRoleFilter(!showRoleFilter)}
-          >
-            <div className="filter-toggle-content">
-              <Filter size={18} />
-              <span>{t('afmEntityDetail.filterByRole')}</span>
-              <span className="toggle-arrow">{showRoleFilter ? '▲' : '▼'}</span>
-            </div>
-
-            {activeFiltersCount > 0 && (
-              <button
-                className="clear-filters-button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  clearAllFilters();
-                }}
-              >
-                {t('common.clearFilters')} ({activeFiltersCount})
-              </button>
-            )}
+        <FilterPanel
+          activeFiltersCount={activeFiltersCount}
+          onClearAll={clearAllFilters}
+          filterLabel={t('afmEntityDetail.filterByRole')}
+        >
+          <div className="role-filters">
+            {availableRoles.map(role => (
+              <label key={role.role} className="role-filter-checkbox">
+                <input
+                  type="checkbox"
+                  checked={selectedRoles.includes(role.role)}
+                  onChange={() => toggleRole(role.role)}
+                />
+                <span className="checkbox-content">
+                  <span className="role-label">
+                    {t(`afmEntityDetail.roles.${role.role}`, role.role)}
+                  </span>
+                  <span className="role-stats">({role.count})</span>
+                </span>
+              </label>
+            ))}
           </div>
-
-          {showRoleFilter && (
-            <div className="filters-panel">
-              <div className="role-filters">
-                {availableRoles.map(role => (
-                  <label key={role.role} className="role-filter-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={selectedRoles.includes(role.role)}
-                      onChange={() => toggleRole(role.role)}
-                    />
-                    <span className="checkbox-content">
-                      <span className="role-label">
-                        {t(`afmEntityDetail.roles.${role.role}`, role.role)}
-                      </span>
-                      <span className="role-stats">({role.count})</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        </FilterPanel>
 
         {/* Active Filters Display */}
         {selectedRoles.length > 0 && (
@@ -385,6 +498,15 @@ const AFMEntityDetailPage = () => {
                 <button onClick={() => toggleRole(role)}>×</button>
               </span>
             ))}
+          </div>
+        )}
+
+        {/* Search Results Info */}
+        {searchQuery && (
+          <div className="search-results-info">
+            <span className="search-results-count">
+              {t('entityDetail.resultsFound', { count: pagination?.total_items || 0 })}
+            </span>
           </div>
         )}
 
@@ -402,52 +524,24 @@ const AFMEntityDetailPage = () => {
         </div>
 
         {/* Decisions List */}
-        {loading && decisions.length === 0 ? (
-          <div className="loading-text">{t('common.loading')}</div>
-        ) : (
-          <>
-            {decisions.length === 0 ? (
-              <div className="no-decisions-message">
-                {selectedRoles.length > 0
-                  ? t('afmEntityDetail.noDecisionsWithFilters')
-                  : t('afmEntityDetail.noDecisions')
-                }
-              </div>
-            ) : (
-              <div className="decisions-list">
-                {decisions.map((decision, index) => (
-                  <DecisionCard
-                    key={decision.id}
-                    decision={decision}
-                    formatAmount={formatAmount}
-                    index={index}
-                    isLastItem={index === decisions.length - 1}
-                    onViewDocumentContent={handleViewDocumentContent}
-                  />
-                ))}
-              </div>
-            )}
+        <DecisionList
+          decisions={decisions}
+          loading={loading}
+          loadingMore={loadingMore}
+          error={null}
+          pagination={pagination}
+          hasSearchQuery={!!(searchQuery || selectedRoles.length > 0)}
+          formatAmount={formatAmount}
+          onViewDocumentContent={handleViewDocumentContent}
+          onLoadMore={loadMoreDecisions}
+          emptyMessage={t('afmEntityDetail.noDecisions')}
+          emptyFilterMessage={t('afmEntityDetail.noDecisionsWithFilters')}
+          showPaginationInfo={true}
+          getDecisionKey={(d) => d.id}
+        />
 
-            {/* Load More Button */}
-            {pagination?.has_next && (
-              <div className="load-more-container">
-                <button
-                  onClick={handleLoadMore}
-                  disabled={loadingMore}
-                  className={`load-more-button ${loadingMore ? 'loading' : ''}`}
-                >
-                  {loadingMore ? t('common.loading') : t('common.loadMore')}
-                </button>
-              </div>
-            )}
-
-            {loadingMore && (
-              <div className="loading-more-container">
-                <div className="loading-more-text">{t('common.loadingMore')}</div>
-              </div>
-            )}
-          </>
-        )}
+        {/* Infinite scroll sentinel */}
+        <div ref={sentinelRef} />
       </div>
     </div>
   );

@@ -2,6 +2,26 @@
   text-align: center;
 }
 
+/* Offset page content below the fixed top controls (logo + action buttons).
+   The fixed controls sit at top: var(--spacing-md) (12px) and are ~30px tall,
+   so ~54px with some breathing room. */
+.app-content {
+  padding-top: 60px;
+}
+
+/* Responsive: tighter spacing on mobile where controls auto-collapse */
+@media (max-width: 768px) {
+  .app-content {
+    padding-top: 46px; /* spacing-sm (8px) + ~30px controls + breathing room */
+  }
+}
+
+@media (max-width: 480px) {
+  .app-content {
+    padding-top: 38px; /* spacing-xs (4px) + ~24px logo + breathing room */
+  }
+}
+
 .App-logo {
   height: 40vmin;
   pointer-events: none;

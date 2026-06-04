@@ -162,7 +162,22 @@ def calculate_financial_summary(decisions_qs, entity_id=None, entity_type=None):
 
 def get_entity_info(entity_type, entity_id):
     """Get basic entity information"""
-    if entity_type == "organization":
+    if entity_type == "afm":
+        afm_entity = AFMEntity.objects.get(afm=entity_id)
+        return {
+            "id": entity_id,
+            "name": afm_entity.name or entity_id,
+            "type": entity_type,
+            "metadata": {
+                "afm": afm_entity.afm,
+                "name": afm_entity.name,
+                "entity_type": afm_entity.entity_type,
+                "total_appearances": afm_entity.total_appearances,
+                "first_seen": afm_entity.first_seen,
+                "last_seen": afm_entity.last_seen,
+            },
+        }
+    elif entity_type == "organization":
         org = Organization.objects.get(uid=entity_id)
         return {
             "id": entity_id,

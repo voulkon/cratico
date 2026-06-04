@@ -1,0 +1,15 @@
+{
+  "id": "company_person_fts_prefix_match",
+  "description": "FTS: partial prefix of person name matches via :* operator",
+  "tier": "fts",
+  "entity_type": "company_person",
+  "records": [
+    {"person_name": "JOHN UMBRELLA"},
+    {"person_name": "JANE BANANA"},
+    {"person_name": "JOHN SMITH"}
+  ],
+  "query": "UMBREL",
+  "limit": 10,
+  "expected_in": ["JOHN UMBRELLA"],
+  "expected_not_in": ["JANE BANANA", "JOHN SMITH"]
+}

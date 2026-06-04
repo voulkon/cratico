@@ -1,0 +1,15 @@
+{
+  "id": "org_fts_shared_word",
+  "description": "FTS: shared word returns all matching organizations",
+  "tier": "fts",
+  "entity_type": "organization",
+  "records": [
+    {"label": "MUNICIPALITY ATHENS"},
+    {"label": "MUNICIPALITY THESSALONIKI"},
+    {"label": "PREFECTURE ATTICA"}
+  ],
+  "query": "MUNICIPALITY",
+  "limit": 10,
+  "expected_in": ["MUNICIPALITY ATHENS", "MUNICIPALITY THESSALONIKI"],
+  "expected_not_in": ["PREFECTURE ATTICA"]
+}

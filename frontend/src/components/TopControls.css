@@ -20,7 +20,7 @@
   /* Ensure logo aligns with right controls */
   display: flex;
   align-items: center;
-  height: 40px; /* Match the height of control buttons */
+  height: 30px; /* Match the reduced height of control buttons */
 }
 
 /* Top controls wrapper - Contains collapse button and controls */
@@ -56,9 +56,9 @@
   flex-direction: row;
 }
 
-/* Collapsed state - slide to the right */
+/* Collapsed state - slide to the right, showing only the toggle button */
 .top-controls-wrapper.collapsed {
-  transform: translateX(calc(100% - 48px)); /* Show only the toggle button */
+  transform: translateX(calc(100% - 42px)); /* 30px toggle + 12px right spacing */
 }
 
 /* Collapse/Expand Toggle Button */
@@ -66,7 +66,7 @@
   background: var(--surface-color);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  padding: var(--spacing-sm);
+  padding: var(--spacing-xs);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -75,8 +75,8 @@
   transition: all var(--transition-fast);
   backdrop-filter: blur(10px);
   box-shadow: 0 2px 8px var(--shadow);
-  height: 40px;
-  width: 40px;
+  height: 30px;
+  width: 30px;
   flex-shrink: 0;
 }
 
@@ -141,22 +141,59 @@
   box-shadow: 0 2px 8px var(--shadow);
 }
 
-/* Responsive adjustments for different layouts */
+/* Responsive adjustments */
 @media (max-width: 768px) {
-  /* On mobile, maybe force vertical layout */
-  .left-controls.shifted {
-    left: calc(100vw - 80px); /* Move to right edge on mobile */
+  /* Smaller logo on tablets/mobile */
+  .left-controls {
+    top: var(--spacing-sm);
+    left: var(--spacing-sm);
   }
 
-  .top-controls {
+  .left-controls.shifted {
+    left: var(--spacing-sm); /* Don't shift on mobile - sidebar is full-width anyway */
+  }
+
+  /* Tighter wrapper positioning */
+  .top-controls-wrapper.horizontal-right,
+  .top-controls-wrapper.vertical-right,
+  .top-controls-wrapper.split-corners {
+    top: var(--spacing-sm);
+    right: var(--spacing-sm);
+  }
+
+  .top-controls-wrapper.horizontal-left,
+  .top-controls-wrapper.vertical-left {
+    top: var(--spacing-sm);
+    left: var(--spacing-sm);
+  }
+
+  /* Force vertical stacking when expanded on mobile */
+  .top-controls-wrapper.expanded .top-controls {
     flex-direction: column !important;
     align-items: flex-end !important;
+    gap: var(--spacing-xs);
   }
 }
 
 @media (max-width: 480px) {
-  /* On very small screens, ensure proper stacking */
-  .top-controls {
+  /* Even smaller logo on phones */
+  .logo-container {
+    height: 24px;
+  }
+
+  /* Smaller toggle on phones */
+  .controls-collapse-toggle {
+    height: 28px;
+    width: 28px;
+  }
+
+  /* Tighter collapsed transform for smaller toggle */
+  .top-controls-wrapper.collapsed {
+    transform: translateX(calc(100% - 36px)); /* 28px toggle + 8px spacing */
+  }
+
+  /* Even tighter gaps */
+  .top-controls-wrapper {
     gap: var(--spacing-xs);
   }
 }

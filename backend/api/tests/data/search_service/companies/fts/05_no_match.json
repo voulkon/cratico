@@ -1,0 +1,14 @@
+{
+  "id": "company_fts_no_match",
+  "description": "FTS: query with no matching lexemes returns empty results",
+  "tier": "fts",
+  "entity_type": "company",
+  "records": [
+    {"co_name_el": "UMBRELLA CORPORATION EE"},
+    {"co_name_el": "BANANA GMBH"},
+    {"co_name_el": "UMBRELLA LTD"}
+  ],
+  "query": "XXXXXXNOTEXISTS",
+  "limit": 10,
+  "expected_exact_count": 0
+}

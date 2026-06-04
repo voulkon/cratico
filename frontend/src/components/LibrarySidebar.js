@@ -1,105 +1,71 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   getBookmarks,
   getFolders,
-  createFolder,
-  updateFolder,
-  deleteFolder,
   updateBookmark,
-  deleteBookmark
+  deleteBookmark,
 } from '../api/bookmarks';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useAuth } from '../contexts/AuthContext';
+import useLibrarySidebarResize from '../hooks/useLibrarySidebarResize';
+import useFolderModal from '../hooks/useFolderModal';
 import './LibrarySidebar.css';
-import {LibraryIconInSidebar, LibraryFavoriteInSidebar, LibraryTimerInSidebar} from './Icons.js';
+import {
+  LibraryIconInSidebar,
+  LibraryFavoriteInSidebar,
+  LibraryTimerInSidebar,
+  NotebookPenIcon,
+  TrashIcon,
+  PencilIcon,
+  XIcon,
+  EyeIcon,
+  FolderOpenIcon,
+  ChevronRight,
+  ChevronDown,
+  GripVertical,
+  FolderPlusIcon,
+} from './Icons.js';
 
 /**
- * Library Sidebar - Collapsible bookmark manager (like ChatGPT sidebar)
- * Shows folders and bookmarks in a compact, accessible sidebar
+ * Library Sidebar - Tree-style bookmark manager (like browser bookmarks)
+ * Folders expand/collapse in place. Bookmarks can be dragged into folders.
  */
 export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange }) {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { isSignedIn, isLoaded } = useAuth();
-  const sidebarRef = useRef(null);
-  const resizeHandleRef = useRef(null);
+
+  // Custom hooks
+  const { sidebarRef, resizeHandleRef, isResizing, handleResizeStart } = useLibrarySidebarResize();
+  const {
+    showFolderModal,
+    editingFolder,
+    folderFormData,
+    openFolderModal,
+    closeFolderModal,
+    updateFormField,
+    saveFolder,
+    handleDeleteFolder: deleteFolderAndRefresh,
+  } = useFolderModal({ onFolderChange: loadData });
 
   // State
   const [folders, setFolders] = useState([]);
   const [bookmarks, setBookmarks] = useState([]);
-  const [selectedFolder, setSelectedFolder] = useState(null);
-  const [selectedBookmark, setSelectedBookmark] = useState(null);
+  const [expandedFolders, setExpandedFolders] = useState(new Set());
   const [viewMode, setViewMode] = useState('all'); // 'all', 'favorites', 'recent'
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [editingNotes, setEditingNotes] = useState(null); // {id, notes}
-  const [expandedBookmark, setExpandedBookmark] = useState(null); // id of expanded bookmark
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const saved = localStorage.getItem('librarySidebarWidth');
-    return saved ? parseInt(saved, 10) : 400;
-  });
-  const [isResizing, setIsResizing] = useState(false);
-
-  // Modal states
-  const [showFolderModal, setShowFolderModal] = useState(false);
-  const [editingFolder, setEditingFolder] = useState(null);
-  const [folderFormData, setFolderFormData] = useState({
-    name: '',
-    description: '',
-    color: '#3b82f6',
-    icon: '📁'
-  });
-
-  // Resize handlers
-  const handleResizeStart = useCallback((e) => {
-    e.preventDefault();
-    setIsResizing(true);
-  }, []);
-
-  const handleResizeMove = useCallback((e) => {
-    if (!isResizing || !sidebarRef.current) return;
-
-    const newWidth = e.clientX;
-    const minWidth = 300;
-    const maxWidth = 800;
-
-    if (newWidth >= minWidth && newWidth <= maxWidth) {
-      setSidebarWidth(newWidth);
-      sidebarRef.current.style.width = `${newWidth}px`;
-    }
-  }, [isResizing]);
-
-  const handleResizeEnd = useCallback(() => {
-    if (isResizing) {
-      setIsResizing(false);
-      localStorage.setItem('librarySidebarWidth', sidebarWidth.toString());
-    }
-  }, [isResizing, sidebarWidth]);
-
-  // Resize event listeners
-  useEffect(() => {
-    if (isResizing) {
-      document.addEventListener('mousemove', handleResizeMove);
-      document.addEventListener('mouseup', handleResizeEnd);
-      document.body.style.cursor = 'ew-resize';
-      document.body.style.userSelect = 'none';
-
-      return () => {
-        document.removeEventListener('mousemove', handleResizeMove);
-        document.removeEventListener('mouseup', handleResizeEnd);
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-      };
-    }
-  }, [isResizing, handleResizeMove, handleResizeEnd]);
-
-  // Apply width on mount and when it changes
-  useEffect(() => {
-    if (sidebarRef.current) {
-      sidebarRef.current.style.width = `${sidebarWidth}px`;
-    }
-  }, [sidebarWidth]);
+  const [expandedBookmark, setExpandedBookmark] = useState(null);
+  const [dragOverFolderId, setDragOverFolderId] = useState(null); // which folder is being hovered during drag
+  const [draggingBookmarkId, setDraggingBookmarkId] = useState(null);
+  const [editingTitleId, setEditingTitleId] = useState(null); // which bookmark's title is being edited inline
+  const [titleDraft, setTitleDraft] = useState(''); // draft value for inline title edit
+  const notesDraftRef = useRef({});
+  const titleInputRef = useRef(null); // ref to the inline title input
+  const loadDataRef = useRef(loadData);
+  loadDataRef.current = loadData; // keep ref in sync for callbacks
 
   useEffect(() => {
     if (isOpen && isLoaded && isSignedIn) {
@@ -108,12 +74,13 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
     // eslint-disable-next-line
   }, [isOpen, isSignedIn, isLoaded]);
 
+  // Auto-expand all folders on first load
   useEffect(() => {
-    if (isSignedIn) {
-      loadBookmarks();
+    if (folders.length > 0 && expandedFolders.size === 0) {
+      setExpandedFolders(new Set(folders.map(f => f.id)));
     }
     // eslint-disable-next-line
-  }, [selectedFolder, viewMode, isSignedIn]);
+  }, [folders]);
 
   async function loadData() {
     setIsLoading(true);
@@ -132,63 +99,185 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
     }
   }
 
-  async function loadBookmarks() {
-    try {
-      const params = {};
-      if (selectedFolder) {
-        params.folder = selectedFolder.id;
-      }
-      if (viewMode === 'favorites') {
-        params.favorites = 'true';
-      }
-      const data = await getBookmarks(params);
+  // ── Filtering & grouping ──────────────────────────────────────────
 
-      // Sort by recent if in recent mode
-      if (viewMode === 'recent') {
-        data.sort((a, b) => new Date(b.last_visited || b.updated_at) - new Date(a.last_visited || a.updated_at));
-      }
+  const filteredBookmarks = bookmarks.filter(b => {
+    if (viewMode === 'favorites' && !b.is_favorite) return false;
+    if (searchQuery === '') return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      b.title.toLowerCase().includes(q) ||
+      b.notes?.toLowerCase().includes(q)
+    );
+  });
 
-      setBookmarks(data);
-      onBookmarkCountChange?.(data.length);
-    } catch (error) {
-      console.error('Failed to load bookmarks:', error);
-    }
+  if (viewMode === 'recent') {
+    filteredBookmarks.sort(
+      (a, b) => new Date(b.last_visited || b.updated_at) - new Date(a.last_visited || a.updated_at)
+    );
   }
 
-  function handleFolderClick(folder) {
-    setSelectedFolder(folder?.id === selectedFolder?.id ? null : folder);
-    setSelectedBookmark(null);
-    setViewMode('all');
-  }
+  // Group into: root bookmarks + bookmarks per folder
+  const treeData = React.useMemo(() => {
+    const rootBookmarks = [];
+    const folderMap = new Map();
+    folders.forEach(f => folderMap.set(f.id, { folder: f, bookmarks: [] }));
+
+    filteredBookmarks.forEach(b => {
+      if (b.folder_id && folderMap.has(b.folder_id)) {
+        folderMap.get(b.folder_id).bookmarks.push(b);
+      } else {
+        rootBookmarks.push(b);
+      }
+    });
+
+    return { rootBookmarks, folderMap };
+  }, [filteredBookmarks, folders]);
+
+  // ── Drag & Drop ───────────────────────────────────────────────────
+
+  const handleDragStart = useCallback((bookmark, e) => {
+    e.dataTransfer.setData('text/plain', bookmark.id.toString());
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggingBookmarkId(bookmark.id);
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    setDraggingBookmarkId(null);
+    setDragOverFolderId(null);
+  }, []);
+
+  const handleDragOverFolder = useCallback((folderId, e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverFolderId(folderId);
+  }, []);
+
+  const handleDragLeaveFolder = useCallback((folderId) => {
+    setDragOverFolderId(prev => prev === folderId ? null : prev);
+  }, []);
+
+  const handleDropOnFolder = useCallback((folderId, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverFolderId(null);
+    setDraggingBookmarkId(null);
+
+    const bookmarkId = parseInt(e.dataTransfer.getData('text/plain'), 10);
+    if (!bookmarkId) return;
+
+    const targetFolderId = folderId === '__root__' ? null : folderId;
+
+    updateBookmark(bookmarkId, { folder_id: targetFolderId })
+      .then(() => {
+        // Auto-expand the target folder so the user sees the result
+        if (targetFolderId) {
+          setExpandedFolders(prev => new Set([...prev, targetFolderId]));
+        }
+        loadDataRef.current();
+      })
+      .catch(console.error);
+  }, []);
+
+  // ── Folder toggle ─────────────────────────────────────────────────
+
+  const toggleFolder = useCallback((folderId) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(folderId)) next.delete(folderId);
+      else next.add(folderId);
+      return next;
+    });
+  }, []);
+
+  // ── Bookmark actions ──────────────────────────────────────────────
 
   function handleBookmarkClick(bookmark) {
-    // Toggle expand to show details and notes editor
-    setExpandedBookmark(expandedBookmark === bookmark.id ? null : bookmark.id);
-  }
-
-  function handleNavigateToBookmark(bookmark) {
-    // Navigate to bookmark and close sidebar
     navigate(bookmark.url);
     onClose();
+  }
+
+  function handleToggleNotes(bookmark, e) {
+    e.stopPropagation();
+    if (expandedBookmark && expandedBookmark !== bookmark.id && notesDraftRef.current[expandedBookmark] !== undefined) {
+      const draft = notesDraftRef.current[expandedBookmark];
+      delete notesDraftRef.current[expandedBookmark];
+      updateBookmark(expandedBookmark, { notes: draft }).then(() => loadData()).catch(console.error);
+    }
+    const newExpanded = expandedBookmark === bookmark.id ? null : bookmark.id;
+    if (newExpanded) {
+      notesDraftRef.current[newExpanded] = bookmark.notes || '';
+    } else if (notesDraftRef.current[bookmark.id] !== undefined) {
+      const draft = notesDraftRef.current[bookmark.id];
+      delete notesDraftRef.current[bookmark.id];
+      if (draft !== (bookmark.notes || '')) {
+        updateBookmark(bookmark.id, { notes: draft }).then(() => loadData()).catch(console.error);
+      }
+    }
+    setExpandedBookmark(newExpanded);
+  }
+
+  function handleNotesBlur(bookmark) {
+    const draft = notesDraftRef.current[bookmark.id];
+    if (draft !== undefined && draft !== (bookmark.notes || '')) {
+      delete notesDraftRef.current[bookmark.id];
+      updateBookmark(bookmark.id, { notes: draft }).then(() => loadData()).catch(console.error);
+    }
   }
 
   async function handleToggleFavorite(bookmark, e) {
     e.stopPropagation();
     try {
       await updateBookmark(bookmark.id, { is_favorite: !bookmark.is_favorite });
-      loadBookmarks();
+      loadData();
     } catch (error) {
       console.error('Failed to toggle favorite:', error);
     }
   }
 
-  async function handleSaveNotes(bookmarkId) {
-    try {
-      await updateBookmark(bookmarkId, { notes: editingNotes.notes });
-      setEditingNotes(null);
-      loadBookmarks();
-    } catch (error) {
-      console.error('Failed to save notes:', error);
+  // ── Inline title rename ───────────────────────────────────────────
+
+  function startTitleEdit(bookmark, e) {
+    e.stopPropagation();
+    // flush any pending notes draft first
+    if (expandedBookmark && notesDraftRef.current[expandedBookmark] !== undefined) {
+      const draft = notesDraftRef.current[expandedBookmark];
+      delete notesDraftRef.current[expandedBookmark];
+      updateBookmark(expandedBookmark, { notes: draft }).then(() => loadData()).catch(console.error);
+      setExpandedBookmark(null);
+    }
+    setTitleDraft(bookmark.title);
+    setEditingTitleId(bookmark.id);
+    // focus the input after render
+    requestAnimationFrame(() => {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+    });
+  }
+
+  function commitTitleEdit(bookmarkId) {
+    const bookmark = bookmarks.find(b => b.id === bookmarkId);
+    if (titleDraft.trim() !== '' && titleDraft.trim() !== bookmark?.title) {
+      updateBookmark(bookmarkId, { title: titleDraft.trim() })
+        .then(() => loadData())
+        .catch(console.error);
+    }
+    setEditingTitleId(null);
+    setTitleDraft('');
+  }
+
+  function cancelTitleEdit() {
+    setEditingTitleId(null);
+    setTitleDraft('');
+  }
+
+  function handleTitleKeyDown(bookmarkId, e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commitTitleEdit(bookmarkId);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelTitleEdit();
     }
   }
 
@@ -197,35 +286,9 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
     if (!window.confirm(t('library.deleteBookmarkConfirm'))) return;
     try {
       await deleteBookmark(bookmarkId);
-      loadBookmarks();
-    } catch (error) {
-      console.error('Failed to delete bookmark:', error);
-    }
-  }
-
-  function openFolderModal(folder = null) {
-    setEditingFolder(folder);
-    setFolderFormData(folder || {
-      name: '',
-      description: '',
-      color: '#3b82f6',
-      icon: '📁'
-    });
-    setShowFolderModal(true);
-  }
-
-  async function handleSaveFolder() {
-    try {
-      if (editingFolder) {
-        await updateFolder(editingFolder.id, folderFormData);
-      } else {
-        await createFolder(folderFormData);
-      }
-      setShowFolderModal(false);
       loadData();
     } catch (error) {
-      console.error('Failed to save folder:', error);
-      alert('Failed to save folder: ' + error.message);
+      console.error('Failed to delete bookmark:', error);
     }
   }
 
@@ -233,23 +296,197 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
     e.stopPropagation();
     if (!window.confirm(t('library.deleteFolderConfirm'))) return;
     try {
-      await deleteFolder(folderId);
-      if (selectedFolder?.id === folderId) {
-        setSelectedFolder(null);
-      }
-      loadData();
+      await deleteFolderAndRefresh(folderId);
     } catch (error) {
       console.error('Failed to delete folder:', error);
     }
   }
 
-  const filteredBookmarks = bookmarks.filter(b =>
-    searchQuery === '' ||
-    b.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    b.notes?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // ── Render a single bookmark row ──────────────────────────────────
+
+  function renderBookmarkRow(bookmark, isInFolder = false) {
+    const isExpanded = expandedBookmark === bookmark.id;
+    const isDragging = draggingBookmarkId === bookmark.id;
+
+    return (
+      <div key={bookmark.id} className="library-bookmark-item-wrapper">
+        <div
+          className={`library-bookmark-item ${isExpanded ? 'expanded' : ''} ${isDragging ? 'dragging' : ''} ${isInFolder ? 'indented' : ''}`}
+          onClick={() => handleBookmarkClick(bookmark)}
+          draggable
+          onDragStart={(e) => handleDragStart(bookmark, e)}
+          onDragEnd={handleDragEnd}
+        >
+          {/* Drag handle */}
+          <span className="bookmark-drag-handle" title={t('library.dragToReorder')}>
+            <GripVertical size={14} />
+          </span>
+
+          {/* Favorite toggle */}
+          <button
+            className="bookmark-favorite-btn"
+            onClick={(e) => handleToggleFavorite(bookmark, e)}
+            title={bookmark.is_favorite ? t('library.unfavorite') : t('library.favorite')}
+          >
+            <LibraryFavoriteInSidebar
+              size={16}
+              fill={bookmark.is_favorite ? 'currentColor' : 'none'}
+            />
+          </button>
+
+          {/* Content */}
+          <div className="bookmark-content">
+            {editingTitleId === bookmark.id ? (
+              <input
+                ref={titleInputRef}
+                className="bookmark-title-input"
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onBlur={() => commitTitleEdit(bookmark.id)}
+                onKeyDown={(e) => handleTitleKeyDown(bookmark.id, e)}
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <div
+                className="bookmark-title editable"
+                onClick={(e) => startTitleEdit(bookmark, e)}
+                title={t('library.clickToRename')}
+              >
+                {bookmark.title}
+              </div>
+            )}
+            <div className="bookmark-url">{bookmark.url}</div>
+            <div className="bookmark-meta">
+              {bookmark.folder_name && (
+                <span className="bookmark-folder"><FolderOpenIcon size={12} /> {bookmark.folder_name}</span>
+              )}
+              {bookmark.visit_count > 0 && (
+                <span className="bookmark-visits"><EyeIcon size={12} /> {bookmark.visit_count}</span>
+              )}
+            </div>
+          </div>
+
+          {/* Notes toggle */}
+          <button
+            className="bookmark-notes-toggle-btn"
+            onClick={(e) => handleToggleNotes(bookmark, e)}
+            title={t('library.notes')}
+          >
+            <NotebookPenIcon size={16} />
+          </button>
+
+          {/* Delete */}
+          <button
+            className="bookmark-delete-btn"
+            onClick={(e) => handleDeleteBookmark(bookmark.id, e)}
+            title={t('library.delete')}
+          >
+            <XIcon size={16} />
+          </button>
+        </div>
+
+        {/* Expanded notes editor */}
+        {isExpanded && (
+          <div className="bookmark-expanded-details">
+            <div className="bookmark-notes-section">
+              <div className="notes-header">
+                <span className="notes-label">
+                  <NotebookPenIcon size={14} /> {t('library.notes')}
+                </span>
+              </div>
+              <div className="notes-editor">
+                <textarea
+                  className="notes-textarea"
+                  defaultValue={bookmark.notes || ''}
+                  onChange={(e) => {
+                    notesDraftRef.current[bookmark.id] = e.target.value;
+                  }}
+                  onBlur={() => handleNotesBlur(bookmark)}
+                  placeholder={t('library.notesPlaceholder')}
+                  autoFocus
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Render a folder node ──────────────────────────────────────────
+
+  function renderFolderNode(folder, bookmarksInFolder) {
+    const isExpanded = expandedFolders.has(folder.id);
+    const isDragOver = dragOverFolderId === folder.id;
+
+    return (
+      <div key={folder.id} className="library-folder-tree-node">
+        {/* Folder header – expandable + drop target */}
+        <div
+          className={`library-folder-tree-header ${isDragOver ? 'drag-over' : ''}`}
+          onClick={() => toggleFolder(folder.id)}
+          onDragOver={(e) => handleDragOverFolder(folder.id, e)}
+          onDragLeave={() => handleDragLeaveFolder(folder.id)}
+          onDrop={(e) => handleDropOnFolder(folder.id, e)}
+        >
+          {/* Expand/collapse chevron */}
+          <span className="folder-chevron">
+            {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          </span>
+
+          {/* Icon */}
+          <span className="folder-icon">{folder.icon || <FolderOpenIcon size={16} />}</span>
+
+          {/* Name */}
+          <span className="folder-name">{folder.name}</span>
+
+          {/* Count badge */}
+          <span className="folder-count">{bookmarksInFolder.length}</span>
+
+          {/* Actions (visible on hover) */}
+          <div className="folder-actions" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="folder-action-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                openFolderModal(folder);
+              }}
+              title={t('library.edit')}
+            >
+              <PencilIcon size={14} />
+            </button>
+            <button
+              className="folder-action-btn"
+              onClick={(e) => handleDeleteFolder(folder.id, e)}
+              title={t('library.delete')}
+            >
+              <TrashIcon size={14} />
+            </button>
+          </div>
+        </div>
+
+        {/* Folder's bookmarks – shown when expanded */}
+        {isExpanded && (
+          <div className="library-folder-children">
+            {bookmarksInFolder.length === 0 ? (
+              <div className="library-folder-empty">
+                {t('library.dropBookmarksHere')}
+              </div>
+            ) : (
+              bookmarksInFolder.map(b => renderBookmarkRow(b, true))
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Main render ───────────────────────────────────────────────────
 
   if (!isOpen) return null;
+
+  const { rootBookmarks, folderMap } = treeData;
+  const totalVisible = filteredBookmarks.length;
 
   return (
     <>
@@ -278,11 +515,8 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
           {['all', 'favorites', 'recent'].map(mode => (
             <button
               key={mode}
-              className={`library-tab ${viewMode === mode && !selectedFolder ? 'active' : ''}`}
-              onClick={() => {
-                setViewMode(mode);
-                setSelectedFolder(null);
-              }}
+              className={`library-tab ${viewMode === mode ? 'active' : ''}`}
+              onClick={() => setViewMode(mode)}
             >
               {mode === 'all' && <><LibraryIconInSidebar /> {t('library.all')}</>}
               {mode === 'favorites' && <><LibraryFavoriteInSidebar /> {t('library.favorites')}</>}
@@ -302,170 +536,48 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
           />
         </div>
 
-        {/* Folders Section */}
-        <div className="library-section">
-          <div className="library-section-header">
-            <span className="library-section-title">{t('library.folders')}</span>
-            <button className="library-btn-sm" onClick={() => openFolderModal()} title={t('library.newFolder')}>
-              +
-            </button>
+        {/* Tree: Root bookmarks (drop zone for removing from folders) */}
+        <div className="library-tree-scroll">
+          {/* Root bookmarks section */}
+          <div
+            className={`library-root-section ${dragOverFolderId === '__root__' ? 'drag-over-root' : ''}`}
+            onDragOver={(e) => handleDragOverFolder('__root__', e)}
+            onDragLeave={() => handleDragLeaveFolder('__root__')}
+            onDrop={(e) => handleDropOnFolder('__root__', e)}
+          >
+            <div className="library-section-header">
+              <span className="library-section-title">
+                {t('library.bookmarks')}
+                <span className="bookmark-count"> ({rootBookmarks.length})</span>
+              </span>
+              <button className="library-btn-sm" onClick={() => openFolderModal()} title={t('library.newFolder')}>
+                <FolderPlusIcon size={18} />
+              </button>
+            </div>
+
+            {rootBookmarks.map(b => renderBookmarkRow(b, false))}
           </div>
-          <div className="library-folders">
-            {folders.map(folder => (
-              <div
-                key={folder.id}
-                className={`library-folder-item ${selectedFolder?.id === folder.id ? 'active' : ''}`}
-                onClick={() => handleFolderClick(folder)}
-              >
-                <span className="folder-icon">{folder.icon || '📁'}</span>
-                <span className="folder-name">{folder.name}</span>
-                <span className="folder-count">{folder.bookmark_count}</span>
-                <div className="folder-actions">
-                  <button
-                    className="folder-action-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openFolderModal(folder);
-                    }}
-                    title={t('library.edit')}
-                  >
-                    ✏️
-                  </button>
-                  <button
-                    className="folder-action-btn"
-                    onClick={(e) => handleDeleteFolder(folder.id, e)}
-                    title={t('library.delete')}
-                  >
-                    🗑️
-                  </button>
-                </div>
+
+          {/* Folder tree nodes */}
+          {Array.from(folderMap.values()).map(({ folder, bookmarks: folderBookmarks }) =>
+            renderFolderNode(folder, folderBookmarks)
+          )}
+
+          {/* Loading / Empty state */}
+          {isLoading && (
+            <div className="library-loading">{t('common.loading')}</div>
+          )}
+          {!isLoading && totalVisible === 0 && folders.length === 0 && (
+            <div className="library-empty">
+              <div className="empty-icon"><LibraryIconInSidebar size={48} /></div>
+              <div className="empty-text">
+                {searchQuery ? t('library.noMatchesFound') : t('library.noBookmarksYet')}
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Bookmarks List */}
-        <div className="library-section library-bookmarks-section">
-          <div className="library-section-header">
-            <span className="library-section-title">
-              {selectedFolder ? selectedFolder.name : viewMode === 'all' ? t('library.allBookmarks') : viewMode === 'favorites' ? t('library.favorites') : t('library.recent')}
-              <span className="bookmark-count"> ({filteredBookmarks.length})</span>
-            </span>
-          </div>
-
-          <div className="library-bookmarks">
-            {isLoading ? (
-              <div className="library-loading">{t('common.loading')}</div>
-            ) : filteredBookmarks.length === 0 ? (
-              <div className="library-empty">
-                <div className="empty-icon">📑</div>
-                <div className="empty-text">
-                  {searchQuery ? t('library.noMatchesFound') : t('library.noBookmarksYet')}
-                </div>
-                <div className="empty-hint">
-                  {t('library.useStarButton')}
-                </div>
+              <div className="empty-hint">
+                {t('library.useStarButton')}
               </div>
-            ) : (
-              filteredBookmarks.map(bookmark => {
-                const isExpanded = expandedBookmark === bookmark.id;
-                const isEditingThis = editingNotes?.id === bookmark.id;
-
-                return (
-                  <div key={bookmark.id} className="library-bookmark-item-wrapper">
-                    <div
-                      className={`library-bookmark-item ${isExpanded ? 'expanded' : ''}`}
-                      onClick={() => handleBookmarkClick(bookmark)}
-                    >
-                      <button
-                        className="bookmark-favorite-btn"
-                        onClick={(e) => handleToggleFavorite(bookmark, e)}
-                      >
-                        {bookmark.is_favorite ? '⭐' : '☆'}
-                      </button>
-                      <div className="bookmark-content">
-                        <div className="bookmark-title">{bookmark.title}</div>
-                        <div className="bookmark-url">{bookmark.url}</div>
-                        <div className="bookmark-meta">
-                          {bookmark.folder_name && (
-                            <span className="bookmark-folder">📁 {bookmark.folder_name}</span>
-                          )}
-                          {bookmark.visit_count > 0 && (
-                            <span className="bookmark-visits">👁️ {bookmark.visit_count}</span>
-                          )}
-                        </div>
-                      </div>
-                      <button
-                        className="bookmark-delete-btn"
-                        onClick={(e) => handleDeleteBookmark(bookmark.id, e)}
-                        title="Delete"
-                      >
-                        ✕
-                      </button>
-                    </div>
-
-                    {/* Expanded details with notes editor */}
-                    {isExpanded && (
-                      <div className="bookmark-expanded-details">
-                        <div className="bookmark-actions-row">
-                          <button
-                            className="bookmark-action-btn primary"
-                            onClick={() => handleNavigateToBookmark(bookmark)}
-                          >
-                            🔗 {t('library.openPage')}
-                          </button>
-                        </div>
-
-                        <div className="bookmark-notes-section">
-                          <div className="notes-header">
-                            <span className="notes-label">📝 {t('library.notes')}</span>
-                            {!isEditingThis && (
-                              <button
-                                className="notes-edit-btn"
-                                onClick={() => setEditingNotes({ id: bookmark.id, notes: bookmark.notes || '' })}
-                              >
-                                {bookmark.notes ? `✏️ ${t('library.edit')}` : `+ ${t('library.addNote')}`}
-                              </button>
-                            )}
-                          </div>
-
-                          {isEditingThis ? (
-                            <div className="notes-editor">
-                              <textarea
-                                className="notes-textarea"
-                                value={editingNotes.notes}
-                                onChange={(e) => setEditingNotes({ ...editingNotes, notes: e.target.value })}
-                                placeholder={t('library.notesPlaceholder')}
-                                autoFocus
-                              />
-                              <div className="notes-actions">
-                                <button
-                                  className="notes-btn cancel"
-                                  onClick={() => setEditingNotes(null)}
-                                >
-                                  {t('common.cancel')}
-                                </button>
-                                <button
-                                  className="notes-btn save"
-                                  onClick={() => handleSaveNotes(bookmark.id)}
-                                >
-                                  {t('common.save')}
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="notes-display">
-                              {bookmark.notes || <span className="notes-empty">{t('library.noNotesYet')}</span>}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Full Library Link */}
@@ -482,9 +594,9 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
         </div>
       </div>
 
-      {/* Folder Modal */}
-      {showFolderModal && (
-        <div className="library-modal-overlay" onClick={() => setShowFolderModal(false)}>
+      {/* Folder Modal - rendered via portal */}
+      {showFolderModal && createPortal(
+        <div className="library-modal-overlay" onClick={closeFolderModal}>
           <div className="library-modal" onClick={(e) => e.stopPropagation()}>
           <h3 className="modal-title">{editingFolder ? t('library.editFolder') : t('library.newFolder')}</h3>
 
@@ -493,7 +605,7 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
               <input
                 type="text"
                 value={folderFormData.name}
-                onChange={(e) => setFolderFormData({ ...folderFormData, name: e.target.value })}
+                onChange={(e) => updateFormField('name', e.target.value)}
                 className="modal-input"
                 placeholder="Work Research"
               />
@@ -503,7 +615,7 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
             <label className="modal-label">{t('library.description')}</label>
             <textarea
               value={folderFormData.description}
-              onChange={(e) => setFolderFormData({ ...folderFormData, description: e.target.value })}
+              onChange={(e) => updateFormField('description', e.target.value)}
               className="modal-textarea"
               placeholder={t('library.descriptionPlaceholder')}
               />
@@ -515,7 +627,7 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
                 <input
                   type="text"
                   value={folderFormData.icon}
-                  onChange={(e) => setFolderFormData({ ...folderFormData, icon: e.target.value })}
+                  onChange={(e) => updateFormField('icon', e.target.value)}
                   className="modal-input"
                   placeholder="📁"
                 />
@@ -526,26 +638,27 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
                 <input
                   type="color"
                   value={folderFormData.color}
-                  onChange={(e) => setFolderFormData({ ...folderFormData, color: e.target.value })}
+                  onChange={(e) => updateFormField('color', e.target.value)}
                   className="modal-color"
                 />
               </div>
             </div>
 
             <div className="modal-actions">
-              <button className="modal-btn modal-btn-cancel" onClick={() => setShowFolderModal(false)}>
+              <button className="modal-btn modal-btn-cancel" onClick={closeFolderModal}>
                 Cancel
               </button>
               <button
                 className="modal-btn modal-btn-primary"
-                onClick={handleSaveFolder}
+                onClick={saveFolder}
                 disabled={!folderFormData.name.trim()}
               >
                 {editingFolder ? 'Save' : 'Create'}
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
