@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useConfig } from '../contexts/ConfigContext';
+import { useAuthConfig } from '../contexts/AuthConfigContext';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useTheme } from '../contexts/ThemeContext';
 import './DjangoLoginForm.css';
@@ -12,7 +12,7 @@ import './DjangoLoginForm.css';
  */
 function DjangoRegisterForm({ onSuccess, onCancel, onSwitchToLogin }) {
   const { register } = useAuth();
-  const { minPasswordLength } = useConfig();
+  const { minPasswordLength } = useAuthConfig();
   const { t } = useTranslation();
   const { isDarkMode } = useTheme();
   const [email, setEmail] = useState('');

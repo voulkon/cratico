@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { useConfig } from '../contexts/ConfigContext';
+import { useAuthConfig } from '../contexts/AuthConfigContext';
 import { useTheme } from '../contexts/ThemeContext';
 import './DjangoLoginForm.css';
 
@@ -11,7 +11,7 @@ import './DjangoLoginForm.css';
  */
 function DjangoPasswordReset({ token, onCancel, onSuccess }) {
   const { resetPassword } = useAuth();
-  const { minPasswordLength } = useConfig();
+  const { minPasswordLength } = useAuthConfig();
   const { isDarkMode } = useTheme();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');

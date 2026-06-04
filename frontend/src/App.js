@@ -22,7 +22,6 @@ import NotificationSidebar from "./components/NotificationSidebar";
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { AuthConfigProvider, useAuthConfig } from './contexts/AuthConfigContext';
-import { ConfigProvider } from './contexts/ConfigContext';
 import { TranslationProvider } from './contexts/TranslationContext';
 import { useAllowlistCheck } from './hooks/useAllowlistCheck';
 import TopControls from './components/TopControls';
@@ -252,12 +251,10 @@ function App({ controlsLayout = 'vertical-right' }) {
       <ThemeProvider>
         <AuthProvider>
           <AuthConfigProvider>
-            <ConfigProvider>
               <AppContent
                 controlsLayout={controlsLayout}
                 clerkAvailable={clerkAvailable}
               />
-            </ConfigProvider>
           </AuthConfigProvider>
         </AuthProvider>
       </ThemeProvider>
