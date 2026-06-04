@@ -64,7 +64,7 @@ def recompute_issue_date_fields_task(
     self,
     dry_run: bool = False,
     batch_size: int = 50_000,
-    offset: int = 0,
+    last_id: int = 0,
     total_affected: int | None = None,
     total_updated: int = 0,
 ) -> dict:
@@ -73,16 +73,20 @@ def recompute_issue_date_fields_task(
     ``issue_date_year`` for Decision rows where the stored value
     disagrees with the Europe/Athens‑localised date.
 
+    Uses key‑based pagination (``id > last_id``) instead of OFFSET
+    so that the scan remains stable even as rows are fixed and drop
+    out of the matching set.
+
     Parameters
     ----------
     dry_run : bool
         If True, count affected rows and return without writing.
     batch_size : int
         Rows per batch (default 50 000).
-    offset : int
-        Internal – skip this many rows (used by self‑chaining).
+    last_id : int
+        Internal – highest ``id`` processed so far (key‑based pagination).
     total_affected : int or None
-        Internal – cached count of rows to fix.
+        Internal – cached count of rows to fix (for progress only).
     total_updated : int
         Internal – running total of fixed rows.
     """
@@ -116,7 +120,7 @@ def recompute_issue_date_fields_task(
     if total_affected == 0:
         return {"status": "done", "total_updated": 0}
 
-    # --- update one batch ---
+    # --- update one batch (key‑based pagination: id > last_id) ---
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -133,20 +137,21 @@ def recompute_issue_date_fields_task(
             WHERE id IN (
                 SELECT id
                 FROM core_decision
-                WHERE {}
+                WHERE id > %(last_id)s AND {}
                 ORDER BY id
                 LIMIT %(batch_size)s
-                OFFSET %(offset)s
             )
+            RETURNING id
             """.format(
                 where
             ),
-            {**params, "batch_size": batch_size, "offset": offset},
+            {**params, "batch_size": batch_size, "last_id": last_id},
         )
-        rows_in_batch = cursor.rowcount
+        updated_ids = [row[0] for row in cursor.fetchall()]
 
+    rows_in_batch = len(updated_ids)
+    new_last_id = updated_ids[-1] if updated_ids else last_id
     total_updated += rows_in_batch
-    new_offset = offset + batch_size
 
     # --- progress report ---
     pct = round(total_updated / total_affected * 100, 2) if total_affected else 100
@@ -156,13 +161,13 @@ def recompute_issue_date_fields_task(
             "total_updated": total_updated,
             "total_affected": total_affected,
             "pct": pct,
-            "offset": new_offset,
+            "last_id": new_last_id,
         },
     )
     logger.info(
-        "recompute_issue_date_fields | batch at offset %s → +%s rows  "
+        "recompute_issue_date_fields | last_id=%s → +%s rows  "
         "(%s/%s, %s%%)",
-        offset,
+        new_last_id,
         rows_in_batch,
         total_updated,
         total_affected,
@@ -170,7 +175,7 @@ def recompute_issue_date_fields_task(
     )
 
     # --- chain next batch or finish ---
-    if new_offset >= total_affected:
+    if rows_in_batch == 0:
         return {
             "status": "done",
             "total_updated": total_updated,
@@ -181,37 +186,11 @@ def recompute_issue_date_fields_task(
             ),
         }
 
-    if rows_in_batch == 0:
-        # Offset hasn't surpassed the expected total, yet no rows were
-        # returned – the initial COUNT may have over‑estimated.
-        # Re‑count remaining affected rows to decide whether to continue.
-        remaining = _affected_rows("core_decision", where, params)
-        logger.warning(
-            "recompute_issue_date_fields | 0 rows at offset %s, "
-            "re‑counted remaining=%s (was %s)",
-            offset,
-            remaining,
-            total_affected - total_updated,
-        )
-        if remaining == 0:
-            return {
-                "status": "done",
-                "total_updated": total_updated,
-                "total_affected": total_affected,
-                "message": (
-                    f"Updated {total_updated:,} Decision rows "
-                    "(re‑count confirmed 0 remaining)."
-                ),
-            }
-        # Continue with the re‑counted total
-        total_affected = total_updated + remaining
-
-    # Re‑enqueue ourselves for the next batch
     recompute_issue_date_fields_task.apply_async(
         kwargs={
             "dry_run": False,
             "batch_size": batch_size,
-            "offset": new_offset,
+            "last_id": new_last_id,
             "total_affected": total_affected,
             "total_updated": total_updated,
         },
@@ -219,7 +198,7 @@ def recompute_issue_date_fields_task(
     return {
         "status": "chained",
         "total_updated": total_updated,
-        "next_offset": new_offset,
+        "last_id": new_last_id,
     }
 
 
@@ -238,7 +217,7 @@ def recompute_publish_date_fields_task(
     self,
     dry_run: bool = False,
     batch_size: int = 50_000,
-    offset: int = 0,
+    last_id: int = 0,
     total_affected: int | None = None,
     total_updated: int = 0,
 ) -> dict:
@@ -247,16 +226,20 @@ def recompute_publish_date_fields_task(
     value is missing or disagrees with the Athens‑localised date of
     ``publish_timestamp``.
 
+    Uses key‑based pagination (``id > last_id``) instead of OFFSET
+    so that the scan remains stable even as rows are fixed and drop
+    out of the matching set.
+
     Parameters
     ----------
     dry_run : bool
         If True, count affected rows and return without writing.
     batch_size : int
         Rows per batch (default 50 000).
-    offset : int
-        Internal – skip this many rows (used by self‑chaining).
+    last_id : int
+        Internal – highest ``id`` processed so far (key‑based pagination).
     total_affected : int or None
-        Internal – cached count of rows to fix.
+        Internal – cached count of rows to fix (for progress only).
     total_updated : int
         Internal – running total of fixed rows.
     """
@@ -292,6 +275,7 @@ def recompute_publish_date_fields_task(
     if total_affected == 0:
         return {"status": "done", "total_updated": 0}
 
+    # --- update one batch (key‑based pagination: id > last_id) ---
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -301,20 +285,21 @@ def recompute_publish_date_fields_task(
             WHERE id IN (
                 SELECT id
                 FROM core_decision
-                WHERE {}
+                WHERE id > %(last_id)s AND {}
                 ORDER BY id
                 LIMIT %(batch_size)s
-                OFFSET %(offset)s
             )
+            RETURNING id
             """.format(
                 where
             ),
-            {**params, "batch_size": batch_size, "offset": offset},
+            {**params, "batch_size": batch_size, "last_id": last_id},
         )
-        rows_in_batch = cursor.rowcount
+        updated_ids = [row[0] for row in cursor.fetchall()]
 
+    rows_in_batch = len(updated_ids)
+    new_last_id = updated_ids[-1] if updated_ids else last_id
     total_updated += rows_in_batch
-    new_offset = offset + batch_size
 
     pct = round(total_updated / total_affected * 100, 2) if total_affected else 100
     self.update_state(
@@ -323,20 +308,20 @@ def recompute_publish_date_fields_task(
             "total_updated": total_updated,
             "total_affected": total_affected,
             "pct": pct,
-            "offset": new_offset,
+            "last_id": new_last_id,
         },
     )
     logger.info(
-        "recompute_publish_date_fields | batch at offset %s → +%s rows  "
+        "recompute_publish_date_fields | last_id=%s → +%s rows  "
         "(%s/%s, %s%%)",
-        offset,
+        new_last_id,
         rows_in_batch,
         total_updated,
         total_affected,
         pct,
     )
 
-    if new_offset >= total_affected:
+    if rows_in_batch == 0:
         return {
             "status": "done",
             "total_updated": total_updated,
@@ -348,36 +333,11 @@ def recompute_publish_date_fields_task(
             ),
         }
 
-    if rows_in_batch == 0:
-        # Offset hasn't surpassed the expected total, yet no rows were
-        # returned – the initial COUNT may have over‑estimated.
-        # Re‑count remaining affected rows to decide whether to continue.
-        remaining = _affected_rows("core_decision", where, params)
-        logger.warning(
-            "recompute_publish_date_fields | 0 rows at offset %s, "
-            "re‑counted remaining=%s (was %s)",
-            offset,
-            remaining,
-            total_affected - total_updated,
-        )
-        if remaining == 0:
-            return {
-                "status": "done",
-                "total_updated": total_updated,
-                "total_affected": total_affected,
-                "message": (
-                    f"Updated {total_updated:,} Decision rows "
-                    "(re‑count confirmed 0 remaining)."
-                ),
-            }
-        # Continue with the re‑counted total
-        total_affected = total_updated + remaining
-
     recompute_publish_date_fields_task.apply_async(
         kwargs={
             "dry_run": False,
             "batch_size": batch_size,
-            "offset": new_offset,
+            "last_id": new_last_id,
             "total_affected": total_affected,
             "total_updated": total_updated,
         },
@@ -385,5 +345,5 @@ def recompute_publish_date_fields_task(
     return {
         "status": "chained",
         "total_updated": total_updated,
-        "next_offset": new_offset,
+        "last_id": new_last_id,
     }
