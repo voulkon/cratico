@@ -372,9 +372,6 @@ const AFMEntityDetailPage = () => {
 
         <div className="entity-metadata">
           <span className="afm-badge">AFM: {entity.afm}</span>
-          <span className={`entity-type-badge ${entity.entity_type}`}>
-            {t(`afmEntityDetail.entityTypes.${entity.entity_type}`)}
-          </span>
           <span className="appearances-badge">
             {t('afmEntityDetail.totalAppearances', { count: entity.total_appearances })}
           </span>
