@@ -5,11 +5,11 @@ Provides database-backed feature flags with environment variable fallback.
 Allows runtime configuration of system features through the admin interface.
 """
 
+from api.redis_keys import FEATURE_FLAG_PREFIX
 from django.core.cache import cache
 from django.db import models
 from django.db.models import JSONField
 from django.utils import timezone
-
 
 class FeatureFlag(models.Model):
     """
@@ -150,9 +150,10 @@ class FeatureFlag(models.Model):
 
     def save(self, *args, **kwargs):
         """Override save to invalidate cache and validate prerequisites when flag changes."""
-        # Track if this is an update and what the old value was
+        # Track if this is an update and what the old values were
         is_update = self.pk is not None
         old_enabled = None
+        old_string_value = None
 
         if is_update:
             try:
@@ -162,35 +163,39 @@ class FeatureFlag(models.Model):
                     if old_instance.value_type == "boolean"
                     else None
                 )
+                old_string_value = (
+                    old_instance.string_value
+                    if old_instance.value_type in ("choice", "string")
+                    else None
+                )
             except FeatureFlag.DoesNotExist:
                 pass
 
         # Validate prerequisites for ENTITY_SEARCH_METHOD
-        if self.key == "ENTITY_SEARCH_METHOD" and self.value_type in (
-            "choice",
-            "string",
+        if (
+            self.key == "ENTITY_SEARCH_METHOD"
+            and self.string_value == "postgres_fts"
+            and self.string_value != old_string_value  # only when actually changing
         ):
             from core.services.prerequisite_check_service import prerequisite_check
             from django.core.exceptions import ValidationError
 
-            method = self.string_value
-            if method == "postgres_fts":
-                # Clear cache first to get real-time status when saving
-                prerequisite_check.clear_cache()
-                # Check if PostgreSQL FTS prerequisites are met
-                prereq_check = prerequisite_check.check_postgres_fts_prerequisites()
-                if not prereq_check["available"]:
-                    raise ValidationError(
-                        f"Cannot set search method to 'postgres_fts': {prereq_check['reason']}"
-                    )
+            # Clear cache first to get real-time status when saving
+            prerequisite_check.clear_cache()
+            # Check if PostgreSQL FTS prerequisites are met
+            prereq_check = prerequisite_check.check_postgres_fts_prerequisites()
+            if not prereq_check["available"]:
+                raise ValidationError(
+                    f"Cannot set search method to 'postgres_fts': {prereq_check['reason']}"
+                )
 
         super().save(*args, **kwargs)
 
         # Invalidate cache for this flag
-        cache_key = f"feature_flag:{self.key}"
+        cache_key = f"{FEATURE_FLAG_PREFIX}:{self.key}"
         cache.delete(cache_key)
         # Also invalidate the all flags cache
-        cache.delete("feature_flags:all")
+        cache.delete(f"{FEATURE_FLAG_PREFIX}:all")
 
         # Trigger backfill when AUTO_BACKFILL_ENABLED is turned on
         if self.key == "AUTO_BACKFILL_ENABLED" and self.value_type == "boolean":
@@ -219,15 +224,15 @@ class FeatureFlag(models.Model):
 
     def delete(self, *args, **kwargs):
         """Override delete to invalidate cache."""
-        cache_key = f"feature_flag:{self.key}"
+        cache_key = f"{FEATURE_FLAG_PREFIX}:{self.key}"
         cache.delete(cache_key)
-        cache.delete("feature_flags:all")
+        cache.delete(f"{FEATURE_FLAG_PREFIX}:all")
         super().delete(*args, **kwargs)
 
     @staticmethod
     def get_cache_key(key: str) -> str:
         """Get the cache key for a feature flag."""
-        return f"feature_flag:{key}"
+        return f"{FEATURE_FLAG_PREFIX}:{key}"
 
 
 class FeatureFlagAuditLog(models.Model):
