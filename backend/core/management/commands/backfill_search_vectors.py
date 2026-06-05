@@ -94,6 +94,14 @@ class Command(BaseCommand):
             action="store_true",
             help="Skip trigger status check and confirmation",
         )
+        parser.add_argument(
+            "--async",
+            action="store_true",
+            dest="async_mode",
+            help="Dispatch as async Celery task(s) instead of running synchronously. "
+            "Each model gets its own self-chaining batch task. "
+            "Monitor via Celery Flower or inspect.",
+        )
 
     def handle(self, *args, **options):
         """Main command handler"""
@@ -120,6 +128,8 @@ class Command(BaseCommand):
         else:
             models = list(self.MODELS.keys())
             model_description = "All Models (8 models)"
+
+        async_mode = options.get("async_mode", False)
 
         # Check trigger status
         if not options["force"]:
@@ -150,7 +160,42 @@ class Command(BaseCommand):
                 self.stdout.write("Aborted")
                 return
 
-        # Perform backfill for selected models
+        # --- Async mode: dispatch Celery tasks ---
+        if async_mode:
+            from core.tasks.tasks_search_management import (
+                backfill_search_vectors_batch_task,
+            )
+
+            for model in models:
+                if stats[model]["to_backfill"] > 0:
+                    task = backfill_search_vectors_batch_task.delay(
+                        model_key=model,
+                        batch_size=options["batch_size"],
+                        only_null=options["only_null"],
+                    )
+                    self.stdout.write(
+                        self.style.SUCCESS(
+                            f"[ASYNC] Dispatched backfill for '{model}' "
+                            f"({stats[model]['to_backfill']:,} rows) → task {task.id}"
+                        )
+                    )
+                else:
+                    self.stdout.write(
+                        self.style.SUCCESS(
+                            f"[SKIP] '{model}' has no rows to backfill"
+                        )
+                    )
+
+            self.stdout.write(
+                self.style.WARNING(
+                    "\n[INFO] Monitor progress via Celery Flower or:\n"
+                    "  celery -A diavgeia_project inspect active\n"
+                    "  celery -A diavgeia_project inspect reserved"
+                )
+            )
+            return
+
+        # Perform backfill for selected models (sync mode)
         start_time = time.time()
         total_processed = 0
 

@@ -79,6 +79,7 @@ from .tasks_org_decisions import (
 )
 from .tasks_periodic_validation import periodic_validation_task
 from .tasks_search_management import (
+    backfill_search_vectors_batch_task,
     backfill_search_vectors_task,
     cleanup_search_vectors_task,
     manage_postgres_search_task,
@@ -86,6 +87,7 @@ from .tasks_search_management import (
 
 # This ensures all tasks are available when importing from core.tasks
 __all__ = [
+    "backfill_search_vectors_batch_task",
     "backfill_search_vectors_task",
     "cleanup_search_vectors_task",
     "manage_postgres_search_task",

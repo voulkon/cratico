@@ -79,6 +79,7 @@ API_CACHE_EXPIRE_HISTORICAL = 60 * 60 * 24  # 24 hours (past data won't change)
 API_CACHE_EXPIRE_CURRENT = 60 * 5  # 5 minutes (current data may update)
 API_CACHE_EXPIRE_STATS = 60 * 10  # 10 minutes (stats change slowly)
 
+FEATURE_FLAG_PREFIX = "feature_flag"
 
 def get_endpoint_key(endpoint):
     """Get the Redis key for endpoint stats"""
