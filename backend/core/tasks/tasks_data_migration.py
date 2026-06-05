@@ -170,7 +170,7 @@ def recompute_issue_date_fields_task(
     )
 
     # --- chain next batch or finish ---
-    if rows_in_batch == 0 or new_offset >= total_affected:
+    if new_offset >= total_affected:
         return {
             "status": "done",
             "total_updated": total_updated,
@@ -180,6 +180,31 @@ def recompute_issue_date_fields_task(
                 "Next: backfill_date_coverage --reset"
             ),
         }
+
+    if rows_in_batch == 0:
+        # Offset hasn't surpassed the expected total, yet no rows were
+        # returned – the initial COUNT may have over‑estimated.
+        # Re‑count remaining affected rows to decide whether to continue.
+        remaining = _affected_rows("core_decision", where, params)
+        logger.warning(
+            "recompute_issue_date_fields | 0 rows at offset %s, "
+            "re‑counted remaining=%s (was %s)",
+            offset,
+            remaining,
+            total_affected - total_updated,
+        )
+        if remaining == 0:
+            return {
+                "status": "done",
+                "total_updated": total_updated,
+                "total_affected": total_affected,
+                "message": (
+                    f"Updated {total_updated:,} Decision rows "
+                    "(re‑count confirmed 0 remaining)."
+                ),
+            }
+        # Continue with the re‑counted total
+        total_affected = total_updated + remaining
 
     # Re‑enqueue ourselves for the next batch
     recompute_issue_date_fields_task.apply_async(
@@ -311,7 +336,7 @@ def recompute_publish_date_fields_task(
         pct,
     )
 
-    if rows_in_batch == 0 or new_offset >= total_affected:
+    if new_offset >= total_affected:
         return {
             "status": "done",
             "total_updated": total_updated,
@@ -322,6 +347,31 @@ def recompute_publish_date_fields_task(
                 "picks up the corrected data."
             ),
         }
+
+    if rows_in_batch == 0:
+        # Offset hasn't surpassed the expected total, yet no rows were
+        # returned – the initial COUNT may have over‑estimated.
+        # Re‑count remaining affected rows to decide whether to continue.
+        remaining = _affected_rows("core_decision", where, params)
+        logger.warning(
+            "recompute_publish_date_fields | 0 rows at offset %s, "
+            "re‑counted remaining=%s (was %s)",
+            offset,
+            remaining,
+            total_affected - total_updated,
+        )
+        if remaining == 0:
+            return {
+                "status": "done",
+                "total_updated": total_updated,
+                "total_affected": total_affected,
+                "message": (
+                    f"Updated {total_updated:,} Decision rows "
+                    "(re‑count confirmed 0 remaining)."
+                ),
+            }
+        # Continue with the re‑counted total
+        total_affected = total_updated + remaining
 
     recompute_publish_date_fields_task.apply_async(
         kwargs={
