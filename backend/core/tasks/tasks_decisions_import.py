@@ -181,6 +181,19 @@ def fetch_daily_decisions_to_redis(
             logger.info(
                 f"Task {self.request.id}: No decisions found for {target_date}, marking job as completed"
             )
+
+            # Notify the queue so the backfill chain continues.
+            # Without this, zero-decision days silently break the
+            # trigger_next_backfill → dispatch → on_job_completed loop.
+            try:
+                from core.services.import_job_queue import ImportJobQueue
+                ImportJobQueue().on_job_completed(import_job.id)
+            except Exception as e:
+                logger.warning(
+                    f"Task {self.request.id}: Failed to notify queue of "
+                    f"zero-decision job completion: {e}"
+                )
+
             return {
                 "status": "success",
                 "job_id": import_job.id,

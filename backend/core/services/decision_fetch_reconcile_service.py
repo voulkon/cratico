@@ -243,6 +243,16 @@ class DecisionFetchReconcileService:
         Returns:
             Official count if found, None otherwise
         """
+        # The official counts endpoint only covers the last ~30 days.
+        # Skip the call entirely for older dates to avoid pointless requests.
+        days_ago = (date.today() - target_date).days
+        if days_ago > 30:
+            logger.debug(
+                f"Skipping official count for {target_date} ({days_ago} days ago — "
+                f"beyond the 30-day window of the official endpoint)"
+            )
+            return None
+
         try:
             response = requests.get(DIAVGEIA_OFFICIAL_COUNTS_URL, timeout=timeout)
             response.raise_for_status()
