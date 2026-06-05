@@ -85,7 +85,8 @@ def _resolve_use_submission_date() -> bool:
     """
     try:
         from core.services.feature_flag_service import feature_flags
-
+        # HACK: submission date is not working for past dates - only for recent ones
+        return False
         mode = feature_flags.get_value("COVERAGE_DATE_MODE")
         # Defensive: if the flag is somehow unset or corrupted, fall back
         if mode == "issue":
