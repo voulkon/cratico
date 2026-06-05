@@ -77,6 +77,11 @@ from .tasks_org_decisions import (
     fetch_org_decisions_to_pickle,
     store_org_decisions_from_pickle,
 )
+from .tasks_post_import import (
+    post_daily_import_orchestrator, 
+    compute_entity_rankings,
+    trigger_check_all_subscriptions
+    )
 from .tasks_periodic_validation import periodic_validation_task
 from .tasks_search_management import (
     backfill_search_vectors_batch_task,
@@ -154,4 +159,7 @@ __all__ = [
     # Data migrations
     "recompute_issue_date_fields_task",
     "recompute_publish_date_fields_task",
+    "post_daily_import_orchestrator",
+    "compute_entity_rankings",
+    "trigger_check_all_subscriptions"
 ]
