@@ -7,7 +7,7 @@ from core.services.feature_flag_service import feature_flags
 from core.services.search_service import SearchService
 from core.utils.performance_monitoring import monitor_query_performance
 from django.conf import settings
-from django.db.models import Sum
+from django.db.models import Count, F, Sum
 from django.utils.dateparse import parse_date
 from django_redis import get_redis_connection
 from loguru import logger
@@ -153,17 +153,86 @@ def afm_entity_decisions(request, afm):
 
         paginated_relationships = relationships[start_idx:end_idx]
 
-        # Serialize decisions with linked amounts
+        # Collect decision IDs for batch entity-relationship query
+        decision_ids = [rel.decision_id for rel in paginated_relationships]
+
+        # Batch-fetch ALL entity relationships for these decisions (eliminates N+1)
+        all_entity_rels_qs = (
+            DecisionEntityRelationship.objects
+            .filter(decision_id__in=decision_ids)
+            .select_related("entity")
+            .annotate(total_amount=Sum("linked_amounts__amount"))
+        )
+
+        # Group by decision_id: {decision_id: [rel_dict, ...]}
+        entity_rels_by_decision = {}
+        for rel in all_entity_rels_qs:
+            rel_dict = {
+                "role": rel.role,
+                "entity": {
+                    "afm": rel.entity.afm,
+                    "name": rel.entity.name,
+                    "entity_type": rel.entity.entity_type,
+                    "total_appearances": rel.entity.total_appearances,
+                    "first_seen": rel.entity.first_seen,
+                    "last_seen": rel.entity.last_seen,
+                    "gemi_lookup_success": rel.entity.gemi_lookup_success,
+                    "gemi_companies_count": rel.entity.gemi_companies_count,
+                },
+                "parent_key_paths": [rel.parent_key_path],
+                "total_amount": float(rel.total_amount) if rel.total_amount else 0.0,
+                "currency": "EUR",
+            }
+            key = (rel.role, rel.entity_id)
+            existing = next(
+                (r for r in entity_rels_by_decision.setdefault(rel.decision_id, [])
+                 if r["role"] == rel.role and r["entity"]["afm"] == rel.entity.afm),
+                None,
+            )
+            if existing:
+                existing["parent_key_paths"].append(rel.parent_key_path)
+                existing["total_amount"] += rel_dict["total_amount"]
+                existing["occurrences"] += 1
+            else:
+                rel_dict["occurrences"] = 1
+                entity_rels_by_decision.setdefault(rel.decision_id, []).append(rel_dict)
+
+        # Serialize decisions with linked amounts and entity data
         decisions = []
         for rel in paginated_relationships:
             decision = rel.decision
 
-            # Calculate total amount from linked amounts
+            # Calculate total amount from linked amounts (for this entity's relationship)
             total_amount = sum(
                 amount.amount
                 for amount in rel.linked_amounts.all()
                 if amount.amount is not None
             )
+
+            # Get all entity relationships for this decision (pre-fetched batch)
+            all_entities = entity_rels_by_decision.get(decision.id, [])
+
+            # Compute entity_amount (sum of non-org entity amounts)
+            entity_amount = sum(
+                e["total_amount"] for e in all_entities
+                if e.get("role", "").lower() != "org" and e["total_amount"]
+            )
+
+            # Find main recipient (sponsor/creditor with amount, excluding the queried AFM context)
+            main_recipient = None
+            for e in all_entities:
+                if e.get("role", "").lower() == "org":
+                    continue
+                if e["total_amount"] and (
+                    not main_recipient
+                    or e.get("role", "").lower() in ("sponsorafmname", "creditor", "sponsor")
+                ):
+                    main_recipient = {
+                        "afm": e["entity"]["afm"],
+                        "name": e["entity"]["name"],
+                        "amount": e["total_amount"],
+                        "role": e["role"],
+                    }
 
             decisions.append(
                 {
@@ -196,7 +265,11 @@ def afm_entity_decisions(request, afm):
                     ),
                     "entity_role": rel.role,
                     "confidence_score": rel.confidence_score,
-                    "amount_count": rel.linked_amounts.count(),  # Number of amount fields linked
+                    "amount_count": rel.linked_amounts.count(),
+                    # Preloaded entity data (eliminates N+1 in frontend)
+                    "entity_amount": float(entity_amount) if entity_amount else None,
+                    "main_recipient": main_recipient,
+                    "entities": all_entities,
                 }
             )
 

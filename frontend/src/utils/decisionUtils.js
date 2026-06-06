@@ -106,3 +106,17 @@ export const groupEntityRelationships = (relationships) => {
 
   return Object.values(groupedRelationships);
 };
+
+/**
+ * Extract counterpart entities from preloaded decision data.
+ * Returns entities excluding "org" role, sorted by amount descending.
+ * @param {Object} decision - The decision object with preloaded entities array
+ * @returns {Array|null} Counterpart entities or null
+ */
+export const getCounterpartEntities = (decision) => {
+  if (!decision?.entities || !Array.isArray(decision.entities)) return null;
+
+  return decision.entities
+    .filter(e => e.role?.toLowerCase() !== 'org')
+    .sort((a, b) => (b.total_amount || 0) - (a.total_amount || 0));
+};
