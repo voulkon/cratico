@@ -5,12 +5,28 @@ Displays raw totals in a clean, sortable list view.
 """
 
 from core.models.afm_entity_stats import AFMEntityStats
+from core.models.entities import EntityType
 from core.tasks.afm_entity_stats_tasks import recompute_all_entity_stats
 from django.contrib import admin, messages
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import path, reverse
 from django.utils.html import format_html
+
+
+class EntityTypeListFilter(admin.SimpleListFilter):
+    """Custom list filter for entity type with a clean label."""
+
+    title = "Entity Type"
+    parameter_name = "entity_type"
+
+    def lookups(self, request, model_admin):
+        return EntityType.choices
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(entity__entity_type=self.value())
+        return queryset
 
 
 @admin.register(AFMEntityStats)
@@ -32,7 +48,7 @@ class AFMEntityStatsAdmin(admin.ModelAdmin):
         "computed_at",
     ]
     list_filter = [
-        "entity__entity_type",
+        EntityTypeListFilter,
     ]
     search_fields = ["entity__afm", "entity__name"]
     readonly_fields = [
@@ -168,6 +184,21 @@ class AFMEntityStatsAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+    # ------------------------------------------------------------------
+    # Default filter: start with "Company" selected
+    # ------------------------------------------------------------------
+
+    def changelist_view(self, request, extra_context=None):
+        if "entity_type" not in request.GET:
+            # Only default to Company on the very first visit in this session,
+            # so the user can click "All" to undo the filter without being redirected back.
+            if not request.session.get("afm_entity_stats_visited"):
+                request.session["afm_entity_stats_visited"] = True
+                q = request.GET.copy()
+                q["entity_type"] = "company"
+                return redirect(f"{request.path}?{q.urlencode()}")
+        return super().changelist_view(request, extra_context)
 
     # ------------------------------------------------------------------
     # Custom actions & URLs
