@@ -1,0 +1,191 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}Entity Rankings Computation{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+    .rankings-container {
+        max-width: 700px;
+        margin: 40px auto;
+        padding: 30px;
+        background: var(--body-bg, #fff);
+        border: 1px solid var(--border-color, #ddd);
+        border-radius: 6px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+    .rankings-title {
+        font-size: 22px;
+        font-weight: bold;
+        margin-bottom: 8px;
+    }
+    .rankings-subtitle {
+        color: var(--body-quiet-color, #666);
+        margin-bottom: 24px;
+    }
+    .rankings-info {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 4px;
+        padding: 16px;
+        margin-bottom: 24px;
+        font-size: 13px;
+        line-height: 1.6;
+    }
+    .rankings-info strong {
+        color: #495057;
+    }
+    .rankings-info ul {
+        margin: 8px 0 0 16px;
+        padding: 0;
+    }
+    .rankings-form label {
+        font-weight: 600;
+        display: block;
+        margin-bottom: 6px;
+    }
+    .rankings-form input[type="date"] {
+        padding: 8px 12px;
+        border: 1px solid var(--border-color, #ccc);
+        border-radius: 4px;
+        font-size: 14px;
+        width: 200px;
+    }
+    .rankings-actions {
+        margin-top: 20px;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+    }
+    .btn-rankings {
+        background: #417690;
+        color: #fff;
+        border: none;
+        padding: 10px 24px;
+        border-radius: 4px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .btn-rankings:hover {
+        background: #205067;
+    }
+    .btn-rankings:disabled {
+        background: #999;
+        cursor: not-allowed;
+    }
+    .result-box {
+        margin-top: 20px;
+        padding: 16px;
+        border-radius: 4px;
+        display: none;
+    }
+    .result-box.success {
+        display: block;
+        background: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+    }
+    .result-box.error {
+        display: block;
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+    }
+    .spinner {
+        display: none;
+        margin-left: 12px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rankings-container">
+    <h1 class="rankings-title">Entity Rankings Computation</h1>
+    <p class="rankings-subtitle">
+        Pre-compute per-entity statistics (total_amount, decision_count,
+        rank_by_amount, rank_by_frequency, etc.) across
+        daily/weekly/monthly/yearly time windows.
+    </p>
+
+    <div class="rankings-info">
+        <strong>How it works:</strong>
+        <ul>
+            <li>Runs the same <code>compute_entity_rankings</code> Celery task
+                used by the post-import chain.</li>
+            <li>Computes statistics for every AFMEntity and stores them in
+                <code>AnalyticsSnapshotRun</code> + <code>EntityAnalyticsSnapshot</code>
+                models.</li>
+            <li>Results are used by analytics views for leaderboards and trends.</li>
+            <li>You can also run this from the CLI:
+                <code>python manage.py compute_entity_rankings --async</code></li>
+        </ul>
+    </div>
+
+    <form class="rankings-form" id="rankings-form" method="post">
+        {% csrf_token %}
+        <label for="date-input">Reference date (defaults to today):</label>
+        <input type="date" id="date-input" name="date"
+               value="{{ today }}" max="{{ today }}" />
+
+        <div class="rankings-actions">
+            <button type="submit" class="btn-rankings" id="rankings-btn">
+                Trigger Entity Rankings
+            </button>
+            <span class="spinner" id="spinner">Dispatching...</span>
+        </div>
+    </form>
+
+    <div id="result" class="result-box"></div>
+</div>
+
+<script>
+document.getElementById('rankings-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const btn = document.getElementById('rankings-btn');
+    const spinner = document.getElementById('spinner');
+    const resultBox = document.getElementById('result');
+    const dateInput = document.getElementById('date-input');
+
+    btn.disabled = true;
+    spinner.style.display = 'inline';
+    resultBox.className = 'result-box';
+    resultBox.textContent = '';
+
+    const formData = new FormData();
+    formData.append('date', dateInput.value || '');
+    formData.append('csrfmiddlewaretoken',
+        document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+    fetch(window.location.href, {
+        method: 'POST',
+        body: formData
+    })
+    .then(resp => resp.json())
+    .then(data => {
+        if (data.success) {
+            resultBox.className = 'result-box success';
+            resultBox.innerHTML =
+                '<strong>[OK] Entity rankings dispatched!</strong><br>' +
+                'Task ID: <code>' + data.task_id + '</code><br>' +
+                'Reference date: ' + data.reference_date + '<br>' +
+                '<em>' + data.message + '</em>';
+        } else {
+            resultBox.className = 'result-box error';
+            resultBox.textContent = '[ERROR] ' + (data.error || 'Unknown error');
+        }
+    })
+    .catch(err => {
+        resultBox.className = 'result-box error';
+        resultBox.textContent = '[ERROR] Network error: ' + err.message;
+    })
+    .finally(() => {
+        btn.disabled = false;
+        spinner.style.display = 'none';
+    });
+});
+</script>
+{% endblock %}

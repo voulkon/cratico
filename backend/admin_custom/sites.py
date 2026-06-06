@@ -26,6 +26,21 @@ class CustomAdminSite(admin.AdminSite):
                 self._wrap_view("analytics", "endpoint_deep_dive"),
                 name="endpoint_deep_dive",
             ),
+            path(
+                "analytics/warmup/",
+                self._wrap_view("analytics", "trigger_analytics_warmup"),
+                name="trigger_analytics_warmup",
+            ),
+            path(
+                "analytics/subscription-checks/",
+                self._wrap_view("analytics", "trigger_subscription_checks"),
+                name="trigger_subscription_checks",
+            ),
+            path(
+                "analytics/entity-rankings/",
+                self._wrap_view("analytics", "trigger_entity_rankings"),
+                name="trigger_entity_rankings",
+            ),
             # Decision URLs
             path(
                 "decisions/coverage/",
@@ -278,6 +293,12 @@ class CustomAdminSite(admin.AdminSite):
                     "admin_url": "/api/admin/analytics/export/",
                     "view_only": True,
                 },
+                {
+                    "name": "Cache Warmup",
+                    "object_name": "CacheWarmup",
+                    "admin_url": "/api/admin/analytics/warmup/",
+                    "view_only": True,
+                },
             ],
         }
         app_list.append(analytics_app)
@@ -428,6 +449,33 @@ class CustomAdminSite(admin.AdminSite):
             ],
         }
         app_list.append(health_app)
+
+        # Add Post-Import Tasks section
+        post_import_app = {
+            "name": "Post-Import Tasks",
+            "app_label": "post_import",
+            "models": [
+                {
+                    "name": "Entity Rankings",
+                    "object_name": "EntityRankings",
+                    "admin_url": "/api/admin/analytics/entity-rankings/",
+                    "view_only": True,
+                },
+                {
+                    "name": "Cache Warmup",
+                    "object_name": "CacheWarmup",
+                    "admin_url": "/api/admin/analytics/warmup/",
+                    "view_only": True,
+                },
+                {
+                    "name": "Subscription Checks",
+                    "object_name": "SubscriptionChecks",
+                    "admin_url": "/api/admin/analytics/subscription-checks/",
+                    "view_only": True,
+                },
+            ],
+        }
+        app_list.append(post_import_app)
 
         return app_list
 
