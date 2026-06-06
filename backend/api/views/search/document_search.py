@@ -157,8 +157,8 @@ def document_search_api(request):
                 doc.extraction_date.isoformat() if doc.extraction_date else None
             ),
             "issue_date": (
-                doc.decision.issue_date.isoformat()
-                if doc.decision and doc.decision.issue_date
+                doc.decision.issue_date_day
+                if doc.decision and doc.decision.issue_date_day
                 else None
             ),
             "character_count": doc.character_count,

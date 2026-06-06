@@ -51,7 +51,7 @@ def company_transactions_summary(request, afm):
         ).select_related("decision", "decision__organization")
 
         if start_date:
-            base_query = base_query.filter(decision__issue_date__gte=start_date)
+            base_query = base_query.filter(decision__issue_date_day__gte=start_date)
 
         # Prepare results based on group_by parameter
         if group_by == "organization":
@@ -184,7 +184,7 @@ def organization_expenditures_summary(request, organization_uid):
         ).select_related("decision", "entity")
 
         if start_date:
-            base_query = base_query.filter(decision__issue_date__gte=start_date)
+            base_query = base_query.filter(decision__issue_date_day__gte=start_date)
 
         # Filter by minimum amount
         if min_amount > 0:
@@ -308,7 +308,7 @@ def top_transactions(request):
         ).select_related("decision", "decision__organization", "entity")
 
         if start_date:
-            base_query = base_query.filter(decision__issue_date__gte=start_date)
+            base_query = base_query.filter(decision__issue_date_day__gte=start_date)
 
         # Aggregate and get top transactions
         top_transactions = (
@@ -316,7 +316,7 @@ def top_transactions(request):
                 "decision__id",
                 "decision__ada",
                 "decision__subject",
-                "decision__issue_date",
+                "decision__issue_date_day",
                 "decision__organization__uid",
                 "decision__organization__label",
                 "entity__afm",
@@ -340,7 +340,7 @@ def top_transactions(request):
                     "decision_id": transaction["decision__id"],
                     "decision_ada": transaction["decision__ada"],
                     "subject": transaction["decision__subject"],
-                    "issue_date": transaction["decision__issue_date"],
+                    "issue_date": transaction["decision__issue_date_day"],
                     "organization": {
                         "uid": transaction["decision__organization__uid"],
                         "name": transaction["decision__organization__label"],

@@ -72,9 +72,9 @@ def compute_explore_orgs(
 
     decisions_qs = Decision.objects.all()
     if start_parsed:
-        decisions_qs = decisions_qs.filter(issue_date__gte=_make_aware_start(start_parsed))
+        decisions_qs = decisions_qs.filter(issue_date_day__gte=_make_aware_start(start_parsed))
     if end_parsed:
-        decisions_qs = decisions_qs.filter(issue_date__lte=_make_aware_end(end_parsed))
+        decisions_qs = decisions_qs.filter(issue_date_day__lte=_make_aware_end(end_parsed))
 
     organizations = (
         decisions_qs.values("organization__uid", "organization__label")
@@ -177,8 +177,8 @@ def compute_da_top_pairs(
     roles = FinancialCalculationService.MONEY_RECEIVED_ROLES
 
     base_filter = dict(
-        decision__issue_date__gte=start_dt,
-        decision__issue_date__lte=end_dt,
+        decision__issue_date_day__gte=start_dt,
+        decision__issue_date_day__lte=end_dt,
         decision__classification__is_direct_assignment=True,
         role__in=roles,
     )

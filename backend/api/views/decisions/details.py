@@ -32,7 +32,7 @@ def decision_detail(request, decision_id):
             "amount": float(decision.amount) if decision.amount else None,
             "currency": decision.currency,
             "financial_year": decision.financial_year,
-            "issue_date": decision.issue_date,
+            "issue_date": decision.issue_date_day,
             "publish_timestamp": decision.publish_timestamp,
             "submission_timestamp": decision.submission_timestamp,
             "status": decision.status,
@@ -348,7 +348,7 @@ def decision_related(request, decision_id):
             Decision.objects.filter(related_query)
             .exclude(id=decision_id)
             .select_related("organization", "decision_type")
-            .order_by("-issue_date")[:20]
+            .order_by("-issue_date_day")[:20]
         )
 
         results = [
@@ -357,7 +357,7 @@ def decision_related(request, decision_id):
                 "ada": rel.ada,
                 "subject": rel.subject,
                 "amount": float(rel.amount) if rel.amount else None,
-                "issue_date": rel.issue_date,
+                "issue_date": rel.issue_date_day,
                 "organization": (
                     {"uid": rel.organization.uid, "label": rel.organization.label}
                     if rel.organization

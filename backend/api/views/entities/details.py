@@ -136,15 +136,15 @@ def afm_entity_decisions(request, afm):
                 relationships,
                 sort_by,
                 aggregation_annotation="total_linked_amount",
-                date_field="decision__issue_date",
+                date_field="decision__issue_date_day",
             )
         elif sort_by == "recent":
-            relationships = relationships.order_by("-decision__issue_date")
+            relationships = relationships.order_by("-decision__issue_date_day")
         elif sort_by == "oldest":
-            relationships = relationships.order_by("decision__issue_date")
+            relationships = relationships.order_by("decision__issue_date_day")
         else:
             # Default to recent
-            relationships = relationships.order_by("-decision__issue_date")
+            relationships = relationships.order_by("-decision__issue_date_day")
 
         # Pagination
         total_items = relationships.count()
@@ -243,7 +243,7 @@ def afm_entity_decisions(request, afm):
                     "legacy_amount": (
                         float(decision.amount) if decision.amount else None
                     ),  # Keep for comparison
-                    "issue_date": decision.issue_date,
+                    "issue_date": decision.issue_date_day,
                     "status": decision.status,
                     "document_url": decision.document_url,
                     "has_document_content": hasattr(decision, "document_extraction"),

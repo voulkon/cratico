@@ -337,8 +337,8 @@ class FinancialCalculationService:
         results = list(
             DecisionEntityRelationship.objects.filter(
                 decision__organization=organization,
-                decision__issue_date__gte=start_date,
-                decision__issue_date__lte=end_date,
+                decision__issue_date_day__gte=start_date,
+                decision__issue_date_day__lte=end_date,
                 role__in=roles,
             )
             .values("entity__afm", "entity__name", "entity__entity_type")
@@ -354,8 +354,8 @@ class FinancialCalculationService:
         total_count = (
             DecisionEntityRelationship.objects.filter(
                 decision__organization=organization,
-                decision__issue_date__gte=start_date,
-                decision__issue_date__lte=end_date,
+                decision__issue_date_day__gte=start_date,
+                decision__issue_date_day__lte=end_date,
                 role__in=roles,
             )
             .values("entity")
@@ -399,8 +399,8 @@ class FinancialCalculationService:
         # Query: Group by both organization AND entity
         results = list(
             DecisionEntityRelationship.objects.filter(
-                decision__issue_date__gte=start_date,
-                decision__issue_date__lte=end_date,
+                decision__issue_date_day__gte=start_date,
+                decision__issue_date_day__lte=end_date,
                 role__in=roles,
             )
             .values(
@@ -421,8 +421,8 @@ class FinancialCalculationService:
         # Get total count of unique org-entity pairs
         total_count = (
             DecisionEntityRelationship.objects.filter(
-                decision__issue_date__gte=start_date,
-                decision__issue_date__lte=end_date,
+                decision__issue_date_day__gte=start_date,
+                decision__issue_date_day__lte=end_date,
                 role__in=roles,
             )
             .values("decision__organization", "entity")
@@ -551,10 +551,10 @@ class FinancialCalculationService:
             qs = qs.filter(role__in=roles)
 
         if start_date:
-            qs = qs.filter(decision__issue_date__gte=start_date)
+            qs = qs.filter(decision__issue_date_day__gte=start_date)
 
         if end_date:
-            qs = qs.filter(decision__issue_date__lte=end_date)
+            qs = qs.filter(decision__issue_date_day__lte=end_date)
 
         # Optimize with proper joins
         return qs.select_related(
@@ -579,10 +579,10 @@ class FinancialCalculationService:
             qs = qs.filter(role__in=roles)
 
         if start_date:
-            qs = qs.filter(decision__issue_date__gte=start_date)
+            qs = qs.filter(decision__issue_date_day__gte=start_date)
 
         if end_date:
-            qs = qs.filter(decision__issue_date__lte=end_date)
+            qs = qs.filter(decision__issue_date_day__lte=end_date)
 
         return qs.select_related(
             "decision", "decision__organization", "decision__decision_type", "entity"

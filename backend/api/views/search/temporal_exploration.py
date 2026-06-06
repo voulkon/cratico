@@ -67,8 +67,8 @@ def explore_date_range_api_dev(request):
 
         # Get date range with accurate financial calculations
         date_stats = decisions_qs.aggregate(
-            earliest_date=models.Min("issue_date"),
-            latest_date=models.Max("issue_date"),
+            earliest_date=models.Min("issue_date_day"),
+            latest_date=models.Max("issue_date_day"),
             total_decisions=models.Count("id"),
         )
 
@@ -150,8 +150,8 @@ def explore_date_range_api_dev(request):
             {
                 "has_data": True,
                 "date_range": {
-                    "earliest": earliest.date().isoformat(),
-                    "latest": latest.date().isoformat(),
+                    "earliest": earliest,
+                    "latest": latest,
                     "span_days": span_days,
                     "recommended_granularity": granularity,
                 },
@@ -249,7 +249,7 @@ def explore_statistics_api_dev(request):
 
         # Apply date filters
         filtered_qs = decisions_qs.filter(
-            issue_date__gte=start_date, issue_date__lte=end_date
+            issue_date_day__gte=start_date, issue_date_day__lte=end_date
         )
 
         # Calculate basic statistics using calculated amounts for accuracy
@@ -319,10 +319,10 @@ def explore_statistics_api_dev(request):
         )
 
         # Recent decisions
-        recent_decisions = filtered_qs.order_by("-issue_date")[:5].values(
+        recent_decisions = filtered_qs.order_by("-issue_date_day")[:5].values(
             "ada",
             "subject",
-            "issue_date",
+            "issue_date_day",
             "amount",
             "decision_type__label",
             "organization__label",
@@ -392,8 +392,8 @@ def explore_statistics_api_dev(request):
                         "ada": item["ada"],
                         "subject": item["subject"],
                         "issue_date": (
-                            item["issue_date"].isoformat()
-                            if item["issue_date"]
+                            item["issue_date_day"].isoformat()
+                            if item["issue_date_day"]
                             else None
                         ),
                         "amount": float(item["amount"]) if item["amount"] else None,
@@ -562,7 +562,7 @@ def explore_decisions_api_dev(request):
                 start_date = timezone.make_aware(
                     datetime.combine(start_date_parsed, datetime.min.time())
                 )
-                decisions_qs = decisions_qs.filter(issue_date__gte=start_date)
+                decisions_qs = decisions_qs.filter(issue_date_day__gte=start_date)
 
         if end_date_str:
             end_date_parsed = parse_date(end_date_str)
@@ -570,7 +570,7 @@ def explore_decisions_api_dev(request):
                 end_date = timezone.make_aware(
                     datetime.combine(end_date_parsed, datetime.max.time())
                 )
-                decisions_qs = decisions_qs.filter(issue_date__lte=end_date)
+                decisions_qs = decisions_qs.filter(issue_date_day__lte=end_date)
 
         # Apply search filter
         if search_query:
@@ -629,7 +629,7 @@ def explore_decisions_api_dev(request):
                     default=models.F("calculated_amount"),
                     output_field=models.DecimalField(),
                 )
-            ).order_by("-amount_for_sorting", "-issue_date")
+            ).order_by("-amount_for_sorting", "-issue_date_day")
 
         elif sort_by == "amount_asc":
             decisions_qs = decisions_qs.annotate(
@@ -641,10 +641,10 @@ def explore_decisions_api_dev(request):
                     default=models.F("calculated_amount"),
                     output_field=models.DecimalField(),
                 )
-            ).order_by("amount_for_sorting", "-issue_date")
+            ).order_by("amount_for_sorting", "-issue_date_day")
 
         else:  # recent (default)
-            decisions_qs = decisions_qs.order_by("-issue_date")
+            decisions_qs = decisions_qs.order_by("-issue_date_day")
 
         # Add prefetch_related for optimization
         decisions_qs = decisions_qs.select_related(
@@ -760,7 +760,7 @@ def explore_decision_types_api_dev(request):
                 start_date = timezone.make_aware(
                     datetime.combine(start_date_parsed, datetime.min.time())
                 )
-                decisions_qs = decisions_qs.filter(issue_date__gte=start_date)
+                decisions_qs = decisions_qs.filter(issue_date_day__gte=start_date)
 
         if end_date_str:
             end_date_parsed = parse_date(end_date_str)
@@ -768,7 +768,7 @@ def explore_decision_types_api_dev(request):
                 end_date = timezone.make_aware(
                     datetime.combine(end_date_parsed, datetime.max.time())
                 )
-                decisions_qs = decisions_qs.filter(issue_date__lte=end_date)
+                decisions_qs = decisions_qs.filter(issue_date_day__lte=end_date)
 
         # Get decision types with counts and financial data
         decision_types = (

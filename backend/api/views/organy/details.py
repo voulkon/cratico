@@ -79,7 +79,7 @@ def organization_entity_transactions(request, organization_uid, afm=None):
 
         # Apply date filter if period is specified
         if start_date:
-            base_query = base_query.filter(decision__issue_date__gte=start_date)
+            base_query = base_query.filter(decision__issue_date_day__gte=start_date)
 
         # Apply direct assignments filter
         if direct_assignments_only:
@@ -89,13 +89,13 @@ def organization_entity_transactions(request, organization_uid, afm=None):
 
         # Apply sorting
         if sort_by == "date":
-            order_field = "decision__issue_date"
+            order_field = "decision__issue_date_day"
         elif sort_by == "amount":
             # This is a bit tricky since amounts are in a related model
             # We'll apply this manually after the query
-            order_field = "decision__issue_date"  # Default fallback
+            order_field = "decision__issue_date_day"  # Default fallback
         else:
-            order_field = "decision__issue_date"
+            order_field = "decision__issue_date_day"
 
         # Apply sort direction
         if sort_order == "asc":
@@ -135,7 +135,7 @@ def organization_entity_transactions(request, organization_uid, afm=None):
                         "id": rel.decision.id,
                         "ada": rel.decision.ada,
                         "subject": rel.decision.subject,
-                        "issue_date": rel.decision.issue_date,
+                        "issue_date": rel.decision.issue_date_day,
                         "url": rel.decision.url,
                         "status": rel.decision.status,
                     },

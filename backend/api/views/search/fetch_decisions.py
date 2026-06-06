@@ -196,7 +196,7 @@ def explore_decisions_optimized_api(request):
                 start_date = timezone.make_aware(
                     datetime.combine(start_date_parsed, datetime.min.time())
                 )
-                decisions_qs = decisions_qs.filter(issue_date__gte=start_date)
+                decisions_qs = decisions_qs.filter(issue_date_day__gte=start_date)
 
         if end_date_str:
             end_date_parsed = parse_date(end_date_str)
@@ -204,7 +204,7 @@ def explore_decisions_optimized_api(request):
                 end_date = timezone.make_aware(
                     datetime.combine(end_date_parsed, datetime.max.time())
                 )
-                decisions_qs = decisions_qs.filter(issue_date__lte=end_date)
+                decisions_qs = decisions_qs.filter(issue_date_day__lte=end_date)
 
         # Apply search filter
         if search_query:
@@ -279,7 +279,7 @@ def explore_decisions_optimized_api(request):
                     default=models.Value(-999999999),
                     output_field=models.DecimalField(),
                 )
-            ).order_by("-sort_amount", "-issue_date")
+            ).order_by("-sort_amount", "-issue_date_day")
         elif sort_by == "entity_amount_asc":
             decisions_qs = decisions_qs.annotate(
                 sort_amount=models.Case(
@@ -291,9 +291,9 @@ def explore_decisions_optimized_api(request):
                     default=models.Value(999999999),
                     output_field=models.DecimalField(),
                 )
-            ).order_by("sort_amount", "-issue_date")
+            ).order_by("sort_amount", "-issue_date_day")
         elif sort_by == "recent":
-            decisions_qs = decisions_qs.order_by("-issue_date")
+            decisions_qs = decisions_qs.order_by("-issue_date_day")
         else:
             # Default to entity amount desc
             decisions_qs = decisions_qs.annotate(
@@ -306,7 +306,7 @@ def explore_decisions_optimized_api(request):
                     default=models.Value(-999999999),
                     output_field=models.DecimalField(),
                 )
-            ).order_by("-sort_amount", "-issue_date")
+            ).order_by("-sort_amount", "-issue_date_day")
 
         # Optimize with select_related and prefetch_related
         decisions_qs = decisions_qs.select_related(

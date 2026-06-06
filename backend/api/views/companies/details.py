@@ -311,7 +311,7 @@ def company_decisions(request, company_id):
                 ),  # Keep for comparison
                 "currency": decision.currency,
                 "financial_year": decision.financial_year,
-                "issue_date": decision.issue_date,
+                "issue_date": decision.issue_date_day,
                 "publish_timestamp": decision.publish_timestamp,
                 "status": decision.status,
                 "url": decision.url,
@@ -344,7 +344,7 @@ def company_decisions(request, company_id):
             decisions_data.append(decision_data)
 
         # Sort by issue date descending
-        decisions_data.sort(key=lambda x: x["issue_date"] or "", reverse=True)
+        decisions_data.sort(key=lambda x: x["issue_date_day"] or "", reverse=True)
 
         return Response(
             {
@@ -404,9 +404,9 @@ def company_decision_stats(request, company_id):
         ).select_related("decision")
 
         # Calculate date range
-        date_stats = relationships.filter(decision__issue_date__isnull=False).aggregate(
-            first_date=Min("decision__issue_date"),
-            last_date=Max("decision__issue_date"),
+        date_stats = relationships.filter(decision__issue_date_day__isnull=False).aggregate(
+            first_date=Min("decision__issue_date_day"),
+            last_date=Max("decision__issue_date_day"),
         )
 
         # Get decision type breakdown
