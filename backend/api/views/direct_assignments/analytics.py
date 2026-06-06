@@ -12,6 +12,7 @@ Key use cases:
 - Monitoring and statistics
 """
 
+from api.utils.date_utils import _parse_and_validate_date_range
 import traceback
 from core.services.response_cache_service import response_cache
 from core.decorators.cache_decorator import cached_view
@@ -30,73 +31,6 @@ from loguru import logger
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-
-
-def _parse_and_validate_date_range(request, context_label: str = None):
-    """
-    Parse and validate start_date and end_date from request query parameters.
-
-    Returns:
-        Tuple of (start_date, end_date, error_response)
-        Returns timezone-aware datetime objects for proper comparison with DateTimeFields.
-    """
-    start_date_str = request.GET.get("start_date")
-    end_date_str = request.GET.get("end_date")
-
-    if not start_date_str or not end_date_str:
-        return (
-            None,
-            None,
-            Response({"error": "start_date and end_date are required"}, status=400),
-        )
-
-    try:
-        start_datetime = parse_datetime(start_date_str)
-        end_datetime = parse_datetime(end_date_str)
-
-        if start_datetime is None or end_datetime is None:
-            return (
-                None,
-                None,
-                Response(
-                    {
-                        "error": "Invalid date format. Expected ISO 8601 format (e.g., '2025-12-22T16:27:17.386689Z')"
-                    },
-                    status=400,
-                ),
-            )
-
-        # Make timezone-aware if naive (Django USE_TZ = True requires this)
-        if timezone.is_naive(start_datetime):
-            start_datetime = timezone.make_aware(start_datetime)
-        if timezone.is_naive(end_datetime):
-            end_datetime = timezone.make_aware(end_datetime)
-
-    except (ValueError, AttributeError) as e:
-        return (
-            None,
-            None,
-            Response({"error": f"Invalid date format: {str(e)}"}, status=400),
-        )
-
-    if start_datetime > end_datetime:
-        return (
-            None,
-            None,
-            Response(
-                {"error": "start_date must be before or equal to end_date"}, status=400
-            ),
-        )
-
-    if (end_datetime - start_datetime).days > 365:
-        context_info = f" for {context_label}" if context_label else ""
-        logger.warning(
-            f"Large date range requested{context_info}: "
-            f"{start_datetime} to {end_datetime} ({(end_datetime - start_datetime).days} days)"
-        )
-
-    return start_datetime, end_datetime, None
-
 
 @swagger_auto_schema(
     method="get",
