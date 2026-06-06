@@ -300,8 +300,8 @@ def entity_top_organizations_api(request, afm):
         results = list(
             DecisionEntityRelationship.objects.filter(
                 entity=entity,
-                decision__issue_date__gte=start_date,
-                decision__issue_date__lte=end_date,
+                decision__issue_date_day__gte=start_date,
+                decision__issue_date_day__lte=end_date,
                 role__in=roles,
             )
             .values("decision__organization__uid", "decision__organization__label")
@@ -317,8 +317,8 @@ def entity_top_organizations_api(request, afm):
         total_count = (
             DecisionEntityRelationship.objects.filter(
                 entity=entity,
-                decision__issue_date__gte=start_date,
-                decision__issue_date__lte=end_date,
+                decision__issue_date_day__gte=start_date,
+                decision__issue_date_day__lte=end_date,
                 role__in=roles,
             )
             .values("decision__organization")

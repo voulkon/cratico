@@ -204,8 +204,8 @@ def get_entity_info(entity_type, entity_id):
             .values("organization__uid", "organization__label")
             .annotate(
                 decision_count=models.Count("id"),
-                latest_decision=models.Max("issue_date"),
-                earliest_decision=models.Min("issue_date"),
+                latest_decision=models.Max("issue_date_day"),
+                earliest_decision=models.Min("issue_date_day"),
             )
             .distinct()
         )
@@ -373,7 +373,7 @@ def serialize_decision_with_content_info(decision):
         "id": decision.id,
         "ada": decision.ada,
         "subject": decision.subject,
-        "issue_date": decision.issue_date.isoformat() if decision.issue_date else None,
+        "issue_date": decision.issue_date_day if decision.issue_date_day else None,
         "amount": float(decision.amount) if decision.amount else None,
         "decision_type": {
             "uid": decision.decision_type.uid if decision.decision_type else None,

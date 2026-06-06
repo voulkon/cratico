@@ -13,7 +13,7 @@ Key use cases:
 """
 
 import traceback
-
+from core.services.response_cache_service import response_cache
 from core.decorators.cache_decorator import cached_view
 from core.models.decision_classification import DecisionClassification
 from core.models.entities import AFMEntity, DecisionEntityRelationship
@@ -232,8 +232,8 @@ def organization_direct_assignment_top_recipients(request, organization_uid):
         # Base filter — reused across all queries to avoid repeating 5 filter conditions
         base_filter = dict(
             decision__organization=organization,
-            decision__issue_date__gte=start_date,
-            decision__issue_date__lte=end_date,
+            decision__issue_date_day__gte=start_date,
+            decision__issue_date_day__lte=end_date,
             decision__classification__is_direct_assignment=True,
             role__in=roles,
         )
@@ -414,8 +414,8 @@ def entity_direct_assignment_top_organizations(request, afm):
         # Base filter — reused across all queries
         base_filter = dict(
             entity=entity,
-            decision__issue_date__gte=start_date,
-            decision__issue_date__lte=end_date,
+            decision__issue_date_day__gte=start_date,
+            decision__issue_date_day__lte=end_date,
             decision__classification__is_direct_assignment=True,
             role__in=roles,
         )
@@ -675,8 +675,8 @@ def direct_assignment_top_entities_global(request):
 
         # Base filter — reused across all queries
         base_filter = dict(
-            decision__issue_date__gte=start_date,
-            decision__issue_date__lte=end_date,
+            decision__issue_date_day__gte=start_date,
+            decision__issue_date_day__lte=end_date,
             decision__classification__is_direct_assignment=True,
             role__in=roles,
         )
@@ -861,8 +861,8 @@ def direct_assignment_top_organizations_global(request):
 
         # Base filter — reused across all queries
         base_filter = dict(
-            decision__issue_date__gte=start_date,
-            decision__issue_date__lte=end_date,
+            decision__issue_date_day__gte=start_date,
+            decision__issue_date_day__lte=end_date,
             decision__classification__is_direct_assignment=True,
             role__in=roles,
         )

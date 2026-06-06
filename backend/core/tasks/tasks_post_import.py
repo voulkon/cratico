@@ -16,10 +16,52 @@ Execution order (via Celery chain):
 """
 
 from datetime import date, timedelta
+import calendar
 
 from celery import chain, shared_task
 from core.services.feature_flag_service import feature_flags
 from loguru import logger
+
+
+# ---------------------------------------------------------------------------
+# Calendar-aware window helpers
+# ---------------------------------------------------------------------------
+
+def _subtract_calendar_months(d: date, n: int) -> date:
+    """
+    Subtract *n* calendar months from *d*, clamping the day if the target
+    month is shorter (e.g. 31 Mar → 28 Feb).
+
+    Matches JavaScript's ``d.setMonth(d.getMonth() - n)`` behaviour.
+    """
+    month = d.month - n
+    year = d.year
+    while month <= 0:
+        month += 12
+        year -= 1
+    last_day = calendar.monthrange(year, month)[1]
+    return date(year, month, min(d.day, last_day))
+
+
+def _calendar_windows(ref: date) -> list[tuple[str, date, date]]:
+    """
+    Return the 4 standard time windows using **calendar arithmetic**
+    (matching the frontend's ``DateRangeContext.calculateDateRange``).
+
+    Frontend reference (``DateRangeContext.js``)::
+
+        week:  start.setDate(end.getDate() - 7)          # pure days ✓
+        month: start.setMonth(end.getMonth() - 1)         # calendar month
+        year:  start.setFullYear(end.getFullYear() - 1)   # calendar year
+    """
+    return [
+        ("daily",   ref - timedelta(days=1),   ref - timedelta(days=1)),
+        ("weekly",  ref - timedelta(days=7),   ref),
+        ("monthly", _subtract_calendar_months(ref, 1),  ref),
+        ("yearly",  date(ref.year - 1, ref.month,
+                         min(ref.day, calendar.monthrange(ref.year - 1, ref.month)[1])),
+                     ref),
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -109,12 +151,7 @@ def compute_entity_rankings(reference_date_str: str | None = None):
         else date.today()
     )
 
-    windows = [
-        ("daily", ref - timedelta(days=1), ref - timedelta(days=1)),
-        ("weekly", ref - timedelta(days=7), ref),
-        ("monthly", ref - timedelta(days=30), ref),
-        ("yearly", ref - timedelta(days=365), ref),
-    ]
+    windows = _calendar_windows(ref)
 
     logger.info(f"Computing entity rankings for {len(windows)} windows (ref={ref})")
 
@@ -166,12 +203,7 @@ def warm_analytics_cache(reference_date_str: str | None = None):
         else date.today()
     )
 
-    windows = [
-        ("daily", ref - timedelta(days=1), ref - timedelta(days=1)),
-        ("weekly", ref - timedelta(days=7), ref),
-        ("monthly", ref - timedelta(days=30), ref),
-        ("yearly", ref - timedelta(days=365), ref),
-    ]
+    windows = _calendar_windows(ref)
 
     logger.info(f"Warming analytics cache for {len(windows)} windows (ref={ref})")
 
@@ -184,7 +216,7 @@ def warm_analytics_cache(reference_date_str: str | None = None):
 
         for view_name, warm_fn, kwargs in [
             ("explore_orgs", warm_explore_orgs_window, {"limit": 6}),
-            ("da_top_pairs", warm_da_top_pairs_window, {"limit": 20, "offset": 0}),
+            ("da_top_pairs", warm_da_top_pairs_window, {"max_limit": 50, "page_size": 6}),
         ]:
             try:
                 warm_fn(

@@ -9,9 +9,7 @@ import SortControl from '../components/SortControl';
 import TopCounterparts from '../components/TopCounterparts';
 import GemiSection from '../components/GemiSection';
 import DecisionList from '../components/DecisionList';
-import FilterPanel from '../components/FilterPanel';
 import StatisticsGrid from '../components/StatisticsGrid';
-import SearchInput from '../components/SearchInput';
 import TimeRangeSection from '../components/TimeRangeSection';
 import { createDynamicDateRangeUtils, formatAmount } from '../utils/dateUtils';
 import './AFMEntityDetailPage.css';
@@ -28,7 +26,6 @@ const AFMEntityDetailPage = () => {
   const [error, setError] = useState(null);
   const [pagination, setPagination] = useState(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [availableRoles, setAvailableRoles] = useState([]);
   const [companyInfo, setCompanyInfo] = useState(null);
   const [gemiFetchStatus, setGemiFetchStatus] = useState(null); // null | 'loading' | 'queued' | 'already_queued' | 'already_fetched' | 'rate_limited' | 'error'
 
@@ -47,14 +44,9 @@ const AFMEntityDetailPage = () => {
   const {
     sortBy,
     searchQuery,
-    selectedRoles,
     directAssignmentsOnly,
-    activeFiltersCount,
     setSortBy,
-    setSearchQuery,
-    toggleRole,
     setDirectAssignmentsOnly,
-    clearAllFilters
   } = useUrlFilters({ sortBy: 'amount_desc' });
 
   // Debounced search query
@@ -70,7 +62,6 @@ const AFMEntityDetailPage = () => {
     try {
       const entityResponse = await apiClient.get(`/entity/afm/${afm}/`);
       setEntity(entityResponse.data.entity);
-      setAvailableRoles(entityResponse.data.available_roles);
     } catch (err) {
       console.error('Failed to fetch entity metadata:', err);
       setError(err.response?.data?.error || err.message);
@@ -114,7 +105,6 @@ const AFMEntityDetailPage = () => {
         page: page.toString(),
         start_date: timeRange.startDate,
         end_date: timeRange.endDate,
-        ...(selectedRoles.length > 0 && { roles: selectedRoles.join(',') }),
         ...(directAssignmentsOnly && { direct_assignments_only: 'true' })
       });
 
@@ -138,7 +128,7 @@ const AFMEntityDetailPage = () => {
       if (!append) setLoading(false);
       else setLoadingMore(false);
     }
-  }, [afm, timeRange, sortBy, selectedRoles, directAssignmentsOnly, debouncedSearchQuery]);
+  }, [afm, timeRange, sortBy, directAssignmentsOnly, debouncedSearchQuery]);
 
   // Fetch statistics - non-blocking, fire-and-forget
   const fetchStatistics = useCallback(async () => {
@@ -202,7 +192,7 @@ const AFMEntityDetailPage = () => {
       fetchStatistics();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeRange, sortBy, selectedRoles, directAssignmentsOnly, debouncedSearchQuery]);
+  }, [timeRange, sortBy, directAssignmentsOnly, debouncedSearchQuery]);
 
   useEffect(() => {
     let cancelled = false;
@@ -463,44 +453,6 @@ const AFMEntityDetailPage = () => {
           </div>
         </div>
 
-        {/* Role Filters */}
-        <FilterPanel
-          activeFiltersCount={activeFiltersCount}
-          onClearAll={clearAllFilters}
-          filterLabel={t('afmEntityDetail.filterByRole')}
-        >
-          <div className="role-filters">
-            {availableRoles.map(role => (
-              <label key={role.role} className="role-filter-checkbox">
-                <input
-                  type="checkbox"
-                  checked={selectedRoles.includes(role.role)}
-                  onChange={() => toggleRole(role.role)}
-                />
-                <span className="checkbox-content">
-                  <span className="role-label">
-                    {t(`afmEntityDetail.roles.${role.role}`, role.role)}
-                  </span>
-                  <span className="role-stats">({role.count})</span>
-                </span>
-              </label>
-            ))}
-          </div>
-        </FilterPanel>
-
-        {/* Active Filters Display */}
-        {selectedRoles.length > 0 && (
-          <div className="active-filters">
-            <span className="filters-label">{t('common.activeFilters')}:</span>
-            {selectedRoles.map(role => (
-              <span key={role} className="filter-tag">
-                {t(`afmEntityDetail.roles.${role}`, role)}
-                <button onClick={() => toggleRole(role)}>×</button>
-              </span>
-            ))}
-          </div>
-        )}
-
         {/* Search Results Info */}
         {searchQuery && (
           <div className="search-results-info">
@@ -530,7 +482,7 @@ const AFMEntityDetailPage = () => {
           loadingMore={loadingMore}
           error={null}
           pagination={pagination}
-          hasSearchQuery={!!(searchQuery || selectedRoles.length > 0)}
+          hasSearchQuery={!!searchQuery}
           formatAmount={formatAmount}
           onViewDocumentContent={handleViewDocumentContent}
           onLoadMore={loadMoreDecisions}

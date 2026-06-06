@@ -9,6 +9,8 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Constrain height so the internal scroll container works */
+  max-height: 620px;
 }
 
 /* When used inside data-grid, remove margin */

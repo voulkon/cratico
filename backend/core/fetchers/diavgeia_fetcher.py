@@ -107,6 +107,7 @@ class DiavgeiaFetcher:
             api_kwargs = {k: v for k, v in kwargs.items() if k not in internal_params}
 
             # Assuming the client method handles potential errors or returns None/empty on failure
+            logger.info(f"Fetching decisions with parameters: {api_kwargs}")
             raw: SearchResponse | None = self._get_client().search_decisions(**api_kwargs)  # type: ignore[no-untyped-call]
             if raw and raw.decisions:  # Check if response is valid and has decisions
                 logger.debug(

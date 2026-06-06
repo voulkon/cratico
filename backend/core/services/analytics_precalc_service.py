@@ -72,9 +72,9 @@ def compute_explore_orgs(
 
     decisions_qs = Decision.objects.all()
     if start_parsed:
-        decisions_qs = decisions_qs.filter(issue_date__gte=_make_aware_start(start_parsed))
+        decisions_qs = decisions_qs.filter(issue_date_day__gte=_make_aware_start(start_parsed))
     if end_parsed:
-        decisions_qs = decisions_qs.filter(issue_date__lte=_make_aware_end(end_parsed))
+        decisions_qs = decisions_qs.filter(issue_date_day__lte=_make_aware_end(end_parsed))
 
     organizations = (
         decisions_qs.values("organization__uid", "organization__label")
@@ -177,8 +177,8 @@ def compute_da_top_pairs(
     roles = FinancialCalculationService.MONEY_RECEIVED_ROLES
 
     base_filter = dict(
-        decision__issue_date__gte=start_dt,
-        decision__issue_date__lte=end_dt,
+        decision__issue_date_day__gte=start_dt,
+        decision__issue_date_day__lte=end_dt,
         decision__classification__is_direct_assignment=True,
         role__in=roles,
     )
@@ -254,11 +254,19 @@ def warm_da_top_pairs_window(
     start_date_str: str,
     end_date_str: str,
     end_date: date,
-    limit: int = 20,
-    offset: int = 0,
+    max_limit: int = 50,
+    page_size: int = 6,
 ) -> None:
     """
-    Compute and cache da-top-pairs data for one time window.
+    Compute da-top-pairs ONCE with a large limit, then slice into
+    page_size batches and cache each one under the exact key the
+    frontend will request (matching offset + limit).
+
+    Why: the cache key includes both ``limit`` and ``offset``, so a
+    single ``limit=50`` cache entry would never satisfy a frontend
+    request for ``limit=6&offset=12``.  By pre-slicing we cover every
+    paginated request the frontend makes while scrolling — without
+    re-running the heavy DB query.
 
     Note: the view uses parse_datetime() which rejects "YYYY-MM-DD" strings,
     but the frontend sends exactly that format.  By pre-populating with the
@@ -269,8 +277,8 @@ def warm_da_top_pairs_window(
         start_date_str: ISO date string used verbatim in the cache key
         end_date_str:   ISO date string used verbatim in the cache key
         end_date:       Python date for smart TTL selection
-        limit:          Must match what the frontend sends (component default = 20)
-        offset:         Must match what the frontend sends (initial load = 0)
+        max_limit:      How many top pairs to pre-compute (default 50)
+        page_size:      Frontend's page size — must match TopRelationshipPairs.limit
     """
     start_parsed = parse_date(start_date_str)
     end_parsed = parse_date(end_date_str)
@@ -280,23 +288,49 @@ def warm_da_top_pairs_window(
             f"({start_date_str!r}, {end_date_str!r})"
         )
 
+    # ── compute ONCE with the large limit ──────────────────────────
     data = compute_da_top_pairs(
         start_dt=_make_aware_start(start_parsed),
         end_dt=_make_aware_end(end_parsed),
         start_date_str=start_date_str,
         end_date_str=end_date_str,
-        limit=limit,
-        offset=offset,
+        limit=max_limit,
+        offset=0,
     )
-    cache_key = response_cache.build_key(
-        "da_top_pairs",
-        start_date=start_date_str,
-        end_date=end_date_str,
-        limit=str(limit),
-        offset=str(offset),
-    )
-    response_cache.set(cache_key, data, end_date=end_date)
+
+    full_results: list[dict] = data["results"]
+    total_count: int = data["pagination"]["total_count"]
+    summary: dict = data["summary"]
+
+    # ── slice into pages and cache each one ────────────────────────
+    cached = 0
+    for offset in range(0, len(full_results), page_size):
+        page_results = full_results[offset : offset + page_size]
+
+        page_data = {
+            "date_range": data["date_range"],
+            "results": page_results,
+            "pagination": {
+                "limit": page_size,
+                "offset": offset,
+                "total_count": total_count,
+                "has_more": (offset + page_size) < total_count,
+            },
+            "summary": summary,
+        }
+
+        cache_key = response_cache.build_key(
+            "da_top_pairs",
+            start_date=start_date_str,
+            end_date=end_date_str,
+            limit=str(page_size),
+            offset=str(offset),
+        )
+        response_cache.set(cache_key, page_data, end_date=end_date)
+        cached += 1
+
     logger.info(
         f"[AnalyticsPrecalc] Warmed da_top_pairs "
-        f"[{start_date_str} → {end_date_str}] key={cache_key}"
+        f"[{start_date_str} → {end_date_str}] {cached} pages "
+        f"(max_limit={max_limit}, page_size={page_size}, total_count={total_count})"
     )
