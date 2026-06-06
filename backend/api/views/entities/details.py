@@ -4,7 +4,6 @@ from datetime import date
 from api.utils.common import get_client_ip
 from core.models.entities import AFMEntity, DecisionEntityRelationship
 from core.services.feature_flag_service import feature_flags
-from core.services.financial_calculation_service import financial_service
 from core.services.search_service import SearchService
 from core.utils.performance_monitoring import monitor_query_performance
 from django.conf import settings
@@ -21,21 +20,9 @@ from rest_framework.response import Response
 @permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
 @monitor_query_performance(include_context=True)
 def afm_entity_detail(request, afm):
-    """Get detailed AFM entity information with statistics."""
+    """Get AFM entity metadata with optional company info."""
     try:
         entity = AFMEntity.objects.get(afm=afm)
-
-        # Use the financial service for comprehensive statistics
-        financial_summary = financial_service.get_entity_financial_summary(entity)
-
-        # Get basic relationship statistics (non-financial)
-        # Activity statistics
-        activity_days = (entity.last_seen - entity.first_seen).days
-        avg_decisions_per_month = (
-            (financial_summary["decision_count"] / max(activity_days / 30, 1))
-            if activity_days > 0
-            else 0
-        )
 
         entity_data = {
             "afm": entity.afm,
@@ -68,45 +55,7 @@ def afm_entity_detail(request, afm):
 
         entity_data["company"] = company_data
 
-        # Use financial service data for statistics
-        statistics = {
-            "total_decisions": financial_summary["decision_count"],
-            "total_amount": float(financial_summary["total_received"]),
-            "decisions_with_amounts": financial_summary[
-                "decision_count"
-            ],  # All relationships with linked amounts
-            "unique_organizations": financial_summary["unique_organizations"],
-            "unique_roles": len(financial_summary["role_breakdown"]),
-            "most_frequent_organization": (
-                financial_summary["top_organizations"][0]
-                if financial_summary["top_organizations"]
-                else None
-            ),
-            "avg_decisions_per_month": avg_decisions_per_month,
-            "avg_amount": float(financial_summary["avg_amount"]),
-        }
-
-        # Format role breakdown for the response
-        available_roles = [
-            {
-                "role": role_data["role"],
-                "count": role_data["decision_count"],
-                "total_amount": (
-                    float(role_data["total_amount"])
-                    if role_data["total_amount"]
-                    else None
-                ),
-            }
-            for role_data in financial_summary["role_breakdown"]
-        ]
-
-        return Response(
-            {
-                "entity": entity_data,
-                "statistics": statistics,
-                "available_roles": available_roles,
-            }
-        )
+        return Response({"entity": entity_data})
 
     except AFMEntity.DoesNotExist:
         return Response({"error": "AFM entity not found"}, status=404)
