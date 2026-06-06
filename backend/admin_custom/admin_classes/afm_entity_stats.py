@@ -57,13 +57,10 @@ class AFMEntityStatsAdmin(admin.ModelAdmin):
     # ------------------------------------------------------------------
 
     def entity_link(self, obj):
-        from django.urls import reverse
-
-        admin_url = reverse("admin:core_afmentity_change", args=[obj.entity.pk])
         return format_html(
-            '<a href="{}" target="_blank"><strong>{}</strong></a>'
+            '<a href="/entity/afm/{}/" target="_blank"><strong>{}</strong></a>'
             "<br/><small style='color:#666;'>{}</small>",
-            admin_url,
+            obj.entity.afm,
             obj.entity.afm,
             (obj.entity.name or "No name")[:60],
         )
