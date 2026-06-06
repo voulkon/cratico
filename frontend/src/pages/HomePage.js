@@ -11,7 +11,23 @@ import DateRangeSelector from '../components/DateRangeSelector';
 import './HomePage.css';
 
 /**
- * Dashboard Data Component - uses DateRangeContext
+ * Inline loading skeleton for a single data-section card
+ */
+const SectionLoadingSkeleton = () => {
+  const { t } = useTranslation();
+  return (
+    <div className="data-section data-section-loading">
+      <div className="loading-spinner"></div>
+      <p>{t('homepage.loading')}</p>
+    </div>
+  );
+};
+
+/**
+ * Dashboard Data Component - uses DateRangeContext.
+ * TopRelationshipPairs loads independently (manages its own loading state).
+ * The data-grid (organizations + decisions) loads separately so each
+ * section can appear as soon as its data is ready.
  */
 const DashboardData = () => {
   const navigate = useNavigate();
@@ -19,23 +35,20 @@ const DashboardData = () => {
   const { dateRange } = useDateRange();
   const [topOrganizations, setTopOrganizations] = useState([]);
   const [recentDecisions, setRecentDecisions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [gridLoading, setGridLoading] = useState(true);
 
-  const loadDashboardData = async () => {
+  const loadGridData = async () => {
     if (!dateRange) return;
 
     try {
-      setLoading(true);
+      setGridLoading(true);
 
-      // Parallel API calls for dashboard data
+      // Parallel API calls for the two data-grid columns
       const [
         organizationsResponse,
         decisionsResponse
       ] = await Promise.all([
-        // Top organizations
         apiClient.get(`/explore/organizations/?start_date=${dateRange.start_date}&end_date=${dateRange.end_date}&limit=6`),
-
-        // Get recent high-value decisions using optimized endpoint
         apiClient.get(
           `/explore/decisions-optimized/?start_date=${dateRange.start_date}&end_date=${dateRange.end_date}&sort_by=entity_amount_desc&page_size=5`
         )
@@ -45,14 +58,14 @@ const DashboardData = () => {
       setRecentDecisions(decisionsResponse.data.results || []);
 
     } catch (error) {
-      console.error('Failed to load dashboard data:', error);
+      console.error('Failed to load grid data:', error);
     } finally {
-      setLoading(false);
+      setGridLoading(false);
     }
   };
 
   useEffect(() => {
-    loadDashboardData();
+    loadGridData();
     // eslint-disable-next-line
   }, [dateRange]);
 
@@ -65,99 +78,98 @@ const DashboardData = () => {
     return `€${amount?.toLocaleString() || 0}`;
   };
 
-  if (loading) {
-    return (
-      <div className="homepage-loading">
-        <div className="loading-spinner"></div>
-        <p>{t('homepage.loading')}</p>
-      </div>
-    );
-  }
-
   return (
     <>
-      {/* Top Org×Entity Relationships - Full Width */}
+      {/* Top Org×Entity Relationships — loads independently (owns its own loading state) */}
       <TopRelationshipPairs
         limit={6}
         showDirectAssignmentsToggle={true}
         defaultDirectAssignmentsOnly={true}
       />
 
-      {/* Two Column Grid: Organizations & Decisions */}
+      {/* Two Column Grid: Organizations & Decisions — loads separately */}
       <div className="data-grid">
         {/* Top Organizations */}
-        <section className="data-section">
-          <div className="section-header">
-            <h2 className="section-title">{t('homepage.mostActiveOrganizations')}</h2>
-            <button
-              className="see-all-button"
-              onClick={() => navigate(`/explore/temporal/${dateRange.start_date}/${dateRange.end_date}`)}
-            >
-              {t('homepage.seeAll')} →
-            </button>
-          </div>
-          <div className="organizations-list">
-            {topOrganizations.slice(0, 5).map((org, index) => (
-              <div
-                key={org.uid}
-                className="organization-card compact"
-                onClick={() => navigate(`/entity/organization/${org.uid}`)}
+        {gridLoading ? (
+          <SectionLoadingSkeleton />
+        ) : (
+          <section className="data-section data-section-scrollable">
+            <div className="section-header">
+              <h2 className="section-title">{t('homepage.mostActiveOrganizations')}</h2>
+              <button
+                className="see-all-button"
+                onClick={() => navigate(`/explore/temporal/${dateRange.start_date}/${dateRange.end_date}`)}
               >
-                <div className="card-rank">#{index + 1}</div>
-                <div className="org-info">
-                  <h4 className="org-name">{org.label}</h4>
-                  <div className="org-stats">
-                    <span className="org-decisions">{org.count} {t('homepage.decisions')}</span>
-                    <span className="org-amount">{formatAmount(org.total_amount)}</span>
+                {t('homepage.seeAll')} →
+              </button>
+            </div>
+            <div className="organizations-list">
+              {topOrganizations.slice(0, 5).map((org, index) => (
+                <div
+                  key={org.uid}
+                  className="organization-card compact"
+                  onClick={() => navigate(`/entity/organization/${org.uid}`)}
+                >
+                  <div className="card-rank">#{index + 1}</div>
+                  <div className="org-info">
+                    <h4 className="org-name">{org.label}</h4>
+                    <div className="org-stats">
+                      <span className="org-decisions">{org.count} {t('homepage.decisions')}</span>
+                      <span className="org-amount">{formatAmount(org.total_amount)}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </section>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Recent High-Value Decisions */}
-        <section className="data-section">
-          <div className="section-header">
-            <h2 className="section-title">{t('homepage.notableRecentDecisions')}</h2>
-            <button
-              className="see-all-button"
-              onClick={() => navigate(`/explore/temporal/${dateRange.start_date}/${dateRange.end_date}?sort_by=amount_desc`)}
-            >
-              {t('homepage.seeAll')} →
-            </button>
-          </div>
-          <div className="decisions-list compact">
-            {recentDecisions.slice(0, 5).map((decision, index) => (
-              <div
-                key={decision.ada}
-                className="decision-item compact clickable"
-                onClick={() => navigate(`/decision/${decision.id}`)}
+        {gridLoading ? (
+          <SectionLoadingSkeleton />
+        ) : (
+          <section className="data-section data-section-scrollable">
+            <div className="section-header">
+              <h2 className="section-title">{t('homepage.notableRecentDecisions')}</h2>
+              <button
+                className="see-all-button"
+                onClick={() => navigate(`/explore/temporal/${dateRange.start_date}/${dateRange.end_date}?sort_by=amount_desc`)}
               >
-                <div className="card-rank">#{index + 1}</div>
-                <div className="decision-content">
-                  <div className="decision-subject">
-                    {decision.subject.length > 80
-                      ? `${decision.subject.substring(0, 80)}...`
-                      : decision.subject
-                    }
-                  </div>
-                  <div className="decision-meta">
-                    <span className="decision-org">
-                      {decision.organization?.label && decision.organization.label.length > 40
-                        ? `${decision.organization.label.substring(0, 40)}...`
-                        : decision.organization?.label
+                {t('homepage.seeAll')} →
+              </button>
+            </div>
+            <div className="decisions-list compact">
+              {recentDecisions.slice(0, 5).map((decision, index) => (
+                <div
+                  key={decision.ada}
+                  className="decision-item compact clickable"
+                  onClick={() => navigate(`/decision/${decision.id}`)}
+                >
+                  <div className="card-rank">#{index + 1}</div>
+                  <div className="decision-content">
+                    <div className="decision-subject">
+                      {decision.subject.length > 80
+                        ? `${decision.subject.substring(0, 80)}...`
+                        : decision.subject
                       }
-                    </span>
-                  </div>
-                  <div className="decision-amount-compact">
-                    {formatAmount(decision.amount)}
+                    </div>
+                    <div className="decision-meta">
+                      <span className="decision-org">
+                        {decision.organization?.label && decision.organization.label.length > 40
+                          ? `${decision.organization.label.substring(0, 40)}...`
+                          : decision.organization?.label
+                        }
+                      </span>
+                    </div>
+                    <div className="decision-amount-compact">
+                      {formatAmount(decision.amount)}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </section>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </>
   );

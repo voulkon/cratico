@@ -92,6 +92,45 @@
   flex-direction: column;
 }
 
+/* Scrollable variant — each data-section gets its own scrollbar */
+.data-section-scrollable {
+  max-height: 520px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.data-section-scrollable::-webkit-scrollbar {
+  width: 8px;
+}
+
+.data-section-scrollable::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.data-section-scrollable::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+.data-section-scrollable::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-text);
+}
+
+/* Loading skeleton for a single data-section */
+.data-section-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  gap: var(--spacing-md);
+}
+
+.data-section-loading .loading-spinner {
+  width: 32px;
+  height: 32px;
+}
+
 .data-section .section-header {
   margin-bottom: var(--spacing-lg);
 }
