@@ -58,54 +58,28 @@ export function getCurrentPageBookmarkData() {
   const search = window.location.search;
   const fullUrl = path + search;
 
-  // Determine view type and generate better title
+  // Use the page title set by useDocumentTitle, stripping the " — CratiCo" suffix.
+  // Fall back to "Bookmarked Page" if no page-specific title has been set yet.
+  const currentTitle = document.title.replace(/ — CratiCo$/, '');
+  const defaultTitle = currentTitle !== 'CratiCo' ? currentTitle : 'Bookmarked Page';
+
+  // Determine view type
   let viewType = 'page';
-  let defaultTitle = 'Bookmarked Page';
 
   if (path.includes('/decision/')) {
     viewType = 'decision';
-    const decisionId = path.split('/decision/')[1]?.split('/')[0];
-    defaultTitle = `Decision ${decisionId || ''}`;
   } else if (path.includes('/entity/afm/')) {
     viewType = 'entity';
-    const afm = path.split('/entity/afm/')[1]?.split('/')[0];
-    defaultTitle = `AFM Entity ${afm || ''}`;
   } else if (path.includes('/entity/')) {
     viewType = 'entity';
-    const parts = path.split('/entity/');
-    if (parts[1]) {
-      const [entityType, entityId] = parts[1].split('/');
-      defaultTitle = `${entityType} ${entityId || ''}`;
-    }
   } else if (path.includes('/search')) {
     viewType = 'search';
-    const params = new URLSearchParams(search);
-    const query = params.get('q') || params.get('query');
-    defaultTitle = query ? `Search: ${query}` : 'Search Results';
-  } else if (path.includes('/explore/temporal')) {
+  } else if (path.includes('/explore/')) {
     viewType = 'temporal';
-    const datePart = path.split('/explore/temporal/')[1];
-    defaultTitle = datePart ? `Temporal: ${datePart}` : 'Temporal View';
-  } else if (path.includes('/explore/month')) {
-    viewType = 'temporal';
-    const parts = path.split('/explore/month/');
-    if (parts[1]) {
-      const [year, month] = parts[1].split('/');
-      defaultTitle = `Month: ${year}-${month || ''}`;
-    }
-  } else if (path.includes('/explore/week')) {
-    viewType = 'temporal';
-    const parts = path.split('/explore/week/');
-    if (parts[1]) {
-      const [year, week] = parts[1].split('/');
-      defaultTitle = `Week: ${year}-${week || ''}`;
-    }
   } else if (path === '/' || path === '') {
     viewType = 'home';
-    defaultTitle = 'Home Page';
   } else if (path.includes('/organizations')) {
     viewType = 'organizations';
-    defaultTitle = 'Organizations';
   }
 
   // Add shortened URL info

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import relationshipsApi from '../api/relationshipsApi';
 import useUrlFilters from '../hooks/useUrlFilters';
 import DecisionCard from '../components/DecisionCard';
@@ -23,6 +24,7 @@ const RelationshipDetailPage = () => {
 
   const [entity, setEntity] = useState(null);
   const [organization, setOrganization] = useState(null);
+  useDocumentTitle(entity?.name ? `${entity.name} × ${organization?.name || orgUid}` : `Entity ${afm} × Org ${orgUid}`);
   const [decisions, setDecisions] = useState([]);
   const [pagination, setPagination] = useState(null);
   const [statistics, setStatistics] = useState(null);

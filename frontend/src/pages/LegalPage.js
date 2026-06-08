@@ -4,6 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import apiClient from '../api/client';
 import { useTranslation } from '../contexts/TranslationContext';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import './LegalPage.css';
 
 /**
@@ -19,6 +20,7 @@ const LegalPage = () => {
   const [doc, setDoc] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  useDocumentTitle(doc?.title || type);
 
   useEffect(() => {
     setLoading(true);

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import { useTranslation } from '../contexts/TranslationContext';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import useUrlFilters from '../hooks/useUrlFilters';
 import useDocumentContent from '../hooks/useDocumentContent';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
@@ -20,6 +21,7 @@ const AFMEntityDetailPage = () => {
   const { t } = useTranslation();
 
   const [entity, setEntity] = useState(null);
+  useDocumentTitle(entity?.name || `AFM ${afm}`);
   const [decisions, setDecisions] = useState([]);
   const [statistics, setStatistics] = useState(null);
   const [loading, setLoading] = useState(true);

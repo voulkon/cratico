@@ -1,8 +1,10 @@
 import React from 'react';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import SuperSearch from '../components/SuperSearch';
 import './SuperSearchExample.css';
 
 const SuperSearchExample = () => {
+  useDocumentTitle('Search Examples');
   const handleResultClick = (item) => {
     console.log('Clicked on:', item);
     // You can customize what happens when a result is clicked

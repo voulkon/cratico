@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import { useTranslation } from '../contexts/TranslationContext';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import './DecisionDetailPage.css';
 import EntityDisplay from '../components/EntityDisplay';
 import { formatAmount } from '../utils/dateUtils';
@@ -28,16 +29,13 @@ const DecisionDetailPage = () => {
   const { t } = useTranslation();
 
   const [decision, setDecision] = useState(null);
+  useDocumentTitle(decision?.subject || `Decision ${id}`);
   const [entityRelationships, setEntityRelationships] = useState([]);
   const [relatedDecisions, setRelatedDecisions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    fetchDecisionData();
-  }, [id]);
-
-  const fetchDecisionData = async () => {
+  const fetchDecisionData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -56,7 +54,11 @@ const DecisionDetailPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    fetchDecisionData();
+  }, [fetchDecisionData]);
 
   const handleViewDocumentContent = async () => {
     try {

@@ -13,6 +13,7 @@ import StatisticsGrid from '../components/StatisticsGrid';
 import useUrlFilters from '../hooks/useUrlFilters';
 import useDocumentContent from '../hooks/useDocumentContent';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { createDynamicDateRangeUtils, formatAmount } from '../utils/dateUtils';
 import { useTranslation } from '../contexts/TranslationContext';
 import './EntityDetailPage.css';
@@ -22,6 +23,15 @@ const EntityDetailPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
+
+  // Enhanced state to handle both modes
+  const [entityData, setEntityData] = useState(null);
+
+  useDocumentTitle(
+    entityData?.name
+      ? entityData.name
+      : (entityType && entityId ? `${entityType}/${entityId}` : null)
+  );
 
   // Determine exploration mode
   const explorationMode = location.pathname.startsWith('/explore') ? 'temporal' : 'entity';
@@ -46,8 +56,6 @@ const EntityDetailPage = () => {
   // Debounced search query
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
 
-  // Enhanced state to handle both modes
-  const [entityData, setEntityData] = useState(null);
   const [statistics, setStatistics] = useState(null);
   const [statisticsLoading, setStatisticsLoading] = useState(false);
   const [statisticsError, setStatisticsError] = useState(null);
@@ -327,6 +335,41 @@ const EntityDetailPage = () => {
     }
   }, [pagination, loadingMore, fetchDecisions]);
 
+  // Build a human-readable subtitle from metadata instead of showing the raw ID
+  const getEntitySubtitle = useCallback(() => {
+    const typeLabel = entityType.charAt(0).toUpperCase() + entityType.slice(1);
+
+    if (!entityData?.metadata) {
+      return `${typeLabel} • ${entityId}`;
+    }
+
+    const meta = entityData.metadata;
+
+    if (entityType === 'organization') {
+      const parts = [typeLabel];
+      if (meta.category) parts.push(meta.category);
+      if (meta.status) parts.push(meta.status);
+      return parts.join(' • ');
+    }
+
+    if (entityType === 'afm') {
+      const parts = [typeLabel];
+      if (meta.entity_type) parts.push(meta.entity_type);
+      if (meta.total_appearances != null) parts.push(`${meta.total_appearances} ${t('statistics.totalDecisions').toLowerCase()}`);
+      return parts.join(' • ');
+    }
+
+    if (entityType === 'signer') {
+      const parts = [typeLabel];
+      if (meta.total_organizations != null) {
+        parts.push(`${meta.total_organizations} ${t('statistics.organizationsCount').toLowerCase()}`);
+      }
+      return parts.join(' • ');
+    }
+
+    return `${typeLabel} • ${entityId}`;
+  }, [entityType, entityId, entityData, t]);
+
   // Enhanced page title and breadcrumbs
   const getPageInfo = () => {
     if (explorationMode === 'temporal') {
@@ -338,8 +381,8 @@ const EntityDetailPage = () => {
       };
     } else {
       return {
-        title: entityData?.name || t('common.unknown') + ' Entity',
-        subtitle: `${entityType.charAt(0).toUpperCase() + entityType.slice(1)} • ID: ${entityId}`,
+        title: entityData?.name || entityId,
+        subtitle: getEntitySubtitle(),
         breadcrumb: t('entityDetail.exploreArrow') + ' ' + t('entityDetail.entityArrow')
       };
     }

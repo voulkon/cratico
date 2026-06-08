@@ -2,18 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import apiClient from '../api/client';
 import { useTranslation } from '../contexts/TranslationContext';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import './PersonPage.css';
 
 const PersonPage = () => {
   const { t } = useTranslation();
   const { personName } = useParams();
   const navigate = useNavigate();
+  const decodedName = decodeURIComponent(personName);
+  useDocumentTitle(decodedName);
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  const decodedName = decodeURIComponent(personName);
 
   useEffect(() => {
     setLoading(true);

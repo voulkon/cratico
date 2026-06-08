@@ -22,6 +22,7 @@ import {
   updateBookmark,
   deleteBookmark
 } from '../api/bookmarks';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import './LibraryPage.css';
 
 /**
@@ -29,6 +30,7 @@ import './LibraryPage.css';
  * Layout: Folders (left) | Bookmarks (center) | Details (right)
  */
 export default function LibraryPage() {
+  useDocumentTitle('Library');
   const navigate = useNavigate();
 
   // State
