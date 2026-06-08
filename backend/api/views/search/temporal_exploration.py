@@ -1,5 +1,7 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 
+from api.utils.date_utils import _parse_optional_date_range
+from api.utils.sorting import apply_decision_sorting
 from core.decorators.cache_decorator import cached_view
 from core.models.decisions import Decision
 from core.services.feature_flag_service import feature_flags
@@ -11,7 +13,6 @@ from django.core.paginator import Paginator
 from django.db import models
 
 from django.utils import timezone
-from django.utils.dateparse import parse_date
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import api_view, permission_classes
@@ -210,35 +211,13 @@ def explore_date_range_api_dev(request):
 @monitor_query_performance(operation="temporal_statistics_global")
 def explore_statistics_api_dev(request):
     """Get statistics for temporal exploration across all organizations"""
-    start_date_str = request.GET.get("start_date")
-    end_date_str = request.GET.get("end_date")
+    start_dt, end_dt, err = _parse_optional_date_range(request)
+    if err:
+        return err
 
     # Default to last 12 months if no dates provided
-    if not end_date_str:
-        end_date = timezone.now()
-    else:
-        try:
-            end_date_parsed = parse_date(end_date_str)
-            if not end_date_parsed:
-                raise ValueError("Invalid date format")
-            end_date = timezone.make_aware(
-                datetime.combine(end_date_parsed, datetime.max.time())
-            )
-        except (ValueError, TypeError) as e:
-            return Response({"error": f"Invalid end_date format: {e}"}, status=400)
-
-    if not start_date_str:
-        start_date = end_date - timedelta(days=365)
-    else:
-        try:
-            start_date_parsed = parse_date(start_date_str)
-            if not start_date_parsed:
-                raise ValueError("Invalid date format")
-            start_date = timezone.make_aware(
-                datetime.combine(start_date_parsed, datetime.min.time())
-            )
-        except (ValueError, TypeError) as e:
-            return Response({"error": f"Invalid start_date format: {e}"}, status=400)
+    end_date = end_dt if end_dt else timezone.now()
+    start_date = start_dt if start_dt else end_date - timedelta(days=365)
 
     try:
         # Use financial service for accurate calculations
@@ -247,10 +226,8 @@ def explore_statistics_api_dev(request):
         # Get all decisions (no entity filtering)
         decisions_qs = Decision.objects.all()
 
-        # Apply date filters
-        filtered_qs = decisions_qs.filter(
-            issue_date_day__gte=start_date, issue_date_day__lte=end_date
-        )
+        # Apply date filters (pass datetimes directly since they're already TZ-aware)
+        filtered_qs = decisions_qs.filter_by_date_range(start_date, end_date)
 
         # Calculate basic statistics using calculated amounts for accuracy
         # We annotate with the sum of linked amounts per decision
@@ -491,8 +468,8 @@ def explore_statistics_api_dev(request):
 @monitor_query_performance(operation="temporal_decisions_search")
 def explore_decisions_api_dev(request):
     """Get paginated decisions for temporal exploration across all organizations"""
-    start_date_str = request.GET.get("start_date")
-    end_date_str = request.GET.get("end_date")
+    start_date_str = request.GET.get("start_date", "")
+    end_date_str = request.GET.get("end_date", "")
     page = int(request.GET.get("page", 1))
     page_size = int(request.GET.get("page_size", 20))
     search_query = request.GET.get("q", "")
@@ -530,6 +507,11 @@ def explore_decisions_api_dev(request):
     except ValueError:
         return Response({"error": "Invalid amount format"}, status=400)
 
+    # Parse date range via shared helper
+    start_dt, end_dt, err = _parse_optional_date_range(request)
+    if err:
+        return err
+
     # Start search analytics tracking
     search_tracking = None
     if search_query:
@@ -552,25 +534,8 @@ def explore_decisions_api_dev(request):
         )
 
     try:
-        # Get all decisions (no entity filtering)
-        decisions_qs = Decision.objects.all()
-
-        # Apply date filters if provided with timezone awareness
-        if start_date_str:
-            start_date_parsed = parse_date(start_date_str)
-            if start_date_parsed:
-                start_date = timezone.make_aware(
-                    datetime.combine(start_date_parsed, datetime.min.time())
-                )
-                decisions_qs = decisions_qs.filter(issue_date_day__gte=start_date)
-
-        if end_date_str:
-            end_date_parsed = parse_date(end_date_str)
-            if end_date_parsed:
-                end_date = timezone.make_aware(
-                    datetime.combine(end_date_parsed, datetime.max.time())
-                )
-                decisions_qs = decisions_qs.filter(issue_date_day__lte=end_date)
+        # Get all decisions with date-range filter applied via custom queryset
+        decisions_qs = Decision.objects.filter_by_date_range(start_dt, end_dt)
 
         # Apply search filter
         if search_query:
@@ -618,33 +583,12 @@ def explore_decisions_api_dev(request):
         if max_amount is not None:
             decisions_qs = decisions_qs.filter(amount__lte=max_amount)
 
-        # Apply sorting
-        if sort_by == "amount_desc":
-            decisions_qs = decisions_qs.annotate(
-                amount_for_sorting=models.Case(
-                    models.When(
-                        calculated_amount__isnull=True, then=models.Value(-999999999)
-                    ),
-                    models.When(calculated_amount=0, then=models.Value(-999999998)),
-                    default=models.F("calculated_amount"),
-                    output_field=models.DecimalField(),
-                )
-            ).order_by("-amount_for_sorting", "-issue_date_day")
-
-        elif sort_by == "amount_asc":
-            decisions_qs = decisions_qs.annotate(
-                amount_for_sorting=models.Case(
-                    models.When(
-                        calculated_amount__isnull=True, then=models.Value(999999999)
-                    ),
-                    models.When(calculated_amount=0, then=models.Value(999999998)),
-                    default=models.F("calculated_amount"),
-                    output_field=models.DecimalField(),
-                )
-            ).order_by("amount_for_sorting", "-issue_date_day")
-
-        else:  # recent (default)
-            decisions_qs = decisions_qs.order_by("-issue_date_day")
+        # Apply sorting via shared utility
+        decisions_qs = apply_decision_sorting(
+            decisions_qs, sort_by,
+            amount_field="calculated_amount",
+            date_field="issue_date_day",
+        )
 
         # Add prefetch_related for optimization
         decisions_qs = decisions_qs.select_related(
@@ -746,29 +690,13 @@ def explore_decisions_api_dev(request):
 @monitor_query_performance(operation="temporal_decision_types")
 def explore_decision_types_api_dev(request):
     """Get available decision types for temporal exploration"""
-    start_date_str = request.GET.get("start_date")
-    end_date_str = request.GET.get("end_date")
+    start_dt, end_dt, err = _parse_optional_date_range(request)
+    if err:
+        return err
 
     try:
-        # Get all decisions (no entity filtering)
-        decisions_qs = Decision.objects.all()
-
-        # Apply date filters if provided
-        if start_date_str:
-            start_date_parsed = parse_date(start_date_str)
-            if start_date_parsed:
-                start_date = timezone.make_aware(
-                    datetime.combine(start_date_parsed, datetime.min.time())
-                )
-                decisions_qs = decisions_qs.filter(issue_date_day__gte=start_date)
-
-        if end_date_str:
-            end_date_parsed = parse_date(end_date_str)
-            if end_date_parsed:
-                end_date = timezone.make_aware(
-                    datetime.combine(end_date_parsed, datetime.max.time())
-                )
-                decisions_qs = decisions_qs.filter(issue_date_day__lte=end_date)
+        # Get all decisions with date-range filter applied via custom queryset
+        decisions_qs = Decision.objects.filter_by_date_range(start_dt, end_dt)
 
         # Get decision types with counts and financial data
         decision_types = (

@@ -304,13 +304,14 @@ def entity_search_documents_api_dev(request, entity_type, entity_id):
         decisions_qs = get_entity_decisions_queryset(entity_type, entity_id)
 
         # Apply date filters if provided
+        start_date = None
+        end_date = None
         if start_date_str:
             start_date_parsed = parse_date(start_date_str)
             if start_date_parsed:
                 start_date = timezone.make_aware(
                     datetime.combine(start_date_parsed, datetime.min.time())
                 )
-                decisions_qs = decisions_qs.filter(issue_date__gte=start_date)
 
         if end_date_str:
             end_date_parsed = parse_date(end_date_str)
@@ -318,7 +319,10 @@ def entity_search_documents_api_dev(request, entity_type, entity_id):
                 end_date = timezone.make_aware(
                     datetime.combine(end_date_parsed, datetime.max.time())
                 )
-                decisions_qs = decisions_qs.filter(issue_date__lte=end_date)
+
+        decisions_qs = decisions_qs.filter_by_date_range(
+            start_date, end_date, field="issue_date"
+        )
 
         # Get document extractions for decisions from this entity
         from core.models.document_analysis import DocumentExtraction

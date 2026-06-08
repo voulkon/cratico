@@ -26,11 +26,41 @@ class DecisionStatus(str, Enum):
         return [(member.value, member.name.title().replace("_", " ")) for member in cls]
 
 
+class DecisionQuerySet(models.QuerySet):
+    """Custom QuerySet for Decision with reusable filter/sort patterns."""
+
+    def filter_by_date_range(self, start_dt=None, end_dt=None, field="issue_date_day"):
+        """
+        Apply optional date-range filtering to the queryset.
+
+        Args:
+            start_dt: timezone-aware datetime (start of day) or None
+            end_dt: timezone-aware datetime (end of day) or None
+            field: The date field to filter on (default: issue_date_day)
+
+        Returns:
+            Filtered QuerySet
+        """
+        qs = self
+        if start_dt is not None:
+            qs = qs.filter(**{f"{field}__gte": start_dt})
+        if end_dt is not None:
+            qs = qs.filter(**{f"{field}__lte": end_dt})
+        return qs
+
+
+class DecisionManager(models.Manager.from_queryset(DecisionQuerySet)):
+    """Custom manager that exposes DecisionQuerySet methods."""
+    pass
+
+
 class Decision(models.Model):
     """
     Django ORM representation of a Diavgeia Decision.
     Field names mirror the Pydantic `Decision` model (camelCase → snake_case).
     """
+
+    objects = DecisionManager()
 
     # ------------------------------------------------------------------
     # Identification
