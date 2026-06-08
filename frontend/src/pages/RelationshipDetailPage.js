@@ -24,7 +24,12 @@ const RelationshipDetailPage = () => {
 
   const [entity, setEntity] = useState(null);
   const [organization, setOrganization] = useState(null);
-  useDocumentTitle(entity?.name ? `${entity.name} × ${organization?.name || orgUid}` : `Entity ${afm} × Org ${orgUid}`);
+
+  // Build a compact tab title: truncate both names so they fit on the browser tab
+  const truncate = (s, max = 15) => (s && s.length > max ? s.slice(0, max) + '…' : s);
+  const entityLabel = truncate(entity?.name) || `AFM ${afm}`;
+  const orgLabel = truncate(organization?.label) || orgUid;
+  useDocumentTitle(`${entityLabel} × ${orgLabel}`);
   const [decisions, setDecisions] = useState([]);
   const [pagination, setPagination] = useState(null);
   const [statistics, setStatistics] = useState(null);
