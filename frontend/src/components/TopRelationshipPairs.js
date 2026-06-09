@@ -1,17 +1,17 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useContext, createContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import { useTranslation } from '../contexts/TranslationContext';
 import { OrganizationIcon, EntityIcon } from './Icons';
 import './TopCounterparts.css'; // Reuse the same styles
 
-// Import DateRangeContext if available
-let useDateRange;
+// Import DateRangeContext if available; fall back to a dummy context
+// so useContext is always called unconditionally (rules-of-hooks).
+let DateRangeContext;
 try {
-  const DateRangeContext = require('../contexts/DateRangeContext');
-  useDateRange = DateRangeContext.useDateRange;
+  DateRangeContext = require('../contexts/DateRangeContext').DateRangeContext;
 } catch (e) {
-  // DateRangeContext not available, will use props only
+  DateRangeContext = createContext(); // dummy — useContext will return undefined
 }
 
 /**
@@ -28,7 +28,8 @@ const TopRelationshipPairs = ({
 }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const contextDateRange = useDateRange?.()?.dateRange; // Optional: use context if available
+  // useContext always called unconditionally; returns undefined when provider is absent
+  const contextDateRange = useContext(DateRangeContext)?.dateRange;
 
   // Use prop dateRange if provided, otherwise fall back to context
   const dateRange = propDateRange || contextDateRange;
