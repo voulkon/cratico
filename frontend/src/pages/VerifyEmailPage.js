@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, XCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import './VerifyEmailPage.css';
 
 /**
@@ -10,10 +11,10 @@ import './VerifyEmailPage.css';
  * Handles the email verification flow when users click the link in their verification email
  */
 function VerifyEmailPage() {
+  useDocumentTitle('Verify Email');
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { verifyEmail } = useAuth();
-  const { getCurrentPaletteColor } = useTheme();
   const [status, setStatus] = useState('verifying'); // 'verifying', 'success', 'error'
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');

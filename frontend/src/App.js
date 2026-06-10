@@ -214,6 +214,13 @@ function AuthenticatedApp({ controlsLayout }) {
           <Route path="/search-example" element={<SuperSearchExample />} />
 
           <Route path="/entity/:entityType/:entityId" element={<EntityDetailPage />} />
+
+          {/* Temporal Exploration Routes */}
+          <Route path="/explore/temporal/:startDate/:endDate" element={<EntityDetailPage />} />
+          <Route path="/explore/temporal/:date" element={<EntityDetailPage />} />
+          <Route path="/explore/month/:year/:month" element={<EntityDetailPage />} />
+          <Route path="/explore/week/:year/:week" element={<EntityDetailPage />} />
+
           <Route path="/decision/:ada" element={<DecisionDetailPage />} />
           <Route path="/health" element={<Clock />} />
           <Route path="/entity/afm/:afm" element={<AFMEntityDetailPage />} />

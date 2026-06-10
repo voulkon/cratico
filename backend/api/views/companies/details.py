@@ -344,7 +344,7 @@ def company_decisions(request, company_id):
             decisions_data.append(decision_data)
 
         # Sort by issue date descending
-        decisions_data.sort(key=lambda x: x["issue_date_day"] or "", reverse=True)
+        decisions_data.sort(key=lambda x: x["issue_date"] or "", reverse=True)
 
         return Response(
             {

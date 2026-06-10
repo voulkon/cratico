@@ -5,6 +5,7 @@ import {
   getSubscriptionAllDecisions
 } from '../api/notifications';
 import apiClient from '../api/client';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import './SubscriptionHistoryPage.css';
 
 // Import shared components
@@ -20,6 +21,7 @@ const SubscriptionHistoryPage = () => {
 
   // State
   const [subscription, setSubscription] = useState(null);
+  useDocumentTitle(subscription?.name || 'Subscription History');
   const [decisions, setDecisions] = useState([]);
   const [metadata, setMetadata] = useState(null);
   const [pagination, setPagination] = useState(null);

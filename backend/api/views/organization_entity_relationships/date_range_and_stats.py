@@ -216,10 +216,7 @@ def relationship_statistics_api(request, afm, orgUid):
         decisions_qs = _get_relationship_decisions_qs(afm, orgUid)
 
         # Filter by date range
-        decisions_qs = decisions_qs.filter(
-            issue_date_day__gte=start_date,
-            issue_date_day__lte=end_date,
-        )
+        decisions_qs = decisions_qs.filter_by_date_range(start_date, end_date)
 
         # Use financial service for accurate calculations
         try:

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import relationshipsApi from '../api/relationshipsApi';
 import useUrlFilters from '../hooks/useUrlFilters';
 import DecisionCard from '../components/DecisionCard';
@@ -23,6 +24,12 @@ const RelationshipDetailPage = () => {
 
   const [entity, setEntity] = useState(null);
   const [organization, setOrganization] = useState(null);
+
+  // Build a compact tab title: truncate both names so they fit on the browser tab
+  const truncate = (s, max = 15) => (s && s.length > max ? s.slice(0, max) + '…' : s);
+  const entityLabel = truncate(entity?.name) || `AFM ${afm}`;
+  const orgLabel = truncate(organization?.label) || orgUid;
+  useDocumentTitle(`${entityLabel} × ${orgLabel}`);
   const [decisions, setDecisions] = useState([]);
   const [pagination, setPagination] = useState(null);
   const [statistics, setStatistics] = useState(null);

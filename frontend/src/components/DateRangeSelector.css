@@ -5,10 +5,48 @@
   margin-bottom: 24px;
 }
 
+.period-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .period-buttons {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.explore-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--palette-primary);
+  background: transparent;
+  color: var(--palette-primary);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.explore-button:hover {
+  background: var(--palette-primary);
+  color: var(--bg-color);
+}
+
+.explore-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.explore-button:disabled:hover {
+  background: transparent;
+  color: var(--palette-primary);
 }
 
 .period-button {

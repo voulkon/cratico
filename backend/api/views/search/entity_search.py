@@ -121,8 +121,8 @@ def get_search_data_for_api(query, **kwargs):
                             decision.get_decision_type_label() if decision else None
                         ),
                         "issue_date": (
-                            decision.issue_date.isoformat()
-                            if decision and decision.issue_date
+                            decision.issue_date_day.isoformat()
+                            if decision and decision.issue_date_day
                             else None
                         ),
                         "amount": (
@@ -187,8 +187,8 @@ def get_search_data_for_api(query, **kwargs):
                             decision.get_decision_type_label() if decision else None
                         ),
                         "issue_date": (
-                            decision.issue_date.isoformat()
-                            if decision and decision.issue_date
+                            decision.issue_date_day.isoformat()
+                            if decision and decision.issue_date_day
                             else None
                         ),
                         "amount": (

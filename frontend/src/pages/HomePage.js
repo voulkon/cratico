@@ -4,6 +4,7 @@ import { useTranslation } from '../contexts/TranslationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useAuthConfig } from '../contexts/AuthConfigContext';
 import { DateRangeProvider, useDateRange } from '../contexts/DateRangeContext';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import apiClient from '../api/client';
 import SuperSearch from '../components/SuperSearch';
 import TopRelationshipPairs from '../components/TopRelationshipPairs';
@@ -24,12 +25,13 @@ const SectionLoadingSkeleton = () => {
 };
 
 /**
- * Dashboard Data Component - uses DateRangeContext.
+ * Home Page Data Component - uses DateRangeContext.
  * TopRelationshipPairs loads independently (manages its own loading state).
  * The data-grid (organizations + decisions) loads separately so each
  * section can appear as soon as its data is ready.
  */
 const DashboardData = () => {
+  useDocumentTitle('Home');
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { dateRange } = useDateRange();

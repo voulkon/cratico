@@ -2,6 +2,10 @@ import React, { createContext, useContext, useState, useMemo } from 'react';
 
 const DateRangeContext = createContext();
 
+// Export the raw context so components can use useContext(DateRangeContext)
+// directly for safe optional access (returns undefined when no provider exists).
+export { DateRangeContext };
+
 export const useDateRange = () => {
   const context = useContext(DateRangeContext);
   if (!context) {

@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useDateRange } from '../contexts/DateRangeContext';
 import { useTranslation } from '../contexts/TranslationContext';
-import { CalendarIcon, CheckIcon, XIcon, AlertIcon, PencilIcon } from './Icons';
+import { CalendarIcon, CheckIcon, XIcon, AlertIcon, PencilIcon, SearchIcon } from './Icons';
 import './DateRangeSelector.css';
 
 const DateRangeSelector = ({ className = '' }) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { period, setPeriod, dateRange, setCustomRange } = useDateRange();
   const [isEditing, setIsEditing] = useState(false);
   const [startDate, setStartDate] = useState('');
@@ -158,23 +160,40 @@ const DateRangeSelector = ({ className = '' }) => {
     { value: 'custom', label: t('dateRange.custom') || 'Custom' }
   ];
 
+  const handleExploreClick = () => {
+    if (dateRange) {
+      navigate(`/explore/temporal/${dateRange.start_date}/${dateRange.end_date}`);
+    }
+  };
+
   return (
     <div className={`date-range-selector ${className}`}>
-      <div className="period-buttons">
-        {periods.map(({ value, label }) => (
-          <button
-            key={value}
-            className={`period-button ${period === value ? 'active' : ''}`}
-            onClick={() => {
-              setPeriod(value);
-              if (value === 'custom') {
-                setIsEditing(true);
-              }
-            }}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="period-controls">
+        <div className="period-buttons">
+          {periods.map(({ value, label }) => (
+            <button
+              key={value}
+              className={`period-button ${period === value ? 'active' : ''}`}
+              onClick={() => {
+                setPeriod(value);
+                if (value === 'custom') {
+                  setIsEditing(true);
+                }
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <button
+          className="explore-button"
+          onClick={handleExploreClick}
+          disabled={!dateRange}
+          title={t('dateRange.exploreInDetail') || 'Explore this period in detail'}
+        >
+          <SearchIcon size={16} />
+          <span>{t('dateRange.explore') || 'Explore'}</span>
+        </button>
       </div>
       {dateRange && (
         <div className={`date-range-display ${period === 'custom' ? 'custom-range' : ''}`}>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { getNotificationBatch, getBatchDecisions, markBatchRead } from '../api/notifications';
 import apiClient from '../api/client';
 import { formatAmount } from '../utils/dateUtils';
@@ -21,6 +22,7 @@ const NotificationBatchDetailPage = () => {
 
   // State
   const [batch, setBatch] = useState(null);
+  useDocumentTitle(batch?.title || `Batch ${batchId}`);
   const [decisions, setDecisions] = useState([]);
   const [pagination, setPagination] = useState(null);
   const [loading, setLoading] = useState(true);

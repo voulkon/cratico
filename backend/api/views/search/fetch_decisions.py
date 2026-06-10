@@ -1,13 +1,11 @@
-from datetime import datetime
-
+from api.utils.date_utils import _parse_optional_date_range
+from api.utils.sorting import apply_decision_sorting
 from core.decorators.cache_decorator import cached_view
 from core.models.decisions import Decision
 from core.services.feature_flag_service import feature_flags
 from django.conf import settings
 from django.core.paginator import Paginator
 from django.db import models
-from django.utils import timezone
-from django.utils.dateparse import parse_date
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import api_view, permission_classes
@@ -186,25 +184,13 @@ def explore_decisions_optimized_api(request):
     try:
         from core.models.entities import DecisionEntityRelationship
 
-        # Get all decisions
-        decisions_qs = Decision.objects.all()
+        # Parse date range via shared helper
+        start_dt, end_dt, err = _parse_optional_date_range(request)
+        if err:
+            return err
 
-        # Apply date filters with timezone awareness
-        if start_date_str:
-            start_date_parsed = parse_date(start_date_str)
-            if start_date_parsed:
-                start_date = timezone.make_aware(
-                    datetime.combine(start_date_parsed, datetime.min.time())
-                )
-                decisions_qs = decisions_qs.filter(issue_date_day__gte=start_date)
-
-        if end_date_str:
-            end_date_parsed = parse_date(end_date_str)
-            if end_date_parsed:
-                end_date = timezone.make_aware(
-                    datetime.combine(end_date_parsed, datetime.max.time())
-                )
-                decisions_qs = decisions_qs.filter(issue_date_day__lte=end_date)
+        # Get all decisions with date-range filter applied via custom queryset
+        decisions_qs = Decision.objects.filter_by_date_range(start_dt, end_dt)
 
         # Apply search filter
         if search_query:

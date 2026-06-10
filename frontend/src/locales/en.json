@@ -611,7 +611,8 @@
     "cancel": "Cancel",
     "clickToEdit": "Click to edit",
     "endBeforeStart" : "End date must be after start date",
-    "startAfterEnd" : "Start date must be before end date"
+    "startAfterEnd" : "Start date must be before end date",
+    "explore" : "Explore"
   },
   "companyPersonsTable": {
     "sectionTitle": "Administration / Representatives",
