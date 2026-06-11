@@ -540,6 +540,13 @@
     "notification": "ειδοποίηση",
     "checkNowTitle": "Έλεγχος για νέες αποφάσεις τώρα",
     "checkNow": "Έλεγχος Τώρα",
+    "checkNowYesterday": "Χθες",
+    "checkNowLast7Days": "Τελευταίες 7 ημέρες",
+    "checkNowLast30Days": "Τελευταίες 30 ημέρες",
+    "checkNowLast90Days": "Τελευταίες 90 ημέρες",
+    "checkNowCustom": "Προσαρμογή…",
+    "checkNowCustomDays": "ημέρες",
+    "checkNowCustomGo": "Έναρξη",
     "viewHistory": "Προβολή Ιστορικού",
     "viewAllFromSubscription": "Προβολή Όλων των Αποφάσεων από αυτόν τον Κανόνα",
     "pauseSubscription": "Παύση κανόνα ειδοποίησης",
@@ -596,7 +603,11 @@
     "maxAmount": "Μέγιστο Ποσό",
     "minAmount": "Ελάχιστο Ποσό",
     "totalMatches": "Συνολικά Αποτελέσματα",
-    "batch" : "Αριθμός Παρτίδας"
+    "batch" : "Αριθμός Παρτίδας",
+    "emailOn": "Email ενεργό",
+    "emailOff": "Email ανενεργό",
+    "emailNotificationsOn": "Οι ειδοποιήσεις email είναι ενεργές. Κλικ για απενεργοποίηση.",
+    "emailNotificationsOff": "Οι ειδοποιήσεις email είναι ανενεργές. Κλικ για ενεργοποίηση."
   },
   "dateRange": {
     "today": "Σήμερα",

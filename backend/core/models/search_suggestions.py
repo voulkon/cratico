@@ -24,6 +24,7 @@ class SearchSuggestion(models.Model):
         ("unit", "Unit"),
         ("company", "Company"),
         ("company_person", "Company Person"),
+        ("afmentity", "AFM Entity"),
     ]
 
     # Type and reference
@@ -102,6 +103,11 @@ class SearchSuggestion(models.Model):
 
                 person = CompanyPerson.objects.get(id=self.entity_id)
                 return person.person_name or person.business_name or "No name"
+            elif self.suggestion_type == "afmentity":
+                from core.models.entities import AFMEntity
+
+                entity = AFMEntity.objects.get(id=self.entity_id)
+                return entity.name or f"AFM: {entity.afm}"
         except Exception:
             return f"{self.suggestion_type} #{self.entity_id} (not found)"
         return self.entity_id

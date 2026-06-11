@@ -371,10 +371,19 @@
 }
 
 .notification-item-type {
+  font-size: var(--font-sm);
+  color: var(--text-color);
+  font-weight: var(--font-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 70%;
+}
+
+.notification-item-period {
   font-size: var(--font-xs);
-  color: var(--palette-primary);
-  font-weight: var(--font-bold);
-  text-transform: uppercase;
+  color: var(--muted-text);
+  margin-bottom: var(--spacing-xs);
 }
 
 .notification-item-time {

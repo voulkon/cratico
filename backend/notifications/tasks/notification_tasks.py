@@ -76,12 +76,22 @@ def check_single_subscription(
             )
 
             # Send email notification if requested and batch has decisions
+            # Also send if all decisions are duplicates but the existing batch hasn't been emailed
             email_sent = False
-            if (
+            should_email = (
                 send_email
                 and batch_result.get("batch_id")
-                and batch_result.get("decisions_added", 0) > 0
-            ):
+                and (
+                    batch_result.get("decisions_added", 0) > 0
+                    or not batch_result.get("batch_already_emailed", True)
+                )
+            )
+            if should_email:
+                logger.info(
+                    f"Triggering email for batch {batch_result['batch_id']} "
+                    f"(subscription {subscription_id}, decisions_added={batch_result.get('decisions_added', 0)}, "
+                    f"all_duplicates={batch_result.get('all_duplicates', False)})"
+                )
                 try:
                     from core.email_service import NotificationEmailService
 
@@ -94,17 +104,19 @@ def check_single_subscription(
                     )  # Limit to first 10 for email
                     batch_data = {
                         "id": batch.id,
-                        "subscription_name": subscription.name
+                        "subscription_name": subscription.alias
                         or f"Subscription #{subscription.id}",
                         "organization_name": (
-                            subscription.organization.name
+                            subscription.organization.label
                             if subscription.organization
                             else None
                         ),
                         "entity_name": (
                             subscription.entity.name if subscription.entity else None
                         ),
-                        "decision_count": batch_result.get("decisions_added", 0),
+                        "decision_count": batch.match_count
+                        if batch.match_count
+                        else batch_result.get("decisions_added", 0),
                         "check_window_start": check_window_start,
                         "check_window_end": check_window_end,
                         "decisions": [
@@ -112,7 +124,7 @@ def check_single_subscription(
                                 "id": d.ada,
                                 "subject": d.subject,
                                 "organization": (
-                                    d.organization.name if d.organization else "Unknown"
+                                    d.organization.label if d.organization else "Unknown"
                                 ),
                                 "date": d.submission_timestamp,
                             }
@@ -159,6 +171,16 @@ def check_single_subscription(
                         f"Error sending email for batch {batch_result.get('batch_id')}: {e}",
                         exc_info=True,
                     )
+            elif batch_result.get("batch_id") and batch_result.get("decisions_added", 0) > 0:
+                logger.info(
+                    f"Skipping email for batch {batch_result['batch_id']}: "
+                    f"send_email={send_email}"
+                )
+            elif batch_result.get("all_duplicates") and batch_result.get("batch_id"):
+                logger.info(
+                    f"Skipping email for batch {batch_result['batch_id']}: "
+                    f"all decisions are duplicates and batch was already emailed"
+                )
 
             # Update last_checked
             subscription.last_checked = timezone.now()
@@ -373,10 +395,26 @@ def create_batch_for_matches(
     new_decisions = [d for d in decisions_list if d.id not in existing_decision_ids]
 
     if not new_decisions:
+        # Find the most recent batch for this subscription that overlaps with the check window
+        # (for email re-sending if the batch hasn't been emailed yet)
+        existing_batch = (
+            NotificationBatch.objects.filter(
+                subscription=subscription,
+                check_window_end__gte=check_window_start,
+                check_window_start__lte=check_window_end,
+            )
+            .order_by("-created_at")
+            .first()
+        )
         logger.info(
             f"All {len(decisions_list)} decisions already exist in batches for subscription {subscription.id}"
         )
-        return {"batch_id": None, "decisions_added": 0, "all_duplicates": True}
+        return {
+            "batch_id": existing_batch.id if existing_batch else None,
+            "decisions_added": 0,
+            "all_duplicates": True,
+            "batch_already_emailed": existing_batch.email_sent if existing_batch else True,
+        }
 
     logger.info(
         f"Subscription {subscription.id}: {len(new_decisions)} new decisions, "
@@ -525,12 +563,14 @@ def check_all_active_subscriptions(lookback_days: int = 1):
                 skipped += 1
                 continue
 
-            # Fire-and-forget each subscription check independently
+            # Fire-and-forget each subscription check independently.
+            # Respect the user's per-subscription email preference.
+            should_email = getattr(subscription, "also_send_email", True)
             check_single_subscription.delay(
                 subscription_id=subscription.id,
                 lookback_days=lookback_days,
                 use_batch=True,
-                send_email=False,
+                send_email=should_email,
             )
             dispatched += 1
 

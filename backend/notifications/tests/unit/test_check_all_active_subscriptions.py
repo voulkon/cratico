@@ -76,6 +76,25 @@ class TestCheckAllActiveSubscriptionsFiltering:
             subscription_id=sub.id,
             lookback_days=1,
             use_batch=True,
+            send_email=True,
+        )
+
+    def test_daily_subscription_without_email_is_dispatched_without_email(
+        self, mock_check_single
+    ):
+        """When also_send_email=False, send_email should be False."""
+        from conftest import NotificationSubscriptionFactory
+        sub = NotificationSubscriptionFactory(
+            check_frequency="daily", also_send_email=False
+        )
+
+        result = _run()
+
+        assert result["dispatched"] == 1
+        mock_check_single.delay.assert_called_once_with(
+            subscription_id=sub.id,
+            lookback_days=1,
+            use_batch=True,
             send_email=False,
         )
 
@@ -210,5 +229,5 @@ class TestCheckAllActiveSubscriptionsMixed:
             subscription_id=sub.id,
             lookback_days=3,
             use_batch=True,
-            send_email=False,
+            send_email=True,
         )

@@ -24,7 +24,8 @@ const SuperSearch = ({
     units: 5,
     companies: 5,
     company_persons: 5,
-    documents: 5
+    documents: 5,
+    afm_entities: 5
   });
   const [hasMoreResults, setHasMoreResults] = useState({
     organizations: true,
@@ -32,7 +33,8 @@ const SuperSearch = ({
     units: true,
     companies: true,
     company_persons: true,
-    documents: true
+    documents: true,
+    afm_entities: true
   });
 
   const navigate = useNavigate();
@@ -115,6 +117,7 @@ const SuperSearch = ({
             units: (entityData.results.units?.length || 0) >= 5,
             companies: (entityData.results.companies?.length || 0) >= 5,
             company_persons: (entityData.results.company_persons?.length || 0) >= 5,
+            afm_entities: (entityData.results.afm_entities?.length || 0) >= 5,
             documents: true // Will be updated when documents arrive
           };
           setHasMoreResults(initialHasMore);
@@ -336,7 +339,8 @@ const SuperSearch = ({
       units: 5,
       companies: 5,
       company_persons: 5,
-      documents: 5
+      documents: 5,
+      afm_entities: 5
     });
 
     setHasMoreResults({
@@ -345,7 +349,8 @@ const SuperSearch = ({
       units: true,
       companies: true,
       company_persons: true,
-      documents: true
+      documents: true,
+      afm_entities: true
     });
 
     // Clear previous timeout
@@ -514,6 +519,9 @@ const SuperSearch = ({
       case 'company_person':
         itemUrl = `/person/${encodeURIComponent(item.text || item.details?.person_name)}`;
         break;
+      case 'afmentity':
+        itemUrl = `/entity/afm/${item.details?.afm}`;
+        break;
       case 'document':
         itemUrl = `/decision/${item.details?.decision_id}`;
         itemName = item.subject || item.description || itemName;
@@ -553,6 +561,9 @@ const SuperSearch = ({
         break;
       case 'company_person':
         navigate(`/person/${encodeURIComponent(item.text || item.details?.person_name)}`);
+        break;
+      case 'afmentity':
+        navigate(`/entity/afm/${item.details?.afm}`);
         break;
       case 'document':
         navigate(`/decision/${item.details.decision_id}`);
@@ -651,6 +662,7 @@ const SuperSearch = ({
       unit: <UnitIcon {...iconProps} />,
       company: <CompanyIcon {...iconProps} />,
       company_person: <UserIcon {...iconProps} />,
+      afmentity: <CompanyIcon {...iconProps} />,
       document: <FileIcon {...iconProps} />
     };
     return icons[type] || <FileIcon {...iconProps} />;
@@ -665,6 +677,7 @@ const SuperSearch = ({
       units: 'Units',
       companies: 'Companies',
       company_persons: 'Company Persons',
+      afm_entities: 'AFM Entities',
       documents: 'Documents'
     };
     return names[category] || category;
@@ -876,6 +889,17 @@ const SuperSearch = ({
                     <UserIcon size={14} />
                     People
                     <span className="super-search-tab-count">{results.results.company_persons.length}</span>
+                  </button>
+                )}
+                {results.results.afm_entities && results.results.afm_entities.length > 0 && (
+                  <button
+                    className={`super-search-tab ${selectedCategory === 'afm_entities' ? 'active' : ''}`}
+                    onClick={() => setSelectedCategory('afm_entities')}
+                    onMouseDown={(e) => e.preventDefault()}
+                  >
+                    <CompanyIcon size={14} />
+                    AFM Entities
+                    <span className="super-search-tab-count">{results.results.afm_entities.length}</span>
                   </button>
                 )}
                 {results.results.documents && results.results.documents.length > 0 && (

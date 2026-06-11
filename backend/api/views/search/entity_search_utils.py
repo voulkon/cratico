@@ -44,6 +44,11 @@ def determine_matched_field(entity_type, entity, query):
             return "business_name"
         elif entity.role and query_lower in entity.role.lower():
             return "role"
+    elif entity_type == "afmentity":
+        if entity.name and query_lower in entity.name.lower():
+            return "name"
+        elif entity.afm and query_lower in entity.afm:
+            return "afm"
 
     return "other"
 
@@ -141,15 +146,42 @@ def get_administrative_terms_autocomplete(query_prefix=""):
     return GREEK_ADMINISTRATIVE_TERMS
 
 
+def _merge_deduped_results(primary_results, fallback_results, id_getter, limit):
+    """
+    Merge two lists of entity results, deduplicating by ID.
+    Primary results (from transliterated query) come first.
+    Fallback results (from original query) fill in missing entities.
+    """
+    seen = set()
+    merged = []
+
+    for obj in primary_results:
+        obj_id = id_getter(obj)
+        if obj_id not in seen:
+            seen.add(obj_id)
+            merged.append(obj)
+
+    for obj in fallback_results:
+        obj_id = id_getter(obj)
+        if obj_id not in seen:
+            seen.add(obj_id)
+            merged.append(obj)
+            if len(merged) >= limit:
+                break
+
+    return merged[:limit]
+
+
 def get_entities_fast(query, **kwargs):
     """
     Fast entity search - returns organizations, signers, units, companies, and company_persons
     This uses PostgreSQL queries and is typically much faster than document search
 
-    Automatically transliterates English letters to Greek (e.g., "DHMOS" -> "ΔΗΜΟΣ")
+    Searches with BOTH the transliterated query (for Greek/Greeklish matches, e.g. "DHMOS" -> "ΔΗΜΟΣ")
+    AND the original query (for Latin/English matches, e.g. "nova"). Results are merged and deduplicated.
     """
-    # Transliterate English letters to Greek if needed
-    query = TransliterationService.transliterate_query(query)
+    # Compute transliterated version for Greeklish input (e.g., "DHMOS" -> "ΔΗΜΟΣ")
+    transliterated_query = TransliterationService.transliterate_query(query)
 
     search_service = SearchService()
 
@@ -167,40 +199,95 @@ def get_entities_fast(query, **kwargs):
         return results
 
     # Search entities based on requested types
+    # For each type, search with transliterated query (Greek) and supplement with
+    # original query (Latin/English) results, deduplicating by entity ID.
     if "organization" in entity_types:
-        orgs = search_service.search_organizations(query, limit)
+        orgs = list(search_service.search_organizations(transliterated_query, limit))
+        if transliterated_query != query:
+            fallback = list(search_service.search_organizations(query, limit))
+            orgs = _merge_deduped_results(
+                orgs, fallback, lambda o: o.uid, limit
+            )
         results["results"]["organizations"] = [
             format_organization(org, query) for org in orgs
         ]
         results["total_count"] += len(orgs)
 
     if "signer" in entity_types:
-        signers = search_service.search_signers(query, organization_id, limit)
+        signers = list(
+            search_service.search_signers(transliterated_query, organization_id, limit)
+        )
+        if transliterated_query != query:
+            fallback = list(
+                search_service.search_signers(query, organization_id, limit)
+            )
+            signers = _merge_deduped_results(
+                signers, fallback, lambda s: s.uid, limit
+            )
         results["results"]["signers"] = [
             format_signer(signer, query) for signer in signers
         ]
         results["total_count"] += len(signers)
 
     if "unit" in entity_types:
-        units = search_service.search_units(query, organization_id, limit)
+        units = list(
+            search_service.search_units(transliterated_query, organization_id, limit)
+        )
+        if transliterated_query != query:
+            fallback = list(
+                search_service.search_units(query, organization_id, limit)
+            )
+            units = _merge_deduped_results(
+                units, fallback, lambda u: u.uid, limit
+            )
         results["results"]["units"] = [format_unit(unit, query) for unit in units]
         results["total_count"] += len(units)
 
     if "company" in entity_types:
-        companies = search_service.search_companies(query, limit)
+        companies = list(search_service.search_companies(transliterated_query, limit))
+        if transliterated_query != query:
+            fallback = list(search_service.search_companies(query, limit))
+            companies = _merge_deduped_results(
+                companies, fallback, lambda c: c.ar_gemi, limit
+            )
         results["results"]["companies"] = [
             format_company(company, query) for company in companies
         ]
         results["total_count"] += len(companies)
 
     if "company_person" in entity_types:
-        company_persons = search_service.search_company_persons(
-            query, company_id, limit
+        company_persons = list(
+            search_service.search_company_persons(
+                transliterated_query, company_id, limit
+            )
         )
+        if transliterated_query != query:
+            fallback = list(
+                search_service.search_company_persons(query, company_id, limit)
+            )
+            company_persons = _merge_deduped_results(
+                company_persons, fallback, lambda p: p.pk, limit
+            )
         results["results"]["company_persons"] = [
             format_company_person(person, query) for person in company_persons
         ]
         results["total_count"] += len(company_persons)
+
+    if "afmentity" in entity_types:
+        afm_entities = list(
+            search_service.search_afm_entities(transliterated_query, limit)
+        )
+        if transliterated_query != query:
+            fallback = list(
+                search_service.search_afm_entities(query, limit)
+            )
+            afm_entities = _merge_deduped_results(
+                afm_entities, fallback, lambda e: e.pk, limit
+            )
+        results["results"]["afm_entities"] = [
+            format_afmentity(entity, query) for entity in afm_entities
+        ]
+        results["total_count"] += len(afm_entities)
 
     return results
 
@@ -534,4 +621,38 @@ def format_company_person(person, query=None):
             determine_matched_field("company_person", person, query) if query else None
         ),
         "icon": "user-tie",
+    }
+
+
+def format_afmentity(entity, query=None):
+    """Format an AFMEntity object for API response"""
+    entity_type_display = entity.get_entity_type_display() if entity.entity_type else "Unknown"
+    return {
+        "id": entity.id,
+        "text": entity.name or f"AFM: {entity.afm}",
+        "type": "afmentity",
+        "title": (
+            highlight_query_in_text(entity.name or f"AFM: {entity.afm}", query, 100)
+            if query
+            else entity.name or f"AFM: {entity.afm}"
+        ),
+        "subtitle": f"AFM: {entity.afm} • {entity_type_display}",
+        "description": (
+            f"Appeared in {entity.total_appearances} decision(s) • "
+            f"First seen: {entity.first_seen.strftime('%Y-%m-%d') if entity.first_seen else 'N/A'}"
+        ),
+        "details": {
+            "afm": entity.afm,
+            "entity_type": entity.entity_type,
+            "entity_type_display": entity_type_display,
+            "total_appearances": entity.total_appearances,
+            "first_seen": entity.first_seen.isoformat() if entity.first_seen else None,
+            "last_seen": entity.last_seen.isoformat() if entity.last_seen else None,
+            "gemi_lookup_success": entity.gemi_lookup_success,
+            "gemi_companies_count": entity.gemi_companies_count,
+        },
+        "matched_field": (
+            determine_matched_field("afmentity", entity, query) if query else None
+        ),
+        "icon": "fingerprint",
     }

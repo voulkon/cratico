@@ -122,13 +122,17 @@ export async function checkSignerSubscription(name) {
 /**
  * Trigger an immediate check for a subscription
  * @param {number} id - Subscription ID
- * @param {number|null} [lookbackDays] - Optional: Number of days to look back (overrides default behavior)
- *                                       If not provided, checks from last_checked to now for continuity
+ * @param {number|null} [lookbackDays] - Optional: Number of days to look back.
+ *                                       Defaults to 1 (yesterday's data) if not provided.
  * @returns {Promise<Object>} Object with results of the check including check_window_start and check_window_end
  */
 export async function triggerCheckNow(id, lookbackDays = null) {
-  const params = lookbackDays ? { lookback_days: lookbackDays } : {};
-  const response = await apiClient.post(`${SUBSCRIPTIONS_BASE}/${id}/check-now/`, params);
+  const queryParams = lookbackDays ? { lookback_days: lookbackDays } : {};
+  const response = await apiClient.post(
+    `${SUBSCRIPTIONS_BASE}/${id}/check-now/`,
+    null,
+    { params: queryParams }
+  );
   return response.data;
 }
 
