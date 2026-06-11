@@ -5,6 +5,7 @@ from core.constants.search_service import SearchMethod
 from core.models.companies import Company, CompanyPerson
 from core.models.decisions import Decision
 from core.models.document_analysis import DocumentExtraction, ProcessingStatus
+from core.models.entities import AFMEntity
 from core.models.organizations import Organization, Signer, Unit
 from core.services.feature_flag_service import feature_flags
 from core.services.opensearch_service import OpenSearchService
@@ -999,6 +1000,61 @@ class SearchService:
             "OpenSearch company person search not yet implemented, falling back to FTS"
         )
         return self._search_company_persons_fts(query, company_id, limit)
+
+    # ==================== AFM ENTITY SEARCH (3-TIER) ====================
+
+    @query_debugger
+    def search_afm_entities(self, query: str, limit: int = 20) -> QuerySet:
+        """
+        Search AFM entities (tax entities extracted from decisions) using the configured search method.
+
+        Searches by name field. AFM entities represent tax-registered entities
+        (persons, companies, organizations) found in decision documents.
+        Automatically falls back to postgres_simple if prerequisites are not met.
+        """
+        if not query:
+            return AFMEntity.objects.none()
+
+        requested_method = feature_flags.get_value(
+            "ENTITY_SEARCH_METHOD", SearchMethod.DEFAULT
+        )
+        method = self._get_validated_search_method(requested_method)
+
+        if method == SearchMethod.OPENSEARCH:
+            return self._search_afm_entities_opensearch(query, limit)
+        elif method == SearchMethod.POSTGRES_FTS:
+            return self._search_afm_entities_fts(query, limit)
+        else:
+            return self._search_afm_entities_simple(query, limit)
+
+    def _search_afm_entities_simple(self, query: str, limit: int = 20) -> QuerySet:
+        """Simple PostgreSQL ILIKE search (Tier 1)"""
+        return AFMEntity.objects.filter(
+            Q(name__icontains=query) | Q(afm__icontains=query)
+        ).order_by("-total_appearances", "name")[:limit]
+
+    def _search_afm_entities_fts(self, query: str, limit: int = 20) -> QuerySet:
+        """PostgreSQL Full-Text Search with smart language detection (Tier 2)"""
+        TransliterationService.detect_language(query)
+        search_query = self._build_prefix_search_query(query)
+        weights = TransliterationService.get_search_rank_weights(query)
+
+        return (
+            AFMEntity.objects.annotate(
+                rank=SearchRank(F("search_vector"), search_query, weights=weights)
+            )
+            .filter(search_vector=search_query)
+            .order_by("-rank", "-total_appearances", "name")[:limit]
+        )
+
+    def _search_afm_entities_opensearch(
+        self, query: str, limit: int = 20
+    ) -> QuerySet:
+        """OpenSearch-based search (Tier 3) - Future"""
+        logger.warning(
+            "OpenSearch AFM entity search not yet implemented, falling back to FTS"
+        )
+        return self._search_afm_entities_fts(query, limit)
 
     @query_debugger
     def search_all_entities_extended(

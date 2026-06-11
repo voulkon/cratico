@@ -44,6 +44,11 @@ def determine_matched_field(entity_type, entity, query):
             return "business_name"
         elif entity.role and query_lower in entity.role.lower():
             return "role"
+    elif entity_type == "afmentity":
+        if entity.name and query_lower in entity.name.lower():
+            return "name"
+        elif entity.afm and query_lower in entity.afm:
+            return "afm"
 
     return "other"
 
@@ -267,6 +272,22 @@ def get_entities_fast(query, **kwargs):
             format_company_person(person, query) for person in company_persons
         ]
         results["total_count"] += len(company_persons)
+
+    if "afmentity" in entity_types:
+        afm_entities = list(
+            search_service.search_afm_entities(transliterated_query, limit)
+        )
+        if transliterated_query != query:
+            fallback = list(
+                search_service.search_afm_entities(query, limit)
+            )
+            afm_entities = _merge_deduped_results(
+                afm_entities, fallback, lambda e: e.pk, limit
+            )
+        results["results"]["afm_entities"] = [
+            format_afmentity(entity, query) for entity in afm_entities
+        ]
+        results["total_count"] += len(afm_entities)
 
     return results
 
@@ -600,4 +621,38 @@ def format_company_person(person, query=None):
             determine_matched_field("company_person", person, query) if query else None
         ),
         "icon": "user-tie",
+    }
+
+
+def format_afmentity(entity, query=None):
+    """Format an AFMEntity object for API response"""
+    entity_type_display = entity.get_entity_type_display() if entity.entity_type else "Unknown"
+    return {
+        "id": entity.id,
+        "text": entity.name or f"AFM: {entity.afm}",
+        "type": "afmentity",
+        "title": (
+            highlight_query_in_text(entity.name or f"AFM: {entity.afm}", query, 100)
+            if query
+            else entity.name or f"AFM: {entity.afm}"
+        ),
+        "subtitle": f"AFM: {entity.afm} • {entity_type_display}",
+        "description": (
+            f"Appeared in {entity.total_appearances} decision(s) • "
+            f"First seen: {entity.first_seen.strftime('%Y-%m-%d') if entity.first_seen else 'N/A'}"
+        ),
+        "details": {
+            "afm": entity.afm,
+            "entity_type": entity.entity_type,
+            "entity_type_display": entity_type_display,
+            "total_appearances": entity.total_appearances,
+            "first_seen": entity.first_seen.isoformat() if entity.first_seen else None,
+            "last_seen": entity.last_seen.isoformat() if entity.last_seen else None,
+            "gemi_lookup_success": entity.gemi_lookup_success,
+            "gemi_companies_count": entity.gemi_companies_count,
+        },
+        "matched_field": (
+            determine_matched_field("afmentity", entity, query) if query else None
+        ),
+        "icon": "fingerprint",
     }
