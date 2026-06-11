@@ -540,6 +540,13 @@
     "notification": "notification",
     "checkNowTitle": "Check for new decisions now",
     "checkNow": "Check Now",
+    "checkNowYesterday": "Yesterday",
+    "checkNowLast7Days": "Last 7 days",
+    "checkNowLast30Days": "Last 30 days",
+    "checkNowLast90Days": "Last 90 days",
+    "checkNowCustom": "Custom…",
+    "checkNowCustomDays": "days",
+    "checkNowCustomGo": "Go",
     "viewHistory": "View History",
     "viewAllFromSubscription": "View All Decisions from This Subscription",
     "pauseSubscription": "Pause subscription",
@@ -596,7 +603,11 @@
     "maxAmount": "Max Amount",
     "minAmount": "Min Amount",
     "totalMatches": "Total Matches",
-    "batch" : "Batch Number"
+    "batch" : "Batch Number",
+    "emailOn": "Email on",
+    "emailOff": "Email off",
+    "emailNotificationsOn": "Email notifications are on. Click to turn off.",
+    "emailNotificationsOff": "Email notifications are off. Click to turn on."
   },
   "dateRange": {
     "today": "Today",

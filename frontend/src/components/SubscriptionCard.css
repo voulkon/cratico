@@ -275,6 +275,31 @@
   line-height: 1;
 }
 
+.metadata-email-toggle {
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding: 2px 4px;
+  transition: all var(--transition-fast);
+  user-select: none;
+}
+
+.metadata-email-toggle:hover {
+  background-color: var(--hover-bg);
+}
+
+.metadata-email-toggle.email-on {
+  color: var(--palette-primary);
+}
+
+.metadata-email-toggle.email-off {
+  color: var(--muted-text);
+  opacity: 0.6;
+}
+
+.metadata-email-toggle.email-off:hover {
+  opacity: 1;
+}
+
 /* Actions */
 .subscription-actions {
   display: grid;
@@ -321,6 +346,132 @@
   background-color: var(--palette-emphasis);
   transform: translateY(-1px);
   box-shadow: 0 2px 4px var(--shadow);
+}
+
+/* Split button for Check Now */
+.subscription-btn-split {
+  position: relative;
+  display: flex;
+  grid-column: span 1;
+}
+
+.subscription-btn-split-main {
+  flex: 1;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.subscription-btn-split-arrow {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+  min-width: 22px;
+  flex-shrink: 0;
+}
+
+.subscription-btn-split-arrow:hover:not(:disabled) {
+  background-color: var(--palette-emphasis);
+}
+
+/* Lookback dropdown */
+.subscription-lookback-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 100;
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 16px var(--shadow);
+  min-width: 180px;
+  overflow: hidden;
+  animation: lookbackFadeIn 0.12s ease-out;
+}
+
+@keyframes lookbackFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.subscription-lookback-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-color);
+  font-size: var(--font-xs);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color var(--transition-fast);
+}
+
+.subscription-lookback-item:hover {
+  background-color: var(--hover-bg);
+}
+
+.subscription-lookback-item:not(:last-child) {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.subscription-lookback-item-custom {
+  color: var(--palette-primary);
+  font-weight: var(--font-medium);
+}
+
+/* Custom days input row */
+.subscription-lookback-custom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--border-color);
+}
+
+.subscription-lookback-custom-input {
+  width: 48px;
+  padding: 4px 6px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-xs);
+  text-align: center;
+  -moz-appearance: textfield;
+}
+
+.subscription-lookback-custom-input::-webkit-inner-spin-button,
+.subscription-lookback-custom-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.subscription-lookback-custom-label {
+  font-size: var(--font-xs);
+  color: var(--muted-text);
+  white-space: nowrap;
+}
+
+.subscription-lookback-custom-go {
+  margin-left: auto;
+  padding: 3px 10px;
+  border: 1px solid var(--palette-primary);
+  border-radius: var(--radius-sm);
+  background: var(--palette-primary);
+  color: white;
+  font-size: var(--font-xs);
+  cursor: pointer;
+  font-weight: var(--font-medium);
+  white-space: nowrap;
+}
+
+.subscription-lookback-custom-go:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.subscription-lookback-custom-go:not(:disabled):hover {
+  background-color: var(--palette-emphasis);
 }
 
 .subscription-btn-view-history {

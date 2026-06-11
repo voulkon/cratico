@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
 import {
@@ -23,7 +23,10 @@ import {
     Edit2,
     Check,
     X,
-    BarChart3
+    BarChart3,
+    Mail,
+    MailX,
+    ChevronDown
 } from 'lucide-react';
 import './SubscriptionCard.css';
 
@@ -37,6 +40,33 @@ export default function SubscriptionCard({ subscription, onRefresh, cardClass = 
     const [isActionLoading, setIsActionLoading] = useState(false);
     const [isEditingAlias, setIsEditingAlias] = useState(false);
     const [aliasValue, setAliasValue] = useState(subscription.alias || '');
+
+    // Check-now dropdown state
+    const [showLookbackDropdown, setShowLookbackDropdown] = useState(false);
+    const [customLookbackDays, setCustomLookbackDays] = useState('');
+    const [showCustomInput, setShowCustomInput] = useState(false);
+    const dropdownRef = useRef(null);
+    const customInputRef = useRef(null);
+
+    // Close dropdown on outside click
+    useEffect(() => {
+        if (!showLookbackDropdown) return;
+        const handleClickOutside = (e) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+                setShowLookbackDropdown(false);
+                setShowCustomInput(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showLookbackDropdown]);
+
+    // Focus custom input when it appears
+    useEffect(() => {
+        if (showCustomInput && customInputRef.current) {
+            customInputRef.current.focus();
+        }
+    }, [showCustomInput]);
 
     // Get icon for subscription type
     const getTypeIcon = (type) => {
@@ -159,6 +189,22 @@ export default function SubscriptionCard({ subscription, onRefresh, cardClass = 
         }
     };
 
+    // Toggle email notifications
+    const handleToggleEmail = async () => {
+        setIsActionLoading(true);
+        try {
+            await updateSubscription(subscription.id, {
+                also_send_email: !subscription.also_send_email
+            });
+            await onRefresh();
+        } catch (error) {
+            console.error('Failed to toggle email:', error);
+            alert(t('notifications.failedToUpdateSubscription'));
+        } finally {
+            setIsActionLoading(false);
+        }
+    };
+
     // Delete subscription
     const handleDelete = async () => {
         if (!window.confirm(t('notifications.confirmDelete'))) {
@@ -178,10 +224,12 @@ export default function SubscriptionCard({ subscription, onRefresh, cardClass = 
     };
 
     // Check now
-    const handleCheckNow = async () => {
+    const handleCheckNow = async (lookbackDays = 1) => {
         setIsActionLoading(true);
+        setShowLookbackDropdown(false);
+        setShowCustomInput(false);
         try {
-            await triggerCheckNow(subscription.id);
+            await triggerCheckNow(subscription.id, lookbackDays);
             alert(t('notifications.checkComplete'));
             await onRefresh();
         } catch (error) {
@@ -189,6 +237,32 @@ export default function SubscriptionCard({ subscription, onRefresh, cardClass = 
             alert(t('notifications.failedToCheckSubscription'));
         } finally {
             setIsActionLoading(false);
+        }
+    };
+
+    const handleDropdownToggle = (e) => {
+        e.stopPropagation();
+        setShowLookbackDropdown(prev => !prev);
+        setShowCustomInput(false);
+        setCustomLookbackDays('');
+    };
+
+    const handlePresetClick = (days) => {
+        handleCheckNow(days);
+    };
+
+    const handleCustomClick = (e) => {
+        e.stopPropagation();
+        setShowCustomInput(true);
+        setCustomLookbackDays('');
+    };
+
+    const handleCustomSubmit = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const days = parseInt(customLookbackDays, 10);
+        if (days && days > 0) {
+            handleCheckNow(days);
         }
     };
 
@@ -358,6 +432,20 @@ export default function SubscriptionCard({ subscription, onRefresh, cardClass = 
                         {formatLastChecked(subscription.last_checked_at)}
                     </span>
                 </div>
+                <div
+                    className={`metadata-item metadata-email-toggle ${subscription.also_send_email !== false ? 'email-on' : 'email-off'}`}
+                    onClick={handleToggleEmail}
+                    title={subscription.also_send_email !== false ? t('notifications.emailNotificationsOn') : t('notifications.emailNotificationsOff')}
+                >
+                    {subscription.also_send_email !== false ? (
+                        <Mail size={14} className="metadata-icon" />
+                    ) : (
+                        <MailX size={14} className="metadata-icon" />
+                    )}
+                    <span className="metadata-text">
+                        {subscription.also_send_email !== false ? t('notifications.emailOn') : t('notifications.emailOff')}
+                    </span>
+                </div>
             </div>
 
             {/* Actions */}
@@ -371,19 +459,88 @@ export default function SubscriptionCard({ subscription, onRefresh, cardClass = 
                     <span className="subscription-btn-text">{t('notifications.viewHistory')}</span>
                 </button>
 
-                <button
-                    className="subscription-btn subscription-btn-primary"
-                    onClick={handleCheckNow}
-                    disabled={isActionLoading}
-                    title={t('notifications.checkNowTitle')}
-                >
-                    {isActionLoading ? '...' : (
-                        <>
-                            <RefreshCw size={14} />
-                            <span className="subscription-btn-text">{t('notifications.checkNow')}</span>
-                        </>
+                <div className="subscription-btn-split" ref={dropdownRef}>
+                    <button
+                        className="subscription-btn subscription-btn-primary subscription-btn-split-main"
+                        onClick={() => handleCheckNow(1)}
+                        disabled={isActionLoading}
+                        title={t('notifications.checkNowTitle')}
+                    >
+                        {isActionLoading ? '...' : (
+                            <>
+                                <RefreshCw size={14} />
+                                <span className="subscription-btn-text">{t('notifications.checkNow')}</span>
+                            </>
+                        )}
+                    </button>
+                    <button
+                        className="subscription-btn subscription-btn-primary subscription-btn-split-arrow"
+                        onClick={handleDropdownToggle}
+                        disabled={isActionLoading}
+                        title={t('notifications.checkNowTitle')}
+                    >
+                        <ChevronDown size={12} />
+                    </button>
+                    {showLookbackDropdown && (
+                        <div className="subscription-lookback-dropdown">
+                            <button
+                                className="subscription-lookback-item"
+                                onClick={() => handlePresetClick(1)}
+                            >
+                                {t('notifications.checkNowYesterday')}
+                            </button>
+                            <button
+                                className="subscription-lookback-item"
+                                onClick={() => handlePresetClick(7)}
+                            >
+                                {t('notifications.checkNowLast7Days')}
+                            </button>
+                            <button
+                                className="subscription-lookback-item"
+                                onClick={() => handlePresetClick(30)}
+                            >
+                                {t('notifications.checkNowLast30Days')}
+                            </button>
+                            <button
+                                className="subscription-lookback-item"
+                                onClick={() => handlePresetClick(90)}
+                            >
+                                {t('notifications.checkNowLast90Days')}
+                            </button>
+                            {showCustomInput ? (
+                                <form className="subscription-lookback-custom" onSubmit={handleCustomSubmit}>
+                                    <input
+                                        ref={customInputRef}
+                                        type="number"
+                                        min="1"
+                                        max="3650"
+                                        placeholder="30"
+                                        value={customLookbackDays}
+                                        onChange={(e) => setCustomLookbackDays(e.target.value)}
+                                        className="subscription-lookback-custom-input"
+                                    />
+                                    <span className="subscription-lookback-custom-label">
+                                        {t('notifications.checkNowCustomDays')}
+                                    </span>
+                                    <button
+                                        type="submit"
+                                        className="subscription-lookback-custom-go"
+                                        disabled={!customLookbackDays || parseInt(customLookbackDays, 10) < 1}
+                                    >
+                                        {t('notifications.checkNowCustomGo')}
+                                    </button>
+                                </form>
+                            ) : (
+                                <button
+                                    className="subscription-lookback-item subscription-lookback-item-custom"
+                                    onClick={handleCustomClick}
+                                >
+                                    {t('notifications.checkNowCustom')}
+                                </button>
+                            )}
+                        </div>
                     )}
-                </button>
+                </div>
 
                 <button
                     className="subscription-btn subscription-btn-secondary"
