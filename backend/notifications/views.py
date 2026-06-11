@@ -690,7 +690,11 @@ class NotificationBatchViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(subscription_id=subscription_id)
 
         return queryset.select_related(
-            "subscription", "subscription__organization", "subscription__entity"
+            "subscription",
+            "subscription__organization",
+            "subscription__entity",
+            "subscription__relationship_org",
+            "subscription__relationship_entity",
         ).order_by("-created_at")
 
     def get_serializer_class(self):

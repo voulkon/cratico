@@ -499,12 +499,18 @@ export default function NotificationSidebar({ isOpen, onClose, onUnreadCountChan
 
                                             <div className="notification-item-header">
                                                 <span className="notification-item-type">
-                                                    {notification.subscription?.subscription_type || 'notification'}
+                                                    {notification.display_name || notification.subscription?.subscription_type || 'notification'}
                                                 </span>
                                                 <span className="notification-item-time">
                                                     {new Date(notification.created_at).toLocaleDateString()}
                                                 </span>
                                             </div>
+
+                                            {notification.period_label && (
+                                                <div className="notification-item-period">
+                                                    {notification.period_label}
+                                                </div>
+                                            )}
 
                                             <div className="notification-item-content">
                                                 <div className="notification-item-subject">
@@ -513,12 +519,14 @@ export default function NotificationSidebar({ isOpen, onClose, onUnreadCountChan
                                                         : `${notification.match_count} new decisions`
                                                     }
                                                 </div>
-                                                <div className="notification-item-ada">
-                                                    {notification.subscription?.alias ||
-                                                     notification.subscription?.organization?.label ||
-                                                     notification.subscription?.entity?.label ||
-                                                     'Subscription match'}
-                                                </div>
+                                                {!notification.display_name && (
+                                                    <div className="notification-item-ada">
+                                                        {notification.subscription?.alias ||
+                                                         notification.subscription?.organization?.label ||
+                                                         notification.subscription?.entity?.label ||
+                                                         'Subscription match'}
+                                                    </div>
+                                                )}
                                             </div>
 
                                             {notification.aggregate_stats && notification.aggregate_stats.total_amount && (
