@@ -79,6 +79,15 @@ const EntityDetailPage = () => {
   const [isTimeRangeExpanded, setIsTimeRangeExpanded] = useState(true);
   const [temporalSummary, setTemporalSummary] = useState(null);
 
+  const requiresManualStatistics = explorationMode === 'entity' && entityType === 'organization';
+  const [statsRequested, setStatsRequested] = useState(!requiresManualStatistics);
+
+  useEffect(() => {
+    setStatsRequested(!requiresManualStatistics);
+    setStatistics(null);
+    setStatisticsError(null);
+  }, [requiresManualStatistics]);
+
   // Parse temporal parameters into date range
   const parseTemporalDateRange = useCallback(() => {
     if (explorationMode !== 'temporal') return null;
@@ -173,6 +182,13 @@ const EntityDetailPage = () => {
 
         setEntityDateRange(response.data);
 
+        // Populate entity metadata (name, type, etc.) from the date-range
+        // response so the page title renders correctly even when full
+        // statistics are deferred (e.g. for organizations).
+        if (response.data.entity) {
+          setEntityData(response.data.entity);
+        }
+
         if (response.data.has_data) {
           const dateUtils = createDynamicDateRangeUtils(response.data);
           setDynamicDateUtils(dateUtils);
@@ -236,6 +252,9 @@ const EntityDetailPage = () => {
       if (explorationMode === 'temporal') {
         endpoint = `/explore/statistics/?${params.toString()}`;
       } else {
+        if (requiresManualStatistics) {
+          params.append('lite', 'true');
+        }
         endpoint = `/entity/${entityType}/${entityId}/statistics/?${params.toString()}`;
       }
 
@@ -253,7 +272,7 @@ const EntityDetailPage = () => {
     } finally {
       setStatisticsLoading(false);
     }
-  }, [explorationMode, entityType, entityId, timeRange, t]);
+  }, [explorationMode, entityType, entityId, timeRange, t, requiresManualStatistics]);
 
   const fetchDecisions = useCallback(async (page = 1, append = false) => {
     if (!timeRange) return;
@@ -428,14 +447,19 @@ const EntityDetailPage = () => {
         } catch (err) {
           setError(t('errors.failedToLoad'));
         }
-        // Non-blocking: statistics load independently
-        fetchStatistics();
       };
 
       loadData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeRange, sortBy, debouncedSearchQuery, selectedDecisionTypes, amountFilters, organizationFilters]);
+
+  useEffect(() => {
+    if (!timeRange || !statsRequested) return;
+    // Non-blocking: statistics load independently from decision list/counterparts.
+    fetchStatistics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeRange, sortBy, debouncedSearchQuery, selectedDecisionTypes, amountFilters, organizationFilters, statsRequested]);
 
   const { sentinelRef } = useInfiniteScroll({
     hasMore: pagination?.has_next ?? false,
@@ -534,13 +558,15 @@ const EntityDetailPage = () => {
         ? t('statistics.amountDiscrepancy', { percentage: statistics.summary.financial.discrepancy_percentage })
         : undefined,
     },
-    {
-      title: t('statistics.averageAmount'),
-      value: `€${statistics.summary.decisions.avg_amount.toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}`,
-    },
+    ...(!requiresManualStatistics
+      ? [{
+          title: t('statistics.averageAmount'),
+          value: `€${statistics.summary.decisions.avg_amount.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}`,
+        }]
+      : []),
     {
       title: t('statistics.period'),
       value: t('statistics.days', { count: statistics.period.days_count }),
@@ -661,15 +687,27 @@ const EntityDetailPage = () => {
       </div>
 
       {/* Enhanced Statistics Cards for both modes */}
-      <StatisticsGrid
-        loading={statisticsLoading}
-        error={statisticsError}
-        cards={statCards}
-        onRetry={fetchStatistics}
-      />
+      {requiresManualStatistics && !statsRequested ? (
+        <div className="statistics-manual-trigger" style={{ marginBottom: '1rem' }}>
+          <button
+            type="button"
+            className="see-all-button"
+            onClick={() => setStatsRequested(true)}
+          >
+            {t('entityDetail.loadStatistics', 'Load statistics')}
+          </button>
+        </div>
+      ) : (
+        <StatisticsGrid
+          loading={statisticsLoading}
+          error={statisticsError}
+          cards={statCards}
+          onRetry={fetchStatistics}
+        />
+      )}
 
       {/* Top Counterparts - Shows related entities/organizations */}
-      {explorationMode === 'entity' && entityData && entityType === 'organization' && timeRange && (
+      {explorationMode === 'entity' && entityType === 'organization' && timeRange && (
         <TopCounterparts
           type="organization"
           id={entityId}

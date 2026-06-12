@@ -42,6 +42,12 @@ from .base import (
             description="End date (YYYY-MM-DD)",
             type=openapi.TYPE_STRING,
         ),
+        openapi.Parameter(
+            "lite",
+            openapi.IN_QUERY,
+            description="Return only lightweight totals and period metadata",
+            type=openapi.TYPE_BOOLEAN,
+        ),
     ],
 )
 @api_view(["GET"])
@@ -52,6 +58,13 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
     start_dt, end_dt, err = _parse_optional_date_range(request)
     if err:
         return err
+
+    lite_mode = str(request.GET.get("lite", "")).lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
     # Default to last 12 months if no dates provided
     end_date = end_dt if end_dt else timezone.now()
@@ -67,6 +80,39 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
 
             try:
                 afm_entity = AFMEntity.objects.get(afm=entity_id)
+
+                # Lite mode: skip expensive financial_service calls, use legacy
+                # queryset for cheap Count + Sum aggregates only.
+                if lite_mode:
+                    decisions_qs = get_entity_decisions_queryset("afm", entity_id)
+                    filtered_qs = decisions_qs.filter_by_date_range(
+                        start_date, end_date
+                    )
+                    stats = filtered_qs.aggregate(
+                        total_decisions=models.Count("id"),
+                        total_amount=models.Sum("amount"),
+                    )
+                    return Response(
+                        {
+                            "entity": entity_info,
+                            "date_range": {
+                                "start_date": start_date.isoformat(),
+                                "end_date": end_date.isoformat(),
+                            },
+                            "statistics": {
+                                "total_decisions": stats["total_decisions"] or 0,
+                                "total_amount": float(stats["total_amount"] or 0),
+                                "avg_amount": 0.0,
+                                "unique_organizations": 0,
+                                "unique_roles": 0,
+                            },
+                            "financial_summary": {
+                                "top_organizations": [],
+                            },
+                            "timeline_data": [],
+                            "data_source": "financial_service_lite",
+                        }
+                    )
 
                 # Use financial service for comprehensive statistics
                 financial_summary = financial_service.get_entity_financial_summary(
@@ -113,7 +159,51 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
         # Apply date filters
         filtered_qs = decisions_qs.filter_by_date_range(start_date, end_date)
 
-        # Calculate basic statistics using legacy approach
+        # Lightweight mode: only Count + Sum, skips Avg/Max/Min and all expensive
+        # breakdown queries (financial summary, charts, recent decisions).
+        if lite_mode:
+            stats = filtered_qs.aggregate(
+                total_decisions=models.Count("id"),
+                total_amount=models.Sum("amount"),
+            )
+            return Response(
+                {
+                    "entity": entity_info,
+                    "period": {
+                        "start_date": start_date.isoformat(),
+                        "end_date": end_date.isoformat(),
+                        "days_count": (end_date - start_date).days + 1,
+                    },
+                    "summary": {
+                        "decisions": {
+                            "total_count": stats["total_decisions"] or 0,
+                            "avg_amount": 0.0,
+                            "max_amount": 0.0,
+                            "min_amount": 0.0,
+                        },
+                        "financial": {
+                            "primary_amount": float(stats["total_amount"] or 0),
+                            "kae_amount": 0.0,
+                            "legacy_amount": float(stats["total_amount"] or 0),
+                            "decisions_with_amounts": 0,
+                            "decisions_with_kae": 0,
+                            "total_decisions": stats["total_decisions"] or 0,
+                            "discrepancy_percentage": 0.0,
+                            "avg_amount": 0.0,
+                            "unique_organizations": 0,
+                            "has_discrepancy": False,
+                        },
+                        "status_breakdown": {},
+                    },
+                    "charts": {
+                        "monthly_breakdown": [],
+                        "top_decision_types": [],
+                    },
+                    "recent_decisions": [],
+                }
+            )
+
+        # Calculate basic statistics using full aggregate (non-lite path)
         stats = filtered_qs.aggregate(
             total_decisions=models.Count("id"),
             avg_amount=models.Avg("amount"),
@@ -611,6 +701,9 @@ def entity_decision_types_api_dev(request, entity_type, entity_id):
         return err
 
     try:
+        # Resolve entity metadata (name, type, etc.) — lightweight DB lookup
+        entity_info = get_entity_info(entity_type, entity_id)
+
         # Get decisions queryset
         decisions_qs = get_entity_decisions_queryset(entity_type, entity_id)
 
@@ -646,7 +739,7 @@ def entity_decision_types_api_dev(request, entity_type, entity_id):
 
         return Response(
             {
-                "entity": {"type": entity_type, "id": entity_id},
+                "entity": entity_info,
                 "decision_types": formatted_types,
                 "total_types": len(formatted_types),
             }
@@ -686,6 +779,9 @@ def entity_decision_types_api_dev(request, entity_type, entity_id):
 def entity_date_range_api_dev(request, entity_type, entity_id):
     """Get the available date range and activity overview for an entity"""
     try:
+        # Resolve entity metadata (name, type, etc.) — lightweight DB lookup
+        entity_info = get_entity_info(entity_type, entity_id)
+
         # Get decisions queryset for the entity
         decisions_qs = get_entity_decisions_queryset(entity_type, entity_id)
 
@@ -700,7 +796,7 @@ def entity_date_range_api_dev(request, entity_type, entity_id):
         if not date_stats["earliest_date"]:
             return Response(
                 {
-                    "entity": {"type": entity_type, "id": entity_id},
+                    "entity": entity_info,
                     "has_data": False,
                     "message": "No decisions found for this entity. Contact the administrator if you expect data to be available.",
                     "date_range": None,
@@ -764,7 +860,7 @@ def entity_date_range_api_dev(request, entity_type, entity_id):
 
         return Response(
             {
-                "entity": {"type": entity_type, "id": entity_id},
+                "entity": entity_info,
                 "has_data": True,
                 "date_range": {
                     "earliest": earliest,
