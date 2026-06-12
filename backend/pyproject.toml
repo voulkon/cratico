@@ -46,6 +46,7 @@ boto3 = "^1.42.0"
 tiktoken="^0.8.0"  # Token counting for AI cost estimation
 PyYAML="^6.0.2"  # For reading OpenSearch config files
 holidayfyi = {version = "^0.1.3", extras = ["holidays"]}
+django-silk = "^5.5.0"
 
 [tool.poetry.group.worker]
 optional = false  # Always install with worker
