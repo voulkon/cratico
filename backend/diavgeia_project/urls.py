@@ -17,6 +17,7 @@ Including another URLconf
 
 from admin_custom.sites import admin_site
 from api.views.version import version_check
+from diavgeia_project.settings.base import ENABLE_SILK
 from django.urls import include, path
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import csrf_exempt
@@ -58,3 +59,8 @@ urlpatterns = [
         name="schema-redoc",
     ),
 ]
+
+if ENABLE_SILK:
+    urlpatterns += [
+        path(f"{GLOBAL_URL_PREFIX}silk/", include("silk.urls", namespace="silk")),
+    ]
