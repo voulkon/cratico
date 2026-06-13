@@ -10,6 +10,37 @@ from loguru import logger
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "diavgeia_project.settings")
 
+# --- Monkey-patch wsgiref.util.request_uri to use UTF-8 encoding ---
+# OpenTelemetry's wsgi instrumentation calls wsgiref.util.request_uri(environ)
+# which hardcodes encoding='latin1'. This crashes with a UnicodeEncodeError
+# when PATH_INFO contains non-latin-1 characters (e.g. Greek names in URLs).
+# Replacing it with a UTF-8-aware version fixes the issue.
+import wsgiref.util as _wsgiref_util
+from urllib.parse import quote as _quote
+
+_original_request_uri = _wsgiref_util.request_uri
+
+
+def _patched_request_uri(environ, include_query=True):
+    """Replacement for wsgiref.util.request_uri that uses UTF-8 instead of latin-1."""
+    from wsgiref.util import application_uri
+
+    url = application_uri(environ)
+    path_info = _quote(
+        environ.get("PATH_INFO", ""), safe="/;=,", encoding="utf-8"
+    )
+    if not path_info.startswith("/"):
+        url += "/" + path_info
+    else:
+        url += path_info
+    if include_query and environ.get("QUERY_STRING"):
+        url += "?" + environ["QUERY_STRING"]
+    return url
+
+
+_wsgiref_util.request_uri = _patched_request_uri
+# --- End monkey-patch ---
+
 try:
     # Check if tracing is enabled
     if settings.TRANSMIT_TO_JAEGER:
