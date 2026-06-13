@@ -414,6 +414,7 @@ class FinancialCalculationService:
         offset: int = 0,
         roles: Optional[List[str]] = None,
         direct_assignments_only: bool = False,
+        search_query: Optional[str] = None,
     ) -> CounterpartPage:
         """
         Get top entities by total amount for an organization in a date range.
@@ -427,6 +428,7 @@ class FinancialCalculationService:
             offset: Pagination offset
             roles: Optional list of roles to filter by (defaults to MONEY_RECEIVED_ROLES)
             direct_assignments_only: If True, filters to direct-assignment decisions only
+            search_query: Optional entity name search filter (case-insensitive contains)
 
         Returns:
             CounterpartPage Pydantic model with 'results', 'total_count', and 'has_more'
@@ -444,9 +446,29 @@ class FinancialCalculationService:
         if direct_assignments_only:
             base_filter["decision__classification__is_direct_assignment"] = True
 
+        # Apply search filter on entity name using the tiered search infrastructure
+        # This respects the ENTITY_SEARCH_METHOD feature flag
+        # (POSTGRES_FTS with Greek-aware full-text search + prefix matching when available,
+        #  falling back to simple ILIKE when prerequisites aren't met)
+        qs = DecisionEntityRelationship.objects.filter(**base_filter)
+        if search_query:
+            from core.services.search_service import SearchService
+
+            matching_entities = SearchService().search_afm_entities(
+                search_query, limit=10000  # High limit for filtering, not display
+            )
+            matching_afms = list(
+                matching_entities.values_list("afm", flat=True)
+            )
+            if matching_afms:
+                qs = qs.filter(entity__afm__in=matching_afms)
+            else:
+                # No matching entities found — return empty result early
+                return CounterpartPage(results=[], total_count=0, has_more=False)
+
         # Query with pagination
         results = list(
-            DecisionEntityRelationship.objects.filter(**base_filter)
+            qs
             .values("entity__afm", "entity__name", "entity__entity_type")
             .annotate(
                 total_amount=Sum("linked_amounts__amount"),
@@ -461,8 +483,7 @@ class FinancialCalculationService:
 
         # Get total count for pagination UI
         total_count = (
-            DecisionEntityRelationship.objects.filter(**base_filter)
-            .values("entity")
+            qs.values("entity")
             .distinct()
             .count()
         )

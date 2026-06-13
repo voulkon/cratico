@@ -398,6 +398,70 @@
   transform: translateY(-1px);
 }
 
+/* Search Input */
+.counterparts-search {
+  position: relative;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.counterparts-search-input {
+  width: 100%;
+  padding: 8px 32px 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: var(--text-color);
+  background: var(--card-bg);
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.counterparts-search-input:focus {
+  outline: none;
+  border-color: var(--palette-primary);
+}
+
+.counterparts-search-input::placeholder {
+  color: var(--muted-text);
+}
+
+.counterparts-search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  color: var(--muted-text);
+  cursor: pointer;
+  padding: 2px 6px;
+  line-height: 1;
+  border-radius: 4px;
+}
+
+.counterparts-search-clear:hover {
+  background: var(--hover-bg);
+  color: var(--text-color);
+}
+
+/* Scroll Sentinel (invisible IntersectionObserver target) */
+.scroll-sentinel {
+  height: 1px;
+  width: 100%;
+}
+
+/* End-of-list message */
+.counterparts-end-message {
+  text-align: center;
+  padding: 16px 8px;
+  color: var(--muted-text);
+  font-size: 0.8rem;
+  border-top: 1px solid var(--border-color);
+  margin-top: 8px;
+}
+
 .load-more-button:disabled {
   opacity: 0.6;
   cursor: not-allowed;

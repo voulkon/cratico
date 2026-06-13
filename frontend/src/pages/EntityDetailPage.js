@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { NetworkIcon } from '../components/Icons';
 import apiClient from '../api/client';
@@ -13,6 +13,7 @@ import StatisticsGrid from '../components/StatisticsGrid';
 import useUrlFilters from '../hooks/useUrlFilters';
 import useDocumentContent from '../hooks/useDocumentContent';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
+import useDecisionsList from '../hooks/useDecisionsList';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { createDynamicDateRangeUtils, formatAmount } from '../utils/dateUtils';
 import { useTranslation } from '../contexts/TranslationContext';
@@ -59,11 +60,7 @@ const EntityDetailPage = () => {
   const [statistics, setStatistics] = useState(null);
   const [statisticsLoading, setStatisticsLoading] = useState(false);
   const [statisticsError, setStatisticsError] = useState(null);
-  const [decisions, setDecisions] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [pagination, setPagination] = useState(null);
-  const [loadingMore, setLoadingMore] = useState(false);
 
   // Enhanced date range state
   const [entityDateRange, setEntityDateRange] = useState(null);
@@ -274,85 +271,34 @@ const EntityDetailPage = () => {
     }
   }, [explorationMode, entityType, entityId, timeRange, t, requiresManualStatistics]);
 
-  const fetchDecisions = useCallback(async (page = 1, append = false) => {
-    if (!timeRange) return;
+  // ── Unified decisions list hook ────────────────────────────────────────
+  const decisionsEndpoint = explorationMode === 'temporal'
+    ? '/explore/decisions-optimized/'
+    : `/entity/${entityType}/${entityId}/decisions/`;
 
-    try {
-      if (!append) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
-      }
+  const decisionsParams = {
+    sort_by: sortBy,
+    start_date: timeRange?.startDate,
+    end_date: timeRange?.endDate,
+    ...(debouncedSearchQuery.trim() && { q: debouncedSearchQuery.trim() }),
+    ...(selectedDecisionTypes.length > 0 && { decision_types: selectedDecisionTypes.join(',') }),
+    ...(amountFilters.minAmount && { min_amount: amountFilters.minAmount }),
+    ...(amountFilters.maxAmount && { max_amount: amountFilters.maxAmount }),
+    ...(explorationMode === 'temporal' && organizationFilters.length > 0 && { organization_ids: organizationFilters.join(',') }),
+    ...(directAssignmentsOnly && { direct_assignments_only: 'true' }),
+  };
 
-      const params = new URLSearchParams({
-        start_date: timeRange.startDate,
-        end_date: timeRange.endDate,
-        page_size: '20',
-        sort_by: sortBy,
-        page: page.toString()
-      });
-
-      if (debouncedSearchQuery.trim()) {
-        params.append('q', debouncedSearchQuery.trim());
-      }
-
-      // Add decision type filtering
-      if (selectedDecisionTypes.length > 0) {
-        params.append('decision_types', selectedDecisionTypes.join(','));
-      }
-
-      // Add amount filtering
-      if (amountFilters.minAmount) {
-        params.append('min_amount', amountFilters.minAmount);
-      }
-      if (amountFilters.maxAmount) {
-        params.append('max_amount', amountFilters.maxAmount);
-      }
-
-      // Add organization filtering for temporal mode
-      if (explorationMode === 'temporal' && organizationFilters.length > 0) {
-        params.append('organization_ids', organizationFilters.join(','));
-      }
-
-      // Add direct assignments filter
-      if (directAssignmentsOnly) {
-        params.append('direct_assignments_only', 'true');
-      }
-
-      let endpoint;
-      if (explorationMode === 'temporal') {
-        endpoint = `/explore/decisions-optimized/?${params.toString()}`;
-      } else {
-        endpoint = `/entity/${entityType}/${entityId}/decisions/?${params.toString()}`;
-      }
-
-      const response = await apiClient.get(endpoint);
-
-      if (append) {
-        setDecisions(prevDecisions => [...prevDecisions, ...response.data.results]);
-      } else {
-        setDecisions(response.data.results);
-      }
-
-      setPagination(response.data.pagination);
-
-    } catch (err) {
-      console.error('Failed to fetch decisions:', err);
-      setError(t('errors.failedToLoad'));
-    } finally {
-      if (!append) {
-        setLoading(false);
-      } else {
-        setLoadingMore(false);
-      }
-    }
-  }, [explorationMode, entityType, entityId, timeRange, sortBy, debouncedSearchQuery, selectedDecisionTypes, amountFilters, organizationFilters, directAssignmentsOnly, t]);
-
-  const loadMoreDecisions = useCallback(() => {
-    if (pagination && pagination.has_next && !loadingMore) {
-      fetchDecisions(pagination.current_page + 1, true);
-    }
-  }, [pagination, loadingMore, fetchDecisions]);
+  const {
+    decisions,
+    pagination,
+    loading,
+    loadingMore,
+    loadMore,
+  } = useDecisionsList({
+    endpoint: decisionsEndpoint,
+    params: decisionsParams,
+    enabled: !!timeRange,
+  });
 
   // Build a human-readable subtitle from metadata instead of showing the raw ID
   const getEntitySubtitle = useCallback(() => {
@@ -416,18 +362,15 @@ const EntityDetailPage = () => {
   };
 
   // Update URL params when filters change
-  // Initial load effect
+  // Initial load: fetch date range
   useEffect(() => {
     const loadInitialData = async () => {
-      setLoading(true);
       setError(null);
 
       try {
         await fetchEntityDateRange();
       } catch (err) {
         setError(t('errors.failedToLoad'));
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -435,24 +378,13 @@ const EntityDetailPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [explorationMode, entityType, entityId]);
 
-  // Load data when time range is set
+  // Load decision types when time range is set (decisions are handled by useDecisionsList)
   useEffect(() => {
     if (timeRange) {
-      const loadData = async () => {
-        try {
-          await Promise.all([
-            fetchDecisions(1, false),
-            fetchDecisionTypes()
-          ]);
-        } catch (err) {
-          setError(t('errors.failedToLoad'));
-        }
-      };
-
-      loadData();
+      fetchDecisionTypes();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeRange, sortBy, debouncedSearchQuery, selectedDecisionTypes, amountFilters, organizationFilters]);
+  }, [timeRange]);
 
   useEffect(() => {
     if (!timeRange || !statsRequested) return;
@@ -465,8 +397,15 @@ const EntityDetailPage = () => {
     hasMore: pagination?.has_next ?? false,
     loading,
     loadingMore,
-    onLoadMore: loadMoreDecisions,
+    onLoadMore: loadMore,
   });
+
+  // Memoize dateRange for TopCounterparts to prevent duplicate fetches from
+  // referentially-new inline objects on every render.
+  const topCounterpartDateRange = useMemo(() => ({
+    start_date: timeRange?.startDate,
+    end_date: timeRange?.endDate,
+  }), [timeRange?.startDate, timeRange?.endDate]);
 
   // Handlers
   const handleMonthRangeChange = (startIndex, endIndex) => {
@@ -491,8 +430,8 @@ const EntityDetailPage = () => {
     });
   };
 
-  // Loading states
-  if (dateRangeLoading || loading) {
+  // Loading states (date range loading, or entity metadata not yet available while decisions are loading)
+  if (dateRangeLoading || (loading && !entityData)) {
     return (
       <div style={{ padding: '20px', textAlign: 'center' }}>
         <h2>{t('entityDetail.loadingEntity', { entityType })}</h2>
@@ -711,10 +650,7 @@ const EntityDetailPage = () => {
         <TopCounterparts
           type="organization"
           id={entityId}
-          dateRange={{
-            start_date: timeRange.startDate,
-            end_date: timeRange.endDate
-          }}
+          dateRange={topCounterpartDateRange}
           limit={5}
           onCounterpartClick={(counterpart) => {
             const afm = counterpart.entity__afm;
@@ -880,7 +816,7 @@ const EntityDetailPage = () => {
           hasSearchQuery={!!(searchQuery || activeFiltersCount > 0)}
           formatAmount={formatAmount}
           onViewDocumentContent={handleViewDocumentContent}
-          onLoadMore={loadMoreDecisions}
+          onLoadMore={loadMore}
           emptyMessage={t('entityDetail.noDecisionsFound')}
           showPaginationInfo={true}
           getDecisionKey={(d) => d.ada}

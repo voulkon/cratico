@@ -462,7 +462,9 @@
     "of": "από",
     "totalAmount": "Συνολικό Ποσό",
     "decisions": "Αποφάσεις",
-    "seeAll": "Δείτε Όλα"
+    "seeAll": "Δείτε Όλα",
+    "searchPlaceholder": "Αναζήτηση οντοτήτων...",
+    "allLoaded": "Εμφανίζονται όλες οι {count} οντότητες"
   },
   "relationship": {
     "title": "Λεπτομέρειες Σχέσης",

@@ -60,6 +60,12 @@ from rest_framework.response import Response
             description="Pagination offset",
             type=openapi.TYPE_INTEGER,
         ),
+        openapi.Parameter(
+            "q",
+            openapi.IN_QUERY,
+            description="Search counterpart entities by name",
+            type=openapi.TYPE_STRING,
+        ),
     ],
 )
 @api_view(["GET"])
@@ -84,11 +90,12 @@ def organization_top_counterparts_api(
     if error_response:
         return error_response
 
-    # Get pagination parameters
+    # Get pagination and search parameters
     start_date_str = request.GET.get("start_date")
     end_date_str = request.GET.get("end_date")
     limit = int(request.GET.get("limit", 5))
     offset = int(request.GET.get("offset", 0))
+    search_query = request.GET.get("q")
 
     try:
         # Get organization
@@ -107,6 +114,7 @@ def organization_top_counterparts_api(
             end_date=end_date,
             limit=limit,
             offset=offset,
+            search_query=search_query,
         )
 
         return Response(
