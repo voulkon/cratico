@@ -127,7 +127,7 @@ def organization_top_counterparts_api(
                     "start": start_date_str,
                     "end": end_date_str,
                 },
-                "results": [r.model_dump(mode="json") for r in result.results],
+                "results": [r.model_dump() for r in result.results],
                 "pagination": {
                     "limit": limit,
                     "offset": offset,
@@ -403,7 +403,7 @@ def temporal_top_relationship_pairs_api(request):
                     "start": start_date_str,
                     "end": end_date_str,
                 },
-                "results": [r.model_dump(mode="json") for r in result.results],
+                "results": [r.model_dump() for r in result.results],
                 "pagination": {
                     "limit": limit,
                     "offset": offset,

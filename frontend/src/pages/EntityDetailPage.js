@@ -489,10 +489,7 @@ const EntityDetailPage = () => {
     },
     {
       title: t('statistics.totalAmount'),
-      value: `€${statistics.summary.financial.primary_amount.toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}`,
+      value: formatAmount(statistics.summary.financial.primary_amount),
       warning: statistics.summary.financial.has_discrepancy
         ? t('statistics.amountDiscrepancy', { percentage: statistics.summary.financial.discrepancy_percentage })
         : undefined,
@@ -500,10 +497,7 @@ const EntityDetailPage = () => {
     ...(!requiresManualStatistics
       ? [{
           title: t('statistics.averageAmount'),
-          value: `€${statistics.summary.decisions.avg_amount.toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}`,
+          value: formatAmount(statistics.summary.decisions.avg_amount),
         }]
       : []),
     {
