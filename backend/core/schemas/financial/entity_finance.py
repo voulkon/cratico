@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional
 from decimal import Decimal
-from datetime import datetime
+from datetime import date, datetime
 
 # ── Entity-level ──────────────────────────────────────────
 
@@ -32,3 +32,15 @@ class EntityFinancialSummary(BaseModel):
     unique_organizations: int
     top_organizations: list[OrgBreakdown] = Field(default_factory=list)
     role_breakdown: list[RoleBreakdown] = Field(default_factory=list)
+
+
+class EntityDateRange(BaseModel):
+    """Date range and activity overview for a single entity."""
+    earliest_date: Optional[date] = None
+    latest_date: Optional[date] = None
+    span_days: int = 0
+    recommended_granularity: str = "month"
+    total_decisions: int = 0
+    total_amount: float = 0.0
+    avg_daily_decisions: float = 0.0
+    avg_daily_amount: float = 0.0

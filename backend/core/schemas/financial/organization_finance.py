@@ -33,3 +33,13 @@ class RelationshipPairPage(BaseModel):
     results: list[RelationshipPairResult]
     total_count: int
     has_more: bool
+
+
+class OrganizationAmountSummary(BaseModel):
+    """Organization with financial aggregates for listing/leaderboard views."""
+    uid: str
+    label: Optional[str] = None
+    count: int
+    total_amount: float
+    avg_amount: float = 0.0
+    max_amount: float = 0.0

@@ -102,7 +102,10 @@ class Command(BaseCommand):
                 accurate_amount = financial_service.get_decision_total_amount(decision)
 
                 # Get entity amounts for additional context
-                entity_amounts = financial_service.get_decision_entity_amounts(decision)
+                entity_amounts = [
+                    ea.model_dump(mode="json")
+                    for ea in financial_service.get_decision_entity_amounts(decision)
+                ]
 
                 # Build comprehensive metadata
                 metadata = {

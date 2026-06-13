@@ -8,7 +8,7 @@ Provides endpoints for:
 
 from core.models.decisions import Decision
 from core.models.entities import DecisionEntityRelationship
-from core.services.financial_calculation_service import FinancialCalculationService
+from core.services.financial_calculation_service import financial_service
 from django.conf import settings
 from django.db import models
 from django.utils.dateparse import parse_date
@@ -220,11 +220,10 @@ def relationship_statistics_api(request, afm, orgUid):
 
         # Use financial service for accurate calculations
         try:
-            financial_service = FinancialCalculationService()
             financial_summary = financial_service.get_global_financial_summary(
                 decisions_queryset=decisions_qs
             )
-            total_amount = financial_summary.get("total_amount", 0)
+            total_amount = financial_summary.total_amount
         except Exception:
             # Fall back to simple aggregation
             total_amount = float(

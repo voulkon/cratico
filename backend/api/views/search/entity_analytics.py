@@ -20,10 +20,9 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from .base import (
-    calculate_financial_summary,
     get_entity_decisions_queryset,
     get_entity_info,
-    serialize_decision_with_content_info,
+    serialize_decision_with_entities,
 )
 
 
@@ -135,16 +134,14 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
                             "end_date": end_date.isoformat(),
                         },
                         "statistics": {
-                            "total_decisions": financial_summary["decision_count"],
-                            "total_amount": float(financial_summary["total_received"]),
-                            "avg_amount": float(financial_summary["avg_amount"]),
-                            "unique_organizations": financial_summary[
-                                "unique_organizations"
-                            ],
-                            "unique_roles": len(financial_summary["role_breakdown"]),
+                            "total_decisions": financial_summary.decision_count,
+                            "total_amount": float(financial_summary.total_received),
+                            "avg_amount": float(financial_summary.avg_amount),
+                            "unique_organizations": financial_summary.unique_organizations,
+                            "unique_roles": len(financial_summary.role_breakdown),
                         },
-                        "financial_summary": financial_summary,
-                        "timeline_data": timeline_data,
+                        "financial_summary": financial_summary.model_dump(mode="json"),
+                        "timeline_data": [t.model_dump(mode="json") for t in timeline_data],
                         "data_source": "financial_service",
                     }
                 )
@@ -212,10 +209,23 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
             total_amount=models.Sum("amount"),
         )
 
-        # Calculate financial summary using enhanced base function
-        financial_summary = calculate_financial_summary(
-            filtered_qs, entity_id, entity_type
-        )
+        # Calculate financial summary (legacy path for non-AFM entities)
+        decision_total = stats["total_amount"] or 0
+        financial_summary = {
+            "primary_amount": float(decision_total),
+            "kae_amount": 0,
+            "legacy_amount": float(decision_total),
+            "decisions_with_amounts": filtered_qs.filter(
+                amount__isnull=False
+            ).count(),
+            "decisions_with_kae": 0,
+            "total_decisions": stats["total_decisions"] or 0,
+            "discrepancy_percentage": 0,
+            "avg_amount": float(stats["avg_amount"] or 0),
+            "unique_organizations": filtered_qs.values("organization")
+            .distinct()
+            .count(),
+        }
 
         # Monthly breakdown for charts
         try:
@@ -503,10 +513,43 @@ def entity_decisions_api_dev(request, entity_type, entity_id):
                 search_tracking, paginator.count
             )
 
-        # Serialize results using the new function
+        # ── Batch-fetch entity relationships (eliminates N+1) ──────────────
+        from core.models.entities import DecisionEntityRelationship
+        from django.db.models import Sum
+
+        decision_ids = [d.id for d in page_obj]
+        entity_relationships_qs = (
+            DecisionEntityRelationship.objects.filter(decision_id__in=decision_ids)
+            .select_related("entity")
+            .annotate(total_amount=Sum("linked_amounts__amount"))
+        )
+
+        relationships_by_decision = {}
+        for rel in entity_relationships_qs:
+            if rel.decision_id not in relationships_by_decision:
+                relationships_by_decision[rel.decision_id] = []
+            relationships_by_decision[rel.decision_id].append({
+                "role": rel.role,
+                "entity": {
+                    "afm": rel.entity.afm,
+                    "name": rel.entity.name,
+                    "entity_type": rel.entity.entity_type,
+                },
+                "total_amount": float(rel.total_amount) if rel.total_amount else 0,
+            })
+
+        # Serialize results with entity data embedded
         results = []
         for decision in page_obj:
-            decision_data = serialize_decision_with_content_info(decision)
+            entity_rels = relationships_by_decision.get(decision.id, [])
+            decision_data = serialize_decision_with_entities(decision, entity_rels)
+
+            # Include organization object for entity pages
+            if decision.organization:
+                decision_data["organization"] = {
+                    "uid": decision.organization.uid,
+                    "label": decision.organization.label,
+                }
             results.append(decision_data)
 
         response_data = {

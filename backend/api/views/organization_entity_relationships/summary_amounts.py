@@ -14,7 +14,7 @@ Key use cases:
 from api.utils.date_utils import _parse_and_validate_date_range
 from core.models.entities import AFMEntity
 from core.models.organizations import Organization
-from core.services.financial_calculation_service import FinancialCalculationService
+from core.services.financial_calculation_service import financial_service
 from core.utils.performance_monitoring import monitor_query_performance
 from django.conf import settings
 from drf_yasg import openapi
@@ -101,7 +101,6 @@ def organization_top_counterparts_api(
             )
 
         # Get top counterparts using financial service
-        financial_service = FinancialCalculationService()
         result = financial_service.get_top_counterparts_for_organization(
             organization=organization,
             start_date=start_date,
@@ -120,12 +119,12 @@ def organization_top_counterparts_api(
                     "start": start_date_str,
                     "end": end_date_str,
                 },
-                "results": result["results"],
+                "results": [r.model_dump(mode="json") for r in result.results],
                 "pagination": {
                     "limit": limit,
                     "offset": offset,
-                    "total_count": result["total_count"],
-                    "has_more": result["has_more"],
+                    "total_count": result.total_count,
+                    "has_more": result.has_more,
                 },
             }
         )
@@ -216,7 +215,6 @@ def entity_top_organizations_api(request, afm):
             return Response({"error": f"Entity with AFM '{afm}' not found"}, status=404)
 
         # Get top organizations using financial service
-        financial_service = FinancialCalculationService()
 
         # Use existing method but aggregate by organization instead of entity
         from core.models.entities import DecisionEntityRelationship
@@ -349,7 +347,6 @@ def temporal_top_relationship_pairs_api(request):
 
     try:
         # Get top relationship pairs using financial service
-        financial_service = FinancialCalculationService()
         result = financial_service.get_top_relationship_pairs(
             start_date=start_date, end_date=end_date, limit=limit, offset=offset
         )
@@ -360,12 +357,12 @@ def temporal_top_relationship_pairs_api(request):
                     "start": start_date_str,
                     "end": end_date_str,
                 },
-                "results": result["results"],
+                "results": [r.model_dump(mode="json") for r in result.results],
                 "pagination": {
                     "limit": limit,
                     "offset": offset,
-                    "total_count": result["total_count"],
-                    "has_more": result["has_more"],
+                    "total_count": result.total_count,
+                    "has_more": result.has_more,
                 },
             }
         )

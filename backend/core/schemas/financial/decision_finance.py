@@ -30,3 +30,13 @@ class AmountConsistency(BaseModel):
     discrepancy: Optional[Decimal] = None
     discrepancy_percentage: Optional[float] = None
     is_consistent: bool
+
+
+class DecisionTypeBreakdown(BaseModel):
+    """Breakdown of decisions by decision type with financial aggregates."""
+    uid: str
+    label: Optional[str] = None
+    count: int
+    total_amount: float
+    avg_amount: float = 0.0
+    max_amount: float = 0.0
