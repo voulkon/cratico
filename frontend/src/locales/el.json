@@ -270,7 +270,8 @@
     "organizationsAndPositions" : "Οργανισμοί και Θέσεις",
     "organizationsCountLabel": "οργανισμοί",
     "gemiCompanyInformation": "Πληροφορίες Εταιρείας από το Μητρώο Επιχειρήσεων (ΓΕΜΗ)",
-    "positionsCountLabel": "θέσεις"
+    "positionsCountLabel": "θέσεις",
+    "loadStatistics" : "Φόρτωση Στατιστικών"
   },
   "decisionDetail": {
     "loadingDecision": "Φόρτωση λεπτομερειών απόφασης...",

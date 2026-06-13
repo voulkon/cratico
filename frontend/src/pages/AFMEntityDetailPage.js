@@ -38,6 +38,7 @@ const AFMEntityDetailPage = () => {
   // Statistics state (non-blocking)
   const [statisticsLoading, setStatisticsLoading] = useState(false);
   const [statisticsError, setStatisticsError] = useState(null);
+  const [statsRequested, setStatsRequested] = useState(false);
 
   // Use URL filters hook - replaces all the manual URL state management
   const {
@@ -162,13 +163,12 @@ const AFMEntityDetailPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [afm]);
 
-  // Load statistics when timeRange or filters change (decisions are handled by useDecisionsList)
+  // Load statistics when requested by user and timeRange/filters change
   useEffect(() => {
-    if (timeRange) {
-      fetchStatistics();
-    }
+    if (!timeRange || !statsRequested) return;
+    fetchStatistics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeRange, sortBy, directAssignmentsOnly, debouncedSearchQuery]);
+  }, [timeRange, sortBy, directAssignmentsOnly, debouncedSearchQuery, statsRequested]);
 
   useEffect(() => {
     let cancelled = false;
@@ -368,13 +368,25 @@ const AFMEntityDetailPage = () => {
         />
       )}
 
-      {/* Statistics Grid - non-blocking loading */}
-      <StatisticsGrid
-        loading={statisticsLoading && !statistics}
-        error={statisticsError}
-        cards={statCards}
-        onRetry={fetchStatistics}
-      />
+      {/* Statistics Grid - triggered manually by user */}
+      {!statsRequested ? (
+        <div className="statistics-manual-trigger" style={{ marginBottom: '1rem' }}>
+          <button
+            type="button"
+            className="see-all-button"
+            onClick={() => setStatsRequested(true)}
+          >
+            {t('entityDetail.loadStatistics', 'Load statistics')}
+          </button>
+        </div>
+      ) : (
+        <StatisticsGrid
+          loading={statisticsLoading && !statistics}
+          error={statisticsError}
+          cards={statCards}
+          onRetry={fetchStatistics}
+        />
+      )}
 
       {/* Top Organizations - respects timeRange */}
       {entity && (
