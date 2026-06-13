@@ -180,7 +180,7 @@ class FinancialCalculationService:
                 OrgBreakdown(
                     organization_uid=row["decision__organization__uid"],
                     organization_label=row["decision__organization__label"],
-                    total_amount=row["total_amount"],
+                    total_amount=row["total_amount"] or Decimal("0.00"),
                     decision_count=row["decision_count"],
                 )
                 for row in org_breakdown
@@ -188,7 +188,7 @@ class FinancialCalculationService:
             role_breakdown=[
                 RoleBreakdown(
                     role=row["role"],
-                    total_amount=row["total_amount"],
+                    total_amount=row["total_amount"] or Decimal("0.00"),
                     decision_count=row["decision_count"],
                 )
                 for row in role_breakdown
@@ -494,7 +494,7 @@ class FinancialCalculationService:
                     entity_afm=row["entity__afm"],
                     entity_name=row["entity__name"],
                     entity_type=row["entity__entity_type"],
-                    total_amount=row["total_amount"],
+                    total_amount=row["total_amount"] or Decimal("0.00"),
                     decision_count=row["decision_count"],
                     avg_amount=row.get("avg_amount"),
                     max_amount=row.get("max_amount"),
@@ -578,7 +578,7 @@ class FinancialCalculationService:
                     entity_afm=row["entity__afm"],
                     entity_name=row["entity__name"],
                     entity_type=row["entity__entity_type"],
-                    total_amount=row["total_amount"],
+                    total_amount=row["total_amount"] or Decimal("0.00"),
                     decision_count=row["decision_count"],
                 )
                 for row in results
