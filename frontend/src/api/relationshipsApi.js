@@ -16,6 +16,7 @@ const relationshipsApi = {
     if (params.end_date) queryParams.set('end_date', params.end_date);
     if (params.limit) queryParams.set('limit', params.limit.toString());
     if (params.offset) queryParams.set('offset', params.offset.toString());
+    if (params.search) queryParams.set('q', params.search);
 
     const response = await apiClient.get(`/entities/${afm}/top-organizations/?${queryParams}`);
     return response.data;

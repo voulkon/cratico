@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import relationshipsApi from '../api/relationshipsApi';
 import { useTranslation } from '../contexts/TranslationContext';
 import useTopCounterparts from '../hooks/useTopCounterparts';
+import useTopOrganizations from '../hooks/useTopOrganizations';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import './TopCounterparts.css';
 
@@ -24,54 +24,31 @@ const TopCounterparts = ({
   const isOrg = type === 'organization';
 
   // ── Organization path: useTopCounterparts hook (infinite scroll + search) ──
-  const hook = useTopCounterparts({
+  const orgHook = useTopCounterparts({
     orgId: isOrg ? id : null,
     dateRange,
     pageSize: limit,
     enabled: isOrg && !!id && !!dateRange,
   });
 
-  // ── Entity path: simple single-fetch (backward compatible) ──
-  const [entityData, setEntityData] = useState(null);
-  const [entityLoading, setEntityLoading] = useState(false);
-  const [entityError, setEntityError] = useState(null);
+  // ── Entity path: useTopOrganizations hook (infinite scroll + search) ──
+  const entityHook = useTopOrganizations({
+    afm: !isOrg ? id : null,
+    dateRange,
+    pageSize: limit,
+    enabled: !isOrg && !!id && !!dateRange,
+  });
 
-  useEffect(() => {
-    if (isOrg || !id || !dateRange) return;
-    const fetchEntity = async () => {
-      setEntityLoading(true);
-      setEntityError(null);
-      try {
-        const params = {
-          start_date: dateRange.start_date || dateRange.startDate,
-          end_date: dateRange.end_date || dateRange.endDate,
-          limit,
-        };
-        const result = await relationshipsApi.getTopOrganizations(id, params);
-        setEntityData(result);
-      } catch (err) {
-        console.error('Error fetching top organizations:', err);
-        setEntityError(err.message);
-      } finally {
-        setEntityLoading(false);
-      }
-    };
-    fetchEntity();
-  }, [isOrg, id, dateRange?.start_date, dateRange?.end_date, limit]);
-
-  // ── Unified data ──
-  const results = isOrg ? hook.results : (entityData?.results || []);
-  const loading = isOrg ? hook.loading : entityLoading;
-  const error = isOrg ? hook.error : entityError;
-  const totalCount = isOrg ? hook.totalCount : (entityData?.pagination?.total_count || 0);
-  const { hasMore, loadingMore, loadMore, searchQuery, setSearchQuery } = hook;
+  // ── Unified data from the active hook ──
+  const { results, loading, error, totalCount, hasMore, loadingMore, loadMore, searchQuery, setSearchQuery } =
+    isOrg ? orgHook : entityHook;
 
   const { sentinelRef } = useInfiniteScroll({
     hasMore,
     loading,
     loadingMore,
     onLoadMore: loadMore,
-    enabled: isOrg,
+    enabled: true,
   });
 
   const formatAmount = (amount) => {
@@ -91,7 +68,7 @@ const TopCounterparts = ({
       const orgUid = counterpart.decision__organization__uid;
       navigate(`/relationship/entity/${id}/org/${orgUid}?start_date=${dateRange.start_date}&end_date=${dateRange.end_date}`);
     } else if (type === 'organization') {
-      const afm = counterpart.entity__afm;
+      const afm = counterpart.entity_afm;
       navigate(`/relationship/entity/${afm}/org/${id}?start_date=${dateRange.start_date}&end_date=${dateRange.end_date}`);
     }
   };
@@ -122,9 +99,8 @@ const TopCounterparts = ({
         <h3 className="section-title">{title}</h3>
       </div>
 
-      {/* Search input (organizations only) */}
-      {isOrg && (
-        <div className="counterparts-search">
+      {/* Search input (both entity and organization paths) */}
+      <div className="counterparts-search">
           <input
             type="text"
             className="counterparts-search-input"
@@ -142,7 +118,6 @@ const TopCounterparts = ({
             </button>
           )}
         </div>
-      )}
 
       <div className="counterparts-info">
         {totalCount > 0 && (
@@ -158,11 +133,11 @@ const TopCounterparts = ({
           {results.map((counterpart, index) => {
             const name = type === 'entity'
               ? counterpart.decision__organization__label
-              : counterpart.entity__name;
+              : counterpart.entity_name;
             const identifier = type === 'entity'
               ? counterpart.decision__organization__uid
-              : counterpart.entity__afm;
-            const entityType = type === 'organization' ? counterpart.entity__entity_type : null;
+              : counterpart.entity_afm;
+            const entityType = type === 'organization' ? counterpart.entity_type : null;
 
             return (
               <button
@@ -197,7 +172,7 @@ const TopCounterparts = ({
           })}
 
           {/* Infinite-scroll sentinel */}
-          {isOrg && <div ref={sentinelRef} className="scroll-sentinel" />}
+          <div ref={sentinelRef} className="scroll-sentinel" />
         </div>
 
         {/* Loading-more indicator */}

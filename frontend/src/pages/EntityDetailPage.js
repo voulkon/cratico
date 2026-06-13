@@ -653,7 +653,7 @@ const EntityDetailPage = () => {
           dateRange={topCounterpartDateRange}
           limit={5}
           onCounterpartClick={(counterpart) => {
-            const afm = counterpart.entity__afm;
+            const afm = counterpart.entity_afm;
             navigate(`/relationship/entity/${afm}/org/${entityId}?start_date=${timeRange.startDate}&end_date=${timeRange.endDate}`);
           }}
         />

@@ -186,6 +186,12 @@ def organization_top_counterparts_api(
             description="Pagination offset",
             type=openapi.TYPE_INTEGER,
         ),
+        openapi.Parameter(
+            "q",
+            openapi.IN_QUERY,
+            description="Search organizations by name",
+            type=openapi.TYPE_STRING,
+        ),
     ],
 )
 @api_view(["GET"])
@@ -209,11 +215,12 @@ def entity_top_organizations_api(request, afm):
     if error_response:
         return error_response
 
-    # Get pagination parameters
+    # Get pagination and search parameters
     start_date_str = request.GET.get("start_date")
     end_date_str = request.GET.get("end_date")
     limit = int(request.GET.get("limit", 5))
     offset = int(request.GET.get("offset", 0))
+    search_query = request.GET.get("q")
 
     try:
         # Get entity
@@ -230,14 +237,50 @@ def entity_top_organizations_api(request, afm):
 
         roles = financial_service.MONEY_RECEIVED_ROLES
 
+        # Build base queryset
+        qs = DecisionEntityRelationship.objects.filter(
+            entity=entity,
+            decision__issue_date_day__gte=start_date,
+            decision__issue_date_day__lte=end_date,
+            role__in=roles,
+        )
+
+        # Apply search filter on organization name using the tiered search infrastructure
+        if search_query:
+            from core.services.search_service import SearchService
+
+            matching_orgs = SearchService().search_organizations(
+                search_query, limit=10000  # High limit for filtering, not display
+            )
+            matching_uids = list(matching_orgs.values_list("uid", flat=True))
+            if matching_uids:
+                qs = qs.filter(decision__organization__uid__in=matching_uids)
+            else:
+                # No matching organizations found — return empty result early
+                return Response(
+                    {
+                        "entity": {
+                            "afm": entity.afm,
+                            "name": entity.name,
+                            "entity_type": entity.entity_type,
+                        },
+                        "date_range": {
+                            "start": start_date_str,
+                            "end": end_date_str,
+                        },
+                        "results": [],
+                        "pagination": {
+                            "limit": limit,
+                            "offset": offset,
+                            "total_count": 0,
+                            "has_more": False,
+                        },
+                    }
+                )
+
         # Query top organizations for this entity
         results = list(
-            DecisionEntityRelationship.objects.filter(
-                entity=entity,
-                decision__issue_date_day__gte=start_date,
-                decision__issue_date_day__lte=end_date,
-                role__in=roles,
-            )
+            qs
             .values("decision__organization__uid", "decision__organization__label")
             .annotate(
                 total_amount=Sum("linked_amounts__amount"),
@@ -249,12 +292,7 @@ def entity_top_organizations_api(request, afm):
 
         # Get total count for pagination
         total_count = (
-            DecisionEntityRelationship.objects.filter(
-                entity=entity,
-                decision__issue_date_day__gte=start_date,
-                decision__issue_date_day__lte=end_date,
-                role__in=roles,
-            )
+            qs
             .values("decision__organization")
             .distinct()
             .count()
