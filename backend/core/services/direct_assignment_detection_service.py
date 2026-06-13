@@ -194,7 +194,7 @@ class DirectAssignmentDetectionService:
         # Rule 2: Must have amount (for metadata-based detection)
         # Use FinancialCalculationService for accurate amount calculation
         breakdown = self.financial_service.get_decision_amount_breakdown(decision)
-        total_amount = breakdown["total_amount"]
+        total_amount = breakdown.total_amount
 
         if total_amount is None or total_amount <= 0:
             # No valid amount, check text

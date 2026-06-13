@@ -1,63 +1,55 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import relationshipsApi from '../api/relationshipsApi';
 import { useTranslation } from '../contexts/TranslationContext';
+import useTopCounterparts from '../hooks/useTopCounterparts';
+import useTopOrganizations from '../hooks/useTopOrganizations';
+import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import './TopCounterparts.css';
 
 /**
- * Reusable component to display top counterparts
+ * Reusable component to display top counterparts with infinite scroll and search.
  * For entities: shows top organizations
  * For organizations: shows top entities
  */
 const TopCounterparts = ({
   type, // 'entity' or 'organization'
   id, // AFM for entity, UID for organization
-  dateRange, // { start_date, end_date }
-  limit = 5,
+  dateRange, // { start_date, end_date } — now stable via useMemo in parent
+  limit = 10,
   onCounterpartClick // callback: (counterpart) => void - parent controls navigation URL
 }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [expanded, setExpanded] = useState(false);
 
-  useEffect(() => {
-    const fetchCounterparts = async () => {
-      if (!id || !dateRange) {
-        setLoading(false);
-        return;
-      }
+  const isOrg = type === 'organization';
 
-      try {
-        setLoading(true);
-        setError(null);
+  // ── Organization path: useTopCounterparts hook (infinite scroll + search) ──
+  const orgHook = useTopCounterparts({
+    orgId: isOrg ? id : null,
+    dateRange,
+    pageSize: limit,
+    enabled: isOrg && !!id && !!dateRange,
+  });
 
-        const params = {
-          start_date: dateRange.start_date || dateRange.startDate,
-          end_date: dateRange.end_date || dateRange.endDate,
-          limit
-        };
+  // ── Entity path: useTopOrganizations hook (infinite scroll + search) ──
+  const entityHook = useTopOrganizations({
+    afm: !isOrg ? id : null,
+    dateRange,
+    pageSize: limit,
+    enabled: !isOrg && !!id && !!dateRange,
+  });
 
-        let result;
-        if (type === 'entity') {
-          result = await relationshipsApi.getTopOrganizations(id, params);
-        } else if (type === 'organization') {
-          result = await relationshipsApi.getTopCounterparts(id, params);
-        }
+  // ── Unified data from the active hook ──
+  const { results, loading, error, totalCount, hasMore, loadingMore, loadMore, searchQuery, setSearchQuery } =
+    isOrg ? orgHook : entityHook;
 
-        setData(result);
-      } catch (err) {
-        console.error('Error fetching top counterparts:', err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCounterparts();
-  }, [id, type, dateRange, limit]);
+  const { sentinelRef } = useInfiniteScroll({
+    hasMore,
+    loading,
+    loadingMore,
+    onLoadMore: loadMore,
+    enabled: true,
+  });
 
   const formatAmount = (amount) => {
     if (!amount || amount === 0) return t('common.noAmount');
@@ -68,114 +60,135 @@ const TopCounterparts = ({
   };
 
   const handleCounterpartClick = (counterpart) => {
-    // Use parent-provided callback if available, otherwise fall back to prop-based URL
     if (onCounterpartClick) {
       onCounterpartClick(counterpart);
       return;
     }
-    // Fallback: navigate using dateRange from props
     if (type === 'entity') {
       const orgUid = counterpart.decision__organization__uid;
       navigate(`/relationship/entity/${id}/org/${orgUid}?start_date=${dateRange.start_date}&end_date=${dateRange.end_date}`);
     } else if (type === 'organization') {
-      const afm = counterpart.entity__afm;
+      const afm = counterpart.entity_afm;
       navigate(`/relationship/entity/${afm}/org/${id}?start_date=${dateRange.start_date}&end_date=${dateRange.end_date}`);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="top-counterparts-section">
-        <h3 className="section-title">
-          {type === 'entity' ? t('counterparts.topOrganizations') : t('counterparts.topEntities')}
-        </h3>
-        <div className="counterparts-loading">{t('common.loading')}...</div>
-      </div>
-    );
-  }
-
-  if (error || !data || !data.results || data.results.length === 0) {
-    return null; // Don't show section if no data
-  }
 
   const title = type === 'entity'
     ? t('counterparts.topOrganizations')
     : t('counterparts.topEntities');
 
+  // ── Loading state ──────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="top-counterparts-section">
+        <h3 className="section-title">{title}</h3>
+        <div className="counterparts-loading">{t('common.loading')}...</div>
+      </div>
+    );
+  }
+
+  // ── Error / empty state ────────────────────────────────────────
+  if (error || results.length === 0) {
+    return null;
+  }
+
+  // ── Normal render ──────────────────────────────────────────────
   return (
     <div className="top-counterparts-section">
       <div className="section-header">
         <h3 className="section-title">{title}</h3>
-        <button
-          className="expand-toggle"
-          onClick={() => setExpanded(!expanded)}
-        >
-          {expanded ? t('common.collapse') : t('common.expand')} {expanded ? '▲' : '▼'}
-        </button>
       </div>
 
+      {/* Search input (both entity and organization paths) */}
+      <div className="counterparts-search">
+          <input
+            type="text"
+            className="counterparts-search-input"
+            placeholder={t('counterparts.searchPlaceholder')}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button
+              className="counterparts-search-clear"
+              onClick={() => setSearchQuery('')}
+              aria-label={t('common.close')}
+            >
+              ×
+            </button>
+          )}
+        </div>
+
       <div className="counterparts-info">
-        <span className="date-range-info">
-          {t('counterparts.dateRange')}: {new Date(data.date_range.start).toLocaleDateString()} - {new Date(data.date_range.end).toLocaleDateString()}
-        </span>
-        {data.pagination.total_count > limit && (
+        {totalCount > 0 && (
           <span className="total-count-info">
-            {t('counterparts.showing')} {limit} {t('counterparts.of')} {data.pagination.total_count}
+            {t('counterparts.showing')} {results.length} {t('counterparts.of')} {totalCount}
           </span>
         )}
       </div>
 
-      <div className={`counterparts-grid ${expanded ? 'expanded' : 'collapsed'}`}>
-        {data.results.map((counterpart, index) => {
-          const name = type === 'entity'
-            ? counterpart.decision__organization__label
-            : counterpart.entity__name;
-          const identifier = type === 'entity'
-            ? counterpart.decision__organization__uid
-            : counterpart.entity__afm;
-          const entityType = type === 'organization' ? counterpart.entity__entity_type : null;
+      {/* Scrollable list with infinite scroll sentinel */}
+      <div className="counterparts-scroll-container">
+        <div className="counterparts-grid">
+          {results.map((counterpart, index) => {
+            const name = type === 'entity'
+              ? counterpart.decision__organization__label
+              : counterpart.entity_name;
+            const identifier = type === 'entity'
+              ? counterpart.decision__organization__uid
+              : counterpart.entity_afm;
+            const entityType = type === 'organization' ? counterpart.entity_type : null;
 
-          return (
-            <button
-              key={index}
-              className="counterpart-card"
-              onClick={() => handleCounterpartClick(counterpart)}
-            >
-              <div className="counterpart-header">
-                <span className="counterpart-rank">#{index + 1}</span>
-                <span className="counterpart-name">{name}</span>
-              </div>
-              <div className="counterpart-details">
-                <span className="counterpart-id">
-                  {type === 'entity' ? 'UID' : 'AFM'}: {identifier}
-                </span>
-                {entityType && (
-                  <span className="entity-type-badge">{t(`entityTypes.${entityType}`)}</span>
-                )}
-              </div>
-              <div className="counterpart-stats">
-                <div className="stat-item">
-                  <span className="stat-label">{t('counterparts.totalAmount')}</span>
-                  <span className="stat-value amount">{formatAmount(counterpart.total_amount)}</span>
+            return (
+              <button
+                key={`${identifier}-${index}`}
+                className="counterpart-card"
+                onClick={() => handleCounterpartClick(counterpart)}
+              >
+                <div className="counterpart-header">
+                  <span className="counterpart-rank">#{index + 1}</span>
+                  <span className="counterpart-name">{name}</span>
                 </div>
-                <div className="stat-item">
-                  <span className="stat-label">{t('counterparts.decisions')}</span>
-                  <span className="stat-value count">{counterpart.decision_count}</span>
+                <div className="counterpart-details">
+                  <span className="counterpart-id">
+                    {type === 'entity' ? 'UID' : 'AFM'}: {identifier}
+                  </span>
+                  {entityType && (
+                    <span className="entity-type-badge">{t(`entityTypes.${entityType}`)}</span>
+                  )}
                 </div>
-              </div>
-            </button>
-          );
-        })}
+                <div className="counterpart-stats">
+                  <div className="stat-item">
+                    <span className="stat-label">{t('counterparts.totalAmount')}</span>
+                    <span className="stat-value amount">{formatAmount(counterpart.total_amount)}</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-label">{t('counterparts.decisions')}</span>
+                    <span className="stat-value count">{counterpart.decision_count}</span>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+
+          {/* Infinite-scroll sentinel */}
+          <div ref={sentinelRef} className="scroll-sentinel" />
+        </div>
+
+        {/* Loading-more indicator */}
+        {loadingMore && (
+          <div className="counterparts-loading-more">
+            {t('common.loading')}...
+          </div>
+        )}
+
+        {/* End-of-list indicator */}
+        {!hasMore && results.length > 0 && (
+          <div className="counterparts-end-message">
+            {t('counterparts.allLoaded', { count: totalCount })}
+          </div>
+        )}
       </div>
-
-      {!expanded && data.results.length > 3 && (
-        <button
-          className="see-all-button"
-          onClick={() => setExpanded(true)}
-        >
-          {t('counterparts.seeAll')} ({data.results.length})
-        </button>
-      )}
     </div>
   );
 };

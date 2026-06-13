@@ -269,7 +269,8 @@
     "lastActivity": "Last Activity",
     "organizationsAndPositions" : "Organizations and Positions",
     "organizationsCountLabel": "organizations",
-    "positionsCountLabel": "positions"
+    "positionsCountLabel": "positions",
+    "loadStatistics" : "Load Statistics"
   },
   "decisionDetail": {
     "loadingDecision": "Loading decision details...",
@@ -462,7 +463,9 @@
     "of": "of",
     "totalAmount": "Total Amount",
     "decisions": "Decisions",
-    "seeAll": "See All"
+    "seeAll": "See All",
+    "searchPlaceholder": "Search entities...",
+    "allLoaded": "All {count} entities loaded"
   },
   "relationship": {
     "title": "Relationship Details",

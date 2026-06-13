@@ -106,12 +106,12 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
     }
   }, [decision.entities, entityRelationships]);
 
-  // Auto-load entities on mount (only if not preloaded)
-  useEffect(() => {
-    if (!hasPreloadedEntityData && !entityRelationships && !loadingEntities) {
-      handleViewEntities();
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // NOTE: The auto-fetch useEffect was intentionally removed.
+  // Entity data is now embedded in the decision list response by the backend
+  // (via serialize_decision_with_entities + batch prefetch).  If a backend
+  // endpoint still omits entities, the card gracefully degrades to showing
+  // only the decision-level amount and the user can click "View Entities"
+  // to fetch on demand.
 
   // Use utility functions to calculate recipient and amount
   const mainRecipient = getMainRecipient(decision, entityRelationships, hasPreloadedEntityData);

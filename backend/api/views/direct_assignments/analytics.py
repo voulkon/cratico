@@ -159,61 +159,44 @@ def organization_direct_assignment_top_recipients(request, organization_uid):
                 status=404,
             )
 
-        # Query direct assignments for this organization
-        # Using the MONEY_RECEIVED_ROLES from financial_service
-        roles = financial_service.MONEY_RECEIVED_ROLES
+        # Get top entities receiving direct assignment money via financial service
+        result_page = financial_service.get_top_counterparts_for_organization(
+            organization=organization,
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+            offset=offset,
+            direct_assignments_only=True,
+        )
 
-        # Base filter — reused across all queries to avoid repeating 5 filter conditions
-        base_filter = dict(
+        # Build formatted results from Pydantic models
+        formatted_results = [
+            {
+                "entity_afm": r.entity_afm,
+                "entity_name": r.entity_name,
+                "entity_type": r.entity_type,
+                "total_amount": str(r.total_amount) if r.total_amount else "0",
+                "decision_count": r.decision_count,
+                "avg_amount": str(r.avg_amount) if r.avg_amount else "0",
+                "max_amount": str(r.max_amount) if r.max_amount else "0",
+                "min_amount": str(r.min_amount) if r.min_amount else "0",
+            }
+            for r in result_page.results
+        ]
+
+        # Summary stats (aggregate query for total amount, decisions, unique entities)
+        combined_stats = DecisionEntityRelationship.objects.filter(
             decision__organization=organization,
             decision__issue_date_day__gte=start_date,
             decision__issue_date_day__lte=end_date,
             decision__classification__is_direct_assignment=True,
-            role__in=roles,
-        )
-
-        # Get top entities receiving direct assignment money
-        results = list(
-            DecisionEntityRelationship.objects.filter(**base_filter)
-            .values("entity__afm", "entity__name", "entity__entity_type")
-            .annotate(
-                total_amount=Sum("linked_amounts__amount"),
-                decision_count=Count("decision", distinct=True),
-                avg_amount=Avg("linked_amounts__amount"),
-                max_amount=Max("linked_amounts__amount"),
-                min_amount=Min("linked_amounts__amount"),
-            )
-            .filter(total_amount__gt=0)
-            .order_by("-total_amount")[offset : offset + limit]
-        )
-
-        # Combine total_count + summary_stats into a single query
-        # (previously these were 2 separate queries with the same filter)
-        combined_stats = DecisionEntityRelationship.objects.filter(
-            **base_filter
+            role__in=financial_service.MONEY_RECEIVED_ROLES,
         ).aggregate(
-            # For pagination
             unique_entities=Count("entity", distinct=True),
-            # For summary
             total_amount=Sum("linked_amounts__amount"),
             total_decisions=Count("decision", distinct=True),
         )
-        total_count = combined_stats["unique_entities"] or 0
-
-        # Format results
-        formatted_results = [
-            {
-                "entity_afm": r["entity__afm"],
-                "entity_name": r["entity__name"],
-                "entity_type": r["entity__entity_type"],
-                "total_amount": str(r["total_amount"]) if r["total_amount"] else "0",
-                "decision_count": r["decision_count"],
-                "avg_amount": str(r["avg_amount"]) if r["avg_amount"] else "0",
-                "max_amount": str(r["max_amount"]) if r["max_amount"] else "0",
-                "min_amount": str(r["min_amount"]) if r["min_amount"] else "0",
-            }
-            for r in results
-        ]
+        total_count = result_page.total_count
 
         response_data = {
             "organization": {

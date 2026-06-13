@@ -172,9 +172,9 @@ def compute_da_top_pairs(
     from django.db.models import Avg, Count, Max, Min, Sum
 
     from core.models.entities import DecisionEntityRelationship
-    from core.services.financial_calculation_service import FinancialCalculationService
+    from core.services.financial_calculation_service import financial_service
 
-    roles = FinancialCalculationService.MONEY_RECEIVED_ROLES
+    roles = financial_service.MONEY_RECEIVED_ROLES
 
     base_filter = dict(
         decision__issue_date_day__gte=start_dt,

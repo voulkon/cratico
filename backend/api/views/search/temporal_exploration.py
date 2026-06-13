@@ -20,7 +20,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from .base import serialize_decision_with_content_info
+from .base import serialize_decision_with_entities
 
 
 @swagger_auto_schema(
@@ -588,10 +588,36 @@ def explore_decisions_api_dev(request):
                 search_tracking, paginator.count
             )
 
-        # Serialize results using the new function
+        # ── Batch-fetch entity relationships (eliminates N+1) ──────────────
+        from core.models.entities import DecisionEntityRelationship
+        from django.db.models import Sum
+
+        decision_ids = [d.id for d in page_obj]
+        entity_relationships_qs = (
+            DecisionEntityRelationship.objects.filter(decision_id__in=decision_ids)
+            .select_related("entity")
+            .annotate(total_amount=Sum("linked_amounts__amount"))
+        )
+
+        relationships_by_decision = {}
+        for rel in entity_relationships_qs:
+            if rel.decision_id not in relationships_by_decision:
+                relationships_by_decision[rel.decision_id] = []
+            relationships_by_decision[rel.decision_id].append({
+                "role": rel.role,
+                "entity": {
+                    "afm": rel.entity.afm,
+                    "name": rel.entity.name,
+                    "entity_type": rel.entity.entity_type,
+                },
+                "total_amount": float(rel.total_amount) if rel.total_amount else 0,
+            })
+
+        # Serialize results with entity data embedded
         results = []
         for decision in page_obj:
-            decision_data = serialize_decision_with_content_info(decision)
+            entity_rels = relationships_by_decision.get(decision.id, [])
+            decision_data = serialize_decision_with_entities(decision, entity_rels)
 
             # Use calculated amount if available
             if (

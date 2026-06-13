@@ -279,7 +279,6 @@ def company_decisions(request, company_id):
             .select_related(
                 "decision", "decision__organization", "decision__decision_type"
             )
-            .prefetch_related("linked_amounts")
         )
 
         # Apply direct assignments filter
@@ -288,15 +287,25 @@ def company_decisions(request, company_id):
                 decision__classification__is_direct_assignment=True
             )
 
+        # Collect decision IDs for batch entity-amount lookup
+        relationship_list = list(relationships)
+        decision_ids = list({rel.decision_id for rel in relationship_list})
+
+        # Batch-fetch entity amounts for all decisions in one query
+        entity_amounts_by_decision = (
+            financial_service.get_decisions_entity_amounts_batch(decision_ids)
+        )
+
         decisions_data = []
-        for rel in relationships:
+        for rel in relationship_list:
             decision = rel.decision
 
-            # Calculate total amount from linked amounts (new approach)
+            # Compute total linked amount from batch result for this single entity
+            entity_amounts = entity_amounts_by_decision.get(decision.id, [])
             total_linked_amount = sum(
-                amount.amount
-                for amount in rel.linked_amounts.all()
-                if amount.amount is not None
+                float(ea.total_amount)
+                for ea in entity_amounts
+                if ea.entity.afm == afm_entity.afm
             )
 
             decision_data = {
@@ -304,7 +313,7 @@ def company_decisions(request, company_id):
                 "ada": decision.ada,
                 "subject": decision.subject,
                 "amount": (
-                    float(total_linked_amount) if total_linked_amount > 0 else None
+                    total_linked_amount if total_linked_amount > 0 else None
                 ),
                 "legacy_amount": (
                     float(decision.amount) if decision.amount else None
@@ -316,7 +325,11 @@ def company_decisions(request, company_id):
                 "status": decision.status,
                 "url": decision.url,
                 "entity_role": rel.role,  # Role of the company in this decision
-                "amount_count": rel.linked_amounts.count(),  # Number of amount fields linked
+                "amount_count": sum(
+                    ea.amount_count
+                    for ea in entity_amounts
+                    if ea.entity.afm == afm_entity.afm
+                ),  # Number of amount fields linked
                 "organization": (
                     {
                         "uid": decision.organization.uid,
@@ -424,12 +437,18 @@ def company_decision_stats(request, company_id):
                 "company_ar_gemi": company.ar_gemi,
                 "afm": company.afm,
                 "financial_summary": {
-                    "total_received": float(financial_summary["total_received"]),
-                    "decision_count": financial_summary["decision_count"],
-                    "avg_amount": float(financial_summary["avg_amount"]),
-                    "unique_organizations": financial_summary["unique_organizations"],
-                    "top_organizations": financial_summary["top_organizations"],
-                    "role_breakdown": financial_summary["role_breakdown"],
+                    "total_received": float(financial_summary.total_received),
+                    "decision_count": financial_summary.decision_count,
+                    "avg_amount": float(financial_summary.avg_amount),
+                    "unique_organizations": financial_summary.unique_organizations,
+                    "top_organizations": [
+                        o.model_dump(mode="json")
+                        for o in financial_summary.top_organizations
+                    ],
+                    "role_breakdown": [
+                        r.model_dump(mode="json")
+                        for r in financial_summary.role_breakdown
+                    ],
                 },
                 "activity_period": {
                     "first_decision": date_stats["first_date"],
@@ -441,7 +460,7 @@ def company_decision_stats(request, company_id):
                     ),
                 },
                 "decision_types": list(type_stats),
-                "entity_info": financial_summary["entity_info"],
+                "entity_info": financial_summary.entity.model_dump(mode="json"),
             }
         )
 
@@ -520,23 +539,14 @@ def company_financial_timeline(request, company_id):
                 "company_name": company.co_name_el,
                 "afm": company.afm,
                 "granularity": granularity,
-                "timeline": timeline_data,
+                "timeline": [tp.model_dump(mode="json") for tp in timeline_data],
                 "summary": {
                     "total_periods": len(timeline_data),
-                    "total_amount": sum(
-                        period["total_amount"] for period in timeline_data
-                    ),
-                    "total_decisions": sum(
-                        period["decision_count"] for period in timeline_data
-                    ),
+                    "total_amount": sum(tp.total_amount for tp in timeline_data),
+                    "total_decisions": sum(tp.decision_count for tp in timeline_data),
                 },
             }
         )
-
-    except Company.DoesNotExist:
-        return Response({"error": "Company not found"}, status=404)
-    except Exception as e:
-        return Response({"error": str(e)}, status=500)
 
     except Company.DoesNotExist:
         return Response({"error": "Company not found"}, status=404)

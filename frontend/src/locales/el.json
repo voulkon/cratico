@@ -270,7 +270,8 @@
     "organizationsAndPositions" : "Οργανισμοί και Θέσεις",
     "organizationsCountLabel": "οργανισμοί",
     "gemiCompanyInformation": "Πληροφορίες Εταιρείας από το Μητρώο Επιχειρήσεων (ΓΕΜΗ)",
-    "positionsCountLabel": "θέσεις"
+    "positionsCountLabel": "θέσεις",
+    "loadStatistics" : "Φόρτωση Στατιστικών"
   },
   "decisionDetail": {
     "loadingDecision": "Φόρτωση λεπτομερειών απόφασης...",
@@ -462,7 +463,9 @@
     "of": "από",
     "totalAmount": "Συνολικό Ποσό",
     "decisions": "Αποφάσεις",
-    "seeAll": "Δείτε Όλα"
+    "seeAll": "Δείτε Όλα",
+    "searchPlaceholder": "Αναζήτηση οντοτήτων...",
+    "allLoaded": "Εμφανίζονται όλες οι {count} οντότητες"
   },
   "relationship": {
     "title": "Λεπτομέρειες Σχέσης",

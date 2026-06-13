@@ -6,6 +6,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import useUrlFilters from '../hooks/useUrlFilters';
 import useDocumentContent from '../hooks/useDocumentContent';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
+import useDecisionsList from '../hooks/useDecisionsList';
 import SortControl from '../components/SortControl';
 import TopCounterparts from '../components/TopCounterparts';
 import GemiSection from '../components/GemiSection';
@@ -22,12 +23,8 @@ const AFMEntityDetailPage = () => {
 
   const [entity, setEntity] = useState(null);
   useDocumentTitle(entity?.name || `AFM ${afm}`);
-  const [decisions, setDecisions] = useState([]);
   const [statistics, setStatistics] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [pagination, setPagination] = useState(null);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [companyInfo, setCompanyInfo] = useState(null);
   const [gemiFetchStatus, setGemiFetchStatus] = useState(null); // null | 'loading' | 'queued' | 'already_queued' | 'already_fetched' | 'rate_limited' | 'error'
 
@@ -41,6 +38,7 @@ const AFMEntityDetailPage = () => {
   // Statistics state (non-blocking)
   const [statisticsLoading, setStatisticsLoading] = useState(false);
   const [statisticsError, setStatisticsError] = useState(null);
+  const [statsRequested, setStatsRequested] = useState(false);
 
   // Use URL filters hook - replaces all the manual URL state management
   const {
@@ -59,7 +57,26 @@ const AFMEntityDetailPage = () => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Fetch entity metadata (name, type, roles) - fast, blocks nothing else
+  // ── Unified decisions list hook ────────────────────────────────────────
+  const {
+    decisions,
+    pagination,
+    loading,
+    loadingMore,
+    loadMore,
+  } = useDecisionsList({
+    endpoint: `/entity/afm/${afm}/decisions/`,
+    params: {
+      sort: sortBy,
+      start_date: timeRange?.startDate,
+      end_date: timeRange?.endDate,
+      ...(directAssignmentsOnly && { direct_assignments_only: 'true' }),
+      ...(debouncedSearchQuery.trim() && { q: debouncedSearchQuery.trim() }),
+    },
+    enabled: !!timeRange,
+  });
+
+  // ── Fetch entity metadata (name, type, roles) - fast, blocks nothing else
   const fetchEntityMetadata = useCallback(async () => {
     try {
       const entityResponse = await apiClient.get(`/entity/afm/${afm}/`);
@@ -93,44 +110,6 @@ const AFMEntityDetailPage = () => {
       setDateRangeLoading(false);
     }
   }, [afm]);
-
-  // Fetch decisions with date range, search, and role filters
-  const fetchDecisions = useCallback(async (page = 1, append = false) => {
-    if (!timeRange) return;
-
-    try {
-      if (!append) setLoading(true);
-      else setLoadingMore(true);
-
-      const params = new URLSearchParams({
-        sort: sortBy,
-        page: page.toString(),
-        start_date: timeRange.startDate,
-        end_date: timeRange.endDate,
-        ...(directAssignmentsOnly && { direct_assignments_only: 'true' })
-      });
-
-      if (debouncedSearchQuery.trim()) {
-        params.append('q', debouncedSearchQuery.trim());
-      }
-
-      const res = await apiClient.get(`/entity/afm/${afm}/decisions/?${params}`);
-
-      if (append) {
-        setDecisions(prev => [...prev, ...res.data.results]);
-      } else {
-        setDecisions(res.data.results);
-      }
-      setPagination(res.data.pagination);
-
-    } catch (err) {
-      console.error('Error fetching decisions:', err);
-      setError(err.response?.data?.error || err.message);
-    } finally {
-      if (!append) setLoading(false);
-      else setLoadingMore(false);
-    }
-  }, [afm, timeRange, sortBy, directAssignmentsOnly, debouncedSearchQuery]);
 
   // Fetch statistics - non-blocking, fire-and-forget
   const fetchStatistics = useCallback(async () => {
@@ -168,7 +147,6 @@ const AFMEntityDetailPage = () => {
   // Initial load: fetch entity metadata + date range in parallel
   useEffect(() => {
     const loadInitialData = async () => {
-      setLoading(true);
       setError(null);
 
       try {
@@ -178,8 +156,6 @@ const AFMEntityDetailPage = () => {
         ]);
       } catch (err) {
         setError(err.message);
-      } finally {
-        // loading stays true until decisions arrive via timeRange effect
       }
     };
 
@@ -187,14 +163,12 @@ const AFMEntityDetailPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [afm]);
 
-  // Load decisions & statistics when timeRange or filters change
+  // Load statistics when requested by user and timeRange/filters change
   useEffect(() => {
-    if (timeRange) {
-      fetchDecisions(1, false);
-      fetchStatistics();
-    }
+    if (!timeRange || !statsRequested) return;
+    fetchStatistics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeRange, sortBy, directAssignmentsOnly, debouncedSearchQuery]);
+  }, [timeRange, sortBy, directAssignmentsOnly, debouncedSearchQuery, statsRequested]);
 
   useEffect(() => {
     let cancelled = false;
@@ -204,17 +178,11 @@ const AFMEntityDetailPage = () => {
     return () => { cancelled = true; };
   }, [afm]);
 
-  const loadMoreDecisions = useCallback(() => {
-    if (pagination?.has_next && !loadingMore) {
-      fetchDecisions(pagination.current_page + 1, true);
-    }
-  }, [pagination, loadingMore, fetchDecisions]);
-
   const { sentinelRef } = useInfiniteScroll({
     hasMore: pagination?.has_next || false,
     loading,
     loadingMore,
-    onLoadMore: loadMoreDecisions,
+    onLoadMore: loadMore,
     enabled: true
   });
 
@@ -400,13 +368,25 @@ const AFMEntityDetailPage = () => {
         />
       )}
 
-      {/* Statistics Grid - non-blocking loading */}
-      <StatisticsGrid
-        loading={statisticsLoading && !statistics}
-        error={statisticsError}
-        cards={statCards}
-        onRetry={fetchStatistics}
-      />
+      {/* Statistics Grid - triggered manually by user */}
+      {!statsRequested ? (
+        <div className="statistics-manual-trigger" style={{ marginBottom: '1rem' }}>
+          <button
+            type="button"
+            className="see-all-button"
+            onClick={() => setStatsRequested(true)}
+          >
+            {t('entityDetail.loadStatistics', 'Load statistics')}
+          </button>
+        </div>
+      ) : (
+        <StatisticsGrid
+          loading={statisticsLoading && !statistics}
+          error={statisticsError}
+          cards={statCards}
+          onRetry={fetchStatistics}
+        />
+      )}
 
       {/* Top Organizations - respects timeRange */}
       {entity && (
@@ -487,7 +467,7 @@ const AFMEntityDetailPage = () => {
           hasSearchQuery={!!searchQuery}
           formatAmount={formatAmount}
           onViewDocumentContent={handleViewDocumentContent}
-          onLoadMore={loadMoreDecisions}
+          onLoadMore={loadMore}
           emptyMessage={t('afmEntityDetail.noDecisions')}
           emptyFilterMessage={t('afmEntityDetail.noDecisionsWithFilters')}
           showPaginationInfo={true}

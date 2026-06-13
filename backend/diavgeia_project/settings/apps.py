@@ -4,6 +4,8 @@ Application settings.
 Contains INSTALLED_APPS configuration.
 """
 
+from .base import ENABLE_SILK
+
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -21,6 +23,7 @@ INSTALLED_APPS = [
     "notifications",  # Notification system
     "experiments",  # Experimental decomposition strategies
     "drf_yasg",
+    *(["silk"] if ENABLE_SILK else []),
     "corsheaders",
     "django_celery_results",
     "django_celery_beat",
