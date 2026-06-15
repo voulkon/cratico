@@ -41,7 +41,7 @@ const SuperSearch = ({
   const inputRef = useRef(null);
   const resultsRef = useRef(null);
   const searchTimeoutRef = useRef(null);
-  const sseCleanupRef = useRef(null);
+  const abortControllerRef = useRef(null);
   const currentResultsRef = useRef(null);
   const loadMoreObserverRef = useRef(null);
   const loadMoreTriggerRef = useRef(null);
@@ -54,11 +54,11 @@ const SuperSearch = ({
     }
   }, [autoFocus]);
 
-  // Cleanup SSE connection on unmount
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (sseCleanupRef.current) {
-        sseCleanupRef.current();
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
       }
     };
   }, []);
@@ -68,7 +68,7 @@ const SuperSearch = ({
     currentResultsRef.current = results;
   }, [results]);
 
-  // Debounced search function using SSE
+  // Debounced search function
   const performSearch = useCallback(async (searchQuery) => {
     if (!searchQuery.trim()) {
       setResults(null);
@@ -76,20 +76,24 @@ const SuperSearch = ({
       return;
     }
 
-    // Cancel any existing SSE connection
-    if (sseCleanupRef.current) {
-      sseCleanupRef.current();
-      sseCleanupRef.current = null;
+    // Abort any in-flight request before starting a new one
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
+
+    // Create a new AbortController for this search
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     setIsLoading(true);
     setDocumentsLoading(false);
 
     try {
-      // Start SSE streaming search
-      const cleanup = streamSearch(searchQuery, {
+      // Start streaming search with the abort signal
+      streamSearch(searchQuery, {
         includeDocuments: showFullResults,
         limit: 5,
+        signal: controller.signal,
 
         // Handle entity results (fast)
         onEntities: (entityData) => {
@@ -164,7 +168,7 @@ const SuperSearch = ({
         onDone: () => {
           setDocumentsLoading(false);
           setIsLoading(false);
-          sseCleanupRef.current = null;
+          abortControllerRef.current = null;
         },
 
         // Handle errors
@@ -172,7 +176,7 @@ const SuperSearch = ({
           console.error('Search stream failed:', error);
           setIsLoading(false);
           setDocumentsLoading(false);
-          sseCleanupRef.current = null;
+          abortControllerRef.current = null;
 
           // Show error state but don't hide existing results
           if (!currentResultsRef.current) {
@@ -186,15 +190,15 @@ const SuperSearch = ({
         }
       });
 
-      // Store cleanup function
-      sseCleanupRef.current = cleanup;
-
     } catch (error) {
-      console.error('Search initialization failed:', error);
-      setIsLoading(false);
-      setDocumentsLoading(false);
-      setResults(null);
-      setShowResults(false);
+      // Ignore cancellation errors from AbortController
+      if (error?.code !== 'ERR_CANCELED') {
+        console.error('Search initialization failed:', error);
+        setIsLoading(false);
+        setDocumentsLoading(false);
+        setResults(null);
+        setShowResults(false);
+      }
     }
   }, [showFullResults]);
 
@@ -227,6 +231,14 @@ const SuperSearch = ({
     }
 
     try {
+      // Abort any in-flight request before loading more
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       setIsLoading(true);
 
       // Determine which categories to increase limits for
@@ -247,7 +259,7 @@ const SuperSearch = ({
       }
 
       // Fetch with new limits
-      const newResults = await searchCategories(query, newLimits);
+      const newResults = await searchCategories(query, newLimits, controller.signal);
       console.log('Received results:', newResults);
 
       // Check which categories have reached their end
@@ -271,7 +283,9 @@ const SuperSearch = ({
       setHasMoreResults(newHasMoreResults);
       setIsLoading(false);
     } catch (error) {
-      console.error('Load more failed:', error);
+      if (error?.code !== 'ERR_CANCELED') {
+        console.error('Load more failed:', error);
+      }
       setIsLoading(false);
     }
   }, [query, categoryLimits, selectedCategory, hasMoreResults, isLoading]);
