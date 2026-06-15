@@ -31,7 +31,7 @@ from api.redis_keys import (
     IMPORT_JOB_QUEUE_LOCK,
     IMPORT_JOB_QUEUE_PENDING,
 )
-from core.models.import_jobs import ImportJob, ImportJobStatus
+from core.models.import_jobs import ImportJob, ImportJobStatus, ImportJobType
 from diavgeia_project.settings.constants import IMPORT_CHUNKS_REDIS_DB_NAME
 from django.conf import settings
 from django_redis import get_redis_connection
@@ -157,6 +157,7 @@ class ImportJobQueue:
         signer_id: Optional[int] = None,
         auto_dispatch: bool = True,
         skip_duplicates: bool = True,
+        import_type: str = ImportJobType.DAILY,
     ) -> ImportJob:
         """
         Create an ImportJob and optionally dispatch it if capacity available.
@@ -170,6 +171,9 @@ class ImportJobQueue:
             signer_id: Optional signer filter
             auto_dispatch: If True, dispatch immediately if capacity available
             skip_duplicates: If True, return existing job instead of creating duplicate
+            import_type: ImportJobType.DAILY or ImportJobType.BACKFILL.
+                         Only DAILY imports trigger the post-import orchestrator
+                         (analytics cache warming, notifications, etc.).
 
         Returns:
             Created or existing ImportJob instance
@@ -206,6 +210,7 @@ class ImportJobQueue:
             unit_id=unit_id,
             signer_id=signer_id,
             status=ImportJobStatus.PENDING,
+            import_type=import_type,
             created_by=created_by,
             created_at=datetime.now(),
             search_params=search_params or {},
@@ -337,8 +342,9 @@ class ImportJobQueue:
 
     def _trigger_post_import_if_global(self, job_id: int):
         """
-        Trigger the post-import orchestrator if the completed job was a
-        global daily import (no org/unit/signer filter).
+        Trigger the post-import orchestrator ONLY for daily cron-triggered
+        imports (not backfill).  This prevents wasteful cache warming,
+        entity ranking, and notification checks for historical backfill dates.
 
         Uses a 60-second countdown so pipeline tasks (PDF extraction,
         linking, etc.) have time to finish writing decisions before
@@ -349,7 +355,8 @@ class ImportJobQueue:
         """
         try:
             job = ImportJob.objects.only(
-                "id", "organization_id", "unit_id", "signer_id", "start_date"
+                "id", "organization_id", "unit_id", "signer_id",
+                "start_date", "import_type",
             ).get(id=job_id)
         except ImportJob.DoesNotExist:
             logger.warning(
@@ -364,6 +371,14 @@ class ImportJobQueue:
                 f"ImportJobQueue: Job #{job_id} has entity filter "
                 f"(org={job.organization_id}, unit={job.unit_id}, "
                 f"signer={job.signer_id}), skipping post-import orchestrator"
+            )
+            return
+
+        # Only fire for DAILY imports, not backfill
+        if job.import_type != ImportJobType.DAILY:
+            logger.debug(
+                f"ImportJobQueue: Job #{job_id} is import_type={job.import_type}, "
+                f"skipping post-import orchestrator (only fires for daily imports)"
             )
             return
 

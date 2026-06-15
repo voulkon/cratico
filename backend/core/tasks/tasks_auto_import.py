@@ -18,7 +18,7 @@ from datetime import date, timedelta
 
 from celery import shared_task
 from core.models.decisions import Decision
-from core.models.import_jobs import ImportJob, ImportJobStatus
+from core.models.import_jobs import ImportJob, ImportJobStatus, ImportJobType
 from core.services.coverage_service import BackfillCoverageService
 from core.services.feature_flag_service import feature_flags
 from core.services.import_job_queue import ImportJobQueue
@@ -57,6 +57,7 @@ def auto_daily_import_task():
             created_by=None,  # System-initiated
             auto_dispatch=True,
             skip_duplicates=True,
+            import_type=ImportJobType.DAILY,
         )
 
         logger.info(f"Daily import queued: Job #{job.id} for {yesterday}")
@@ -135,6 +136,7 @@ def trigger_next_backfill():
             created_by=None,
             auto_dispatch=True,
             skip_duplicates=True,
+            import_type=ImportJobType.BACKFILL,
         )
 
         logger.info(f"Backfill queued: Job #{job.id} for {next_date}")
