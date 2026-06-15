@@ -12,6 +12,7 @@ from .health_check_tasks import (
     refresh_problematic_decisions,
     retry_failed_decisions_for_import_job,
 )
+from .tasks_amount_analysis import compute_amount_entity_analysis
 from .tasks_auto_import import (
     auto_daily_import_task,
     find_next_oldest_missing_day,
@@ -161,5 +162,6 @@ __all__ = [
     "recompute_publish_date_fields_task",
     "post_daily_import_orchestrator",
     "compute_entity_rankings",
-    "trigger_check_all_subscriptions"
+    "trigger_check_all_subscriptions",
+    "compute_amount_entity_analysis",
 ]
