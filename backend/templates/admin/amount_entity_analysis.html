@@ -1,0 +1,350 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}Amount ↔ Entity Linkage Analysis{% endblock %}
+
+{% block extrastyle %}
+<style>
+  .analysis-container { padding: 20px; max-width: 1400px; }
+  .analysis-container h2 {
+    margin-top: 30px; padding-bottom: 8px;
+    border-bottom: 2px solid #417690; color: #417690;
+  }
+  .analysis-container h3 {
+    margin-top: 20px; color: #555;
+  }
+  table.data-table {
+    width: 100%; border-collapse: collapse; margin-bottom: 20px;
+    font-size: 13px;
+  }
+  table.data-table th, table.data-table td {
+    padding: 6px 10px; border: 1px solid #ddd; text-align: right;
+  }
+  table.data-table th { background: #f5f5f5; font-weight: 600; text-align: right; }
+  table.data-table td.left, table.data-table th.left { text-align: left; }
+  table.data-table td.center, table.data-table th.center { text-align: center; }
+  table.data-table tr:hover { background: #f9f9f9; }
+
+  .good { color: #2d8b2d; font-weight: 600; }
+  .warn { color: #c98a00; font-weight: 600; }
+  .bad  { color: #c0392b; font-weight: 600; }
+
+  .pattern-badge {
+    display: inline-block; background: #eef; padding: 2px 8px;
+    border-radius: 3px; font-family: monospace; font-size: 12px;
+  }
+  .role-badge {
+    display: inline-block; background: #efe; padding: 2px 8px;
+    border-radius: 3px; font-family: monospace; font-size: 12px;
+  }
+
+  .json-block {
+    background: #1e1e1e; color: #d4d4d4; padding: 12px;
+    border-radius: 4px; font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
+    font-size: 11px; line-height: 1.4; overflow-x: auto;
+    white-space: pre-wrap; max-height: 400px; overflow-y: auto;
+    margin: 4px 0 12px 0;
+  }
+  .sample-card {
+    background: #fff; border: 1px solid #ddd; padding: 14px;
+    margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .sample-card .ada { font-weight: 700; color: #417690; }
+  .sample-card .subject { color: #555; }
+  .sample-card .meta { font-size: 12px; color: #888; margin-top: 4px; }
+
+  .summary-stats {
+    display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px;
+  }
+  .summary-stat {
+    background: #fff; border: 1px solid #ddd; padding: 14px 20px;
+    min-width: 160px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .summary-stat .value { font-size: 28px; font-weight: 700; color: #417690; }
+  .summary-stat .label { font-size: 12px; color: #888; margin-top: 4px; }
+
+  .collapsible-toggle {
+    cursor: pointer; color: #417690; font-weight: 600;
+    user-select: none;
+  }
+  .collapsible-toggle::before { content: "▸ "; }
+  .collapsible-toggle.open::before { content: "▾ "; }
+  .collapsible-body { display: none; }
+  .collapsible-body.open { display: block; }
+
+  .sticky-header { position: sticky; top: 0; z-index: 1; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="analysis-container">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+    <h1 style="margin:0;">Amount ↔ Entity Linkage Analysis</h1>
+
+    <form method="POST" style="margin:0;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="refresh">
+      <button type="submit" class="button" style="
+        background:#417690; color:#fff; border:none; padding:10px 24px;
+        border-radius:4px; font-size:14px; cursor:pointer;
+      ">
+        🔄 Refresh Analysis
+      </button>
+    </form>
+  </div>
+
+  {% if cached %}
+  <p style="color:#2d8b2d; margin-top:8px; margin-bottom:25px;">
+    ✅ Loaded from cache (refreshes every {{ cache_ttl_hours }}h).
+    Analyzes which <code>DecisionAmountField</code> rows are linked to
+    <code>DecisionEntityRelationship</code> via <code>associated_relationship_id</code>.
+  </p>
+  {% else %}
+  <div style="background:#fff3cd; border:1px solid #ffc107; padding:20px; margin:15px 0 25px 0; border-radius:4px;">
+    <strong>⚠️ No cached analysis found.</strong>
+    <p style="margin:8px 0 0 0;">
+      Click <strong>"Refresh Analysis"</strong> above to run the computation.
+      This dispatches a background task; reload the page after ~30 seconds to see results.
+    </p>
+  </div>
+  {% endif %}
+
+  {# --- Summary stats --- #}
+  <div class="summary-stats">
+    <div class="summary-stat">
+      <div class="value">{{ linkage_table|length }}</div>
+      <div class="label">Decision types with amounts</div>
+    </div>
+    <div class="summary-stat">
+      <div class="value">{{ pattern_sections|length }}</div>
+      <div class="label">Types with linked amounts</div>
+    </div>
+    <div class="summary-stat">
+      <div class="value">{{ role_sections|length }}</div>
+      <div class="label">Entity roles found</div>
+    </div>
+    <div class="summary-stat">
+      <div class="value">{{ samples|length }}</div>
+      <div class="label">Unlinked samples shown</div>
+    </div>
+  </div>
+
+  {# ================================================================== #}
+  {# SECTION 1: Linkage Rate                                               #}
+  {# ================================================================== #}
+  <h2>1. Linkage Rate by Decision Type</h2>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th class="left">Decision Type</th>
+        <th>Total Amounts</th>
+        <th>Linked</th>
+        <th class="center">Link %</th>
+        <th>Decisions w/ $</th>
+        <th>Decisions w/ linked</th>
+        <th class="center">Dec Link %</th>
+        <th>Unique Rels</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in linkage_table %}
+      <tr>
+        <td class="left">{{ row.label }} <small>({{ row.uid }})</small></td>
+        <td>{{ row.total|floatformat:"0" }}</td>
+        <td>{{ row.linked|floatformat:"0" }}</td>
+        <td class="center">
+          <span class="{% if row.link_pct >= 60 %}good{% elif row.link_pct >= 20 %}warn{% else %}bad{% endif %}">
+            {{ row.link_pct }}%
+          </span>
+        </td>
+        <td>{{ row.total_decisions|floatformat:"0" }}</td>
+        <td>{{ row.linked_decisions|floatformat:"0" }}</td>
+        <td class="center">{{ row.decisions_pct }}%</td>
+        <td>{{ row.unique_rels|floatformat:"0" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {# ================================================================== #}
+  {# SECTION 2: Pattern Distribution (linked only)                          #}
+  {# ================================================================== #}
+  <h2>2. Pattern Distribution — Linked Amounts Only</h2>
+  {% for section in pattern_sections %}
+  <h3 class="collapsible-toggle open" onclick="
+    this.classList.toggle('open');
+    this.nextElementSibling.classList.toggle('open');
+  ">
+    {{ section.label }} ({{ section.uid }}) —
+    {{ section.total }} linked, €{{ section.total_euros|floatformat:"0" }}
+  </h3>
+  <div class="collapsible-body open">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th class="left">Pattern</th>
+          <th>Count</th>
+          <th class="center">%</th>
+          <th>Total €</th>
+          <th>Relationships</th>
+          <th class="center">Variants</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in section.patterns %}
+        <tr>
+          <td class="left"><span class="pattern-badge">{{ p.name }}</span></td>
+          <td>{{ p.count }}</td>
+          <td class="center">{{ p.pct }}%</td>
+          <td>€{{ p.euros|floatformat:"0" }}</td>
+          <td>{{ p.rels }}</td>
+          <td class="center">{{ p.variants }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if section.more %}
+    <p style="color:#888; font-size:12px;">… and {{ section.more }} more pattern groups</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  {# ================================================================== #}
+  {# SECTION 3: Top Entities                                                #}
+  {# ================================================================== #}
+  <h2>3. Top Entities by Linked Amount</h2>
+  {% for section in entity_sections %}
+  <h3>{{ section.label }} ({{ section.uid }})</h3>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th class="left">AFM</th>
+        <th class="left">Name</th>
+        <th class="left">Role</th>
+        <th>Total €</th>
+        <th>Decisions</th>
+        <th>Fields</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in section.top %}
+      <tr>
+        <td class="left">{{ e.afm }}</td>
+        <td class="left">{{ e.name|default:"(no name)"|truncatechars:60 }}</td>
+        <td class="left"><span class="role-badge">{{ e.role }}</span></td>
+        <td>€{{ e.euros|floatformat:"0" }}</td>
+        <td>{{ e.decisions }}</td>
+        <td>{{ e.fields }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endfor %}
+
+  {# ================================================================== #}
+  {# SECTION 4: Role × Pattern Cross-tab                                    #}
+  {# ================================================================== #}
+  <h2>4. Role × Pattern Cross-tab</h2>
+  <p style="color:#888;">
+    Which entity roles receive which amount patterns?
+  </p>
+  {% for section in role_sections %}
+  <h3>
+    <span class="role-badge">{{ section.role }}</span>
+    — {{ section.total }} linked amounts, €{{ section.total_euros|floatformat:"0" }}
+  </h3>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th class="left">Pattern</th>
+        <th>Count</th>
+        <th class="center">%</th>
+        <th>Total €</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in section.patterns %}
+      <tr>
+        <td class="left"><span class="pattern-badge">{{ p.pattern }}</span></td>
+        <td>{{ p.count }}</td>
+        <td class="center">{{ p.pct }}%</td>
+        <td>€{{ p.euros|floatformat:"0" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endfor %}
+
+  {# ================================================================== #}
+  {# SECTION 5: Unlinked Amounts                                            #}
+  {# ================================================================== #}
+  <h2>5. Unlinked Amounts — What's Not Connected to Entities?</h2>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th class="left">Pattern</th>
+        <th class="left">Raw Path</th>
+        <th>Count</th>
+        <th>Decisions</th>
+        <th>Total €</th>
+        <th class="left">Decision Type</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in unlinked_table %}
+      <tr>
+        <td class="left"><span class="pattern-badge">{{ row.pattern }}</span></td>
+        <td class="left" style="font-family:monospace;font-size:11px;">{{ row.raw_path }}</td>
+        <td>{{ row.count }}</td>
+        <td>{{ row.decisions }}</td>
+        <td>€{{ row.euros|floatformat:"0" }}</td>
+        <td class="left">{{ row.type_label }} ({{ row.type_uid }})</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if unlinked_has_more %}
+  <p style="color:#888; font-size:12px;">… and {{ unlinked_has_more }} more combos</p>
+  {% endif %}
+
+  {# ================================================================== #}
+  {# SECTION 6: Unlinked Samples with Raw JSON                               #}
+  {# ================================================================== #}
+  <h2>6. Sample Unlinked Amounts with Raw <code>extra_field_values_json</code></h2>
+  <p style="color:#888;">
+    Showing up to 2 samples for each of the top 12 unlinked (type × path) combos,
+    sorted by amount descending.
+  </p>
+  {% for sample in samples %}
+  <div class="sample-card">
+    <div class="ada">{{ sample.ada }}</div>
+    <div class="subject">{{ sample.subject }}</div>
+    <div class="meta">
+      Type: {{ sample.type_label }} ({{ sample.type_uid }}) |
+      Path: <code>{{ sample.path }}</code> |
+      Classified: <span class="pattern-badge">{{ sample.classified }}</span> |
+      Field: <code>{{ sample.source_field_name }}</code> |
+      Amount: €{{ sample.amount|floatformat:"2"|default:"null" }} |
+      Structure: {{ sample.structure_type|default:"—" }}
+    </div>
+    <div style="margin-top:8px; font-weight:600; font-size:12px; color:#888;">
+      extra_field_values_json:
+    </div>
+    <div class="json-block">{{ sample.extra_json_display }}</div>
+  </div>
+  {% empty %}
+  <p style="color:#888;">(No unlinked samples to show — everything is linked!)</p>
+  {% endfor %}
+
+</div>
+
+<script>
+  // Collapsible sections
+  document.querySelectorAll('.collapsible-toggle').forEach(el => {
+    el.addEventListener('click', function() {
+      this.classList.toggle('open');
+      this.nextElementSibling.classList.toggle('open');
+    });
+  });
+</script>
+{% endblock %}

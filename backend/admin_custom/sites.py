@@ -41,6 +41,12 @@ class CustomAdminSite(admin.AdminSite):
                 self._wrap_view("analytics", "trigger_entity_rankings"),
                 name="trigger_entity_rankings",
             ),
+            # Amount-Entity Linkage Analysis
+            path(
+                "amount-entity-analysis/",
+                self._wrap_view("amount_entity_analysis", "amount_entity_analysis"),
+                name="amount_entity_analysis",
+            ),
             # Decision URLs
             path(
                 "decisions/coverage/",
@@ -324,6 +330,12 @@ class CustomAdminSite(admin.AdminSite):
                     "name": "Entity Search",
                     "object_name": "EntitySearch",
                     "admin_url": "/api/admin/decisions/entity-search/",
+                    "view_only": True,
+                },
+                {
+                    "name": "Amount ↔ Entity Linkage",
+                    "object_name": "AmountEntityLinkage",
+                    "admin_url": "/api/admin/amount-entity-analysis/",
                     "view_only": True,
                 },
             ],
