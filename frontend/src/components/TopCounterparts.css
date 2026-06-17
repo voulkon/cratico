@@ -202,6 +202,8 @@
   transition: all 0.2s ease;
   text-align: left;
   width: 100%;
+  min-width: 0;           /* CRITICAL: prevent grid/flex blowout */
+  overflow: hidden;       /* contain children */
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -217,6 +219,7 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
+  min-width: 0;           /* CRITICAL: contain children */
 }
 
 .counterpart-rank {
@@ -235,7 +238,11 @@
   font-weight: 600;
   color: var(--text-color);
   flex: 1;
+  min-width: 0;
   line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .counterpart-details {
@@ -314,6 +321,7 @@
   flex-direction: column;
   gap: 6px;
   width: 100%;
+  min-width: 0;           /* CRITICAL: contain long names */
 }
 
 .pair-org,
@@ -324,6 +332,8 @@
   padding: 6px 10px;
   background: var(--card-bg);
   border-radius: 4px;
+  min-width: 0;           /* CRITICAL: contain children */
+  overflow: hidden;       /* clip overflow */
 }
 
 .pair-label {
@@ -333,6 +343,9 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pair-icon {
@@ -344,6 +357,9 @@
   font-size: 0.7rem;
   color: var(--muted-text);
   font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pair-connector {

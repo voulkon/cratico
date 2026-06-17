@@ -24,7 +24,8 @@ const TopRelationshipPairs = ({
   limit = 20, // Items per page
   showDirectAssignmentsToggle = true,
   defaultDirectAssignmentsOnly = true,
-  enableInfiniteScroll = true // Enable/disable infinite scrolling
+  enableInfiniteScroll = true, // Enable/disable infinite scrolling
+  className = '', // Optional: additional class for grid integration
 }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -192,10 +193,12 @@ const TopRelationshipPairs = ({
     );
   };
 
+  const rootClass = className || 'top-counterparts-section data-section';
+
   if (error || !results || results.length === 0) {
     if (loading) {
       return (
-        <div className="top-counterparts-section">
+        <div className={rootClass}>
           <h3 className="section-title">
             {t('relationships.topPairs')}
           </h3>
@@ -207,7 +210,7 @@ const TopRelationshipPairs = ({
   }
 
   return (
-    <div className="top-counterparts-section data-section">
+    <div className={rootClass}>
       <div className="section-header">
         <h3 className="section-title">{t('relationships.topPairs')}</h3>
         {showDirectAssignmentsToggle && (
