@@ -47,6 +47,11 @@ class CustomAdminSite(admin.AdminSite):
                 self._wrap_view("amount_entity_analysis", "amount_entity_analysis"),
                 name="amount_entity_analysis",
             ),
+            path(
+                "amount-entity-analysis/samples/refresh/",
+                self._wrap_view("amount_entity_analysis", "refresh_samples_api"),
+                name="amount_entity_analysis_refresh_samples",
+            ),
             # Decision URLs
             path(
                 "decisions/coverage/",

@@ -15,10 +15,19 @@ const GemiSection = ({ companyInfo, entity, gemiFetchStatus, onRequestFetch }) =
   const attemptedButFailed = entity.gemi_lookup_attempted && !entity.gemi_lookup_success;
   // Edge case: entity claims success but no company data exists (inconsistent DB state)
   const claimedSuccessButNoData = entity.gemi_lookup_success && !hasData;
+  // Company records exist in DB (gemi_companies_count > 0) — even if the full
+  // companies endpoint didn't load, we shouldn't show the "re-request" button.
+  const companyRecordExists = entity.gemi_lookup_success && entity.gemi_companies_count > 0;
+  // Server tells us if this AFM is currently pending/active in the Redis fetch queue
+  const queueStatus = entity.queue_status; // 'pending' | 'processing' | null
 
   // Determine if we should show the fetch button: no data AND either never attempted,
-  // previously failed, or data is in an inconsistent state (claimed success but missing)
-  const canRequestFetch = !hasData && (neverAttempted || attemptedButFailed || claimedSuccessButNoData);
+  // previously failed, or data is in an inconsistent state (claimed success but missing
+  // AND no company records actually exist).
+  // BUT NOT if the AFM is already in the queue (pending or being processed).
+  const canRequestFetch = !hasData
+    && (neverAttempted || attemptedButFailed || (claimedSuccessButNoData && !companyRecordExists))
+    && !queueStatus;
 
   const renderFetchRequest = () => (
     <div className="gemi-fetch-request">
@@ -95,11 +104,32 @@ const GemiSection = ({ companyInfo, entity, gemiFetchStatus, onRequestFetch }) =
             </div>
           )}
 
-          {/* Case 2: No data — show fetch button (covers never-attempted, failed, and inconsistent state) */}
+          {/* Case 2: AFM is currently in the fetch queue (persists across page reloads) */}
+          {!hasData && queueStatus && (
+            <div className="gemi-fetch-request">
+              <p className="gemi-fetch-message gemi-fetch-message--info">
+                {queueStatus === 'processing'
+                  ? t('afmEntityDetail.requestGemiFetchProcessing')
+                  : t('afmEntityDetail.requestGemiFetchInQueue')
+                }
+              </p>
+            </div>
+          )}
+
+          {/* Case 3: Company records exist in DB but full endpoint failed to load */}
+          {!hasData && companyRecordExists && !queueStatus && (
+            <div className="gemi-fetch-request">
+              <p className="gemi-fetch-message gemi-fetch-message--info">
+                {t('afmEntityDetail.requestGemiFetchDataAvailable')}
+              </p>
+            </div>
+          )}
+
+          {/* Case 4: No data — show fetch button (covers never-attempted, failed, and inconsistent state) */}
           {canRequestFetch && renderFetchRequest()}
 
-          {/* Case 3: Attempted but GEMI returned no record (definitive failure, but still offer retry) */}
-          {!hasData && attemptedButFailed && !claimedSuccessButNoData && (
+          {/* Case 5: Attempted but GEMI returned no record (definitive failure, but still offer retry) */}
+          {!hasData && attemptedButFailed && !claimedSuccessButNoData && !queueStatus && (
             <p className="gemi-fetch-message gemi-fetch-message--info">
               {t('afmEntityDetail.requestGemiFetchNotFound')}
             </p>

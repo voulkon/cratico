@@ -17,6 +17,13 @@ class ImportJobStatus(models.TextChoices):
     FAILED = "failed", _("Failed")
 
 
+class ImportJobType(models.TextChoices):
+    """Distinguishes cron-triggered daily imports from backfill autofarming."""
+
+    DAILY = "daily", _("Daily (cron)")
+    BACKFILL = "backfill", _("Backfill (autofarming)")
+
+
 class ImportJob(models.Model):
     """Tracks a decision import operation"""
 
@@ -46,6 +53,13 @@ class ImportJob(models.Model):
     # Job info
     status = models.CharField(
         max_length=20, choices=ImportJobStatus.choices, default=ImportJobStatus.PENDING
+    )
+    import_type = models.CharField(
+        max_length=20,
+        choices=ImportJobType.choices,
+        default=ImportJobType.DAILY,
+        verbose_name=_("Import Type"),
+        help_text=_("Daily (cron-triggered) vs backfill (autofarming historical dates)"),
     )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
