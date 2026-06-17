@@ -575,20 +575,25 @@ def warm_explore_decisions_window(
     page_size: int = 20,
 ) -> None:
     """
-    Compute explore-decisions ONCE with a large page size, then cache
-    page 1 under the exact key the frontend will request.
+    Compute explore-decisions ONCE with a large page size, then slice
+    into page_size batches and cache each one under the exact key the
+    frontend will request (matching page + page_size).
 
-    The most common homepage request is page 1 with the default sort
-    and no filters.  We warm that single page so the first real user
-    request is always a cache hit.
+    Why: the cache key includes both ``page`` and ``page_size``, so a
+    single ``page_size=100`` cache entry would never satisfy a frontend
+    request for ``page_size=20&page=2``.  By pre-slicing we cover every
+    paginated request the frontend makes while infinite-scrolling —
+    without re-running the heavy DB query.
 
     Args:
         start_date_str: ISO date string used verbatim in the cache key
         end_date_str:   ISO date string used verbatim in the cache key
         end_date:       Python date for smart TTL selection
-        max_limit:      How many decisions to pre-compute (page_size)
+        max_limit:      How many decisions to pre-compute in one query
         page_size:      Frontend's page size — must match the default
     """
+    import math
+
     start_parsed = parse_date(start_date_str)
     end_parsed = parse_date(end_date_str)
     if not start_parsed or not end_parsed:
@@ -597,31 +602,55 @@ def warm_explore_decisions_window(
             f"({start_date_str!r}, {end_date_str!r})"
         )
 
+    # ── compute ONCE with the large page size ──────────────────────
     data = compute_explore_decisions(
         start_dt=_make_aware_start(start_parsed),
         end_dt=_make_aware_end(end_parsed),
         start_date_str=start_date_str,
         end_date_str=end_date_str,
         page=1,
-        page_size=page_size,
+        page_size=max_limit,
         sort_by="entity_amount_desc",
     )
 
-    cache_key = response_cache.build_key(
-        "explore_decisions",
-        start_date=start_date_str,
-        end_date=end_date_str,
-        page="1",
-        page_size=str(page_size),
-        sort_by="entity_amount_desc",
-        organization_uid="",
-        entity_afm="",
-        direct_assignments_only="False",
-    )
-    response_cache.set(cache_key, data, end_date=end_date)
+    full_results: list[dict] = data["results"]
+    total_count: int = data["pagination"]["total_count"]
+
+    # ── slice into pages and cache each one ────────────────────────
+    cached = 0
+    for page_num in range(1, math.ceil(len(full_results) / page_size) + 1):
+        start_idx = (page_num - 1) * page_size
+        page_results = full_results[start_idx : start_idx + page_size]
+
+        page_data = {
+            **{k: v for k, v in data.items() if k not in ("results", "pagination")},
+            "results": page_results,
+            "pagination": {
+                "current_page": page_num,
+                "total_pages": math.ceil(total_count / page_size) if total_count else 0,
+                "total_count": total_count,
+                "has_next": (page_num * page_size) < total_count,
+                "has_previous": page_num > 1,
+                "page_size": page_size,
+            },
+        }
+
+        cache_key = response_cache.build_key(
+            "explore_decisions",
+            start_date=start_date_str,
+            end_date=end_date_str,
+            page=str(page_num),
+            page_size=str(page_size),
+            sort_by="entity_amount_desc",
+            organization_uid="",
+            entity_afm="",
+            direct_assignments_only="False",
+        )
+        response_cache.set(cache_key, page_data, end_date=end_date)
+        cached += 1
 
     logger.info(
         f"[AnalyticsPrecalc] Warmed explore_decisions "
-        f"[{start_date_str} → {end_date_str}] page_size={page_size} "
-        f"key={cache_key}"
+        f"[{start_date_str} → {end_date_str}] {cached} pages "
+        f"(max_limit={max_limit}, page_size={page_size}, total_count={total_count})"
     )
