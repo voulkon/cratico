@@ -1,0 +1,382 @@
+/* ============================================
+   Shared Pages – Public bookmark/folder viewing
+   ============================================ */
+
+.shared-page {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 60px var(--spacing-xl) var(--spacing-xxxxl);
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+.shared-loading,
+.shared-error {
+  align-items: center;
+}
+
+.shared-loading {
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  color: var(--text-secondary);
+}
+
+.shared-spinner {
+  animation: spin 1s linear infinite;
+  color: var(--palette-primary);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ── Error state ─────────────────────────────── */
+
+.shared-error-card {
+  text-align: center;
+  max-width: 420px;
+  padding: var(--spacing-xxxxl);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+}
+
+.shared-error-icon {
+  color: var(--color-star);
+  margin-bottom: var(--spacing-lg);
+}
+
+.shared-error-card h1 {
+  margin: 0 0 var(--spacing-md);
+  font-size: var(--font-xl);
+  color: var(--text-color);
+}
+
+.shared-error-card p {
+  margin: 0 0 var(--spacing-xl);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.shared-home-link {
+  display: inline-block;
+  padding: var(--spacing-sm) var(--spacing-xl);
+  background-color: var(--palette-primary);
+  color: var(--palette-primary-contrast);
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  font-weight: var(--font-medium);
+  transition: background-color var(--transition-fast);
+}
+
+.shared-home-link:hover {
+  background-color: var(--palette-secondary);
+}
+
+/* ── Card layout ─────────────────────────────── */
+
+.shared-card {
+  width: 100%;
+  max-width: 560px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xxxl);
+}
+
+.shared-folder-card {
+  width: 100%;
+  max-width: 680px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+/* ── Header ──────────────────────────────────── */
+
+.shared-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+}
+
+.shared-icon {
+  color: var(--palette-primary);
+}
+
+.shared-badge {
+  font-size: var(--font-xs);
+  font-weight: var(--font-medium);
+  color: var(--palette-primary);
+  background-color: color-mix(in srgb, var(--palette-primary) 10%, transparent);
+  padding: 2px var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── Title & content ─────────────────────────── */
+
+.shared-title {
+  margin: 0 0 var(--spacing-md);
+  font-size: var(--font-xl);
+  font-weight: var(--font-bold);
+  color: var(--text-color);
+  line-height: 1.3;
+}
+
+.shared-notes {
+  margin: 0 0 var(--spacing-lg);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+/* ── Meta ────────────────────────────────────── */
+
+.shared-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-xl);
+  flex-wrap: wrap;
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+}
+
+.shared-view-type {
+  background: var(--surface-secondary);
+  padding: 2px var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-xs);
+  text-transform: capitalize;
+}
+
+.shared-by {
+  font-style: italic;
+}
+
+/* ── Actions ─────────────────────────────────── */
+
+.shared-actions {
+  display: flex;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-xxl);
+  flex-wrap: wrap;
+}
+
+.shared-open-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) var(--spacing-xl);
+  background-color: var(--palette-primary);
+  color: var(--palette-primary-contrast);
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  font-weight: var(--font-medium);
+  transition: background-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.shared-open-btn:hover {
+  background-color: var(--palette-secondary);
+  transform: translateY(-1px);
+}
+
+.shared-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) var(--spacing-xl);
+  background: transparent;
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.shared-copy-btn:hover {
+  background-color: var(--surface-secondary);
+  border-color: var(--palette-primary);
+}
+
+/* ── Footer ──────────────────────────────────── */
+
+.shared-footer {
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--border-color);
+  text-align: center;
+}
+
+.shared-powered-by {
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.shared-powered-by:hover {
+  color: var(--palette-primary);
+}
+
+/* ── Folder-specific styles ──────────────────── */
+
+.shared-folder-header {
+  padding: var(--spacing-xxxl) var(--spacing-xxxl) var(--spacing-lg);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.shared-folder-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+}
+
+.shared-folder-color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.shared-folder-icon {
+  margin-right: var(--spacing-xs);
+}
+
+.shared-description {
+  margin: var(--spacing-sm) 0 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* ── Bookmarks list ──────────────────────────── */
+
+.shared-bookmarks-list {
+  padding: var(--spacing-lg) var(--spacing-xxxl);
+}
+
+.shared-bookmark-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg);
+  text-decoration: none;
+  color: var(--text-color);
+  border-radius: var(--radius-md);
+  transition: background-color var(--transition-fast);
+  border: 1px solid transparent;
+}
+
+.shared-bookmark-item:hover {
+  background-color: var(--surface-secondary);
+  border-color: var(--border-color);
+}
+
+.shared-bookmark-item + .shared-bookmark-item {
+  border-top: 1px solid var(--border-color);
+  border-radius: 0;
+}
+
+.shared-bookmark-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.shared-bookmark-item-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+}
+
+.shared-star {
+  color: var(--color-star);
+  flex-shrink: 0;
+}
+
+.shared-bookmark-title {
+  font-weight: var(--font-medium);
+  color: var(--text-color);
+}
+
+.shared-bookmark-notes {
+  margin: var(--spacing-xs) 0;
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.shared-bookmark-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: var(--font-xs);
+  color: var(--text-secondary);
+  margin-top: var(--spacing-xs);
+}
+
+.shared-bookmark-url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shared-bookmark-external {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.shared-bookmark-item:hover .shared-bookmark-external {
+  opacity: 1;
+}
+
+.shared-empty {
+  text-align: center;
+  padding: var(--spacing-xxl);
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* ── Responsive ──────────────────────────────── */
+
+@media (max-width: 640px) {
+  .shared-page {
+    padding: var(--spacing-xl) var(--spacing-md);
+  }
+
+  .shared-card {
+    padding: var(--spacing-xl);
+  }
+
+  .shared-folder-header {
+    padding: var(--spacing-xl) var(--spacing-lg) var(--spacing-md);
+  }
+
+  .shared-bookmarks-list {
+    padding: var(--spacing-md) var(--spacing-lg);
+  }
+
+  .shared-actions {
+    flex-direction: column;
+  }
+
+  .shared-open-btn,
+  .shared-copy-btn {
+    justify-content: center;
+  }
+}

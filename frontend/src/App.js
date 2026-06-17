@@ -12,6 +12,8 @@ import SubscriptionHistoryPage from "./pages/SubscriptionHistoryPage";
 import SearchResults from "./pages/SearchResults";
 import SuperSearchExample from "./pages/SuperSearchExample";
 import LibraryPage from "./pages/LibraryPage";
+import SharedBookmarkPage from "./pages/SharedBookmarkPage";
+import SharedFolderPage from "./pages/SharedFolderPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
 import LoginPage from "./pages/LoginPage";
 import PersonPage from "./pages/PersonPage";
@@ -202,6 +204,10 @@ function AuthenticatedApp({ controlsLayout }) {
 
           {/* Library - bookmark management */}
           <Route path="/library" element={<LibraryPage />} />
+
+          {/* Public shared bookmark/folder pages */}
+          <Route path="/share/bookmark/:slug" element={<SharedBookmarkPage />} />
+          <Route path="/share/folder/:slug" element={<SharedFolderPage />} />
 
           {/* RENAMED: Change from /dev to /organizations */}
           <Route path="/organizations" element={<DevPage />} />

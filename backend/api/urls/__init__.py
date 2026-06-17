@@ -35,6 +35,7 @@ from api.urls import (
     search,
     system,
     tasks,
+    public,
 )
 from api.views import entities as entities_views
 from api.views.direct_assignments import entity_direct_assignment_top_organizations
@@ -62,6 +63,8 @@ router.register("user-data", UserDataViewSet, basename="user-data")
 urlpatterns = [
     # Include router URLs
     path("", include(router.urls)),
+    # Public sharing endpoints (no auth required - exempted from stealth mode)
+    path(public.PREFIX, include("api.urls.public")),
     # Modular URL includes using PREFIX constants (single source of truth)
     # The PREFIX from each module is used both here AND in the stealth middleware
     path(auth.PREFIX, include("api.urls.auth")),

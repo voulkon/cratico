@@ -65,6 +65,9 @@
   /* Interactive colors */
   --hover-bg: #f5f5f5;
   --focus-color: #0066cc;
+  --text-secondary: #6b7280;
+  --surface-secondary: #f3f4f6;
+  --color-star: #f59e0b;
 
   /* Avatar auth indicator */
   --avatar-border-default: #9ca3af;
@@ -108,6 +111,9 @@
   /* Interactive colors */
   --hover-bg: #3a3a3a;
   --focus-color: #66b3ff;
+  --text-secondary: #9ca3af;
+  --surface-secondary: #374151;
+  --color-star: #fbbf24;
 
   /* Avatar auth indicator */
   --avatar-border-default: #6b7280;
@@ -152,6 +158,9 @@
   /* Interactive colors */
   --hover-bg: #eee8d5;
   --focus-color: #268bd2;
+  --text-secondary: #93a1a1;
+  --surface-secondary: #eee8d5;
+  --color-star: #b58900;
 
   /* Avatar auth indicator */
   --avatar-border-default: #93a1a1;
@@ -196,6 +205,9 @@
   /* Interactive colors */
   --hover-bg: #073642;
   --focus-color: #268bd2;
+  --text-secondary: #586e75;
+  --surface-secondary: #002b36;
+  --color-star: #b58900;
 
   /* Avatar auth indicator */
   --avatar-border-default: #586e75;
@@ -445,6 +457,9 @@
   --disabled-text: #999999;
   --hover-bg: #f5f5f5;
   --focus-color: #0066cc;
+  --text-secondary: #6b7280;
+  --surface-secondary: #f3f4f6;
+  --color-star: #f59e0b;
   --avatar-border-default: #9ca3af;
   --avatar-border-authenticated: #10b981;
   --slider-rail-color: var(--border-color);

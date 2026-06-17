@@ -11,7 +11,8 @@ import {
   X,
   Eye,
   ArrowRight,
-  Plus
+  Plus,
+  Share2
 } from 'lucide-react';
 import {
   getBookmarks,
@@ -20,7 +21,9 @@ import {
   updateFolder,
   deleteFolder,
   updateBookmark,
-  deleteBookmark
+  deleteBookmark,
+  toggleBookmarkPublic,
+  toggleFolderPublic
 } from '../api/bookmarks';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import './LibraryPage.css';
@@ -40,6 +43,15 @@ export default function LibraryPage() {
   const [selectedBookmark, setSelectedBookmark] = useState(null);
   const [viewMode, setViewMode] = useState('all'); // 'all', 'favorites', 'recent'
   const [isLoading, setIsLoading] = useState(true);
+  const [shareFeedback, setShareFeedback] = useState(null); // { id, type, slug }
+
+  // Clear share feedback after 3s
+  useEffect(() => {
+    if (shareFeedback) {
+      const timer = setTimeout(() => setShareFeedback(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [shareFeedback]);
 
   // Modal states
   const [showFolderModal, setShowFolderModal] = useState(false);
@@ -175,6 +187,60 @@ export default function LibraryPage() {
     }
   }
 
+  // ── Share handlers ─────────────────────────────────────────────
+
+  async function copyShareUrl(url) {
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      const input = document.createElement('input');
+      input.value = url;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+    }
+  }
+
+  async function handleToggleBookmarkShare(bookmark, e) {
+    e.stopPropagation();
+    try {
+      const makePublic = !bookmark.is_public;
+      const updated = await toggleBookmarkPublic(bookmark.id, makePublic);
+      if (makePublic && updated?.public_slug) {
+        const url = `${window.location.origin}/share/bookmark/${updated.public_slug}`;
+        await copyShareUrl(url);
+        setShareFeedback({ id: bookmark.id, type: 'bookmark', slug: updated.public_slug });
+      } else {
+        setShareFeedback(null);
+      }
+      loadBookmarks();
+      if (selectedBookmark?.id === bookmark.id) {
+        setSelectedBookmark(updated || { ...bookmark, is_public: makePublic });
+      }
+    } catch (error) {
+      console.error('Failed to toggle bookmark share:', error);
+    }
+  }
+
+  async function handleToggleFolderShare(folder, e) {
+    e.stopPropagation();
+    try {
+      const makePublic = !folder.is_public;
+      const updated = await toggleFolderPublic(folder.id, makePublic);
+      if (makePublic && updated?.public_slug) {
+        const url = `${window.location.origin}/share/folder/${updated.public_slug}`;
+        await copyShareUrl(url);
+        setShareFeedback({ id: folder.id, type: 'folder', slug: updated.public_slug });
+      } else {
+        setShareFeedback(null);
+      }
+      loadData();
+    } catch (error) {
+      console.error('Failed to toggle folder share:', error);
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="library-loading">
@@ -245,6 +311,13 @@ export default function LibraryPage() {
               </div>
               <div className="library-folder-actions">
                 <button
+                  onClick={(e) => handleToggleFolderShare(folder, e)}
+                  className={`library-folder-action-btn ${folder.is_public ? 'shared' : ''}`}
+                  title={folder.is_public ? 'Make private' : 'Make public & copy link'}
+                >
+                  <Share2 size={14} />
+                </button>
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
                     openFolderModal(folder);
@@ -308,6 +381,14 @@ export default function LibraryPage() {
                     className={`library-bookmark-favorite-btn ${bookmark.is_favorite ? 'favorited' : ''}`}
                   >
                     <Star size={20} fill={bookmark.is_favorite ? 'currentColor' : 'none'} />
+                  </button>
+
+                  <button
+                    onClick={(e) => handleToggleBookmarkShare(bookmark, e)}
+                    className={`library-bookmark-share-btn ${bookmark.is_public ? 'shared' : ''}`}
+                    title={bookmark.is_public ? 'Make private' : 'Make public & copy link'}
+                  >
+                    <Share2 size={18} />
                   </button>
 
                   <div className="library-bookmark-info">
