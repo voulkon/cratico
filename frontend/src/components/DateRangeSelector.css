@@ -2,17 +2,18 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  /* Fuse with DashboardGrid below — only round the top corners */
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg, 12px) var(--radius-lg, 12px) 0 0;
-  padding: var(--spacing-lg, 16px);
-  background: var(--bg-color);
+  align-items: center;         /* center all children */
+  padding: 0;                  /* padding is now handled by the grid header */
+  background: transparent;     /* bg is handled by the grid card */
+  border: none;                /* border is handled by the grid card */
+  border-radius: 0;            /* radius is handled by the grid card */
   margin-bottom: 0;
 }
 
 .period-controls {
   display: flex;
   align-items: center;
+  justify-content: center;     /* center the period buttons */
   gap: 12px;
   flex-wrap: wrap;
 }

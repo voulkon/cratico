@@ -9,7 +9,7 @@ import apiClient from '../api/client';
 import SuperSearch from '../components/SuperSearch';
 import TopRelationshipPairs from '../components/TopRelationshipPairs';
 import DateRangeSelector from '../components/DateRangeSelector';
-import DashboardGrid, { DashboardSectionHeader, DashboardSectionLoading } from '../components/DashboardGrid';
+import DashboardGrid, { DashboardSectionLoading, CollapsibleSection } from '../components/DashboardGrid';
 import './HomePage.css';
 
 /**
@@ -73,7 +73,7 @@ const DashboardData = () => {
   };
 
   return (
-    <DashboardGrid columns={2}>
+    <DashboardGrid columns={2} collapsible header={<DateRangeSelector />}>
       {/* Featured — Top Org×Entity Relationship Pairs (spans full width) */}
       <DashboardGrid.Featured>
         <TopRelationshipPairs
@@ -81,6 +81,7 @@ const DashboardData = () => {
           showDirectAssignmentsToggle={true}
           defaultDirectAssignmentsOnly={true}
           className="data-section"
+          collapsible
         />
       </DashboardGrid.Featured>
 
@@ -88,11 +89,11 @@ const DashboardData = () => {
       {gridLoading ? (
         <DashboardSectionLoading message={t('homepage.loading')} />
       ) : (
-        <section className="data-section">
-          <DashboardSectionHeader
-            title={t('homepage.mostActiveOrganizations')}
-            onSeeAll={() => navigate(`/explore/temporal/${dateRange.start_date}/${dateRange.end_date}`)}
-          />
+        <CollapsibleSection
+          title={t('homepage.mostActiveOrganizations')}
+          onSeeAll={() => navigate(`/explore/temporal/${dateRange.start_date}/${dateRange.end_date}`)}
+          collapsible
+        >
           <div className="dashboard-section-info">
             <span>{topOrganizations.length} {t('homepage.organizations') || 'organizations'}</span>
           </div>
@@ -114,18 +115,18 @@ const DashboardData = () => {
               </button>
             ))}
           </div>
-        </section>
+        </CollapsibleSection>
       )}
 
       {/* Column 2 — Notable Recent Decisions */}
       {gridLoading ? (
         <DashboardSectionLoading message={t('homepage.loading')} />
       ) : (
-        <section className="data-section">
-          <DashboardSectionHeader
-            title={t('homepage.notableRecentDecisions')}
-            onSeeAll={() => navigate(`/explore/temporal/${dateRange.start_date}/${dateRange.end_date}?sort_by=amount_desc`)}
-          />
+        <CollapsibleSection
+          title={t('homepage.notableRecentDecisions')}
+          onSeeAll={() => navigate(`/explore/temporal/${dateRange.start_date}/${dateRange.end_date}?sort_by=amount_desc`)}
+          collapsible
+        >
           <div className="dashboard-section-info">
             <span>{recentDecisions.length} {t('homepage.decisions')}</span>
           </div>
@@ -153,7 +154,7 @@ const DashboardData = () => {
               </button>
             ))}
           </div>
-        </section>
+        </CollapsibleSection>
       )}
     </DashboardGrid>
   );
@@ -256,10 +257,7 @@ const HomePage = () => {
             </div>
           </section>
 
-          {/* Date Range Selector - Controls all dashboard components */}
-          <DateRangeSelector />
-
-          {/* Dashboard Data - All components use DateRangeContext */}
+          {/* Date Range Selector + Dashboard Data — unified card */}
           <DashboardData />
         </div>
       </div>
