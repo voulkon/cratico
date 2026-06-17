@@ -28,8 +28,10 @@ import {
   ChevronDown,
   GripVertical,
   FolderPlusIcon,
-  Share2Icon,
+  GlobeIcon,
+  GlobeLockIcon,
   CopyIcon,
+  Share2Icon,
 } from './Icons.js';
 
 /**
@@ -327,39 +329,77 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
     }
   }
 
-  async function handleToggleBookmarkShare(bookmark, e) {
+  async function handleToggleBookmarkPublic(bookmark, e) {
     e.stopPropagation();
     try {
-      const makePublic = !bookmark.is_public;
-      const updated = await toggleBookmarkPublic(bookmark.id, makePublic);
-      if (makePublic && updated?.public_slug) {
-        const url = buildShareUrl('bookmark', updated.public_slug);
-        await copyShareUrl(url);
-        setShareFeedback({ id: bookmark.id, type: 'bookmark', slug: updated.public_slug });
-      } else {
-        setShareFeedback(null);
-      }
+      await toggleBookmarkPublic(bookmark.id, !bookmark.is_public);
+      setShareFeedback(null);
       loadData();
     } catch (error) {
-      console.error('Failed to toggle bookmark share:', error);
+      console.error('Failed to toggle bookmark public:', error);
     }
   }
 
-  async function handleToggleFolderShare(folder, e) {
+  async function handleCopyBookmarkUrl(bookmark, e) {
     e.stopPropagation();
     try {
-      const makePublic = !folder.is_public;
-      const updated = await toggleFolderPublic(folder.id, makePublic);
-      if (makePublic && updated?.public_slug) {
-        const url = buildShareUrl('folder', updated.public_slug);
+      if (bookmark.is_public) {
+        const url = buildShareUrl('bookmark', bookmark.public_slug);
         await copyShareUrl(url);
-        setShareFeedback({ id: folder.id, type: 'folder', slug: updated.public_slug });
+        setShareFeedback({ id: bookmark.id, type: 'bookmark', slug: bookmark.public_slug });
       } else {
-        setShareFeedback(null);
+        setShareFeedback({ id: bookmark.id, type: 'bookmark', notShared: true });
       }
+    } catch (error) {
+      console.error('Failed to copy bookmark URL:', error);
+    }
+  }
+
+  async function handleUnshareBookmark(bookmark, e) {
+    e.stopPropagation();
+    try {
+      await toggleBookmarkPublic(bookmark.id, false);
+      setShareFeedback(null);
       loadData();
     } catch (error) {
-      console.error('Failed to toggle folder share:', error);
+      console.error('Failed to unshare bookmark:', error);
+    }
+  }
+
+  async function handleToggleFolderPublic(folder, e) {
+    e.stopPropagation();
+    try {
+      await toggleFolderPublic(folder.id, !folder.is_public);
+      setShareFeedback(null);
+      loadData();
+    } catch (error) {
+      console.error('Failed to toggle folder public:', error);
+    }
+  }
+
+  async function handleCopyFolderUrl(folder, e) {
+    e.stopPropagation();
+    try {
+      if (folder.is_public) {
+        const url = buildShareUrl('folder', folder.public_slug);
+        await copyShareUrl(url);
+        setShareFeedback({ id: folder.id, type: 'folder', slug: folder.public_slug });
+      } else {
+        setShareFeedback({ id: folder.id, type: 'folder', notShared: true });
+      }
+    } catch (error) {
+      console.error('Failed to copy folder URL:', error);
+    }
+  }
+
+  async function handleUnshareFolder(folder, e) {
+    e.stopPropagation();
+    try {
+      await toggleFolderPublic(folder.id, false);
+      setShareFeedback(null);
+      loadData();
+    } catch (error) {
+      console.error('Failed to unshare folder:', error);
     }
   }
 
@@ -438,13 +478,22 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
             </div>
           </div>
 
-          {/* Share */}
+          {/* Public/Private toggle – always visible globe */}
           <button
-            className={`bookmark-share-btn ${bookmark.is_public ? 'active' : ''}`}
-            onClick={(e) => handleToggleBookmarkShare(bookmark, e)}
-            title={bookmark.is_public ? t('library.unshare') : t('library.share')}
+            className={`bookmark-globe-toggle-btn ${bookmark.is_public ? 'public' : 'private'}`}
+            onClick={(e) => handleToggleBookmarkPublic(bookmark, e)}
+            title={bookmark.is_public ? t('library.makePrivate') : t('library.makePublic')}
           >
-            <Share2Icon size={16} />
+            {bookmark.is_public ? <GlobeIcon size={16} /> : <GlobeLockIcon size={16} />}
+          </button>
+
+          {/* Share – always visible; copies URL when public, informs when private */}
+          <button
+            className="bookmark-share-btn"
+            onClick={(e) => handleCopyBookmarkUrl(bookmark, e)}
+            title={t('library.copyLink')}
+          >
+            <Share2Icon size={14} />
           </button>
 
           {/* Notes toggle */}
@@ -493,9 +542,21 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
 
         {/* Share feedback */}
         {shareFeedback?.type === 'bookmark' && shareFeedback.id === bookmark.id && (
-          <div className="share-feedback-toast">
-            <CopyIcon size={12} />
-            {t('library.linkCopied')}
+          <div className={`share-feedback-toast ${shareFeedback.notShared ? 'not-shared' : ''}`}>
+            {shareFeedback.notShared ? (
+              <span>{t('library.notShared')}</span>
+            ) : (
+              <>
+                <CopyIcon size={12} />
+                <span>{t('library.linkCopied')}</span>
+                <button
+                  className="share-feedback-unshare"
+                  onClick={(e) => handleUnshareBookmark(bookmark, e)}
+                >
+                  {t('library.unshare')}
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -532,15 +593,26 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
           {/* Count badge */}
           <span className="folder-count">{bookmarksInFolder.length}</span>
 
+          {/* Public/Private toggle – always visible globe */}
+          <button
+            className={`folder-globe-toggle-btn ${folder.is_public ? 'public' : 'private'}`}
+            onClick={(e) => handleToggleFolderPublic(folder, e)}
+            title={folder.is_public ? t('library.makePrivate') : t('library.makePublic')}
+          >
+            {folder.is_public ? <GlobeIcon size={14} /> : <GlobeLockIcon size={14} />}
+          </button>
+
+          {/* Share – always visible; copies URL when public, informs when private */}
+          <button
+            className="folder-share-btn"
+            onClick={(e) => handleCopyFolderUrl(folder, e)}
+            title={t('library.copyLink')}
+          >
+            <Share2Icon size={12} />
+          </button>
+
           {/* Actions (visible on hover) */}
           <div className="folder-actions" onClick={(e) => e.stopPropagation()}>
-            <button
-              className={`folder-action-btn ${folder.is_public ? 'active' : ''}`}
-              onClick={(e) => handleToggleFolderShare(folder, e)}
-              title={folder.is_public ? t('library.unshare') : t('library.share')}
-            >
-              <Share2Icon size={14} />
-            </button>
             <button
               className="folder-action-btn"
               onClick={(e) => {
@@ -566,9 +638,21 @@ export default function LibrarySidebar({ isOpen, onClose, onBookmarkCountChange 
           <div className="library-folder-children">
             {/* Share feedback */}
             {shareFeedback?.type === 'folder' && shareFeedback.id === folder.id && (
-              <div className="share-feedback-toast folder-feedback">
-                <CopyIcon size={12} />
-                {t('library.linkCopied')}
+              <div className={`share-feedback-toast folder-feedback ${shareFeedback.notShared ? 'not-shared' : ''}`}>
+                {shareFeedback.notShared ? (
+                  <span>{t('library.notShared')}</span>
+                ) : (
+                  <>
+                    <CopyIcon size={12} />
+                    <span>{t('library.linkCopied')}</span>
+                    <button
+                      className="share-feedback-unshare"
+                      onClick={(e) => handleUnshareFolder(folder, e)}
+                    >
+                      {t('library.unshare')}
+                    </button>
+                  </>
+                )}
               </div>
             )}
             {bookmarksInFolder.length === 0 ? (

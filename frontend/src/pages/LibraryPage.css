@@ -327,6 +327,102 @@
   color: var(--accent-color, var(--palette-primary));
 }
 
+/* Globe toggle button (public/private) */
+.bookmark-globe-toggle-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: var(--muted-text);
+  transition: var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+}
+
+.library-bookmark-card:hover .bookmark-globe-toggle-btn {
+  opacity: 1;
+}
+
+.bookmark-globe-toggle-btn:hover {
+  transform: scale(1.1);
+  color: var(--accent-color, var(--palette-primary));
+}
+
+.bookmark-globe-toggle-btn.public {
+  opacity: 1;
+  color: var(--accent-color, var(--palette-primary));
+}
+
+/* Copy link button (only visible on hover when public) */
+.bookmark-copy-link-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: var(--muted-text);
+  transition: var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+}
+
+.library-bookmark-card:hover .bookmark-copy-link-btn {
+  opacity: 1;
+}
+
+.bookmark-copy-link-btn:hover {
+  transform: scale(1.1);
+  color: var(--accent-color, var(--palette-primary));
+}
+
+/* Share feedback toast (library page) */
+.library-share-feedback-toast {
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  font-size: 11px;
+  color: var(--accent-color, var(--palette-primary));
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  z-index: 10;
+  animation: shareFeedbackFadeIn 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.library-share-feedback-toast.not-shared {
+  color: var(--muted-text);
+}
+
+.library-share-feedback-unshare {
+  background: none;
+  border: none;
+  color: var(--muted-text);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 4px;
+  text-decoration: underline;
+  transition: color var(--transition-fast);
+}
+
+.library-share-feedback-unshare:hover {
+  color: var(--danger-color);
+}
+
+@keyframes shareFeedbackFadeIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
 .library-bookmark-info {
   flex: 1;
   min-width: 0;

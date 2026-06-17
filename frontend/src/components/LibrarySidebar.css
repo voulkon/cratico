@@ -555,7 +555,7 @@
   color: var(--danger-color);
 }
 
-/* Share button – same hover-reveal pattern as notes & delete */
+/* Share button – hidden by default, appears on row hover */
 .bookmark-share-btn {
   background: none;
   border: none;
@@ -579,15 +579,70 @@
   transform: scale(1.15);
 }
 
-/* Always visible when already public */
-.bookmark-share-btn.active {
-  opacity: 1;
+/* Globe toggle button (public/private) - in sidebar */
+.bookmark-globe-toggle-btn {
+  background: none;
+  border: none;
+  font-size: var(--font-md);
+  color: var(--muted-text);
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bookmark-globe-toggle-btn:hover {
+  color: var(--accent-color, var(--palette-primary));
+  transform: scale(1.15);
+}
+
+.bookmark-globe-toggle-btn.public {
   color: var(--accent-color, var(--palette-primary));
 }
 
-/* Folder share button – highlight when public */
-.folder-action-btn.active {
-  opacity: 1;
+/* Folder globe toggle button – always visible, gray when private, accent when public */
+.folder-globe-toggle-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  color: var(--muted-text);
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: var(--spacing-xs);
+}
+
+.folder-globe-toggle-btn:hover {
+  color: var(--accent-color, var(--palette-primary));
+}
+
+.folder-globe-toggle-btn.public {
+  color: var(--accent-color, var(--palette-primary));
+}
+
+/* Folder share button – hidden by default, appears on row hover */
+.folder-share-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  color: var(--muted-text);
+  transition: all var(--transition-fast);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  margin-right: var(--spacing-xs);
+}
+
+.library-folder-tree-header:hover .folder-share-btn {
+  display: flex;
+}
+
+.folder-share-btn:hover {
   color: var(--accent-color, var(--palette-primary));
 }
 
@@ -605,6 +660,22 @@
 
 .share-feedback-toast.folder-feedback {
   padding-left: 36px;
+}
+
+.share-feedback-unshare {
+  background: none;
+  border: none;
+  color: var(--muted-text);
+  cursor: pointer;
+  font-size: 11px;
+  margin-left: auto;
+  padding: 0 4px;
+  text-decoration: underline;
+  transition: color var(--transition-fast);
+}
+
+.share-feedback-unshare:hover {
+  color: var(--danger-color);
 }
 
 @keyframes shareFeedbackFadeIn {
