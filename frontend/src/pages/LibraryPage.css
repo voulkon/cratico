@@ -189,6 +189,11 @@
   color: var(--danger-color);
 }
 
+.library-folder-action-btn.shared {
+  color: var(--accent-color, var(--palette-primary));
+  opacity: 1;
+}
+
 /* === BOOKMARKS CENTER === */
 .library-bookmarks-main {
   flex: 1;
@@ -293,6 +298,33 @@
 
 .library-bookmark-favorite-btn.favorited {
   color: var(--warning-text);
+}
+
+.library-bookmark-share-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: var(--muted-text);
+  transition: var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+}
+
+.library-bookmark-card:hover .library-bookmark-share-btn {
+  opacity: 1;
+}
+
+.library-bookmark-share-btn:hover {
+  transform: scale(1.1);
+  color: var(--accent-color, var(--palette-primary));
+}
+
+.library-bookmark-share-btn.shared {
+  opacity: 1;
+  color: var(--accent-color, var(--palette-primary));
 }
 
 .library-bookmark-info {

@@ -1,8 +1,8 @@
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status, viewsets
-from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from users.models import Bookmark, BookmarkFolder, SearchHistory
 
@@ -29,6 +29,8 @@ class UserDataViewSet(viewsets.ViewSet):
                         "icon": f.icon,
                         "parent_id": f.parent_id,
                         "bookmark_count": f.bookmarks.count(),
+                        "is_public": f.is_public,
+                        "public_slug": f.public_slug,
                         "created_at": f.created_at,
                         "updated_at": f.updated_at,
                     }
@@ -54,6 +56,8 @@ class UserDataViewSet(viewsets.ViewSet):
                     "color": folder.color,
                     "icon": folder.icon,
                     "parent_id": folder.parent_id,
+                    "is_public": folder.is_public,
+                    "public_slug": folder.public_slug,
                 },
                 status=status.HTTP_201_CREATED,
             )
@@ -75,6 +79,13 @@ class UserDataViewSet(viewsets.ViewSet):
                 folder.icon = data["icon"]
             if "parent_id" in data:
                 folder.parent_id = data["parent_id"]
+            if "is_public" in data:
+                was_public = folder.is_public
+                folder.is_public = data["is_public"]
+                if folder.is_public and not was_public:
+                    folder.public_created_at = timezone.now()
+                elif not folder.is_public:
+                    folder.public_created_at = None
 
             folder.save()
             return Response({"updated": True})
@@ -120,6 +131,8 @@ class UserDataViewSet(viewsets.ViewSet):
                         "is_favorite": b.is_favorite,
                         "visit_count": b.visit_count,
                         "last_visited": b.last_visited,
+                        "is_public": b.is_public,
+                        "public_slug": b.public_slug,
                         "created_at": b.created_at,
                         "updated_at": b.updated_at,
                     }
@@ -175,6 +188,8 @@ class UserDataViewSet(viewsets.ViewSet):
                     "is_favorite": bookmark.is_favorite,
                     "visit_count": bookmark.visit_count,
                     "last_visited": bookmark.last_visited,
+                    "is_public": bookmark.is_public,
+                    "public_slug": bookmark.public_slug,
                     "created_at": bookmark.created_at,
                     "updated_at": bookmark.updated_at,
                 }
@@ -196,6 +211,13 @@ class UserDataViewSet(viewsets.ViewSet):
                 bookmark.preview_data = data["preview_data"]
             if "is_favorite" in data:
                 bookmark.is_favorite = data["is_favorite"]
+            if "is_public" in data:
+                was_public = bookmark.is_public
+                bookmark.is_public = data["is_public"]
+                if bookmark.is_public and not was_public:
+                    bookmark.public_created_at = timezone.now()
+                elif not bookmark.is_public:
+                    bookmark.public_created_at = None
 
             bookmark.save()
             return Response({"updated": True})
@@ -260,3 +282,67 @@ class UserDataViewSet(viewsets.ViewSet):
 
         user.save()
         return Response({"updated": True})
+
+
+# ============ PUBLIC SHARING ENDPOINTS ============
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def public_shared_bookmark(request, slug):
+    """Public endpoint: retrieve a shared bookmark by its slug. No auth required."""
+    bookmark = get_object_or_404(Bookmark, public_slug=slug, is_public=True)
+    return Response(
+        {
+            "id": bookmark.id,
+            "title": bookmark.title,
+            "url": bookmark.url,
+            "notes": bookmark.notes,
+            "view_type": bookmark.view_type,
+            "preview_data": bookmark.preview_data,
+            "folder_name": bookmark.folder.name if bookmark.folder else None,
+            "created_at": bookmark.created_at,
+            "updated_at": bookmark.updated_at,
+            "shared_by": bookmark.user.username if hasattr(bookmark.user, "username") else None,
+        }
+    )
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def public_shared_folder(request, slug):
+    """Public endpoint: retrieve a shared folder and its bookmarks by slug. No auth required."""
+    folder = get_object_or_404(BookmarkFolder, public_slug=slug, is_public=True)
+
+    bookmarks = folder.bookmarks.all().order_by("-is_favorite", "title")
+
+    return Response(
+        {
+            "folder": {
+                "id": folder.id,
+                "name": folder.name,
+                "description": folder.description,
+                "color": folder.color,
+                "icon": folder.icon,
+                "bookmark_count": bookmarks.count(),
+                "created_at": folder.created_at,
+                "updated_at": folder.updated_at,
+                "shared_by": folder.user.username if hasattr(folder.user, "username") else None,
+            },
+            "bookmarks": [
+                {
+                    "id": b.id,
+                    "title": b.title,
+                    "url": b.url,
+                    "notes": b.notes,
+                    "view_type": b.view_type,
+                    "preview_data": b.preview_data,
+                    "is_favorite": b.is_favorite,
+                    "folder_name": b.folder.name if b.folder else None,
+                    "created_at": b.created_at,
+                    "updated_at": b.updated_at,
+                }
+                for b in bookmarks
+            ],
+        }
+    )

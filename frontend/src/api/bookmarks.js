@@ -1,4 +1,5 @@
 import apiClient from './client';
+import publicApiClient from './publicClient';
 
 /**
  * Bookmark and folder management API functions
@@ -122,4 +123,47 @@ export async function isCurrentPageBookmarked() {
   const bookmarks = await getBookmarks();
   const currentUrl = window.location.pathname + window.location.search;
   return bookmarks.find(b => b.url === currentUrl);
+}
+
+// ============ PUBLIC SHARING ============
+
+/**
+ * Fetch a publicly shared bookmark by its slug. No auth required.
+ */
+export async function getPublicBookmark(slug) {
+  const response = await publicApiClient.get(`/public/bookmark/${slug}/`);
+  return response.data;
+}
+
+/**
+ * Fetch a publicly shared folder (with its bookmarks) by its slug. No auth required.
+ */
+export async function getPublicFolder(slug) {
+  const response = await publicApiClient.get(`/public/folder/${slug}/`);
+  return response.data;
+}
+
+/**
+ * Toggle the is_public flag on a bookmark and return the updated object.
+ * @param {number} bookmarkId
+ * @param {boolean} makePublic
+ * @returns {Promise<object>} The response data
+ */
+export async function toggleBookmarkPublic(bookmarkId, makePublic) {
+  // The PATCH itself returns {updated: true}, so fetch the full bookmark after
+  await apiClient.patch(`/user-data/${bookmarkId}/bookmarks/`, { is_public: makePublic });
+  const updated = await getBookmark(bookmarkId);
+  return updated;
+}
+
+/**
+ * Toggle the is_public flag on a folder and return the updated object.
+ * @param {number} folderId
+ * @param {boolean} makePublic
+ * @returns {Promise<object>} The updated folder
+ */
+export async function toggleFolderPublic(folderId, makePublic) {
+  await apiClient.patch(`/user-data/${folderId}/folders/`, { is_public: makePublic });
+  const folders = await getFolders();
+  return folders.find(f => f.id === folderId) || null;
 }

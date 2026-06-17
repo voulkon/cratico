@@ -39,7 +39,10 @@ export {
     ChevronLeft,
     ChevronRight,
     GripVertical,
-    FolderPlus as FolderPlusIcon
+    FolderPlus as FolderPlusIcon,
+    Share2 as Share2Icon,
+    Copy as CopyIcon,
+    Forward as ForwardIcon
 } from 'lucide-react';
 
 // export const OrganizationIcon = () => (

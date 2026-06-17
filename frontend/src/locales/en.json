@@ -435,7 +435,10 @@
     "bookmarks": "Bookmarks",
     "dragToReorder": "Drag to move into a folder",
     "dropBookmarksHere": "Drop bookmarks here",
-    "clickToRename": "Click to rename"
+    "clickToRename": "Click to rename",
+    "share": "Make public & copy link",
+    "unshare": "Make private",
+    "linkCopied": "Link copied!"
   },
   "auth": {
     "signInRequired": "Please sign in to access this feature",

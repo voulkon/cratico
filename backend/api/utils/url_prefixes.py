@@ -70,6 +70,7 @@ def get_default_exempt_prefixes():
         "v1/health",  # /api/v1/health - Versioned health check
         "admin",  # /api/admin - Admin interface
         "docs",  # /api/docs - API documentation
+        "public/",  # /api/public/ - Public sharing endpoints (must be unauthenticated)
     ]
 
     # Always include auth module - users MUST be able to login!

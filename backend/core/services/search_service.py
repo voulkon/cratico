@@ -21,9 +21,21 @@ from loguru import logger
 class SearchService:
     """Centralized service for all search functionality"""
 
+    # Minimum character length for effective FTS prefix matching.
+    # Queries shorter than this fall back to simple ILIKE search because
+    # PostgreSQL Greek stemmer doesn't produce lexemes for 1-2 character tokens.
+    MIN_FTS_QUERY_LENGTH = 3
+
     def __init__(self):
         self.cache_timeout = 300  # 5 minutes
-        self.opensearch_service = OpenSearchService()
+        self._opensearch_service = None
+
+    @property
+    def opensearch_service(self):
+        """Lazy-initialize OpenSearchService to avoid overhead on entity-only searches."""
+        if self._opensearch_service is None:
+            self._opensearch_service = OpenSearchService()
+        return self._opensearch_service
 
     # ==================== PREREQUISITE CHECKING ====================
 
@@ -117,6 +129,22 @@ class SearchService:
         raw = " & ".join(f"{w}:*" for w in words if w)
         return SearchQuery(raw, search_type="raw", config=config)
 
+    @staticmethod
+    def _is_query_too_short_for_fts(query: str) -> bool:
+        """
+        Check if a query is too short for effective PostgreSQL FTS prefix matching.
+
+        PostgreSQL's Greek stemmer does not produce lexemes for 1-2 character
+        tokens, so prefix queries like 'δ:*' match nothing. For such short
+        inputs we fall back to simple ILIKE search.
+        """
+        # Strip and split: if the longest word is < MIN_FTS_QUERY_LENGTH chars,
+        # FTS prefix matching will likely produce no results.
+        words = query.strip().split()
+        if not words:
+            return True
+        return max(len(w) for w in words) < SearchService.MIN_FTS_QUERY_LENGTH
+
     # ==================== ORGANIZATION SEARCH (3-TIER) ====================
 
     @query_debugger
@@ -146,6 +174,8 @@ class SearchService:
         if method == SearchMethod.OPENSEARCH:
             return self._search_organizations_opensearch(query, limit)
         elif method == SearchMethod.POSTGRES_FTS:
+            if self._is_query_too_short_for_fts(query):
+                return self._search_organizations_simple(query, limit)
             return self._search_organizations_fts(query, limit)
         else:  # POSTGRES_SIMPLE (default fallback)
             return self._search_organizations_simple(query, limit)
@@ -227,6 +257,8 @@ class SearchService:
         if method == SearchMethod.OPENSEARCH:
             return self._search_units_opensearch(query, organization_id, limit)
         elif method == SearchMethod.POSTGRES_FTS:
+            if self._is_query_too_short_for_fts(query):
+                return self._search_units_simple(query, organization_id, limit)
             return self._search_units_fts(query, organization_id, limit)
         else:
             return self._search_units_simple(query, organization_id, limit)
@@ -257,7 +289,12 @@ class SearchService:
         if organization_id:
             qs = qs.filter(organization__uid=organization_id)
 
-        return qs.select_related("organization").order_by("-rank", "label")[:limit]
+        qs = qs.select_related("organization").order_by("-rank", "label")[:limit]
+
+        logger.debug(
+            f"Unit FTS: query='{query}', found={qs.count()}"
+        )
+        return qs
 
     def _search_units_opensearch(
         self, query: str, organization_id: Optional[str] = None, limit: int = 20
@@ -291,6 +328,8 @@ class SearchService:
         if method == SearchMethod.OPENSEARCH:
             return self._search_signers_opensearch(query, organization_id, limit)
         elif method == SearchMethod.POSTGRES_FTS:
+            if self._is_query_too_short_for_fts(query):
+                return self._search_signers_simple(query, organization_id, limit)
             return self._search_signers_fts(query, organization_id, limit)
         else:
             return self._search_signers_simple(query, organization_id, limit)
@@ -325,9 +364,14 @@ class SearchService:
         if organization_id:
             qs = qs.filter(organization__uid=organization_id)
 
-        return qs.select_related("organization").order_by(
+        qs = qs.select_related("organization").order_by(
             "-rank", "last_name", "first_name"
         )[:limit]
+
+        logger.debug(
+            f"Signer FTS: query='{query}', found={qs.count()}"
+        )
+        return qs
 
     def _search_signers_opensearch(
         self, query: str, organization_id: Optional[str] = None, limit: int = 20
@@ -884,6 +928,8 @@ class SearchService:
         if method == SearchMethod.OPENSEARCH:
             return self._search_companies_opensearch(query, limit)
         elif method == SearchMethod.POSTGRES_FTS:
+            if self._is_query_too_short_for_fts(query):
+                return self._search_companies_simple(query, limit)
             return self._search_companies_fts(query, limit)
         else:
             return self._search_companies_simple(query, limit)
@@ -924,6 +970,9 @@ class SearchService:
             .order_by("-rank", "co_name_el")[:limit]
         )
 
+        logger.debug(
+            f"Company FTS: query='{query}', found={qs.count()}"
+        )
         return qs
 
     def _search_companies_opensearch(self, query: str, limit: int = 20) -> QuerySet:
@@ -956,6 +1005,8 @@ class SearchService:
         if method == SearchMethod.OPENSEARCH:
             return self._search_company_persons_opensearch(query, company_id, limit)
         elif method == SearchMethod.POSTGRES_FTS:
+            if self._is_query_too_short_for_fts(query):
+                return self._search_company_persons_simple(query, company_id, limit)
             return self._search_company_persons_fts(query, company_id, limit)
         else:
             return self._search_company_persons_simple(query, company_id, limit)
@@ -990,7 +1041,12 @@ class SearchService:
         if company_id:
             qs = qs.filter(company_id=company_id)
 
-        return qs.select_related("company").order_by("-rank", "person_name")[:limit]
+        qs = qs.select_related("company").order_by("-rank", "person_name")[:limit]
+
+        logger.debug(
+            f"CompanyPerson FTS: query='{query}', found={qs.count()}"
+        )
+        return qs
 
     def _search_company_persons_opensearch(
         self, query: str, company_id: Optional[int] = None, limit: int = 20
@@ -1023,6 +1079,8 @@ class SearchService:
         if method == SearchMethod.OPENSEARCH:
             return self._search_afm_entities_opensearch(query, limit)
         elif method == SearchMethod.POSTGRES_FTS:
+            if self._is_query_too_short_for_fts(query):
+                return self._search_afm_entities_simple(query, limit)
             return self._search_afm_entities_fts(query, limit)
         else:
             return self._search_afm_entities_simple(query, limit)
@@ -1039,13 +1097,18 @@ class SearchService:
         search_query = self._build_prefix_search_query(query)
         weights = TransliterationService.get_search_rank_weights(query)
 
-        return (
+        qs = (
             AFMEntity.objects.annotate(
                 rank=SearchRank(F("search_vector"), search_query, weights=weights)
             )
             .filter(search_vector=search_query)
             .order_by("-rank", "-total_appearances", "name")[:limit]
         )
+
+        logger.debug(
+            f"AFMEntity FTS: query='{query}', found={qs.count()}"
+        )
+        return qs
 
     def _search_afm_entities_opensearch(
         self, query: str, limit: int = 20
