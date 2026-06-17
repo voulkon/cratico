@@ -55,6 +55,23 @@ def afm_entity_detail(request, afm):
 
         entity_data["company"] = company_data
 
+        # Check if this AFM is currently in the fetch queue (pending or being processed).
+        # This lets the frontend show "in queue" / "processing" across page reloads.
+        queue_status = None
+        try:
+            redis_client = get_redis_connection("default")
+            from api.redis_keys import AFM_FETCH_QUEUE_ACTIVE, AFM_FETCH_QUEUE_PENDING
+
+            if redis_client.sismember(AFM_FETCH_QUEUE_ACTIVE, afm):
+                queue_status = "processing"
+            elif redis_client.zscore(AFM_FETCH_QUEUE_PENDING, afm) is not None:
+                queue_status = "pending"
+        except Exception:
+            # Redis may be temporarily unavailable; degrade gracefully
+            pass
+
+        entity_data["queue_status"] = queue_status
+
         return Response({"entity": entity_data})
 
     except AFMEntity.DoesNotExist:

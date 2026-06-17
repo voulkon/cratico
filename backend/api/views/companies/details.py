@@ -107,12 +107,13 @@ def company_detail(request, company_id):
 @api_view(["GET"])
 @permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
 def company_by_afm(request, afm):
-    """Get the main (non-branch) company for a given AFM, with all related data."""
+    """Get company data for a given AFM, preferring non-branch but falling back to branches."""
 
     try:
         company = (
             Company.objects.prefetch_related("activities", "persons", "capital", "stocks")
-            .filter(afm=afm, is_branch=False)
+            .filter(afm=afm)
+            .order_by("is_branch")  # False (non-branch) sorts before True (branch)
             .first()
         )
         if company is None:
