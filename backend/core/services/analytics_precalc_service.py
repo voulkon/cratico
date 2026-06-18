@@ -54,6 +54,7 @@ def compute_explore_orgs(
     start_date_str: str,
     end_date_str: str,
     limit: int = 6,
+    offset: int = 0,
 ) -> dict:
     """
     Run the explore-organizations DB query and return the response dict.
@@ -66,6 +67,7 @@ def compute_explore_orgs(
         start_date_str: ISO date string "YYYY-MM-DD"
         end_date_str:   ISO date string "YYYY-MM-DD"
         limit:          Max number of orgs to return
+        offset:         Number of orgs to skip (for infinite-scroll pagination)
     """
     from core.models.decisions import Decision  # avoid circular import at module level
 
@@ -78,6 +80,7 @@ def compute_explore_orgs(
     if end_parsed:
         decisions_qs = decisions_qs.filter(issue_date_day__lte=_make_aware_end(end_parsed))
 
+    # Fetch limit+1 to detect has_more for infinite scroll
     organizations = (
         decisions_qs.values("organization__uid", "organization__label")
         .annotate(
@@ -89,8 +92,12 @@ def compute_explore_orgs(
             max_amount=models.Max("amount"),
         )
         .filter(organization__uid__isnull=False)
-        .order_by("-count")[:limit]
+        .order_by("-count")[offset : offset + limit + 1]
     )
+
+    has_more = len(organizations) > limit
+    if has_more:
+        organizations = organizations[:limit]
 
     formatted = []
     for org in organizations:
@@ -110,6 +117,9 @@ def compute_explore_orgs(
     return {
         "organizations": formatted,
         "total_organizations": len(formatted),
+        "has_more": has_more,
+        "offset": offset,
+        "limit": limit,
     }
 
 
@@ -117,28 +127,67 @@ def warm_explore_orgs_window(
     start_date_str: str,
     end_date_str: str,
     end_date: date,
-    limit: int = 6,
+    max_limit: int = 200,
+    page_size: int = 6,
 ) -> None:
     """
-    Compute and cache explore-orgs data for one time window.
+    Compute explore-orgs ONCE with a large limit, then slice into
+    page_size batches and cache each one under the exact key the
+    frontend will request (matching offset + limit).
+
+    Why: the cache key includes both ``limit`` and ``offset``, so a
+    single ``limit=200`` cache entry would never satisfy a frontend
+    request for ``limit=6&offset=12``.  By pre-slicing we cover every
+    paginated request the frontend makes while infinite-scrolling —
+    without re-running the heavy DB query.
 
     Args:
         start_date_str: ISO date string used verbatim in the cache key
         end_date_str:   ISO date string used verbatim in the cache key
         end_date:       Python date for smart TTL selection (historical vs current)
-        limit:          Must match what the frontend sends (homepage sends limit=6)
+        max_limit:      How many orgs to pre-compute in one query
+        page_size:      Frontend's page size — must match what the
+                        OrganizationsSection sends (homepage sends limit=6)
     """
-    data = compute_explore_orgs(start_date_str, end_date_str, limit)
-    cache_key = response_cache.build_key(
-        "explore_orgs",
-        start_date=start_date_str,
-        end_date=end_date_str,
-        limit=str(limit),
-    )
-    response_cache.set(cache_key, data, end_date=end_date)
+    # ── compute ONCE with the large limit ──────────────────────────
+    data = compute_explore_orgs(start_date_str, end_date_str, limit=max_limit)
+
+    full_results: list[dict] = data["organizations"]
+    original_has_more: bool = data["has_more"]
+
+    # ── slice into pages and cache each one ────────────────────────
+    cached = 0
+    for offset in range(0, len(full_results), page_size):
+        page_results = full_results[offset : offset + page_size]
+        if not page_results:
+            break
+
+        # has_more: more items in cache, OR more items in DB beyond max_limit
+        has_more = (offset + page_size < len(full_results)) or original_has_more
+
+        page_data = {
+            "organizations": page_results,
+            "total_organizations": len(page_results),
+            "has_more": has_more,
+            "offset": offset,
+            "limit": page_size,
+        }
+
+        cache_key = response_cache.build_key(
+            "explore_orgs",
+            start_date=start_date_str,
+            end_date=end_date_str,
+            limit=str(page_size),
+            offset=str(offset),
+        )
+        response_cache.set(cache_key, page_data, end_date=end_date)
+        cached += 1
+
     logger.info(
         f"[AnalyticsPrecalc] Warmed explore_orgs "
-        f"[{start_date_str} → {end_date_str}] key={cache_key}"
+        f"[{start_date_str} → {end_date_str}] {cached} pages "
+        f"(max_limit={max_limit}, page_size={page_size}, "
+        f"orgs_cached={len(full_results)})"
     )
 
 
@@ -571,8 +620,8 @@ def warm_explore_decisions_window(
     start_date_str: str,
     end_date_str: str,
     end_date: date,
-    max_limit: int = 100,
-    page_size: int = 20,
+    max_limit: int = 200,
+    page_size: int = 5,
 ) -> None:
     """
     Compute explore-decisions ONCE with a large page size, then slice
@@ -590,7 +639,8 @@ def warm_explore_decisions_window(
         end_date_str:   ISO date string used verbatim in the cache key
         end_date:       Python date for smart TTL selection
         max_limit:      How many decisions to pre-compute in one query
-        page_size:      Frontend's page size — must match the default
+        page_size:      Frontend's page size — must match what the
+                        DecisionsSection sends (homepage sends page_size=5)
     """
     import math
 
@@ -644,7 +694,7 @@ def warm_explore_decisions_window(
             sort_by="entity_amount_desc",
             organization_uid="",
             entity_afm="",
-            direct_assignments_only="False",
+            direct_assignments_only="",
         )
         response_cache.set(cache_key, page_data, end_date=end_date)
         cached += 1

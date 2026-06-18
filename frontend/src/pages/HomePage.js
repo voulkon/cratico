@@ -1,15 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useAuthConfig } from '../contexts/AuthConfigContext';
 import { DateRangeProvider, useDateRange } from '../contexts/DateRangeContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import apiClient from '../api/client';
 import SuperSearch from '../components/SuperSearch';
 import TopRelationshipPairs from '../components/TopRelationshipPairs';
 import DateRangeSelector from '../components/DateRangeSelector';
-import DashboardGrid, { DashboardSectionLoading, CollapsibleSection } from '../components/DashboardGrid';
+import DashboardGrid from '../components/DashboardGrid';
+import OrganizationsSection from '../components/OrganizationsSection';
+import DecisionsSection from '../components/DecisionsSection';
 import './HomePage.css';
 
 /**
@@ -26,51 +27,7 @@ import './HomePage.css';
 const DashboardData = () => {
   useDocumentTitle('Home');
   const navigate = useNavigate();
-  const { t } = useTranslation();
   const { dateRange } = useDateRange();
-  const [topOrganizations, setTopOrganizations] = useState([]);
-  const [recentDecisions, setRecentDecisions] = useState([]);
-  const [gridLoading, setGridLoading] = useState(true);
-
-  const loadGridData = async () => {
-    if (!dateRange) return;
-
-    try {
-      setGridLoading(true);
-
-      const [
-        organizationsResponse,
-        decisionsResponse
-      ] = await Promise.all([
-        apiClient.get(`/explore/organizations/?start_date=${dateRange.start_date}&end_date=${dateRange.end_date}&limit=6`),
-        apiClient.get(
-          `/explore/decisions-optimized/?start_date=${dateRange.start_date}&end_date=${dateRange.end_date}&sort_by=entity_amount_desc&page_size=5`
-        )
-      ]);
-
-      setTopOrganizations(organizationsResponse.data.organizations || []);
-      setRecentDecisions(decisionsResponse.data.results || []);
-
-    } catch (error) {
-      console.error('Failed to load grid data:', error);
-    } finally {
-      setGridLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadGridData();
-    // eslint-disable-next-line
-  }, [dateRange]);
-
-  const formatAmount = (amount) => {
-    if (amount >= 1000000) {
-      return `€${(amount / 1000000).toFixed(1)}M`;
-    } else if (amount >= 1000) {
-      return `€${(amount / 1000).toFixed(0)}K`;
-    }
-    return `€${amount?.toLocaleString() || 0}`;
-  };
 
   return (
     <DashboardGrid columns={2} collapsible header={<DateRangeSelector />}>
@@ -85,77 +42,17 @@ const DashboardData = () => {
         />
       </DashboardGrid.Featured>
 
-      {/* Column 1 — Most Active Organizations */}
-      {gridLoading ? (
-        <DashboardSectionLoading message={t('homepage.loading')} />
-      ) : (
-        <CollapsibleSection
-          title={t('homepage.mostActiveOrganizations')}
-          onSeeAll={() => navigate(`/explore/temporal/${dateRange.start_date}/${dateRange.end_date}`)}
-          collapsible
-        >
-          <div className="dashboard-section-info">
-            <span>{topOrganizations.length} {t('homepage.organizations') || 'organizations'}</span>
-          </div>
-          <div className="dashboard-section-scroll">
-            {topOrganizations.slice(0, 5).map((org, index) => (
-              <button
-                key={org.uid}
-                className="dashboard-item-card"
-                onClick={() => navigate(`/entity/organization/${org.uid}`)}
-              >
-                <span className="dashboard-rank">#{index + 1}</span>
-                <div className="dashboard-item-body">
-                  <div className="dashboard-item-title">{org.label}</div>
-                  <div className="dashboard-item-meta">
-                    <span>{org.count} {t('homepage.decisions')}</span>
-                  </div>
-                </div>
-                <span className="dashboard-item-amount">{formatAmount(org.total_amount)}</span>
-              </button>
-            ))}
-          </div>
-        </CollapsibleSection>
-      )}
+      {/* Column 1 — Most Active Organizations (infinite scroll) */}
+      <OrganizationsSection
+        onSeeAll={() => navigate(`/explore/temporal/${dateRange.start_date}/${dateRange.end_date}`)}
+        collapsible
+      />
 
-      {/* Column 2 — Notable Recent Decisions */}
-      {gridLoading ? (
-        <DashboardSectionLoading message={t('homepage.loading')} />
-      ) : (
-        <CollapsibleSection
-          title={t('homepage.notableRecentDecisions')}
-          onSeeAll={() => navigate(`/explore/temporal/${dateRange.start_date}/${dateRange.end_date}?sort_by=amount_desc`)}
-          collapsible
-        >
-          <div className="dashboard-section-info">
-            <span>{recentDecisions.length} {t('homepage.decisions')}</span>
-          </div>
-          <div className="dashboard-section-scroll">
-            {recentDecisions.slice(0, 5).map((decision, index) => (
-              <button
-                key={decision.ada}
-                className="dashboard-item-card"
-                onClick={() => navigate(`/decision/${decision.id}`)}
-              >
-                <span className="dashboard-rank">#{index + 1}</span>
-                <div className="dashboard-item-body">
-                  <div className="dashboard-item-title">
-                    {decision.subject.length > 80
-                      ? `${decision.subject.substring(0, 80)}...`
-                      : decision.subject}
-                  </div>
-                  <div className="dashboard-item-subtitle">
-                    {decision.organization?.label && decision.organization.label.length > 40
-                      ? `${decision.organization.label.substring(0, 40)}...`
-                      : decision.organization?.label}
-                  </div>
-                </div>
-                <span className="dashboard-item-amount">{formatAmount(decision.amount)}</span>
-              </button>
-            ))}
-          </div>
-        </CollapsibleSection>
-      )}
+      {/* Column 2 — Notable Recent Decisions (infinite scroll) */}
+      <DecisionsSection
+        onSeeAll={() => navigate(`/explore/temporal/${dateRange.start_date}/${dateRange.end_date}?sort_by=amount_desc`)}
+        collapsible
+      />
     </DashboardGrid>
   );
 };

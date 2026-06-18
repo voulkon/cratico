@@ -19,8 +19,8 @@
 .dashboard-grid-header {
   padding: var(--spacing-lg, 16px) var(--spacing-xl);
   border-bottom: 1px solid var(--border-color);
-  /* Leave room for the collapse toggle in the top-right */
-  padding-right: calc(var(--spacing-xl) + 36px);
+  /* Leave room for the collapse toggle on the left */
+  padding-left: calc(var(--spacing-xl) + 36px);
   transition: padding 0.25s ease, opacity 0.25s ease;
 }
 
@@ -312,15 +312,23 @@
   margin: 10px 0;
 }
 
+/* ── Empty state ──────────────────────────────────────────────── */
+.dashboard-empty {
+  text-align: center;
+  color: var(--muted-text);
+  font-size: 0.85rem;
+  padding: var(--spacing-lg);
+}
+
 /* ════════════════════════════════════════════════════════════════
    Collapse / Fold — grid-level and section-level toggles
    ════════════════════════════════════════════════════════════════ */
 
-/* ── OS‑style collapse toggle (top‑right corner) ──────────────── */
+/* ── OS‑style collapse toggle (top‑left corner) ───────────────── */
 .dashboard-grid-collapse-toggle {
   position: absolute;
   top: 10px;
-  right: 12px;
+  left: 12px;
   z-index: 2;
   display: flex;
   align-items: center;
@@ -342,7 +350,8 @@
 }
 
 /* Larger chevron inside the OS‑style button */
-.dashboard-grid-collapse-toggle .dashboard-collapse-chevron {
+.dashboard-grid-collapse-toggle .dashboard-collapse-chevron,
+.dashboard-section-collapse-toggle .dashboard-collapse-chevron {
   width: 7px;
   height: 7px;
 }
@@ -355,8 +364,8 @@
 .dashboard-grid--collapsed .dashboard-grid-collapse-toggle {
   position: relative;     /* let it sit naturally in the thin bar */
   top: auto;
-  right: auto;
-  margin: 10px 12px 10px auto;
+  left: auto;
+  margin: 10px auto 10px 12px;
 }
 
 /* ── Section collapse toggle (in header) ──────────────────────── */
@@ -372,19 +381,21 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: none;
-  border: none;
+  width: 28px;
+  height: 28px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
   cursor: pointer;
-  padding: 2px;
-  border-radius: var(--radius-sm, 4px);
   color: var(--muted-text);
   flex-shrink: 0;
-  transition: color 0.2s ease, background 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
 .dashboard-section-collapse-toggle:hover {
-  color: var(--palette-primary);
   background: var(--hover-bg);
+  border-color: var(--palette-primary);
+  color: var(--palette-primary);
 }
 
 /* ── Shared chevron icon (CSS-only, no icon lib needed) ───────── */
@@ -394,13 +405,13 @@
   height: 10px;
   border-right: 2px solid currentColor;
   border-bottom: 2px solid currentColor;
-  transform: rotate(-135deg);  /* ▼ pointing down when expanded */
+  transform: rotate(45deg);    /* ▲ pointing up when expanded → click collapses */
   transition: transform 0.25s ease;
   flex-shrink: 0;
 }
 
 .dashboard-collapse-chevron--collapsed {
-  transform: rotate(-45deg);   /* ▶ pointing right when collapsed */
+  transform: rotate(-135deg);  /* ▼ pointing down when collapsed → click expands */
 }
 
 /* ── Section collapse body (animate in/out) ───────────────────── */

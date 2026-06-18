@@ -779,11 +779,17 @@ def explore_decision_types_api_dev(request):
             description="Maximum number of organizations to return",
             type=openapi.TYPE_INTEGER,
         ),
+        openapi.Parameter(
+            "offset",
+            openapi.IN_QUERY,
+            description="Number of organizations to skip (for infinite-scroll pagination)",
+            type=openapi.TYPE_INTEGER,
+        ),
     ],
 )
 @cached_view(
     cache_prefix="explore_orgs",
-    cache_params=["start_date", "end_date", "limit"],
+    cache_params=["start_date", "end_date", "limit", "offset"],
     end_date_param="end_date",
 )
 @api_view(["GET"])
@@ -794,11 +800,12 @@ def explore_organizations_api_dev(request):
     start_date_str = request.GET.get("start_date")
     end_date_str = request.GET.get("end_date")
     limit = int(request.GET.get("limit", 50))
+    offset = int(request.GET.get("offset", 0))
 
     try:
         from core.services.analytics_precalc_service import compute_explore_orgs
 
-        return Response(compute_explore_orgs(start_date_str, end_date_str, limit))
+        return Response(compute_explore_orgs(start_date_str, end_date_str, limit, offset))
 
     except Exception as e:
         import traceback
