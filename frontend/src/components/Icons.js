@@ -12,6 +12,7 @@ export {
     File as FileIcon,
     BookOpen as BookOpenIcon,
     Globe as GlobeIcon,
+    GlobeLock as GlobeLockIcon,
     Paperclip as PaperclipIcon,
     Search as SearchIcon,
     Wrench as WrenchIcon,

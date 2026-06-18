@@ -1,18 +1,11 @@
 from api.utils.date_utils import _parse_optional_date_range
-from api.utils.sorting import apply_decision_sorting
 from core.decorators.cache_decorator import cached_view
-from core.models.decisions import Decision
-from core.services.feature_flag_service import feature_flags
 from django.conf import settings
-from django.core.paginator import Paginator
-from django.db import models
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-
-from .base import serialize_decision_with_entities
 
 
 @swagger_auto_schema(
@@ -182,199 +175,31 @@ def explore_decisions_optimized_api(request):
         return Response({"error": "Invalid amount format"}, status=400)
 
     try:
-        from core.models.entities import DecisionEntityRelationship
-
         # Parse date range via shared helper
         start_dt, end_dt, err = _parse_optional_date_range(request)
         if err:
             return err
 
-        # Get all decisions with date-range filter applied via custom queryset
-        decisions_qs = Decision.objects.filter_by_date_range(start_dt, end_dt)
+        from core.services.analytics_precalc_service import compute_explore_decisions
 
-        # Apply search filter
-        if search_query:
-            # Always search by subject and ADA (decision metadata)
-            q_filter = models.Q(subject__icontains=search_query) | models.Q(
-                ada__icontains=search_query
-            )
-
-            # Only search content if PostgreSQL indexing is enabled
-            if feature_flags.is_enabled("INDEX_THE_POSTGRES"):
-                from django.contrib.postgres.search import SearchQuery
-
-                search_query_obj = SearchQuery(search_query)
-                q_filter |= models.Q(text_extraction__search_vector=search_query_obj)
-
-            decisions_qs = decisions_qs.filter(q_filter).distinct()
-
-        # Apply filters
-        if status_filter:
-            decisions_qs = decisions_qs.filter(status=status_filter)
-        if decision_type_uids:
-            decisions_qs = decisions_qs.filter(
-                decision_type__uid__in=decision_type_uids
-            )
-        if organization_uid:
-            decisions_qs = decisions_qs.filter(organization__uid=organization_uid)
-        if organization_ids:
-            decisions_qs = decisions_qs.filter(organization__uid__in=organization_ids)
-        if entity_afm:
-            # Filter decisions that have a relationship with this entity
-            decisions_qs = decisions_qs.filter(
-                id__in=DecisionEntityRelationship.objects.filter(
-                    entity__afm=entity_afm
-                ).values_list("decision_id", flat=True)
-            )
-        if min_amount is not None:
-            decisions_qs = decisions_qs.filter(amount__gte=min_amount)
-        if max_amount is not None:
-            decisions_qs = decisions_qs.filter(amount__lte=max_amount)
-        if direct_assignments_only:
-            # Filter to show only direct assignment decisions
-            decisions_qs = decisions_qs.filter(
-                classification__is_direct_assignment=True
-            )
-
-        # Annotate with entity amounts for sorting
-        from django.db.models import DecimalField, OuterRef, Subquery, Sum
-
-        # Subquery to get total entity amount per decision (excluding 'org' role)
-        entity_amounts = (
-            DecisionEntityRelationship.objects.filter(decision_id=OuterRef("pk"))
-            .exclude(role__iexact="org")
-            .values("decision_id")
-            .annotate(total=Sum("linked_amounts__amount"))
-            .values("total")
+        response_data = compute_explore_decisions(
+            start_dt=start_dt,
+            end_dt=end_dt,
+            start_date_str=start_date_str,
+            end_date_str=end_date_str,
+            page=page,
+            page_size=page_size,
+            search_query=search_query,
+            status_filter=status_filter,
+            sort_by=sort_by,
+            organization_uid=organization_uid,
+            entity_afm=entity_afm,
+            decision_type_uids=decision_type_uids,
+            organization_ids=organization_ids,
+            min_amount=min_amount,
+            max_amount=max_amount,
+            direct_assignments_only=direct_assignments_only,
         )
-
-        decisions_qs = decisions_qs.annotate(
-            entity_total_amount=Subquery(entity_amounts, output_field=DecimalField())
-        )
-
-        # Apply sorting
-        if sort_by == "entity_amount_desc":
-            # Sort by entity amount (highest first), then by decision amount, then by date
-            decisions_qs = decisions_qs.annotate(
-                sort_amount=models.Case(
-                    models.When(
-                        entity_total_amount__isnull=False,
-                        then=models.F("entity_total_amount"),
-                    ),
-                    models.When(amount__isnull=False, then=models.F("amount")),
-                    default=models.Value(-999999999),
-                    output_field=models.DecimalField(),
-                )
-            ).order_by("-sort_amount", "-issue_date_day")
-        elif sort_by == "entity_amount_asc":
-            decisions_qs = decisions_qs.annotate(
-                sort_amount=models.Case(
-                    models.When(
-                        entity_total_amount__isnull=False,
-                        then=models.F("entity_total_amount"),
-                    ),
-                    models.When(amount__isnull=False, then=models.F("amount")),
-                    default=models.Value(999999999),
-                    output_field=models.DecimalField(),
-                )
-            ).order_by("sort_amount", "-issue_date_day")
-        elif sort_by == "recent":
-            decisions_qs = decisions_qs.order_by("-issue_date_day")
-        else:
-            # Default to entity amount desc
-            decisions_qs = decisions_qs.annotate(
-                sort_amount=models.Case(
-                    models.When(
-                        entity_total_amount__isnull=False,
-                        then=models.F("entity_total_amount"),
-                    ),
-                    models.When(amount__isnull=False, then=models.F("amount")),
-                    default=models.Value(-999999999),
-                    output_field=models.DecimalField(),
-                )
-            ).order_by("-sort_amount", "-issue_date_day")
-
-        # Optimize with select_related and prefetch_related
-        decisions_qs = decisions_qs.select_related(
-            "decision_type", "organization", "text_extraction"
-        ).prefetch_related("kae_amounts", "signers")
-
-        # Pagination
-        paginator = Paginator(decisions_qs, page_size)
-        page_obj = paginator.get_page(page)
-
-        # Get decision IDs for this page
-        decision_ids = [d.id for d in page_obj]
-
-        # Fetch all entity relationships for these decisions in one query
-        entity_relationships_qs = (
-            DecisionEntityRelationship.objects.filter(decision_id__in=decision_ids)
-            .select_related("entity")
-            .annotate(total_amount=Sum("linked_amounts__amount"))
-        )
-
-        # Group entity relationships by decision_id
-        relationships_by_decision = {}
-        for rel in entity_relationships_qs:
-            if rel.decision_id not in relationships_by_decision:
-                relationships_by_decision[rel.decision_id] = []
-
-            relationships_by_decision[rel.decision_id].append(
-                {
-                    "role": rel.role,
-                    "entity": {
-                        "afm": rel.entity.afm,
-                        "name": rel.entity.name,
-                        "entity_type": rel.entity.entity_type,
-                    },
-                    "total_amount": float(rel.total_amount) if rel.total_amount else 0,
-                }
-            )
-
-        # Serialize results with entity data
-        results = []
-        for decision in page_obj:
-            entity_rels = relationships_by_decision.get(decision.id, [])
-            decision_data = serialize_decision_with_entities(decision, entity_rels)
-
-            # Add organization for temporal exploration
-            if decision.organization:
-                decision_data["organization"] = {
-                    "uid": decision.organization.uid,
-                    "label": decision.organization.label,
-                }
-            results.append(decision_data)
-
-        response_data = {
-            "results": results,
-            "pagination": {
-                "current_page": page,
-                "total_pages": paginator.num_pages,
-                "total_count": paginator.count,
-                "has_next": page_obj.has_next(),
-                "has_previous": page_obj.has_previous(),
-                "page_size": page_size,
-            },
-            "filters": {
-                "search_query": search_query,
-                "status": status_filter,
-                "start_date": start_date_str,
-                "end_date": end_date_str,
-                "sort_by": sort_by,
-                "organization_uid": organization_uid,
-                "entity_afm": entity_afm,
-                "decision_types": decision_types_str,
-                "organization_ids": organization_ids_str,
-                "min_amount": min_amount,
-                "max_amount": max_amount,
-                "direct_assignments_only": direct_assignments_only,
-            },
-            "optimization_info": {
-                "entity_data_included": True,
-                "eliminates_n_plus_1": True,
-                "default_sort": "entity_amount_desc",
-            },
-        }
 
         return Response(response_data)
 

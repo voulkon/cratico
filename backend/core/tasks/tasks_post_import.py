@@ -182,8 +182,9 @@ def warm_analytics_cache(reference_date_str: str | None = None):
     cache keys match exactly.
 
     Views warmed:
-      - explore_orgs  (explore/organizations/)
-      - da_top_pairs  (direct-assignments/top-pairs/)
+      - explore_orgs       (explore/organizations/)
+      - da_top_pairs       (direct-assignments/top-pairs/)
+      - explore_decisions  (explore/decisions/)
 
     Args:
         reference_date_str: ISO-format date string. Defaults to today.
@@ -194,6 +195,7 @@ def warm_analytics_cache(reference_date_str: str | None = None):
 
     from core.services.analytics_precalc_service import (
         warm_da_top_pairs_window,
+        warm_explore_decisions_window,
         warm_explore_orgs_window,
     )
 
@@ -215,8 +217,9 @@ def warm_analytics_cache(reference_date_str: str | None = None):
         end_str = end.isoformat()
 
         for view_name, warm_fn, kwargs in [
-            ("explore_orgs", warm_explore_orgs_window, {"limit": 6}),
+            ("explore_orgs", warm_explore_orgs_window, {"max_limit": 200, "page_size": 6}),
             ("da_top_pairs", warm_da_top_pairs_window, {"max_limit": 50, "page_size": 6}),
+            ("explore_decisions", warm_explore_decisions_window, {"max_limit": 200, "page_size": 5}),
         ]:
             try:
                 warm_fn(

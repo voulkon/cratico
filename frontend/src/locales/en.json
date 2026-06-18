@@ -437,8 +437,12 @@
     "dropBookmarksHere": "Drop bookmarks here",
     "clickToRename": "Click to rename",
     "share": "Make public & copy link",
+    "copyLink": "Copy share link",
     "unshare": "Make private",
-    "linkCopied": "Link copied!"
+    "makePublic": "Make public",
+    "makePrivate": "Make private",
+    "linkCopied": "Link copied!",
+    "notShared": "Not public – make public to share"
   },
   "auth": {
     "signInRequired": "Please sign in to access this feature",

@@ -4,7 +4,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from users.models import Bookmark, BookmarkFolder, SearchHistory
+from users.models import Bookmark, BookmarkFolder, SearchHistory, _generate_public_slug
 
 
 class UserDataViewSet(viewsets.ViewSet):
@@ -84,8 +84,11 @@ class UserDataViewSet(viewsets.ViewSet):
                 folder.is_public = data["is_public"]
                 if folder.is_public and not was_public:
                     folder.public_created_at = timezone.now()
+                    if not folder.public_slug:
+                        folder.public_slug = _generate_public_slug()
                 elif not folder.is_public:
                     folder.public_created_at = None
+                    folder.public_slug = None  # Invalidate old share link
 
             folder.save()
             return Response({"updated": True})
@@ -216,8 +219,11 @@ class UserDataViewSet(viewsets.ViewSet):
                 bookmark.is_public = data["is_public"]
                 if bookmark.is_public and not was_public:
                     bookmark.public_created_at = timezone.now()
+                    if not bookmark.public_slug:
+                        bookmark.public_slug = _generate_public_slug()
                 elif not bookmark.is_public:
                     bookmark.public_created_at = None
+                    bookmark.public_slug = None  # Invalidate old share link
 
             bookmark.save()
             return Response({"updated": True})
