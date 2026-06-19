@@ -287,16 +287,22 @@ const TopRelationshipPairs = ({
                 <div className="pair-names">
                   <div className="pair-org">
                     <span className="pair-label">
-                      <OrganizationIcon size={16} className="pair-icon" /> {orgLabel}
+                      <OrganizationIcon size={16} className="pair-icon" />
+                      <span className="pair-label-text">{orgLabel}</span>
                     </span>
-                    <span className="pair-id">{t('relationships.uidLabel')}: {orgUid}</span>
                   </div>
                   <div className="pair-connector">⇄</div>
                   <div className="pair-entity">
                     <span className="pair-label">
-                      <EntityIcon size={16} className="pair-icon" /> {entityName}
+                      <EntityIcon size={16} className="pair-icon" />
+                      <span className="pair-label-text">{entityName}</span>
                     </span>
-                    <span className="pair-id">{t('relationships.afmLabel')}: {entityAfm}</span>
+                    <div className="pair-entity-details">
+                      <span className="pair-id">{t('relationships.afmLabel')}: {entityAfm}</span>
+                      {pair['entity__entity_type'] && (
+                        <span className="pair-entity-type">{pair['entity__entity_type']}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
