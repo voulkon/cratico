@@ -288,14 +288,14 @@ const TopRelationshipPairs = ({
                   <div className="pair-org">
                     <span className="pair-label">
                       <OrganizationIcon size={16} className="pair-icon" />
-                      <span className="pair-label-text">{orgLabel}</span>
+                      <span className="pair-label-text" title={orgLabel}>{orgLabel}</span>
                     </span>
                   </div>
                   <div className="pair-connector">⇄</div>
                   <div className="pair-entity">
                     <span className="pair-label">
                       <EntityIcon size={16} className="pair-icon" />
-                      <span className="pair-label-text">{entityName}</span>
+                      <span className="pair-label-text" title={entityName}>{entityName}</span>
                     </span>
                     <div className="pair-entity-details">
                       <span className="pair-id">{t('relationships.afmLabel')}: {entityAfm}</span>

@@ -85,6 +85,18 @@ const OrganizationsSection = ({
     onLoadMore: loadMore,
   });
 
+  // Track which card indices are expanded
+  const [expandedCards, setExpandedCards] = useState(new Set());
+
+  const toggleExpand = useCallback((index, e) => {
+    e.stopPropagation();
+    setExpandedCards(prev => {
+      const next = new Set(prev);
+      next.has(index) ? next.delete(index) : next.add(index);
+      return next;
+    });
+  }, []);
+
   if (loading) {
     return <DashboardSectionLoading message={t('homepage.loading')} />;
   }
@@ -125,9 +137,24 @@ const OrganizationsSection = ({
                 className="dashboard-item-card"
                 onClick={() => navigate(`/entity/organization/${org.uid}`)}
               >
-                <span className="dashboard-rank">#{index + 1}</span>
+                <div className="dashboard-item-left">
+                  <span className="dashboard-rank">#{index + 1}</span>
+                  <button
+                    className="dashboard-item-expand-toggle"
+                    onClick={(e) => toggleExpand(index, e)}
+                    aria-expanded={expandedCards.has(index)}
+                    title={expandedCards.has(index) ? 'Collapse' : 'Expand'}
+                  >
+                    <span
+                      className={`dashboard-collapse-chevron${expandedCards.has(index) ? '' : ' dashboard-collapse-chevron--collapsed'}`}
+                      aria-hidden="true"
+                    />
+                  </button>
+                </div>
                 <div className="dashboard-item-body">
-                  <div className="dashboard-item-title">{org.label}</div>
+                  <div className={`dashboard-item-title${expandedCards.has(index) ? ' dashboard-item-title--expanded' : ''}`}>
+                    {org.label}
+                  </div>
                   <div className="dashboard-item-meta">
                     <span>{org.count} {t('homepage.decisions')}</span>
                   </div>
