@@ -4,6 +4,7 @@ import { useTranslation } from '../contexts/TranslationContext';
 import useTopCounterparts from '../hooks/useTopCounterparts';
 import useTopOrganizations from '../hooks/useTopOrganizations';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
+import CounterpartStats from './CounterpartStats';
 import './TopCounterparts.css';
 
 /**
@@ -50,14 +51,6 @@ const TopCounterparts = ({
     onLoadMore: loadMore,
     enabled: true,
   });
-
-  const formatAmount = (amount) => {
-    if (!amount || amount === 0) return t('common.noAmount');
-    return `€${amount.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    })}`;
-  };
 
   const handleCounterpartClick = (counterpart) => {
     if (onCounterpartClick) {
@@ -157,16 +150,10 @@ const TopCounterparts = ({
                     <span className="entity-type-badge">{t(`entityTypes.${entityType}`)}</span>
                   )}
                 </div>
-                <div className="counterpart-stats">
-                  <div className="stat-item">
-                    <span className="stat-label">{t('counterparts.totalAmount')}</span>
-                    <span className="stat-value amount">{formatAmount(counterpart.total_amount)}</span>
-                  </div>
-                  <div className="stat-item">
-                    <span className="stat-label">{t('counterparts.decisions')}</span>
-                    <span className="stat-value count">{counterpart.decision_count}</span>
-                  </div>
-                </div>
+                <CounterpartStats
+                  totalAmount={counterpart.total_amount}
+                  decisionCount={counterpart.decision_count}
+                />
               </button>
             );
           })}

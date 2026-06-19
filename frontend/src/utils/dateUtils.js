@@ -46,13 +46,9 @@ export const createDateRangeUtils = () => {
   };
 };
 
-export const formatAmount = (amount) => {
-  if (!amount || amount === 0) return 'No amount';
-  return `€${amount.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })}`;
-};
+// Re-exported from utils/format.js for backward compatibility.
+// Prefer importing directly from '../utils/format' in new code.
+export { formatAmount } from './format';
 
 export const formatDate = (dateString, options = {}) => {
   if (!dateString) return '';

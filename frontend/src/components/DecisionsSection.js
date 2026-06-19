@@ -5,17 +5,9 @@ import { useDateRange } from '../contexts/DateRangeContext';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import useDecisionsList from '../hooks/useDecisionsList';
 import { CollapsibleSection, DashboardSectionLoading } from './DashboardGrid';
+import { formatCompactAmount } from '../utils/format';
 
 const PAGE_SIZE = 5;
-
-const formatAmount = (amount) => {
-  if (amount >= 1000000) {
-    return `€${(amount / 1000000).toFixed(1)}M`;
-  } else if (amount >= 1000) {
-    return `€${(amount / 1000).toFixed(0)}K`;
-  }
-  return `€${amount?.toLocaleString() || 0}`;
-};
 
 /**
  * DecisionsSection — Infinite-scroll list of notable recent decisions.
@@ -115,7 +107,7 @@ const DecisionsSection = ({
                       : decision.organization?.label}
                   </div>
                 </div>
-                <span className="dashboard-item-amount">{formatAmount(decision.amount)}</span>
+                <span className="dashboard-item-amount">{formatCompactAmount(decision.amount)}</span>
               </button>
             ))}
 

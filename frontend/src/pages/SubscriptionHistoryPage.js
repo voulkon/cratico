@@ -11,6 +11,7 @@ import './SubscriptionHistoryPage.css';
 // Import shared components
 import DecisionListView from '../components/DecisionListView';
 import SubscriptionMetadataHeader from '../components/SubscriptionMetadataHeader';
+import { formatAmount } from '../utils/format';
 
 /**
  * Page showing all decisions from a subscription across all batches
@@ -117,15 +118,6 @@ const SubscriptionHistoryPage = () => {
       hour: '2-digit',
       minute: '2-digit'
     });
-  };
-
-  // Format amount helper
-  const formatAmount = (amount) => {
-    if (amount === null || amount === undefined) return 'N/A';
-    return `€${amount.toLocaleString('el-GR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    })}`;
   };
 
   // Loading state

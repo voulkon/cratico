@@ -5,17 +5,9 @@ import { useDateRange } from '../contexts/DateRangeContext';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import apiClient from '../api/client';
 import { CollapsibleSection, DashboardSectionLoading } from './DashboardGrid';
+import { formatCompactAmount } from '../utils/format';
 
 const PAGE_SIZE = 6;
-
-const formatAmount = (amount) => {
-  if (amount >= 1000000) {
-    return `€${(amount / 1000000).toFixed(1)}M`;
-  } else if (amount >= 1000) {
-    return `€${(amount / 1000).toFixed(0)}K`;
-  }
-  return `€${amount?.toLocaleString() || 0}`;
-};
 
 /**
  * OrganizationsSection — Infinite-scroll list of most active organizations.
@@ -140,7 +132,7 @@ const OrganizationsSection = ({
                     <span>{org.count} {t('homepage.decisions')}</span>
                   </div>
                 </div>
-                <span className="dashboard-item-amount">{formatAmount(org.total_amount)}</span>
+                <span className="dashboard-item-amount">{formatCompactAmount(org.total_amount)}</span>
               </button>
             ))}
 
