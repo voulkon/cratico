@@ -1,4 +1,21 @@
-/* Left controls container - Logo + Library button */
+/* ── Background strip ──────────────────────────────────────── */
+/* Full-width band that prevents scrolled content from bleeding
+   through the transparent/blurred control buttons.
+   Rendered as a sibling of TopControls in App.js, conditionally.
+   Sits below controls (1003) and overlay (1002), above content. */
+.top-controls-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--top-controls-offset);
+  background: var(--bg-color);
+  z-index: 1001;
+  pointer-events: none;
+}
+
+/* Left controls container - Logo.
+   Stays fixed at top-left so it's always visible regardless of scroll. */
 .left-controls {
   position: fixed;
   top: var(--spacing-md);
@@ -20,35 +37,39 @@
   /* Ensure logo aligns with right controls */
   display: flex;
   align-items: center;
-  height: 30px; /* Match the reduced height of control buttons */
+  height: var(--top-controls-height);
 }
 
-/* Top controls wrapper - Contains collapse button and controls */
+/* Top controls wrapper — fixed to the viewport top-right.
+   max-width = reserved space minus the right margin so it can
+   never be wider than what .main-area's padding-right reserves. */
 .top-controls-wrapper {
   position: fixed;
+  top: var(--spacing-md);
+  right: var(--spacing-md);
   z-index: 1003;
   display: flex;
-  align-items: flex-start; /* Align to top, not center */
+  align-items: flex-start;
   gap: var(--spacing-sm);
-  transition: transform var(--transition-normal), opacity var(--transition-normal);
+  max-width: calc(var(--controls-expanded-width) - var(--spacing-md));
+  transition: opacity var(--transition-normal), transform var(--transition-normal);
 }
 
-/* Wrapper positioning based on layout */
+/* Wrapper positioning variants */
 .top-controls-wrapper.horizontal-right,
 .top-controls-wrapper.vertical-right,
 .top-controls-wrapper.split-corners {
-  top: var(--spacing-md);
-  right: var(--spacing-md);
+  justify-content: flex-end;
 }
 
-/* For vertical layouts, make wrapper a column too */
 .top-controls-wrapper.vertical-right {
-  flex-direction: row; /* Chevron and controls side-by-side */
+  flex-direction: row;
 }
 
 .top-controls-wrapper.horizontal-left,
 .top-controls-wrapper.vertical-left {
   top: var(--spacing-md);
+  right: auto;
   left: var(--spacing-md);
 }
 
@@ -56,11 +77,17 @@
   flex-direction: row;
 }
 
-/* Collapsed state - slide to the right, showing only the toggle button */
+/* Collapsed — slide right until only the toggle button peeks out.
+   translateX = (wrapper max-width) - (toggle width) - (gap)
+   ≈ (expanded - margin) - toggle - gap */
 .top-controls-wrapper.collapsed {
-  transform: translateX(calc(100% - 42px)); /* 30px toggle + 12px right spacing */
+  transform: translateX(calc(var(--controls-expanded-width) - var(--controls-collapsed-width)));
 }
 
+.top-controls-wrapper.collapsed .top-controls {
+  opacity: 0;
+  pointer-events: none;
+}
 /* Collapse/Expand Toggle Button */
 .controls-collapse-toggle {
   background: var(--surface-color);
@@ -75,8 +102,8 @@
   transition: all var(--transition-fast);
   backdrop-filter: blur(10px);
   box-shadow: 0 2px 8px var(--shadow);
-  height: 30px;
-  width: 30px;
+  height: var(--top-controls-height);
+  width: var(--top-controls-height);
   flex-shrink: 0;
 }
 
@@ -96,13 +123,6 @@
   gap: var(--spacing-sm);
   padding: 0; /* Remove padding to align perfectly with chevron */
   transition: opacity var(--transition-normal), transform var(--transition-normal);
-}
-
-/* Hide controls when collapsed */
-.top-controls.hidden {
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(20px);
 }
 
 /* Horizontal layout - right aligned (default) */
@@ -141,59 +161,32 @@
   box-shadow: 0 2px 8px var(--shadow);
 }
 
-/* Responsive adjustments */
 @media (max-width: 768px) {
-  /* Smaller logo on tablets/mobile */
   .left-controls {
     top: var(--spacing-sm);
     left: var(--spacing-sm);
   }
 
   .left-controls.shifted {
-    left: var(--spacing-sm); /* Don't shift on mobile - sidebar is full-width anyway */
+    left: var(--spacing-sm);
   }
 
-  /* Tighter wrapper positioning */
-  .top-controls-wrapper.horizontal-right,
-  .top-controls-wrapper.vertical-right,
-  .top-controls-wrapper.split-corners {
+  .top-controls-wrapper {
     top: var(--spacing-sm);
     right: var(--spacing-sm);
   }
 
-  .top-controls-wrapper.horizontal-left,
-  .top-controls-wrapper.vertical-left {
-    top: var(--spacing-sm);
-    left: var(--spacing-sm);
-  }
-
-  /* Force vertical stacking when expanded on mobile */
-  .top-controls-wrapper.expanded .top-controls {
+  .top-controls-wrapper:not(.collapsed) .top-controls {
     flex-direction: column !important;
     align-items: flex-end !important;
-    gap: var(--spacing-xs);
+    gap: 3px;
   }
 }
 
 @media (max-width: 480px) {
-  /* Even smaller logo on phones */
-  .logo-container {
-    height: 24px;
-  }
-
-  /* Smaller toggle on phones */
-  .controls-collapse-toggle {
-    height: 28px;
-    width: 28px;
-  }
-
-  /* Tighter collapsed transform for smaller toggle */
-  .top-controls-wrapper.collapsed {
-    transform: translateX(calc(100% - 36px)); /* 28px toggle + 8px spacing */
-  }
-
-  /* Even tighter gaps */
   .top-controls-wrapper {
     gap: var(--spacing-xs);
+    top: var(--spacing-xs);
+    right: var(--spacing-xs);
   }
 }

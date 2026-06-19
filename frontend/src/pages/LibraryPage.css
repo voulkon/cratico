@@ -2,7 +2,8 @@
 
 .library-page {
   display: flex;
-  height: calc(100vh - 60px);
+  /* Full viewport height minus the spacer that App.js injects above this page */
+  height: calc(100vh - var(--top-controls-offset));
   background-color: var(--bg-color);
   color: var(--text-color);
 }

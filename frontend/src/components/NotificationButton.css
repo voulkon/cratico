@@ -47,7 +47,7 @@
 /* Toast notification */
 .notification-toast {
   position: fixed;
-  top: 80px;
+  top: var(--top-controls-offset);
   right: var(--spacing-md);
   background-color: var(--card-bg);
   color: var(--text-color);
@@ -95,10 +95,12 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  .notification-button,
+  .notification-button {
+    min-width: 40px;
+  }
+
   .notification-chevron {
-    height: 44px;
-    min-width: 44px; /* Minimum touch target size */
+    min-width: 32px;
   }
 
   .unread-badge {

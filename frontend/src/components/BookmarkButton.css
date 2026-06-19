@@ -32,7 +32,7 @@
 /* Toast notification */
 .bookmark-toast {
   position: fixed;
-  top: 80px;
+  top: var(--top-controls-offset);
   right: var(--spacing-md);
   background-color: var(--card-bg);
   color: var(--text-color);
@@ -81,14 +81,13 @@
 /* Responsive */
 @media (max-width: 768px) {
   .bookmark-button {
-    min-width: 36px;
-    height: 40px;
+    min-width: 40px;
     padding: var(--spacing-xs) var(--spacing-sm);
     font-size: var(--font-md);
   }
 
   .bookmark-chevron {
-    height: 40px;
+    min-width: 32px;
     padding: 0 var(--spacing-xs);
   }
 

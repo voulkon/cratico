@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/clerk-react";
 import HomePage from "./pages/HomePage";
@@ -66,6 +66,30 @@ function AuthenticatedApp({ controlsLayout }) {
 
   // User menu state
   const [isUserMenuOpen, setIsUserMenuOpen] = React.useState(false);
+
+  // Controls column collapse state — starts collapsed on mobile
+  const MOBILE_QUERY = '(max-width: 768px)';
+  const [isCollapsed, setIsCollapsed] = useState(
+    () => window.matchMedia(MOBILE_QUERY).matches
+  );
+
+  // Keep collapse state in sync with viewport resizes
+  useEffect(() => {
+    const mql = window.matchMedia(MOBILE_QUERY);
+    const onChange = (e) => setIsCollapsed(e.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+
+  const handleToggleCollapse = () => {
+    setIsCollapsed(prev => !prev);
+    // Close any open menus when collapsing
+    if (!isCollapsed) {
+      if (isUserMenuOpen) handleUserMenuToggle();
+      if (isLibraryOpen) handleLibraryToggle();
+      if (isNotificationSidebarOpen) handleNotificationToggle();
+    }
+  };
 
   // Toggle handlers with mutual exclusivity - only one can be open at a time
   const handleLibraryToggle = () => {
@@ -152,7 +176,10 @@ function AuthenticatedApp({ controlsLayout }) {
         />
       )}
 
-      {/* Flexible top controls with library toggle and bookmark button - hidden on auth pages */}
+      {/* Full-width background strip behind the logo area — prevents scrolled content bleed-through. */}
+      {!isAuthPage && <div className="top-controls-backdrop" />}
+
+      {/* Fixed controls — always top-right, hidden on auth pages */}
       {!isAuthPage && (
         <TopControls
           layout={controlsLayout}
@@ -164,10 +191,51 @@ function AuthenticatedApp({ controlsLayout }) {
           onUserMenuToggle={handleUserMenuToggle}
           isUserMenuOpen={isUserMenuOpen}
           hideLogo={isHomePage}
+          isCollapsed={isCollapsed}
+          onToggleCollapse={handleToggleCollapse}
         />
       )}
 
-      {/* Library Sidebar - hidden on auth pages */}
+      {/* Main content — right padding reserves space so content never slides under controls */}
+      <div
+        className={`main-area${isCollapsed ? ' controls-collapsed' : ''}`}
+        style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}
+      >
+        {/* Top spacer clears the fixed logo on non-home pages */}
+        {!isHomePage && !isAuthPage && <div style={{ height: 'var(--top-controls-offset)', flexShrink: 0 }} />}
+
+        <div style={{ flex: 1 }}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
+            <Route path="/library" element={<LibraryPage />} />
+            <Route path="/share/bookmark/:slug" element={<SharedBookmarkPage />} />
+            <Route path="/share/folder/:slug" element={<SharedFolderPage />} />
+            <Route path="/organizations" element={<DevPage />} />
+            <Route path="/dev" element={<Navigate to="/organizations" />} />
+            <Route path="/search" element={<SearchResults />} />
+            <Route path="/search-example" element={<SuperSearchExample />} />
+            <Route path="/entity/:entityType/:entityId" element={<EntityDetailPage />} />
+            <Route path="/explore/temporal/:startDate/:endDate" element={<EntityDetailPage />} />
+            <Route path="/explore/temporal/:date" element={<EntityDetailPage />} />
+            <Route path="/explore/month/:year/:month" element={<EntityDetailPage />} />
+            <Route path="/explore/week/:year/:week" element={<EntityDetailPage />} />
+            <Route path="/decision/:ada" element={<DecisionDetailPage />} />
+            <Route path="/health" element={<Clock />} />
+            <Route path="/entity/afm/:afm" element={<AFMEntityDetailPage />} />
+            <Route path="/person/:personName" element={<PersonPage />} />
+            <Route path="/relationship/entity/:afm/org/:orgUid" element={<RelationshipDetailPage />} />
+            <Route path="/batch/:batchId" element={<NotificationBatchDetailPage />} />
+            <Route path="/notifications/subscriptions/:subscriptionId/history" element={<SubscriptionHistoryPage />} />
+            <Route path="/reset-password" element={<PasswordResetPage />} />
+            <Route path="/legal/:type" element={<LegalPage />} />
+          </Routes>
+        </div>
+
+        {!isAuthPage && <Footer />}
+      </div>
+
+      {/* Library Sidebar */}
       {!isAuthPage && (
         <LibrarySidebar
           isOpen={isLibraryOpen}
@@ -176,7 +244,7 @@ function AuthenticatedApp({ controlsLayout }) {
         />
       )}
 
-      {/* Notification Sidebar - hidden on auth pages */}
+      {/* Notification Sidebar */}
       {!isAuthPage && (
         <NotificationSidebar
           isOpen={isNotificationSidebarOpen}
@@ -187,69 +255,6 @@ function AuthenticatedApp({ controlsLayout }) {
       <RateLimitIndicator />
       <RateLimitModal />
       <AuthPromptModal />
-
-      {/* Content wrapper - adds top offset to clear fixed controls (logo + top buttons).
-          Uses flex column so the footer stays at the bottom on short pages. */}
-      <div
-        className={!isHomePage && !isAuthPage ? 'app-content' : ''}
-        style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}
-      >
-        <div style={{ flex: 1 }}>
-        <Routes>
-          {/* NEW: Use HomePage as the main landing page */}
-          <Route path="/" element={<HomePage />} />
-
-          {/* Email Verification Page */}
-          <Route path="/verify-email" element={<VerifyEmailPage />} />
-
-          {/* Library - bookmark management */}
-          <Route path="/library" element={<LibraryPage />} />
-
-          {/* Public shared bookmark/folder pages */}
-          <Route path="/share/bookmark/:slug" element={<SharedBookmarkPage />} />
-          <Route path="/share/folder/:slug" element={<SharedFolderPage />} />
-
-          {/* RENAMED: Change from /dev to /organizations */}
-          <Route path="/organizations" element={<DevPage />} />
-          <Route path="/dev" element={<Navigate to="/organizations" />} />
-
-          {/* Search Results Page */}
-          <Route path="/search" element={<SearchResults />} />
-
-          {/* Super Search Example Page */}
-          <Route path="/search-example" element={<SuperSearchExample />} />
-
-          <Route path="/entity/:entityType/:entityId" element={<EntityDetailPage />} />
-
-          {/* Temporal Exploration Routes */}
-          <Route path="/explore/temporal/:startDate/:endDate" element={<EntityDetailPage />} />
-          <Route path="/explore/temporal/:date" element={<EntityDetailPage />} />
-          <Route path="/explore/month/:year/:month" element={<EntityDetailPage />} />
-          <Route path="/explore/week/:year/:week" element={<EntityDetailPage />} />
-
-          <Route path="/decision/:ada" element={<DecisionDetailPage />} />
-          <Route path="/health" element={<Clock />} />
-          <Route path="/entity/afm/:afm" element={<AFMEntityDetailPage />} />
-
-          {/* Person page - companies where a person is involved */}
-          <Route path="/person/:personName" element={<PersonPage />} />
-
-          {/* Relationship page - Entity × Organization */}
-          <Route path="/relationship/entity/:afm/org/:orgUid" element={<RelationshipDetailPage />} />
-
-          {/* Notification Batch Detail */}
-          <Route path="/batch/:batchId" element={<NotificationBatchDetailPage />} />
-
-          {/* Subscription History - All decisions from a subscription */}
-          <Route path="/notifications/subscriptions/:subscriptionId/history" element={<SubscriptionHistoryPage />} />
-
-          <Route path="/reset-password" element={<PasswordResetPage />} />
-          <Route path="/legal/:type" element={<LegalPage />} />
-        </Routes>
-        </div>
-        {/* Footer with legal links — hidden on auth pages */}
-        {!isAuthPage && <Footer />}
-      </div>
     </>
   );
 }

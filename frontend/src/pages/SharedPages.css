@@ -7,7 +7,9 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 60px var(--spacing-xl) var(--spacing-xxxxl);
+  /* App.js already injects a spacer equal to --top-controls-offset above all pages.
+     This padding is just internal content breathing room, not a controls offset. */
+  padding: var(--spacing-xxl) var(--spacing-xl) var(--spacing-xxxxl);
   background-color: var(--bg-color);
   color: var(--text-color);
 }

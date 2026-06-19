@@ -10,6 +10,18 @@
   --spacing-xxxl: 30px;
   --spacing-xxxxl: 40px;
 
+  /* Top controls — unified height so logo, toggle, and split buttons align */
+  --top-controls-height: 44px;
+  --top-controls-offset: calc(var(--top-controls-height) + var(--spacing-md) + var(--spacing-sm));
+
+  /* Controls column — width of the right-hand controls strip.
+     Expanded: sized so the widest SplitButton (90px) + toggle (44px) + gap (8px)
+     plus right-margin (12px) never overflow: need ≥ 154px, give 180px minimum.
+     Collapsed: toggle button (44px) + right-margin (12px) = 56px. */
+  --controls-expanded-width: clamp(180px, 18vw, 260px);
+  --controls-collapsed-width: 56px;
+  --controls-column-width: var(--controls-expanded-width);
+
   /* Border radius */
   --radius-sm: 4px;
   --radius-md: 8px;
@@ -34,15 +46,23 @@
   --transition-fast: 0.2s ease;
   --transition-normal: 0.3s ease;
   --transition-slow: 0.5s ease;
+
+  /* Typography — Warm Swiss Modernism.
+     Serif for structural hierarchy (H1/H2/section labels), sans for body.
+     Loaded via Google Fonts in public/index.html. */
+  --font-serif: 'DM Serif Display', 'Playfair Display', Georgia, serif;
+  --font-sans: 'DM Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 /* ===========================================
    LIGHT THEME BASE
    =========================================== */
 [data-theme="light"] {
-  --bg-color: #ffffff;
-  --text-color: #000000;
-  --border-color: #e0e0e0;
+  /* Warm Swiss canvas — off-white, warm ink, hairline warm border.
+     Shifted ~2° from pure white/black toward the guide's #faf9f7 / #1c1917. */
+  --bg-color: #faf9f7;
+  --text-color: #1c1917;
+  --border-color: #e7e5e4;
   --card-bg: #ffffff;
   --surface-color: var(--card-bg);
 
@@ -57,16 +77,16 @@
 
   /* Functional colors */
   --danger-color: #ff6b6b;
-  --muted-text: #666666;
+  --muted-text: #57534e;
   --light-text: #888888;
   --disabled-bg: #cccccc;
   --disabled-text: #999999;
 
   /* Interactive colors */
-  --hover-bg: #f5f5f5;
+  --hover-bg: #f5f3f0;
   --focus-color: #0066cc;
-  --text-secondary: #6b7280;
-  --surface-secondary: #f3f4f6;
+  --text-secondary: #57534e;
+  --surface-secondary: #f3f1ee;
   --color-star: #f59e0b;
 
   /* Avatar auth indicator */
@@ -77,19 +97,21 @@
   --slider-rail-color: var(--border-color);
 
   /* Shadows */
-  --shadow: rgba(0,0,0,0.1);
-  --shadow-hover: rgba(0,0,0,0.15);
-  --shadow-focus: rgba(0,0,0,0.3);
+  --shadow: rgba(28,25,23,0.08);
+  --shadow-hover: rgba(28,25,23,0.12);
+  --shadow-focus: rgba(28,25,23,0.24);
 }
 
 /* ===========================================
    DARK THEME BASE
    =========================================== */
 [data-theme="dark"] {
-  --bg-color: #1a1a1a;
-  --text-color: #ffffff;
-  --border-color: #404040;
-  --card-bg: #2d2d2d;
+  /* Warm Swiss dark — stone-tinted neutrals instead of cold zinc.
+     Mirrors the light theme's warm ink family so palettes stay consistent. */
+  --bg-color: #1c1917;
+  --text-color: #faf9f7;
+  --border-color: #44403c;
+  --card-bg: #292524;
   --surface-color: var(--card-bg);
 
   /* Status colors for dark theme */
@@ -103,29 +125,29 @@
 
   /* Functional colors */
   --danger-color: #ff6b6b;
-  --muted-text: #a0a0a0;
-  --light-text: #888888;
-  --disabled-bg: #555555;
-  --disabled-text: #888888;
+  --muted-text: #a8a29e;
+  --light-text: #78716c;
+  --disabled-bg: #44403c;
+  --disabled-text: #78716c;
 
   /* Interactive colors */
-  --hover-bg: #3a3a3a;
+  --hover-bg: #3a3530;
   --focus-color: #66b3ff;
-  --text-secondary: #9ca3af;
-  --surface-secondary: #374151;
+  --text-secondary: #a8a29e;
+  --surface-secondary: #3a3530;
   --color-star: #fbbf24;
 
   /* Avatar auth indicator */
-  --avatar-border-default: #6b7280;
+  --avatar-border-default: #78716c;
   --avatar-border-authenticated: #34d399;
 
   /* Slider rail */
   --slider-rail-color: var(--border-color);
 
   /* Shadows */
-  --shadow: rgba(0,0,0,0.3);
-  --shadow-hover: rgba(0,0,0,0.4);
-  --shadow-focus: rgba(0,0,0,0.5);
+  --shadow: rgba(0,0,0,0.4);
+  --shadow-hover: rgba(0,0,0,0.5);
+  --shadow-focus: rgba(0,0,0,0.6);
 }
 
 /* ===========================================
@@ -224,25 +246,26 @@
 
 /* ===========================================
    COLOR PALETTES - BLUE (DEFAULT)
+   Dusty Steel — muted slate-blue, reads as structured ink not SaaS chrome.
    =========================================== */
 [data-palette="blue"] {
-  --palette-primary: #4299E1;
-  --palette-secondary: #2B6CB0;
-  --palette-bg-subtle: #C4F1F9;
-  --palette-emphasis: #1E4F72;
-  --bg-info: #e3f2fd;
-  --color-text-info: #1976d2;
-  --bg-selected: #e3f2fd;
+  --palette-primary: #4a7fa5;     /* dusty steel blue */
+  --palette-secondary: #35617f;   /* deeper steel */
+  --palette-bg-subtle: #e5eef4;   /* pale blue-grey, warm undertone */
+  --palette-emphasis: #24455a;    /* dark slate */
+  --bg-info: #e5eef4;
+  --color-text-info: #35617f;
+  --bg-selected: #e5eef4;
 }
 
 [data-theme="dark"][data-palette="blue"] {
-  --palette-primary: #63B3ED;
-  --palette-secondary: #4299E1;
-  --palette-bg-subtle: #2D3748;
-  --palette-emphasis: #63B3ED;
-  --bg-info: #1e3a5c;
-  --color-text-info: #64b5f6;
-  --bg-selected: #2D3748;
+  --palette-primary: #7aafc8;     /* lifted steel for dark canvas */
+  --palette-secondary: #4a7fa5;
+  --palette-bg-subtle: #1a2d3a;
+  --palette-emphasis: #7aafc8;
+  --bg-info: #1a2d3a;
+  --color-text-info: #7aafc8;
+  --bg-selected: #1a2d3a;
 }
 
 /* Solarized themes share similar palette adaptations */
@@ -259,25 +282,26 @@
 
 /* ===========================================
    COLOR PALETTES - PURPLE
+   Dusty Iris — aged violet, more ink than neon.
    =========================================== */
 [data-palette="purple"] {
-  --palette-primary: #8b5cf6;
-  --palette-secondary: #7c3aed;
-  --palette-bg-subtle: #ede9fe;
-  --palette-emphasis: #5b21b6;
-  --bg-info: #ede9fe;
-  --color-text-info: #7c3aed;
-  --bg-selected: #ede9fe;
+  --palette-primary: #7060a0;     /* dusty iris */
+  --palette-secondary: #574a80;   /* deeper violet */
+  --palette-bg-subtle: #ebe7f4;   /* pale lavender, warm-neutral */
+  --palette-emphasis: #3e3460;    /* dark plum */
+  --bg-info: #ebe7f4;
+  --color-text-info: #574a80;
+  --bg-selected: #ebe7f4;
 }
 
 [data-theme="dark"][data-palette="purple"] {
-  --palette-primary: #a78bfa;
-  --palette-secondary: #8b5cf6;
-  --palette-bg-subtle: #2e1065;
-  --palette-emphasis: #a78bfa;
-  --bg-info: #2e1065;
-  --color-text-info: #a78bfa;
-  --bg-selected: #2e1065;
+  --palette-primary: #9d8fc4;     /* lifted iris for dark canvas */
+  --palette-secondary: #7060a0;
+  --palette-bg-subtle: #22193a;
+  --palette-emphasis: #9d8fc4;
+  --bg-info: #22193a;
+  --color-text-info: #9d8fc4;
+  --bg-selected: #22193a;
 }
 
 [data-theme="solarized-light"][data-palette="purple"],
@@ -293,25 +317,26 @@
 
 /* ===========================================
    COLOR PALETTES - GREEN
+   Sage — moss and forest, not emerald or mint.
    =========================================== */
 [data-palette="green"] {
-  --palette-primary: #10b981;
-  --palette-secondary: #059669;
-  --palette-bg-subtle: #d1fae5;
-  --palette-emphasis: #047857;
-  --bg-info: #d1fae5;
-  --color-text-info: #059669;
-  --bg-selected: #d1fae5;
+  --palette-primary: #4d7c5e;     /* sage / moss green */
+  --palette-secondary: #3a5e47;   /* deeper forest */
+  --palette-bg-subtle: #e3ede7;   /* pale sage tint */
+  --palette-emphasis: #284035;    /* dark forest */
+  --bg-info: #e3ede7;
+  --color-text-info: #3a5e47;
+  --bg-selected: #e3ede7;
 }
 
 [data-theme="dark"][data-palette="green"] {
-  --palette-primary: #34d399;
-  --palette-secondary: #10b981;
-  --palette-bg-subtle: #064e3b;
-  --palette-emphasis: #34d399;
-  --bg-info: #064e3b;
-  --color-text-info: #34d399;
-  --bg-selected: #064e3b;
+  --palette-primary: #7aab8d;     /* lifted sage for dark canvas */
+  --palette-secondary: #4d7c5e;
+  --palette-bg-subtle: #152419;
+  --palette-emphasis: #7aab8d;
+  --bg-info: #152419;
+  --color-text-info: #7aab8d;
+  --bg-selected: #152419;
 }
 
 [data-theme="solarized-light"][data-palette="green"],
@@ -328,29 +353,32 @@
 /* ===========================================
    COLOR PALETTES - ORANGE
    =========================================== */
+/* Warm Swiss "clay" — terracotta accent, used with restraint.
+   Hue family unchanged from the old amber, but desaturated + darkened
+   so it reads as a whisper rather than a shout. */
 [data-palette="orange"] {
-  --palette-primary: #f59e0b;
-  --palette-secondary: #d97706;
-  --palette-bg-subtle: #fef3c7;
-  --palette-emphasis: #92400e;
-  --bg-info: #fef3c7;
-  --color-text-info: #d97706;
-  --bg-selected: #fef3c7;
+  --palette-primary: #c8562a;     /* terracotta — the single accent */
+  --palette-secondary: #a04420;   /* deeper terracotta */
+  --palette-bg-subtle: #f5e6df;   /* warm clay tint, not yellow */
+  --palette-emphasis: #7a3418;    /* burnt sienna */
+  --bg-info: #f5e6df;
+  --color-text-info: #a04420;
+  --bg-selected: #f5e6df;
 }
 
 [data-theme="dark"][data-palette="orange"] {
-  --palette-primary: #fbbf24;
-  --palette-secondary: #f59e0b;
-  --palette-bg-subtle: #451a03;
-  --palette-emphasis: #fbbf24;
-  --bg-info: #451a03;
-  --color-text-info: #fbbf24;
-  --bg-selected: #451a03;
+  --palette-primary: #e07a4f;     /* lifted terracotta for dark canvas */
+  --palette-secondary: #c8562a;
+  --palette-bg-subtle: #3a1d12;
+  --palette-emphasis: #e07a4f;
+  --bg-info: #3a1d12;
+  --color-text-info: #e07a4f;
+  --bg-selected: #3a1d12;
 }
 
 [data-theme="solarized-light"][data-palette="orange"],
 [data-theme="solarized-dark"][data-palette="orange"] {
-  --palette-primary: #cb4b16;
+  --palette-primary: #cb4b16;     /* solarized's native orange — already clay-adjacent */
   --palette-secondary: #b58900;
   --palette-bg-subtle: #073642;
   --palette-emphasis: #cb4b16;
@@ -361,25 +389,26 @@
 
 /* ===========================================
    COLOR PALETTES - RED
+   Brick — a warm brick-red that echoes the terracotta family.
    =========================================== */
 [data-palette="red"] {
-  --palette-primary: #ef4444;
-  --palette-secondary: #dc2626;
-  --palette-bg-subtle: #fecaca;
-  --palette-emphasis: #991b1b;
-  --bg-info: #fecaca;
-  --color-text-info: #dc2626;
-  --bg-selected: #fecaca;
+  --palette-primary: #b04545;     /* brick red */
+  --palette-secondary: #8a3434;   /* deeper brick */
+  --palette-bg-subtle: #f0e2e2;   /* pale warm rose tint */
+  --palette-emphasis: #611e1e;    /* dark sienna */
+  --bg-info: #f0e2e2;
+  --color-text-info: #8a3434;
+  --bg-selected: #f0e2e2;
 }
 
 [data-theme="dark"][data-palette="red"] {
-  --palette-primary: #f87171;
-  --palette-secondary: #ef4444;
-  --palette-bg-subtle: #450a0a;
-  --palette-emphasis: #f87171;
-  --bg-info: #450a0a;
-  --color-text-info: #f87171;
-  --bg-selected: #450a0a;
+  --palette-primary: #cc7070;     /* lifted brick for dark canvas */
+  --palette-secondary: #b04545;
+  --palette-bg-subtle: #311515;
+  --palette-emphasis: #cc7070;
+  --bg-info: #311515;
+  --color-text-info: #cc7070;
+  --bg-selected: #311515;
 }
 
 [data-theme="solarized-light"][data-palette="red"],
@@ -395,25 +424,26 @@
 
 /* ===========================================
    COLOR PALETTES - PINK
+   Dusty Rose — mauve, not magenta. Think faded print, not neon.
    =========================================== */
 [data-palette="pink"] {
-  --palette-primary: #ec4899;
-  --palette-secondary: #db2777;
-  --palette-bg-subtle: #fce7f3;
-  --palette-emphasis: #9d174d;
-  --bg-info: #fce7f3;
-  --color-text-info: #db2777;
-  --bg-selected: #fce7f3;
+  --palette-primary: #a85078;     /* dusty rose */
+  --palette-secondary: #843d5e;   /* deeper mauve */
+  --palette-bg-subtle: #f0e4ec;   /* pale blush tint */
+  --palette-emphasis: #5e2842;    /* dark plum-rose */
+  --bg-info: #f0e4ec;
+  --color-text-info: #843d5e;
+  --bg-selected: #f0e4ec;
 }
 
 [data-theme="dark"][data-palette="pink"] {
-  --palette-primary: #f472b6;
-  --palette-secondary: #ec4899;
-  --palette-bg-subtle: #500724;
-  --palette-emphasis: #f472b6;
-  --bg-info: #500724;
-  --color-text-info: #f472b6;
-  --bg-selected: #500724;
+  --palette-primary: #c87ea8;     /* lifted dusty rose for dark canvas */
+  --palette-secondary: #a85078;
+  --palette-bg-subtle: #2e1222;
+  --palette-emphasis: #c87ea8;
+  --bg-info: #2e1222;
+  --color-text-info: #c87ea8;
+  --bg-selected: #2e1222;
 }
 
 [data-theme="solarized-light"][data-palette="pink"],
@@ -468,11 +498,15 @@
   --shadow-focus: rgba(0,0,0,0.3);
 }
 
+/* Apply border-box globally so palette accent borders on buttons don't
+   inflate their rendered width (was making UserMenu wider than its siblings). */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--bg-color);
@@ -482,7 +516,7 @@ body {
 
 /* Global utility for balanced content with fixed controls */
 .balanced-content {
-  padding-top: 80px; /* Account for fixed top controls */
+  padding-top: var(--top-controls-offset);
   padding-left: clamp(var(--spacing-xl), 10vw, 180px);
   padding-right: clamp(var(--spacing-xl), 10vw, 180px);
 }
@@ -491,7 +525,7 @@ body {
 .centered-content {
   max-width: 1200px;
   margin: 0 auto;
-  padding-top: 80px;
+  padding-top: var(--top-controls-offset);
   padding-left: clamp(var(--spacing-xl), 8vw, 160px);
   padding-right: clamp(var(--spacing-xl), 8vw, 160px);
 }
@@ -522,6 +556,26 @@ code {
   border-radius: var(--radius-full);
   border-left-color: var(--palette-primary);
   animation: spin 1s linear infinite;
+}
+
+/* ── Responsive control heights ───────────────────────────── */
+@media (max-width: 768px) {
+  :root {
+    --top-controls-height: clamp(36px, 11vw, 40px);
+    --top-controls-offset: calc(var(--top-controls-height) + var(--spacing-sm) + var(--spacing-xs));
+    /* Mobile SplitButtons shrink to 68px min; still need toggle(40px)+gap(8px)+btn(68px)+margin(8px)=124px */
+    --controls-expanded-width: clamp(140px, 20vw, 200px);
+    --controls-collapsed-width: 48px;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --top-controls-height: 32px;
+    --top-controls-offset: calc(var(--top-controls-height) + var(--spacing-xs) + var(--spacing-xs));
+    --controls-expanded-width: clamp(130px, 25vw, 180px);
+    --controls-collapsed-width: 44px;
+  }
 }
 
 @keyframes spin {
