@@ -433,7 +433,7 @@ const EntityDetailPage = () => {
   // Loading states (date range loading, or entity metadata not yet available while decisions are loading)
   if (dateRangeLoading || (loading && !entityData)) {
     return (
-      <div style={{ padding: '20px', textAlign: 'center' }}>
+      <div style={{ padding: 'var(--spacing-xl)', textAlign: 'center' }}>
         <h2>{t('entityDetail.loadingEntity', { entityType })}</h2>
         <div>{t('entityDetail.loadingData', { entityId })}</div>
       </div>
@@ -443,13 +443,13 @@ const EntityDetailPage = () => {
   // No data state
   if (entityDateRange && !entityDateRange.has_data) {
     return (
-      <div style={{ padding: '20px' }}>
+      <div style={{ padding: 'var(--spacing-xl)' }}>
         <div style={{
           backgroundColor: '#fff3cd',
           border: '1px solid #ffeaa7',
-          borderRadius: '6px',
-          padding: '20px',
-          marginTop: '20px',
+          borderRadius: 'var(--radius-md)',
+          padding: 'var(--spacing-xl)',
+          marginTop: 'var(--spacing-xl)',
           textAlign: 'center'
         }}>
           <h2>{t('entityDetail.noDataAvailable')}</h2>
@@ -462,13 +462,13 @@ const EntityDetailPage = () => {
 
   if (error) {
     return (
-      <div style={{ padding: '20px' }}>
+      <div style={{ padding: 'var(--spacing-xl)' }}>
         <div style={{
           backgroundColor: '#ffe6e6',
           border: '1px solid #ff9999',
-          borderRadius: '4px',
-          padding: '15px',
-          marginBottom: '20px'
+          borderRadius: 'var(--radius-sm)',
+          padding: 'var(--spacing-md)',
+          marginBottom: 'var(--spacing-xl)'
         }}>
           <strong>{t('common.error')}:</strong> {error}
         </div>
@@ -621,7 +621,7 @@ const EntityDetailPage = () => {
 
       {/* Enhanced Statistics Cards for both modes */}
       {requiresManualStatistics && !statsRequested ? (
-        <div className="statistics-manual-trigger" style={{ marginBottom: '1rem' }}>
+        <div className="statistics-manual-trigger" style={{ marginBottom: 'var(--spacing-xl)' }}>
           <button
             type="button"
             className="see-all-button"

@@ -440,7 +440,7 @@
 }
 
 .org-chart-button-icon {
-  padding: 4px;
+  padding: var(--spacing-xs);
   background: transparent;
   color: var(--palette-primary);
   border: 1px solid var(--palette-primary);
