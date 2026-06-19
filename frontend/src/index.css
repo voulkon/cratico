@@ -10,6 +10,18 @@
   --spacing-xxxl: 30px;
   --spacing-xxxxl: 40px;
 
+  /* Top controls — unified height so logo, toggle, and split buttons align */
+  --top-controls-height: 44px;
+  --top-controls-offset: calc(var(--top-controls-height) + var(--spacing-md) + var(--spacing-sm));
+
+  /* Controls column — width of the right-hand controls strip.
+     Expanded: sized so the widest SplitButton (90px) + toggle (44px) + gap (8px)
+     plus right-margin (12px) never overflow: need ≥ 154px, give 180px minimum.
+     Collapsed: toggle button (44px) + right-margin (12px) = 56px. */
+  --controls-expanded-width: clamp(180px, 18vw, 260px);
+  --controls-collapsed-width: 56px;
+  --controls-column-width: var(--controls-expanded-width);
+
   /* Border radius */
   --radius-sm: 4px;
   --radius-md: 8px;
@@ -504,7 +516,7 @@ body {
 
 /* Global utility for balanced content with fixed controls */
 .balanced-content {
-  padding-top: 80px; /* Account for fixed top controls */
+  padding-top: var(--top-controls-offset);
   padding-left: clamp(var(--spacing-xl), 10vw, 180px);
   padding-right: clamp(var(--spacing-xl), 10vw, 180px);
 }
@@ -513,7 +525,7 @@ body {
 .centered-content {
   max-width: 1200px;
   margin: 0 auto;
-  padding-top: 80px;
+  padding-top: var(--top-controls-offset);
   padding-left: clamp(var(--spacing-xl), 8vw, 160px);
   padding-right: clamp(var(--spacing-xl), 8vw, 160px);
 }
@@ -544,6 +556,26 @@ code {
   border-radius: var(--radius-full);
   border-left-color: var(--palette-primary);
   animation: spin 1s linear infinite;
+}
+
+/* ── Responsive control heights ───────────────────────────── */
+@media (max-width: 768px) {
+  :root {
+    --top-controls-height: clamp(36px, 11vw, 40px);
+    --top-controls-offset: calc(var(--top-controls-height) + var(--spacing-sm) + var(--spacing-xs));
+    /* Mobile SplitButtons shrink to 68px min; still need toggle(40px)+gap(8px)+btn(68px)+margin(8px)=124px */
+    --controls-expanded-width: clamp(140px, 20vw, 200px);
+    --controls-collapsed-width: 48px;
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --top-controls-height: 32px;
+    --top-controls-offset: calc(var(--top-controls-height) + var(--spacing-xs) + var(--spacing-xs));
+    --controls-expanded-width: clamp(130px, 25vw, 180px);
+    --controls-collapsed-width: 44px;
+  }
 }
 
 @keyframes spin {

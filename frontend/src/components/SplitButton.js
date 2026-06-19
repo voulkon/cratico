@@ -43,7 +43,7 @@ export default function SplitButton({
   disabled = false,
   mainDisabled,
   chevronDisabled,
-  height = 50,
+  height = 44, /* default matches --top-controls-height in index.css */
   badge = null,
 }) {
   // Allow individual disabled states, or use the general disabled prop
@@ -53,14 +53,16 @@ export default function SplitButton({
   return (
     <>
       {/* Split button wrapper */}
-      <div className={`split-button ${isOpen ? 'split-button-open' : ''} ${className}`}>
+      <div
+        className={`split-button ${isOpen ? 'split-button-open' : ''} ${className}`}
+        style={{ '--split-btn-height': `${height}px` }}
+      >
         {/* Main action button (left half) */}
         <button
           className={`split-button-main ${mainActive ? 'active' : ''} ${mainClassName}`}
           onClick={onMainClick}
           disabled={isMainDisabled}
           title={mainTitle}
-          style={{ height: `${height}px` }}
         >
           {children}
         </button>
@@ -71,7 +73,6 @@ export default function SplitButton({
           onClick={onChevronClick}
           disabled={isChevronDisabled}
           title={chevronTitle || (isOpen ? 'Close' : 'Open')}
-          style={{ height: `${height}px` }}
         >
           <span className="split-button-chevron-icon">
             {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}

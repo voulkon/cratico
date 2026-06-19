@@ -10,7 +10,7 @@
   background-color: var(--surface-color);
   backdrop-filter: blur(10px);
   box-shadow: 0 2px 8px var(--shadow);
-  height: 30px; /* Match control buttons height */
+  height: var(--top-controls-height);
   min-width: fit-content;
 }
 
@@ -69,7 +69,7 @@
 /* Responsive */
 @media (max-width: 480px) {
   .logo-link {
-    height: 24px;
+    /* height inherits from --top-controls-height (32px at this breakpoint) */
     padding: var(--spacing-xs);
   }
 

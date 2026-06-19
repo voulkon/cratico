@@ -2,23 +2,33 @@
   text-align: center;
 }
 
-/* Offset page content below the fixed top controls (logo + action buttons).
-   The fixed controls sit at top: var(--spacing-md) (12px) and are ~30px tall,
-   so ~54px with some breathing room. */
-.app-content {
-  padding-top: 60px;
+/* Main content area.
+   Right padding reserves space equal to the controls column width so
+   content never slides under the fixed controls panel. */
+.main-area {
+  padding-right: var(--controls-expanded-width);
+  transition: padding-right var(--transition-normal);
 }
 
-/* Responsive: tighter spacing on mobile where controls auto-collapse */
+/* When controls are collapsed, shrink the reserved right space */
+.main-area.controls-collapsed {
+  padding-right: var(--controls-collapsed-width);
+}
+
+/* Offset page content below the fixed top controls (logo + action buttons). */
+.app-content {
+  padding-top: var(--top-controls-offset);
+}
+
 @media (max-width: 768px) {
-  .app-content {
-    padding-top: 46px; /* spacing-sm (8px) + ~30px controls + breathing room */
+  .main-area {
+    padding-right: var(--controls-expanded-width);
   }
 }
 
 @media (max-width: 480px) {
-  .app-content {
-    padding-top: 38px; /* spacing-xs (4px) + ~24px logo + breathing room */
+  .main-area {
+    padding-right: var(--controls-expanded-width);
   }
 }
 

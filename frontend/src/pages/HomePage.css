@@ -2,15 +2,15 @@
   min-height: 100vh;
   background: linear-gradient(135deg, var(--bg-color) 0%, var(--hover-bg) 100%);
   color: var(--text-color);
-  /* Add top padding to account for fixed controls on right only */
-  padding-top: 70px;
+  /* Offset driven by --top-controls-offset; logo is hidden on homepage but controls still occupy space */
+  padding-top: var(--top-controls-offset);
 }
 
 .homepage-container {
   max-width: 1200px;
   margin: 0 auto;
-  /* Less left padding since no logo, balanced right for controls */
-  padding: 0 clamp(var(--spacing-xl), 10vw, 200px) 0 var(--spacing-xl);
+  /* Left padding normal; right padding reserves space for fixed controls so scrollable content never overlaps */
+  padding: 0 clamp(52px, 10vw, 200px) 0 var(--spacing-xl);
 }
 
 /* Hero Section - keeping tight spacing */
