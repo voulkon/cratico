@@ -26,6 +26,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { AuthConfigProvider, useAuthConfig } from './contexts/AuthConfigContext';
 import { TranslationProvider } from './contexts/TranslationContext';
 import { useAllowlistCheck } from './hooks/useAllowlistCheck';
+import './App.css';
 import TopControls from './components/TopControls';
 import Footer from './components/Footer';
 import LegalPage from './pages/LegalPage';

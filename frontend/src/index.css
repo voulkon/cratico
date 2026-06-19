@@ -10,9 +10,14 @@
   --spacing-xxxl: 30px;
   --spacing-xxxxl: 40px;
 
-  /* Top controls — unified height so logo, toggle, and split buttons align */
-  --top-controls-height: 44px;
-  --top-controls-offset: calc(var(--top-controls-height) + var(--spacing-md) + var(--spacing-sm));
+  /* ── Top band — single knob for the entire top strip ──
+     Change --top-band-height and everything adjusts:
+     spacer, logo height, toggle height, split-button heights.
+     The button/logo/toggle height is the band minus the top+bottom margins
+     (--spacing-md above the buttons, --spacing-sm below). */
+  --top-band-height: 64px;
+  --top-controls-height: calc(var(--top-band-height) - var(--spacing-md) - var(--spacing-sm));
+  --top-controls-offset: var(--top-band-height);
 
   /* Controls column — width of the right-hand controls strip.
      Expanded: sized so the widest SplitButton (90px) + toggle (44px) + gap (8px)
@@ -561,8 +566,9 @@ code {
 /* ── Responsive control heights ───────────────────────────── */
 @media (max-width: 768px) {
   :root {
-    --top-controls-height: clamp(36px, 11vw, 40px);
-    --top-controls-offset: calc(var(--top-controls-height) + var(--spacing-sm) + var(--spacing-xs));
+    --top-band-height: 48px;
+    --top-controls-height: calc(var(--top-band-height) - var(--spacing-sm) - var(--spacing-xs));
+    --top-controls-offset: var(--top-band-height);
     /* Mobile SplitButtons shrink to 68px min; still need toggle(40px)+gap(8px)+btn(68px)+margin(8px)=124px */
     --controls-expanded-width: clamp(140px, 20vw, 200px);
     --controls-collapsed-width: 48px;
@@ -571,8 +577,9 @@ code {
 
 @media (max-width: 480px) {
   :root {
-    --top-controls-height: 32px;
-    --top-controls-offset: calc(var(--top-controls-height) + var(--spacing-xs) + var(--spacing-xs));
+    --top-band-height: 40px;
+    --top-controls-height: calc(var(--top-band-height) - var(--spacing-xs) - var(--spacing-xs));
+    --top-controls-offset: var(--top-band-height);
     --controls-expanded-width: clamp(130px, 25vw, 180px);
     --controls-collapsed-width: 44px;
   }
