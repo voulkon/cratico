@@ -10,6 +10,7 @@ import TimeRangeSection from '../components/TimeRangeSection';
 import StatisticsGrid from '../components/StatisticsGrid';
 import apiClient from '../api/client';
 import { createDynamicDateRangeUtils } from '../utils/dateUtils';
+import { formatAmount } from '../utils/format';
 import './RelationshipDetailPage.css';
 
 /**
@@ -208,14 +209,6 @@ const RelationshipDetailPage = () => {
       console.error('Error fetching document content:', error);
       throw error;
     }
-  };
-
-  const formatAmount = (amount) => {
-    if (!amount || amount === 0) return t('common.noAmount');
-    return `€${amount.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    })}`;
   };
 
   // ── Sync timeRange to URL params for shareable links ─────────────────────

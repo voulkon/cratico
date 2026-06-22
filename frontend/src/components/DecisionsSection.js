@@ -1,21 +1,13 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useDateRange } from '../contexts/DateRangeContext';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import useDecisionsList from '../hooks/useDecisionsList';
 import { CollapsibleSection, DashboardSectionLoading } from './DashboardGrid';
+import { formatCompactAmount } from '../utils/format';
 
 const PAGE_SIZE = 5;
-
-const formatAmount = (amount) => {
-  if (amount >= 1000000) {
-    return `€${(amount / 1000000).toFixed(1)}M`;
-  } else if (amount >= 1000) {
-    return `€${(amount / 1000).toFixed(0)}K`;
-  }
-  return `€${amount?.toLocaleString() || 0}`;
-};
 
 /**
  * DecisionsSection — Infinite-scroll list of notable recent decisions.
@@ -62,6 +54,18 @@ const DecisionsSection = ({
     onLoadMore: loadMore,
   });
 
+  // Track which card indices are expanded (title + subtitle together)
+  const [expandedCards, setExpandedCards] = useState(new Set());
+
+  const toggleExpand = useCallback((index, e) => {
+    e.stopPropagation();
+    setExpandedCards(prev => {
+      const next = new Set(prev);
+      next.has(index) ? next.delete(index) : next.add(index);
+      return next;
+    });
+  }, []);
+
   if (loading) {
     return <DashboardSectionLoading message={t('homepage.loading')} />;
   }
@@ -102,20 +106,29 @@ const DecisionsSection = ({
                 className="dashboard-item-card"
                 onClick={() => navigate(`/decision/${decision.id}`)}
               >
-                <span className="dashboard-rank">#{index + 1}</span>
+                <div className="dashboard-item-left">
+                  <span className="dashboard-rank">#{index + 1}</span>
+                  <button
+                    className="dashboard-item-expand-toggle"
+                    onClick={(e) => toggleExpand(index, e)}
+                    aria-expanded={expandedCards.has(index)}
+                    title={expandedCards.has(index) ? 'Collapse' : 'Expand'}
+                  >
+                    <span
+                      className={`dashboard-collapse-chevron${expandedCards.has(index) ? '' : ' dashboard-collapse-chevron--collapsed'}`}
+                      aria-hidden="true"
+                    />
+                  </button>
+                </div>
                 <div className="dashboard-item-body">
-                  <div className="dashboard-item-title">
-                    {decision.subject?.length > 80
-                      ? `${decision.subject.substring(0, 80)}...`
-                      : decision.subject}
+                  <div className={`dashboard-item-title${expandedCards.has(index) ? ' dashboard-item-title--expanded' : ''}`}>
+                    {decision.subject}
                   </div>
-                  <div className="dashboard-item-subtitle">
-                    {decision.organization?.label?.length > 40
-                      ? `${decision.organization.label.substring(0, 40)}...`
-                      : decision.organization?.label}
+                  <div className={`dashboard-item-subtitle${expandedCards.has(index) ? ' dashboard-item-subtitle--expanded' : ''}`}>
+                    {decision.organization?.label}
                   </div>
                 </div>
-                <span className="dashboard-item-amount">{formatAmount(decision.amount)}</span>
+                <span className="dashboard-item-amount">{formatCompactAmount(decision.amount)}</span>
               </button>
             ))}
 

@@ -5,17 +5,9 @@ import { useDateRange } from '../contexts/DateRangeContext';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import apiClient from '../api/client';
 import { CollapsibleSection, DashboardSectionLoading } from './DashboardGrid';
+import { formatCompactAmount } from '../utils/format';
 
 const PAGE_SIZE = 6;
-
-const formatAmount = (amount) => {
-  if (amount >= 1000000) {
-    return `€${(amount / 1000000).toFixed(1)}M`;
-  } else if (amount >= 1000) {
-    return `€${(amount / 1000).toFixed(0)}K`;
-  }
-  return `€${amount?.toLocaleString() || 0}`;
-};
 
 /**
  * OrganizationsSection — Infinite-scroll list of most active organizations.
@@ -93,6 +85,18 @@ const OrganizationsSection = ({
     onLoadMore: loadMore,
   });
 
+  // Track which card indices are expanded
+  const [expandedCards, setExpandedCards] = useState(new Set());
+
+  const toggleExpand = useCallback((index, e) => {
+    e.stopPropagation();
+    setExpandedCards(prev => {
+      const next = new Set(prev);
+      next.has(index) ? next.delete(index) : next.add(index);
+      return next;
+    });
+  }, []);
+
   if (loading) {
     return <DashboardSectionLoading message={t('homepage.loading')} />;
   }
@@ -133,14 +137,29 @@ const OrganizationsSection = ({
                 className="dashboard-item-card"
                 onClick={() => navigate(`/entity/organization/${org.uid}`)}
               >
-                <span className="dashboard-rank">#{index + 1}</span>
+                <div className="dashboard-item-left">
+                  <span className="dashboard-rank">#{index + 1}</span>
+                  <button
+                    className="dashboard-item-expand-toggle"
+                    onClick={(e) => toggleExpand(index, e)}
+                    aria-expanded={expandedCards.has(index)}
+                    title={expandedCards.has(index) ? 'Collapse' : 'Expand'}
+                  >
+                    <span
+                      className={`dashboard-collapse-chevron${expandedCards.has(index) ? '' : ' dashboard-collapse-chevron--collapsed'}`}
+                      aria-hidden="true"
+                    />
+                  </button>
+                </div>
                 <div className="dashboard-item-body">
-                  <div className="dashboard-item-title">{org.label}</div>
+                  <div className={`dashboard-item-title${expandedCards.has(index) ? ' dashboard-item-title--expanded' : ''}`}>
+                    {org.label}
+                  </div>
                   <div className="dashboard-item-meta">
                     <span>{org.count} {t('homepage.decisions')}</span>
                   </div>
                 </div>
-                <span className="dashboard-item-amount">{formatAmount(org.total_amount)}</span>
+                <span className="dashboard-item-amount">{formatCompactAmount(org.total_amount)}</span>
               </button>
             ))}
 

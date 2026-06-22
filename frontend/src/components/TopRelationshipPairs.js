@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import { useTranslation } from '../contexts/TranslationContext';
 import { OrganizationIcon, EntityIcon } from './Icons';
+import CounterpartStats from './CounterpartStats';
 import './TopCounterparts.css'; // Reuse the same styles
 
 // Import DateRangeContext if available; fall back to a dummy context
@@ -179,14 +180,6 @@ const TopRelationshipPairs = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enableInfiniteScroll, hasMore, loadingMore, loading, offset]);
 
-  const formatAmount = (amount) => {
-    if (!amount || amount === 0) return t('common.noAmount');
-    return `€${amount.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    })}`;
-  };
-
   const handlePairClick = (pair) => {
     // Navigate to relationship page
     const orgUid = pair['decision__organization__uid'];
@@ -294,29 +287,29 @@ const TopRelationshipPairs = ({
                 <div className="pair-names">
                   <div className="pair-org">
                     <span className="pair-label">
-                      <OrganizationIcon size={16} className="pair-icon" /> {orgLabel}
+                      <OrganizationIcon size={16} className="pair-icon" />
+                      <span className="pair-label-text" title={orgLabel}>{orgLabel}</span>
                     </span>
-                    <span className="pair-id">{t('relationships.uidLabel')}: {orgUid}</span>
                   </div>
                   <div className="pair-connector">⇄</div>
                   <div className="pair-entity">
                     <span className="pair-label">
-                      <EntityIcon size={16} className="pair-icon" /> {entityName}
+                      <EntityIcon size={16} className="pair-icon" />
+                      <span className="pair-label-text" title={entityName}>{entityName}</span>
                     </span>
-                    <span className="pair-id">{t('relationships.afmLabel')}: {entityAfm}</span>
+                    <div className="pair-entity-details">
+                      <span className="pair-id">{t('relationships.afmLabel')}: {entityAfm}</span>
+                      {pair['entity__entity_type'] && (
+                        <span className="pair-entity-type">{pair['entity__entity_type']}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-              <div className="counterpart-stats">
-                <div className="stat-item">
-                  <span className="stat-label">{t('counterparts.totalAmount')}</span>
-                  <span className="stat-value amount">{formatAmount(pair.total_amount)}</span>
-                </div>
-                <div className="stat-item">
-                  <span className="stat-label">{t('counterparts.decisions')}</span>
-                  <span className="stat-value count">{pair.decision_count}</span>
-                </div>
-              </div>
+              <CounterpartStats
+                totalAmount={pair.total_amount}
+                decisionCount={pair.decision_count}
+              />
             </button>
           );
         })}

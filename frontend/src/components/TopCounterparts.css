@@ -226,12 +226,13 @@
   background: var(--palette-primary);
   color: white;
   font-weight: 700;
-  font-size: 0.75rem;
-  padding: 4px 8px;
-  border-radius: 4px;
-  min-width: 32px;
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  min-width: 24px;
   text-align: center;
   flex-shrink: 0;
+  line-height: 1.5;
 }
 
 .counterpart-name {
@@ -341,15 +342,21 @@
   font-weight: 600;
   color: var(--text-color);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.pair-label-text {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 .pair-icon {
   flex-shrink: 0;
+  margin-top: 2px;
   color: var(--palette-primary);
 }
 
@@ -367,6 +374,27 @@
   font-size: 1rem;
   color: var(--palette-primary);
   padding: 2px 0;
+}
+
+.pair-entity-details {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pair-entity-type {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--palette-primary);
+  background: var(--palette-bg-subtle);
+  padding: 1px 6px;
+  border-radius: 3px;
+  line-height: 1.6;
+  white-space: nowrap;
 }
 
 /* Infinite Scroll Styles */
