@@ -79,6 +79,10 @@ API_CACHE_EXPIRE_HISTORICAL = 60 * 60 * 24  # 24 hours (past data won't change)
 API_CACHE_EXPIRE_CURRENT = 60 * 5  # 5 minutes (current data may update)
 API_CACHE_EXPIRE_STATS = 60 * 10  # 10 minutes (stats change slowly)
 
+# Warmup status tracking (defer_on_miss)
+WARMUP_STATUS_PREFIX = "warmup:"
+WARMUP_STATUS_TTL = 120  # 2 min — if warmup takes longer, something is wrong
+
 FEATURE_FLAG_PREFIX = "feature_flag"
 
 def get_endpoint_key(endpoint):
@@ -149,3 +153,17 @@ def get_api_cache_key(view_name: str, **params) -> str:
     for key, value in sorted(params.items()):
         parts.append(f"{key}={value}")
     return ":".join(parts)
+
+
+def get_warmup_status_key(cache_key: str) -> str:
+    """
+    Convert a standard API cache key to its warmup-status tracking key.
+
+    Args:
+        cache_key: A key from get_api_cache_key(), e.g.
+                   "api_cache:da:explore_orgs:end_date=2025-12-31:..."
+
+    Returns:
+        Warmup status key, e.g. "warmup:api_cache:da:explore_orgs:end_date=2025-12-31:..."
+    """
+    return f"{WARMUP_STATUS_PREFIX}{cache_key}"

@@ -63,9 +63,9 @@ const useDecisionsList = ({
       const response = await apiClient.get(`${endpoint}?${qs}`);
 
       if (append) {
-        setDecisions(prev => [...prev, ...response.data.results]);
+        setDecisions(prev => [...prev, ...(response.data.results || [])]);
       } else {
-        setDecisions(response.data.results);
+        setDecisions(response.data.results || []);
       }
 
       setPagination(response.data.pagination);

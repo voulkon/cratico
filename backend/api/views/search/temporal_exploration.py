@@ -191,6 +191,12 @@ def explore_date_range_api_dev(request):
         ),
     ],
 )
+@cached_view(
+    cache_prefix="explore_statistics",
+    cache_params=["start_date", "end_date"],
+    end_date_param="end_date",
+    defer_on_miss=True,
+)
 @api_view(["GET"])
 @permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
 @monitor_query_performance(operation="temporal_statistics_global")
@@ -200,167 +206,19 @@ def explore_statistics_api_dev(request):
     if err:
         return err
 
-    # Default to last 12 months if no dates provided
-    end_date = end_dt if end_dt else timezone.now()
-    start_date = start_dt if start_dt else end_date - timedelta(days=365)
+    start_date_str = request.GET.get("start_date", "")
+    end_date_str = request.GET.get("end_date", "")
 
     try:
-        # Get all decisions (no entity filtering)
-        decisions_qs = Decision.objects.all()
-
-        # Apply date filters FIRST — this is the key: the filtered subset is small,
-        # so accurate aggregation via DecisionAmountField is fast.
-        filtered_qs = decisions_qs.filter_by_date_range(start_date, end_date)
-
-        # Accurate total: one efficient query on only the date-filtered DecisionAmountField rows.
-        # We cannot simply SUM(DecisionAmountField.amount WHERE decision__in=filtered_qs)
-        # in the same annotation because Django's ORM turns it into a correlated subquery
-        # per row.  Instead we issue ONE aggregate query scoped to the filtered decisions.
-        accurate_total = (
-            DecisionAmountField.objects.filter(
-                decision__in=filtered_qs,
-                associated_relationship__isnull=False,
-            ).aggregate(total=models.Sum("amount"))["total"]
-            or 0
-        )
-
-        # Per-decision distribution stats (avg, max, min) — legacy amount is fine for
-        # these since we only care about the shape of the distribution, not exact totals.
-        stats = filtered_qs.aggregate(
-            total_decisions=models.Count("id"),
-            avg_amount=models.Avg("amount"),
-            max_amount=models.Max("amount"),
-            min_amount=models.Min("amount"),
-        )
-
-        # Count unique organizations with decisions in this period
-        organizations_count = filtered_qs.values("organization").distinct().count()
-
-        # Monthly breakdown for charts
-        try:
-            monthly_stats = (
-                filtered_qs.annotate(month=models.F("issue_date_month"))
-                .values("month")
-                .annotate(
-                    count=models.Count("id"),
-                    amount=models.Sum("amount"),
-                )
-                .order_by("month")
-            )
-        except Exception:
-            monthly_stats = []
-
-        # Top decision types with legacy amounts
-        top_types = (
-            filtered_qs.values("decision_type__label")
-            .annotate(
-                count=models.Count("id"),
-                total_amount=models.Sum("amount"),  # Legacy for aggregation
-            )
-            .order_by("-count")[:10]
-        )
-
-        # Top organizations by decision count with legacy amounts
-        top_organizations = (
-            filtered_qs.values("organization__label", "organization__uid")
-            .annotate(
-                count=models.Count("id"),
-                total_amount=models.Sum("amount"),  # Legacy for aggregation
-            )
-            .order_by("-count")[:10]
-        )
-
-        # Status breakdown
-        status_breakdown = (
-            filtered_qs.values("status")
-            .annotate(count=models.Count("id"))
-            .order_by("-count")
-        )
-
-        # Recent decisions
-        recent_decisions = filtered_qs.order_by("-issue_date_day")[:5].values(
-            "ada",
-            "subject",
-            "issue_date_day",
-            "amount",
-            "decision_type__label",
-            "organization__label",
-            "organization__uid",
-        )
+        from core.services.analytics_precalc_service import compute_explore_statistics
 
         return Response(
-            {
-                "period": {
-                    "start_date": start_date.isoformat(),
-                    "end_date": end_date.isoformat(),
-                    "days_count": (end_date - start_date).days + 1,
-                },
-                "summary": {
-                    "decisions": {
-                        "total_count": stats["total_decisions"] or 0,
-                        "total_amount": float(accurate_total),
-                        "avg_amount": float(stats["avg_amount"] or 0),
-                        "max_amount": float(stats["max_amount"] or 0),
-                        "min_amount": float(stats["min_amount"] or 0),
-                    },
-                    "financial": {
-                        "primary_amount": float(accurate_total),
-                        "has_discrepancy": False,
-                        "discrepancy_percentage": 0,
-                    },
-                    "organizations_count": organizations_count,
-                    "status_breakdown": {
-                        item["status"]: item["count"] for item in status_breakdown
-                    },
-                },
-                "charts": {
-                    "monthly_breakdown": [
-                        {
-                            "month": (
-                                item["month"].isoformat()
-                                if hasattr(item["month"], "isoformat")
-                                else str(item["month"])
-                            ),
-                            "count": item["count"],
-                            "amount": float(item["amount"] or 0),
-                        }
-                        for item in monthly_stats
-                    ],
-                    "top_decision_types": [
-                        {
-                            "type": item["decision_type__label"] or "Unknown",
-                            "count": item["count"],
-                            "total_amount": float(item["total_amount"] or 0),
-                        }
-                        for item in top_types
-                    ],
-                    "top_organizations": [
-                        {
-                            "name": item["organization__label"] or "Unknown",
-                            "uid": item["organization__uid"],
-                            "count": item["count"],
-                            "total_amount": float(item["total_amount"] or 0),
-                        }
-                        for item in top_organizations
-                    ],
-                },
-                "recent_decisions": [
-                    {
-                        "ada": item["ada"],
-                        "subject": item["subject"],
-                        "issue_date": (
-                            item["issue_date_day"].isoformat()
-                            if item["issue_date_day"]
-                            else None
-                        ),
-                        "amount": float(item["amount"]) if item["amount"] else None,
-                        "decision_type": item["decision_type__label"],
-                        "organization": item["organization__label"],
-                        "organization_id": item["organization__uid"],
-                    }
-                    for item in recent_decisions
-                ],
-            }
+            compute_explore_statistics(
+                start_dt=start_dt,
+                end_dt=end_dt,
+                start_date_str=start_date_str,
+                end_date_str=end_date_str,
+            )
         )
 
     except Exception as e:
@@ -694,6 +552,12 @@ def explore_decisions_api_dev(request):
         ),
     ],
 )
+@cached_view(
+    cache_prefix="explore_decision_types",
+    cache_params=["start_date", "end_date"],
+    end_date_param="end_date",
+    defer_on_miss=True,
+)
 @api_view(["GET"])
 @permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
 @monitor_query_performance(operation="temporal_decision_types")
@@ -704,47 +568,9 @@ def explore_decision_types_api_dev(request):
         return err
 
     try:
-        # Get all decisions with date-range filter applied via custom queryset
-        decisions_qs = Decision.objects.filter_by_date_range(start_dt, end_dt)
+        from core.services.analytics_precalc_service import compute_explore_decision_types
 
-        # Get decision types with counts and financial data.
-        # Filtered by date first (line above), so the SUM over amount_fields only
-        # touches rows for decisions in the date range — not the whole table.
-        decision_types = (
-            decisions_qs.values("decision_type__uid", "decision_type__label")
-            .annotate(
-                count=models.Count("id", distinct=True),
-                total_amount=models.Sum(
-                    "amount_fields__amount",
-                    filter=models.Q(
-                        amount_fields__associated_relationship__isnull=False
-                    ),
-                ),
-                max_amount=models.Max("amount"),
-            )
-            .filter(decision_type__uid__isnull=False)
-            .order_by("-count")
-        )
-
-        # Format response
-        formatted_types = []
-        for dt in decision_types:
-            count = dt["count"]
-            total = float(dt["total_amount"] or 0)
-            formatted_types.append(
-                {
-                    "uid": dt["decision_type__uid"],
-                    "label": dt["decision_type__label"],
-                    "count": count,
-                    "total_amount": total,
-                    "avg_amount": total / count if count > 0 else 0,
-                    "max_amount": float(dt["max_amount"] or 0),
-                }
-            )
-
-        return Response(
-            {"decision_types": formatted_types, "total_types": len(formatted_types)}
-        )
+        return Response(compute_explore_decision_types(start_dt=start_dt, end_dt=end_dt))
 
     except Exception as e:
         import traceback
@@ -791,6 +617,7 @@ def explore_decision_types_api_dev(request):
     cache_prefix="explore_orgs",
     cache_params=["start_date", "end_date", "limit", "offset"],
     end_date_param="end_date",
+    defer_on_miss=True,
 )
 @api_view(["GET"])
 @permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])

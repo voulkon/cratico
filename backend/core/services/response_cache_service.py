@@ -34,7 +34,9 @@ from api.redis_keys import (
     API_CACHE_EXPIRE_CURRENT,
     API_CACHE_EXPIRE_HISTORICAL,
     API_CACHE_EXPIRE_STATS,
+    WARMUP_STATUS_TTL,
     get_api_cache_key,
+    get_warmup_status_key,
 )
 from django.core.cache import cache
 from loguru import logger
@@ -207,6 +209,49 @@ class ResponseCacheService:
         except Exception as e:
             logger.warning(f"ResponseCache: full invalidation failed: {e}")
             return 0
+
+    # ── Warmup status tracking (defer_on_miss) ─────────────────────────
+
+    @staticmethod
+    def get_warmup_status(cache_key: str) -> Optional[str]:
+        """
+        Check the warmup status for a cache key.
+
+        Returns:
+            "in_progress", "ready", or None (no warmup has been initiated)
+        """
+        status_key = get_warmup_status_key(cache_key)
+        return cache.get(status_key)
+
+    @staticmethod
+    def set_warmup_status(
+        cache_key: str, status: str, timeout: Optional[int] = None
+    ) -> None:
+        """
+        Set the warmup status for a cache key.
+
+        Args:
+            cache_key: The standard API cache key
+            status: "in_progress" or "ready"
+            timeout: TTL in seconds (default: WARMUP_STATUS_TTL = 120s)
+        """
+        effective_timeout = timeout if timeout is not None else WARMUP_STATUS_TTL
+        status_key = get_warmup_status_key(cache_key)
+        cache.set(status_key, status, effective_timeout)
+        logger.debug(
+            f"[ResponseCache WARMUP] status={status} key={status_key} "
+            f"ttl={effective_timeout}s"
+        )
+
+    @staticmethod
+    def clear_warmup_status(cache_key: str) -> None:
+        """
+        Remove the warmup status key (typically after a successful warmup,
+        the status becomes redundant once the data cache exists).
+        """
+        status_key = get_warmup_status_key(cache_key)
+        cache.delete(status_key)
+        logger.debug(f"[ResponseCache WARMUP] cleared status key={status_key}")
 
 
 # Singleton instance for import convenience

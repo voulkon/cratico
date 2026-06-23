@@ -64,6 +64,65 @@ def _calendar_windows(ref: date) -> list[tuple[str, date, date]]:
     ]
 
 
+def _build_warmup_sentinel_keys(
+    view_name: str,
+    start_str: str,
+    end_str: str,
+    kwargs: dict,
+) -> list[str]:
+    """
+    Build the first-page cache key(s) for a view so L3 can set warmup
+    status before calling the warm function.  This lets L2 (defer_on_miss)
+    detect that L3 is already working and avoid dispatching a duplicate.
+
+    Returns a list because some views (da_top_entities, da_top_orgs) warm
+    two sort variants in one call.
+    """
+    from core.services.response_cache_service import response_cache
+
+    page_size = str(kwargs.get("page_size", 20))
+
+    if view_name == "explore_orgs":
+        return [response_cache.build_key(
+            "explore_orgs",
+            start_date=start_str, end_date=end_str,
+            limit=page_size, offset="0",
+        )]
+
+    if view_name == "da_top_pairs":
+        return [response_cache.build_key(
+            "da_top_pairs",
+            start_date=start_str, end_date=end_str,
+            limit=page_size, offset="0",
+        )]
+
+    if view_name == "explore_decisions":
+        return [response_cache.build_key(
+            "explore_decisions",
+            start_date=start_str, end_date=end_str,
+            page="1", page_size=page_size,
+            sort_by="entity_amount_desc",
+            organization_uid="", entity_afm="",
+            direct_assignments_only="",
+        )]
+
+    if view_name in ("da_top_entities", "da_top_orgs"):
+        return [
+            response_cache.build_key(
+                view_name,
+                end_date=end_str, limit=page_size,
+                offset="0", sort_by=sort, start_date=start_str,
+            )
+            for sort in ("amount", "frequency")
+        ]
+
+    # Single-key views: explore_decision_types, explore_statistics
+    return [response_cache.build_key(
+        view_name,
+        end_date=end_str, start_date=start_str,
+    )]
+
+
 # ---------------------------------------------------------------------------
 # Orchestrator — the single place to wire post-import work
 # ---------------------------------------------------------------------------
@@ -182,9 +241,13 @@ def warm_analytics_cache(reference_date_str: str | None = None):
     cache keys match exactly.
 
     Views warmed:
-      - explore_orgs       (explore/organizations/)
-      - da_top_pairs       (direct-assignments/top-pairs/)
-      - explore_decisions  (explore/decisions/)
+      - explore_orgs           (explore/organizations/)
+      - da_top_pairs           (direct-assignments/top-pairs/)
+      - da_top_entities        (direct-assignments/top-entities/)
+      - da_top_orgs            (direct-assignments/top-organizations/)
+      - explore_decisions      (explore/decisions/)
+      - explore_decision_types (explore/decision-types/)
+      - explore_statistics     (explore/statistics/)
 
     Args:
         reference_date_str: ISO-format date string. Defaults to today.
@@ -195,8 +258,12 @@ def warm_analytics_cache(reference_date_str: str | None = None):
 
     from core.services.analytics_precalc_service import (
         warm_da_top_pairs_window,
+        warm_da_top_entities_window,
+        warm_da_top_orgs_window,
         warm_explore_decisions_window,
+        warm_explore_decision_types_window,
         warm_explore_orgs_window,
+        warm_explore_statistics_window,
     )
 
     ref = (
@@ -209,6 +276,8 @@ def warm_analytics_cache(reference_date_str: str | None = None):
 
     logger.info(f"Warming analytics cache for {len(windows)} windows (ref={ref})")
 
+    from core.services.response_cache_service import response_cache
+
     warmed = 0
     errors = []
 
@@ -220,7 +289,19 @@ def warm_analytics_cache(reference_date_str: str | None = None):
             ("explore_orgs", warm_explore_orgs_window, {"max_limit": 200, "page_size": 6}),
             ("da_top_pairs", warm_da_top_pairs_window, {"max_limit": 50, "page_size": 6}),
             ("explore_decisions", warm_explore_decisions_window, {"max_limit": 200, "page_size": 5}),
+            ("da_top_entities", warm_da_top_entities_window, {"max_limit": 100, "page_size": 20}),
+            ("da_top_orgs", warm_da_top_orgs_window, {"max_limit": 100, "page_size": 20}),
+            ("explore_decision_types", warm_explore_decision_types_window, {"max_limit": 200, "page_size": 50}),
+            ("explore_statistics", warm_explore_statistics_window, {"max_limit": 1, "page_size": 1}),
         ]:
+            # ── Build sentinel warmup keys so L2 (defer_on_miss) can
+            #     detect that L3 is already working on this view ──────
+            sentinel_keys = _build_warmup_sentinel_keys(
+                view_name, start_str, end_str, kwargs
+            )
+            for key in sentinel_keys:
+                response_cache.set_warmup_status(key, "in_progress")
+
             try:
                 warm_fn(
                     start_date_str=start_str,
@@ -228,8 +309,12 @@ def warm_analytics_cache(reference_date_str: str | None = None):
                     end_date=end,
                     **kwargs,
                 )
+                for key in sentinel_keys:
+                    response_cache.set_warmup_status(key, "ready")
                 warmed += 1
             except Exception as exc:
+                for key in sentinel_keys:
+                    response_cache.clear_warmup_status(key)
                 logger.warning(
                     f"[warm_analytics_cache] Failed to warm {view_name} "
                     f"for window {label} ({start_str} → {end_str}): {exc}"
@@ -252,9 +337,94 @@ def warm_analytics_cache(reference_date_str: str | None = None):
     }
 
 
-# ---------------------------------------------------------------------------
-# Notifications — Bulk check all active subscriptions
-# ---------------------------------------------------------------------------
+# ── On-demand single-window warmup (defer_on_miss) ──────────────────────
+
+
+@shared_task
+def warm_single_window(
+    view_name: str,
+    params: dict,
+    cache_key: str,
+):
+    """
+    On-demand warmup for a single (view, date-range) pair.
+
+    Dispatched by cached_view on defer_on_miss cache miss when no custom
+    defer_warmup_task is provided.
+
+    Args:
+        view_name: The cache_prefix from @cached_view (e.g. "explore_orgs")
+        params: Dict of query params from the original request
+        cache_key: The exact Redis cache key the frontend is polling for
+
+    The task:
+    1. Looks up the warm function from WARMUP_REGISTRY
+    2. Calls it with the date range from params
+    3. On success, marks warmup_status as "ready"
+    4. On failure, clears the "in_progress" status so the next request retries
+    """
+    from core.services.analytics_precalc_service import WARMUP_REGISTRY
+    from core.services.response_cache_service import response_cache
+
+    warm_fn = WARMUP_REGISTRY.get(view_name)
+    if not warm_fn:
+        logger.warning(
+            f"[warm_single_window] No warmup registered for view={view_name}"
+        )
+        return {"status": "unknown_view", "view_name": view_name}
+
+    # Extract date params
+    start_date_str = params.get("start_date", "")
+    end_date_str = params.get("end_date", "")
+
+    if not start_date_str or not end_date_str:
+        logger.warning(
+            f"[warm_single_window] Missing date params for view={view_name}, "
+            f"params={params}"
+        )
+        response_cache.clear_warmup_status(cache_key)
+        return {"status": "missing_date_params", "view_name": view_name}
+
+    try:
+        from datetime import date as date_type
+
+        end_date = date_type.fromisoformat(end_date_str)
+
+        # Call the warm function
+        warm_fn(
+            start_date_str=start_date_str,
+            end_date_str=end_date_str,
+            end_date=end_date,
+        )
+
+        # Mark warmup as ready
+        response_cache.set_warmup_status(cache_key, "ready")
+        logger.info(
+            f"[warm_single_window] Successfully warmed view={view_name} "
+            f"[{start_date_str} → {end_date_str}]"
+        )
+        return {
+            "status": "warmed",
+            "view_name": view_name,
+            "start_date": start_date_str,
+            "end_date": end_date_str,
+        }
+
+    except Exception as exc:
+        logger.error(
+            f"[warm_single_window] Failed to warm view={view_name} "
+            f"[{start_date_str} → {end_date_str}]: {exc}"
+        )
+        # Clear the in_progress status so the next user request can retry
+        response_cache.clear_warmup_status(cache_key)
+        return {
+            "status": "failed",
+            "view_name": view_name,
+            "error": str(exc),
+        }
+
+
+# ── Notifications — Bulk check all active subscriptions ──────────────────
 
 @shared_task
 def trigger_check_all_subscriptions(reference_date_str: str | None = None):

@@ -88,15 +88,15 @@ const DecisionsSection = ({
   return (
     <CollapsibleSection
       title={t('homepage.notableRecentDecisions')}
-      onSeeAll={decisions.length > 0 ? onSeeAll : undefined}
+      onSeeAll={decisions?.length > 0 ? onSeeAll : undefined}
       collapsible={collapsible}
       className={className}
     >
       <div className="dashboard-section-info">
-        <span>{decisions.length} {t('homepage.decisions')}</span>
+        <span>{decisions?.length ?? 0} {t('homepage.decisions')}</span>
       </div>
       <div className="dashboard-section-scroll">
-        {decisions.length === 0 ? (
+        {!decisions || decisions.length === 0 ? (
           <p className="dashboard-empty">{t('exploration.noResults')}</p>
         ) : (
           <>
