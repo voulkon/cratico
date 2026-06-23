@@ -23,6 +23,7 @@
     "yearOverview": "Year Overview",
     "recentActivity": "Recent Activity",
     "browseOrganizations": "Browse Organizations",
+    "browse": "Explore",
     "browseOrganizationsDesc": "Search and explore by government organization",
     "searchExploreByOrg": "Search and explore by government organization",
     "thisMonthDesc": "Explore all decisions from {month} {year}",
