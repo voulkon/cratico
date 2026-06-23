@@ -64,7 +64,7 @@ from .tasks_import_validation import (
     validate_and_backfill_imports,
     validate_single_day,
 )
-from .tasks_misc import ping, test_tracing
+from .tasks_misc import ping, say_hi, test_tracing
 from .tasks_opensearch import (
     bulk_reindex_missing_documents,
     check_opensearch_sync,
@@ -139,6 +139,7 @@ __all__ = [
     "process_entities_needing_company_data",
     # Misc
     "ping",
+    "say_hi",
     "test_tracing",
     # Health Checks
     "check_recent_decisions_health",
