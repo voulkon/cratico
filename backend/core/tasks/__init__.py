@@ -81,6 +81,8 @@ from .tasks_org_decisions import (
 from .tasks_post_import import (
     post_daily_import_orchestrator, 
     compute_entity_rankings,
+    warm_analytics_cache,
+    warm_single_window,
     trigger_check_all_subscriptions
     )
 from .tasks_periodic_validation import periodic_validation_task
@@ -162,6 +164,8 @@ __all__ = [
     "recompute_publish_date_fields_task",
     "post_daily_import_orchestrator",
     "compute_entity_rankings",
+    "warm_analytics_cache",
+    "warm_single_window",
     "trigger_check_all_subscriptions",
     "compute_amount_entity_analysis",
 ]

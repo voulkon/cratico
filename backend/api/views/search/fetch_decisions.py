@@ -118,6 +118,7 @@ from rest_framework.response import Response
         and not req.GET.get("min_amount")  # No amount filters
         and not req.GET.get("max_amount")
     ),
+    defer_on_miss=True,
 )
 @api_view(["GET"])
 @permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
