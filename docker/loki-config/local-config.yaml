@@ -3,26 +3,23 @@ auth_enabled: false
 server:
   http_listen_port: 3100
   grpc_listen_port: 9096
-  log_level: warn
 
+# ── Single-instance (monolithic) Loki 3.x ──
+# Shared ring via common.ring — all components (ingester, distributor)
+# must share the same ring in monolithic mode.
 common:
-  instance_addr: 127.0.0.1
   path_prefix: /loki
-  storage:
-    filesystem:
-      chunks_directory: /loki/chunks
-      rules_directory: /loki/rules
-  replication_factor: 1
   ring:
     kvstore:
       store: inmemory
+  replication_factor: 1
+  instance_addr: 127.0.0.1
 
-query_range:
-  results_cache:
-    cache:
-      embedded_cache:
-        enabled: true
-        max_size_mb: 100
+ingester:
+  lifecycler:
+    address: 127.0.0.1
+  chunk_idle_period: 30m
+  max_chunk_age: 1h
 
 schema_config:
   configs:
@@ -33,9 +30,6 @@ schema_config:
       index:
         prefix: index_
         period: 24h
-
-ruler:
-  alertmanager_url: http://localhost:9093
 
 limits_config:
   reject_old_samples: true

@@ -18,7 +18,7 @@ CELERY_CONCURRENCY=${CELERY_CONCURRENCY:-2}
 
 # Log the worker configuration
 echo "=========================================="
-echo "🚀 Celery Worker Configuration"
+echo "Celery Worker Configuration"
 echo "=========================================="
 echo "Concurrency: ${CELERY_CONCURRENCY} workers"
 echo "Max Tasks Per Child: ${CELERY_WORKER_MAX_TASKS_PER_CHILD:-100}"
