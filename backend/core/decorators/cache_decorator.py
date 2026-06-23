@@ -250,17 +250,34 @@ def _handle_defer_on_miss(
     On cache miss with defer_on_miss=True, check warmup status and either:
 
     1. If warmup already in-progress → return 202 (avoids duplicate dispatch)
-    2. If no warmup yet → mark in-progress, dispatch warmup, return 202
+    2. If warmup already completed (ready) → return 202 without dispatching
+       (the warmup produced no cache entries, typically because there is no
+       data for this window — re-dispatching would create an infinite loop)
+    3. If no warmup yet → mark in-progress, dispatch warmup, return 202
 
     Returns a 202 Accepted response telling the frontend to retry.
     """
-    # ── Check if warmup is already in-progress ───────────────────────
+    # ── Check if warmup is already in-progress or ready ─────────────
     warmup_status = response_cache.get_warmup_status(cache_key)
     if warmup_status == WARMUP_STATUS_IN_PROGRESS:
         if log_cache_operations:
             logger.info(
                 f"[Cache Decorator DEFER] Warmup already in-progress for "
                 f"{cache_prefix} | key={cache_key}"
+            )
+        return _build_202_response(cache_key, defer_retry_after)
+
+    if warmup_status == WARMUP_STATUS_READY:
+        # Warmup already completed but produced no cache entries (typically
+        # because there is no data for this window).  Do NOT re-dispatch -
+        # that would create an infinite loop.  The frontend will retry and
+        # eventually the warmup-status TTL expires; at that point a new
+        # warmup may be dispatched if data has arrived in the meantime.
+        if log_cache_operations:
+            logger.info(
+                f"[Cache Decorator DEFER] Warmup already completed (ready) but "
+                f"no cache entry for {cache_prefix} | key={cache_key} — "
+                f"NOT re-dispatching (empty window)"
             )
         return _build_202_response(cache_key, defer_retry_after)
 

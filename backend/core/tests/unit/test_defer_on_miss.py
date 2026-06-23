@@ -267,6 +267,43 @@ class TestHandleDeferOnMiss:
         # Warmup should only have been dispatched once
         assert mock_warmup.call_count == 1
 
+    def test_does_not_dispatch_when_warmup_already_ready(self):
+        """When warmup status is 'ready', should return 202 WITHOUT re-dispatching.
+
+        This is the critical fix: a completed warmup that produced no cache
+        entries (e.g. empty date window) must NOT trigger an infinite
+        dispatch loop.
+        """
+        request = make_get_request(
+            {"start_date": "2025-01-01", "end_date": "2025-01-01"}
+        )
+
+        # Pre-set warmup status to "ready" (simulating a prior warmup that
+        # completed but produced 0 cache entries)
+        response_cache.set_warmup_status(self.cache_key, WARMUP_STATUS_READY)
+
+        mock_view = MagicMock()
+        mock_warmup = MagicMock()
+
+        response = _handle_defer_on_miss(
+            request=request,
+            cache_key=self.cache_key,
+            cache_prefix="test_view",
+            defer_retry_after=30,
+            defer_warmup_task=mock_warmup,
+            view_func=mock_view,
+            log_cache_operations=True,
+        )
+
+        # Should return 202…
+        assert response.status_code == 202
+
+        # …but should NOT dispatch the warmup task again
+        mock_warmup.assert_not_called()
+
+        # The view should not have been executed either
+        mock_view.assert_not_called()
+
     def test_both_calls_return_202(self):
         """Both first and second call should return 202."""
         request = make_get_request(

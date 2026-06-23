@@ -183,6 +183,26 @@ def warm_explore_orgs_window(
         response_cache.set(cache_key, page_data, end_date=end_date)
         cached += 1
 
+    # ── always cache at least page 1 (even if empty) so subsequent
+    #     requests get cache hits instead of triggering defer_on_miss ─
+    if cached == 0:
+        empty_data = {
+            "organizations": [],
+            "total_organizations": 0,
+            "has_more": False,
+            "offset": 0,
+            "limit": page_size,
+        }
+        empty_key = response_cache.build_key(
+            "explore_orgs",
+            start_date=start_date_str,
+            end_date=end_date_str,
+            limit=str(page_size),
+            offset="0",
+        )
+        response_cache.set(empty_key, empty_data, end_date=end_date)
+        cached += 1
+
     logger.info(
         f"[AnalyticsPrecalc] Warmed explore_orgs "
         f"[{start_date_str} → {end_date_str}] {cached} pages "
@@ -378,6 +398,30 @@ def warm_da_top_pairs_window(
             offset=str(offset),
         )
         response_cache.set(cache_key, page_data, end_date=end_date)
+        cached += 1
+
+    # ── always cache at least page 1 (even if empty) so subsequent
+    #     requests get cache hits instead of triggering defer_on_miss ─
+    if cached == 0:
+        empty_data = {
+            "date_range": data["date_range"],
+            "results": [],
+            "pagination": {
+                "limit": page_size,
+                "offset": 0,
+                "total_count": 0,
+                "has_more": False,
+            },
+            "summary": summary,
+        }
+        empty_key = response_cache.build_key(
+            "da_top_pairs",
+            start_date=start_date_str,
+            end_date=end_date_str,
+            limit=str(page_size),
+            offset="0",
+        )
+        response_cache.set(empty_key, empty_data, end_date=end_date)
         cached += 1
 
     logger.info(
@@ -699,6 +743,35 @@ def warm_explore_decisions_window(
         response_cache.set(cache_key, page_data, end_date=end_date)
         cached += 1
 
+    # ── always cache at least page 1 (even if empty) so subsequent
+    #     requests get cache hits instead of triggering defer_on_miss ─
+    if cached == 0:
+        empty_data = {
+            **{k: v for k, v in data.items() if k not in ("results", "pagination")},
+            "results": [],
+            "pagination": {
+                "current_page": 1,
+                "total_pages": 0,
+                "total_count": 0,
+                "has_next": False,
+                "has_previous": False,
+                "page_size": page_size,
+            },
+        }
+        empty_key = response_cache.build_key(
+            "explore_decisions",
+            start_date=start_date_str,
+            end_date=end_date_str,
+            page="1",
+            page_size=str(page_size),
+            sort_by="entity_amount_desc",
+            organization_uid="",
+            entity_afm="",
+            direct_assignments_only="",
+        )
+        response_cache.set(empty_key, empty_data, end_date=end_date)
+        cached += 1
+
     logger.info(
         f"[AnalyticsPrecalc] Warmed explore_decisions "
         f"[{start_date_str} → {end_date_str}] {cached} pages "
@@ -880,6 +953,33 @@ def warm_da_top_entities_window(
             response_cache.set(cache_key, page_data, end_date=end_date)
             cached += 1
 
+        # ── always cache at least page 1 (even if empty) so subsequent
+        #     requests get cache hits instead of triggering defer_on_miss ─
+        if cached == 0:
+            empty_data = {
+                "metric": data["metric"],
+                "sort_by": data["sort_by"],
+                "date_range": data["date_range"],
+                "results": [],
+                "pagination": {
+                    "limit": page_size,
+                    "offset": 0,
+                    "total_count": 0,
+                    "has_more": False,
+                },
+                "summary": summary,
+            }
+            empty_key = response_cache.build_key(
+                "da_top_entities",
+                end_date=end_date_str,
+                limit=str(page_size),
+                offset="0",
+                sort_by=sort_by,
+                start_date=start_date_str,
+            )
+            response_cache.set(empty_key, empty_data, end_date=end_date)
+            cached += 1
+
         logger.info(
             f"[AnalyticsPrecalc] Warmed da_top_entities "
             f"[{start_date_str} → {end_date_str}] sort_by={sort_by} "
@@ -1059,6 +1159,33 @@ def warm_da_top_orgs_window(
                 start_date=start_date_str,
             )
             response_cache.set(cache_key, page_data, end_date=end_date)
+            cached += 1
+
+        # ── always cache at least page 1 (even if empty) so subsequent
+        #     requests get cache hits instead of triggering defer_on_miss ─
+        if cached == 0:
+            empty_data = {
+                "metric": data["metric"],
+                "sort_by": data["sort_by"],
+                "date_range": data["date_range"],
+                "results": [],
+                "pagination": {
+                    "limit": page_size,
+                    "offset": 0,
+                    "total_count": 0,
+                    "has_more": False,
+                },
+                "summary": summary,
+            }
+            empty_key = response_cache.build_key(
+                "da_top_orgs",
+                end_date=end_date_str,
+                limit=str(page_size),
+                offset="0",
+                sort_by=sort_by,
+                start_date=start_date_str,
+            )
+            response_cache.set(empty_key, empty_data, end_date=end_date)
             cached += 1
 
         logger.info(
