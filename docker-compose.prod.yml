@@ -25,8 +25,10 @@ services:
       - loki_data:/loki
       - ./docker/loki-config:/etc/loki
     command: -config.file=/etc/loki/local-config.yaml
+    user: "0:0"  # run as root — volume is owned by root, otherwise mkdir fails
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider http://localhost:3100/ready || exit 1"]
+      # grafana/loki:latest is distroless (no shell, no wget).
+      test: ["CMD", "/usr/bin/loki", "-version"]
       interval: 10s
       timeout: 5s
       retries: 5

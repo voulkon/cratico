@@ -6,6 +6,7 @@ import { useAuthConfig } from '../contexts/AuthConfigContext';
 import { DateRangeProvider, useDateRange } from '../contexts/DateRangeContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import SuperSearch from '../components/SuperSearch';
+import { GlobeIcon } from '../components/Icons';
 import TopRelationshipPairs from '../components/TopRelationshipPairs';
 import DateRangeSelector from '../components/DateRangeSelector';
 import DashboardGrid from '../components/DashboardGrid';
@@ -64,6 +65,7 @@ const HomePage = () => {
   const { t } = useTranslation();
   const { isSignedIn, isLoaded } = useAuth();
   const { stealthMode, loading: configLoading } = useAuthConfig();
+  const navigate = useNavigate();
 
   // Show loading state while checking config
   if (configLoading) {
@@ -94,14 +96,22 @@ const HomePage = () => {
                 {t('homepage.subtitle')}
               </p>
 
-              {/* Super Search Component - Main Feature */}
-              <div className="hero-search-enhanced">
+              {/* Super Search + Browse button */}
+              <div className="hero-action-bar">
                 <SuperSearch
                   placeholder={t('homepage.searchPlaceholder')}
                   autoFocus={false}
                   showFullResults={true}
                   className="homepage-super-search"
                 />
+                <button
+                  className="homepage-browse-btn"
+                  onClick={() => navigate('/browse')}
+                  title={t('homepage.browse')}
+                >
+                  <GlobeIcon size={18} />
+                  {t('homepage.browse')}
+                </button>
               </div>
 
               {/* Sign-in message */}
@@ -142,14 +152,22 @@ const HomePage = () => {
                 {t('homepage.subtitle')}
               </p>
 
-              {/* Super Search Component - Main Feature */}
-              <div className="hero-search-enhanced">
+              {/* Super Search + Browse button */}
+              <div className="hero-action-bar">
                 <SuperSearch
                   placeholder={t('homepage.searchPlaceholder')}
                   autoFocus={false}
                   showFullResults={true}
                   className="homepage-super-search"
                 />
+                <button
+                  className="homepage-browse-btn"
+                  onClick={() => navigate('/browse')}
+                  title={t('homepage.browse')}
+                >
+                  <GlobeIcon size={18} />
+                  {t('homepage.browse')}
+                </button>
               </div>
             </div>
           </section>
