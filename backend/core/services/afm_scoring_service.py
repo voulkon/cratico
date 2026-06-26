@@ -280,7 +280,7 @@ class AFMEntityScoringService:
             "global_stats": global_stats,
         }
 
-        logger.info(f"Scoring completed", extra=stats)
+        logger.bind(**stats).info(f"Scoring completed")
         return stats
 
     def score_entity(

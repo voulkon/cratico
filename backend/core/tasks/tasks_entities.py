@@ -328,7 +328,7 @@ def process_afm_fetch_queue(self, max_items: int = None, batch_size: int = 50):
                 "remaining_in_queue": queue_service.get_pending_count(),
             }
 
-            logger.info(f"Queue processing completed", extra=final_stats)
+            logger.bind(**final_stats).info(f"Queue processing completed")
             return final_stats
 
         except Exception as e:
