@@ -3,27 +3,22 @@ import { useSearchParams } from 'react-router-dom';
 import CategoryTabs from '../components/CategoryTabs';
 import LetterIndex from '../components/browse/LetterIndex';
 import EntityList from '../components/browse/EntityList';
-import {
-  OrganizationIcon,
-  UserIcon,
-  UnitIcon,
-  CompanyIcon,
-  PenIcon,
-  SearchIcon,
-} from '../components/Icons';
+import { SearchIcon } from '../components/Icons';
+import { getCategoryIcon, getCategoryLabel } from '../constants/categoryDefinitions';
 import './BrowsePage.css';
 
 // ── Category definitions ──────────────────────────────────────────
 const ALL_KEY = 'all';
 
+const BROWSE_KEYS = ['organization', 'signer', 'unit', 'company', 'companyperson', 'afmentity'];
+
 const CATEGORIES = [
   { key: ALL_KEY, label: 'All', icon: null },
-  { key: 'organization', label: 'Organizations', icon: <OrganizationIcon size={14} /> },
-  { key: 'signer', label: 'Signers', icon: <PenIcon size={14} /> },
-  { key: 'unit', label: 'Units', icon: <UnitIcon size={14} /> },
-  { key: 'company', label: 'Companies', icon: <CompanyIcon size={14} /> },
-  { key: 'companyperson', label: 'People', icon: <UserIcon size={14} /> },
-  { key: 'afmentity', label: 'AFM Entities', icon: <CompanyIcon size={14} /> },
+  ...BROWSE_KEYS.map((key) => ({
+    key,
+    label: getCategoryLabel(key),
+    icon: getCategoryIcon(key, 14),
+  })),
 ];
 
 // ── Component ────────────────────────────────────────────────────
