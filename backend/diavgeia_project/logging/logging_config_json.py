@@ -50,7 +50,11 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
 
 
 def get_json_logging_config(
-    debug_mode=False, logging_level="INFO", celery_level="INFO", db_level="WARNING"
+    debug_mode=False,
+    logging_level="INFO",
+    celery_level="INFO",
+    celery_task_event_level="WARNING",
+    db_level="WARNING",
 ):
     """
     Get logging configuration with JSON formatting.
@@ -59,6 +63,7 @@ def get_json_logging_config(
         debug_mode: If True, adds verbose console output for debugging
         logging_level: The logging level to use (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         celery_level: The Celery-specific log level
+        celery_task_event_level: Level for noisy per-task logs (strategy/trace), default WARNING
         db_level: The Django DB log level (set to DEBUG to see SQL queries)
 
     Returns:
@@ -160,12 +165,12 @@ def get_json_logging_config(
             },
             "celery.worker.strategy": {
                 "handlers": ["console_json"],
-                "level": "WARNING",  # Very noisy at INFO/DEBUG
+                "level": celery_task_event_level,  # "Task X received" — noisy, defaults to WARNING
                 "propagate": False,
             },
             "celery.app.trace": {
                 "handlers": ["console_json"],
-                "level": "WARNING",  # Suppress "TaskPool: Apply" logs
+                "level": celery_task_event_level,  # "Task Y succeeded" — noisy, defaults to WARNING
                 "propagate": False,
             },
             # Suppress noisy third-party libraries
