@@ -85,6 +85,11 @@ WARMUP_STATUS_TTL = 120  # 2 min — if warmup takes longer, something is wrong
 
 FEATURE_FLAG_PREFIX = "feature_flag"
 
+# Browse API (alphabetical entity browsing)
+BROWSE_NS = "browse"
+BROWSE_AVAILABLE_LETTERS_PREFIX = f"{BROWSE_NS}:available_letters:"  # browse:available_letters:<entity_type>
+BROWSE_CACHE_TIMEOUT = 300  # 5 minutes
+
 def get_endpoint_key(endpoint):
     """Get the Redis key for endpoint stats"""
     return f"{ENDPOINT_PREFIX}{endpoint}"
