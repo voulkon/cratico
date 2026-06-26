@@ -25,7 +25,7 @@
 }
 
 .breadcrumb-separator {
-  color: var(--text-muted);
+  color: var(--muted-text);
 }
 
 .relationship-header {
@@ -75,7 +75,7 @@
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--text-muted);
+  color: var(--muted-text);
   font-weight: 600;
 }
 
@@ -88,7 +88,7 @@
 .entity-id {
   font-family: monospace;
   font-size: 0.85rem;
-  color: var(--text-muted);
+  color: var(--muted-text);
 }
 
 .relationship-connector {
@@ -249,7 +249,7 @@
 .no-decisions-message {
   text-align: center;
   padding: 40px;
-  color: var(--text-muted);
+  color: var(--muted-text);
 }
 
 .load-more-container {

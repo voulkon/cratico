@@ -1,0 +1,79 @@
+/* CategoryTabs — reusable tab bar for SuperSearch and BrowsePage */
+
+.category-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--card-bg);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+}
+
+.category-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.category-tab-wrapper {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.category-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md, 8px);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-sm, 13px);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.category-tab:hover {
+  background: var(--hover-bg);
+  color: var(--text-color);
+}
+
+.category-tab.active {
+  background: var(--palette-primary, #3b82f6);
+  color: #fff;
+  border-color: var(--palette-primary, #3b82f6);
+}
+
+.category-tab-icon {
+  display: flex;
+  align-items: center;
+  opacity: 0.85;
+}
+
+.category-tab.active .category-tab-icon {
+  opacity: 1;
+}
+
+.category-tab-count {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--surface-secondary);
+  line-height: 1.4;
+}
+
+.category-tab.active .category-tab-count {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.category-tab-action {
+  display: flex;
+  align-items: center;
+  margin-left: 2px;
+}
