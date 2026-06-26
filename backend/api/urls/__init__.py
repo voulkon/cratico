@@ -16,6 +16,7 @@ URL Structure:
 - /api/notifications/* - Notification subscriptions and batches
 - /api/decisions/* - Decision details
 - /api/companies/* - Company information
+- /api/browse/* - Alphabetical entity browsing
 - /api/organizations/* - Organization information
 - /api/direct-assignments/* - Direct assignment analytics
 - /api/system/* - System configuration
@@ -25,6 +26,7 @@ URL Structure:
 # Import URL modules to get their PREFIX constants (single source of truth)
 from api.urls import (
     auth,
+    browse,
     companies,
     decisions,
     direct_assignments,
@@ -75,6 +77,7 @@ urlpatterns = [
     path(decisions.PREFIX, include("api.urls.decisions")),
     path(companies.PREFIX, include("api.urls.companies")),
     path(organizations.PREFIX, include("api.urls.organizations")),
+    path(browse.PREFIX, include("api.urls.browse")),
     path(direct_assignments.PREFIX, include("api.urls.direct_assignments")),
     path(system.PREFIX, include("api.urls.system")),
     path(tasks.PREFIX, include("api.urls.tasks")),

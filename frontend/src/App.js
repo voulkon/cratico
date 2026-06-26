@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/clerk-react";
+import BrowsePage from "./pages/BrowsePage";
 import HomePage from "./pages/HomePage";
 import DevPage from "./pages/OrganizationsPage";
 import EntityDetailPage from "./pages/EntityDetailPage";
@@ -212,6 +213,7 @@ function AuthenticatedApp({ controlsLayout }) {
             <Route path="/library" element={<LibraryPage />} />
             <Route path="/share/bookmark/:slug" element={<SharedBookmarkPage />} />
             <Route path="/share/folder/:slug" element={<SharedFolderPage />} />
+            <Route path="/browse" element={<BrowsePage />} />
             <Route path="/organizations" element={<DevPage />} />
             <Route path="/dev" element={<Navigate to="/organizations" />} />
             <Route path="/search" element={<SearchResults />} />

@@ -1,0 +1,207 @@
+/* EntityList — alphabetical entity list with sticky letter headers */
+
+.entity-list {
+  flex: 1;
+  min-height: 200px;
+  padding: 0;
+}
+
+/* ── Letter group header ────────────────────────────────────────── */
+.entity-list-letter-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 6px 16px;
+  background: var(--bg-color);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--palette-primary);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* ── Entity row ─────────────────────────────────────────────────── */
+.entity-list-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background 0.12s;
+  user-select: none;
+}
+
+.entity-list-row:hover {
+  background: var(--hover-bg);
+}
+
+.entity-list-row:focus-visible {
+  outline: 2px solid var(--palette-primary);
+  outline-offset: -2px;
+}
+
+.entity-list-row-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: var(--surface-secondary);
+  color: var(--text-secondary);
+}
+
+.entity-list-row-text {
+  flex: 1;
+  font-size: var(--font-sm);
+  color: var(--text-color);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entity-list-row-type {
+  font-size: 11px;
+  color: var(--muted-text);
+  text-transform: capitalize;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+/* ── Skeleton loading ───────────────────────────────────────────── */
+.entity-list-skeleton {
+  padding: 8px 0;
+}
+
+.entity-list-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+}
+
+.skeleton-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--surface-secondary);
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 4px;
+  background: var(--surface-secondary);
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-line--long {
+  width: 60%;
+}
+
+.skeleton-line--short {
+  width: 35%;
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* ── Empty / error states ───────────────────────────────────────── */
+.entity-list--empty,
+.entity-list--error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+}
+
+.entity-list-empty,
+.entity-list-error {
+  text-align: center;
+  color: var(--muted-text);
+}
+
+.entity-list-empty p,
+.entity-list-error p {
+  margin: 0 0 4px;
+  font-size: var(--font-sm);
+}
+
+.entity-list-empty-hint {
+  font-size: var(--font-xs) !important;
+  color: var(--muted-text);
+}
+
+.entity-list-retry-btn {
+  margin-top: 12px;
+  padding: 6px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  color: var(--text-color);
+  font-size: var(--font-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.entity-list-retry-btn:hover {
+  background: var(--hover-bg);
+}
+
+/* ── Scroll sentinel ────────────────────────────────────────────── */
+.entity-list-sentinel {
+  height: 1px;
+}
+
+/* ── Loading more ───────────────────────────────────────────────── */
+.entity-list-loading-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  color: var(--muted-text);
+  font-size: var(--font-sm);
+}
+
+.entity-list-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--palette-primary);
+  border-radius: 50%;
+  animation: entity-spin 0.6s linear infinite;
+}
+
+@keyframes entity-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── End marker ─────────────────────────────────────────────────── */
+.entity-list-end {
+  text-align: center;
+  padding: 20px 16px;
+  color: var(--muted-text);
+  font-size: var(--font-xs);
+  letter-spacing: 0.04em;
+}
