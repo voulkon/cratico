@@ -154,7 +154,9 @@ def get_api_cache_key(view_name: str, **params) -> str:
     Returns:
         Redis key string, e.g., "api_cache:da:top_pairs:end=2025-12-31:limit=6:start=2025-01-01"
     """
-    parts = [API_CACHE_DA_PREFIX, view_name]
+    # API_CACHE_DA_PREFIX already ends with ":", so start with it directly
+    # (joining would produce a double colon: "api_cache:da::top_pairs:...").
+    parts = [API_CACHE_DA_PREFIX + view_name]
     for key, value in sorted(params.items()):
         parts.append(f"{key}={value}")
     return ":".join(parts)
