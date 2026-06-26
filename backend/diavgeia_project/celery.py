@@ -226,24 +226,24 @@ app.conf.beat_schedule = {
     #     'schedule': crontab(hour=2, minute=0),  # Daily at 2 AM
     # },
     # Health Check Tasks - Keep admin data fresh automatically
-    "health-check-recent-decisions": {
-        "task": "core.tasks.health_check_tasks.check_recent_decisions_health",
-        "schedule": crontab(minute="0"),  # Every hour
-    },
-    "refresh-problematic-decisions": {
-        "task": "core.tasks.health_check_tasks.refresh_problematic_decisions",
-        "schedule": crontab(minute="30"),  # Every hour at :30
-    },
-    "auto-fix-simple-issues": {
-        "task": "core.tasks.health_check_tasks.auto_fix_simple_issues",
-        "schedule": crontab(hour="*/6", minute=15),  # Every 6 hours
-    },
-    "cleanup-old-health-checks": {
-        "task": "core.tasks.health_check_tasks.cleanup_old_health_checks",
-        "schedule": crontab(
-            hour=1, minute=0, day_of_week=0
-        ),  # Weekly on Sunday at 1 AM
-    },
+    # "health-check-recent-decisions": {
+    #     "task": "core.tasks.health_check_tasks.check_recent_decisions_health",
+    #     "schedule": crontab(minute="0"),  # Every hour
+    # },
+    # "refresh-problematic-decisions": {
+    #     "task": "core.tasks.health_check_tasks.refresh_problematic_decisions",
+    #     "schedule": crontab(minute="30"),  # Every hour at :30
+    # },
+    # "auto-fix-simple-issues": {
+    #     "task": "core.tasks.health_check_tasks.auto_fix_simple_issues",
+    #     "schedule": crontab(hour="*/6", minute=15),  # Every 6 hours
+    # },
+    # "cleanup-old-health-checks": {
+    #     "task": "core.tasks.health_check_tasks.cleanup_old_health_checks",
+    #     "schedule": crontab(
+    #         hour=1, minute=0, day_of_week=0
+    #     ),  # Weekly on Sunday at 1 AM
+    # },
     # Auto Daily Import (Fresh Data) - Runs at configurable time (default 00:30)
     # Time configured via AUTO_DAILY_IMPORT_TIME feature flag
     "auto-daily-import": {
