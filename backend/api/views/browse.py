@@ -8,6 +8,7 @@ companyperson, afmentity.
 
 from core.constants.search_service import BROWSABLE_ENTITY_TYPES
 from core.services.browse_service import BrowseService
+from core.decorators.cache_decorator import cached_view
 from django.conf import settings
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
@@ -76,6 +77,12 @@ class _BrowsePermission(permissions.BasePermission):
             required=False,
         ),
     ],
+)
+@cached_view(
+    cache_prefix="browse",
+    cache_params=None,  # include all present query params in cache key
+    ttl=60 * 60 * 24,  # 24h — data only changes on daily import
+    should_cache_fn=lambda req: not req.GET.get("q"),  # skip free-text searches
 )
 @api_view(["GET"])
 @permission_classes([_BrowsePermission])
