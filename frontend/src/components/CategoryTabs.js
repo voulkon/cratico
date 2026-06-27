@@ -18,9 +18,10 @@ import './CategoryTabs.css';
  *     ]}
  *     selectedKey={selected}
  *     onSelect={setSelected}
+ *     className="my-custom-tabs"
  *   />
  */
-const CategoryTabs = ({ categories, selectedKey, onSelect }) => {
+const CategoryTabs = ({ categories, selectedKey, onSelect, className }) => {
   const visibleTabs = categories.filter(
     (c) => c.key === 'all' || c.visible === undefined || c.visible
   );
@@ -28,7 +29,7 @@ const CategoryTabs = ({ categories, selectedKey, onSelect }) => {
   if (visibleTabs.length <= 1) return null;
 
   return (
-    <div className="category-tabs" role="tablist" aria-label="Browse categories">
+    <div className={`category-tabs${className ? ' ' + className : ''}`} role="tablist" aria-label="Browse categories">
       {visibleTabs.map((tab) => (
         <div key={tab.key} className="category-tab-wrapper">
           <button
@@ -40,7 +41,7 @@ const CategoryTabs = ({ categories, selectedKey, onSelect }) => {
           >
             {tab.icon && <span className="category-tab-icon">{tab.icon}</span>}
             <span className="category-tab-label">{tab.label}</span>
-            <span className="category-tab-count">{tab.count}</span>
+            {tab.count > 0 && <span className="category-tab-count">{tab.count}</span>}
           </button>
           {selectedKey === tab.key && tab.actionSlot && (
             <div className="category-tab-action">{tab.actionSlot}</div>

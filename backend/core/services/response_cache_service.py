@@ -163,8 +163,8 @@ class ResponseCacheService:
         """
         Invalidate all cached responses for a specific view.
 
-        Uses Django-Redis's delete_pattern for bulk invalidation.
-        Useful after data imports that change query results.
+        Uses the Django cache backend's delete_pattern (works with both
+        django-redis and LocMemCache).
 
         Args:
             view_name: The view identifier used in build_key()
@@ -172,21 +172,39 @@ class ResponseCacheService:
         Returns:
             Number of keys deleted
         """
+        from django.core.cache import cache
+
+        pattern = f"*api_cache:da:{view_name}*"
+
         try:
-            from django_redis import get_redis_connection
-
-            # Use the default cache connection (DB 1)
-            conn = get_redis_connection("default")
-            pattern = f"*api_cache:da:{view_name}*"
-            count = conn.delete_pattern(pattern)
-
+            count = cache.delete_pattern(pattern)
             if count > 0:
                 logger.info(
                     f"ResponseCache: invalidated {count} keys for view={view_name}"
                 )
             return count
+        except AttributeError:
+            # Backend doesn't support delete_pattern (e.g. LocMemCache).
+            # Fall back to iterating the internal cache dict.
+            cache_dict = getattr(cache, "_cache", None)
+            if cache_dict is None:
+                return 0
+            key_fragment = f":{view_name}:"
+            keys_to_delete = [
+                k for k in list(cache_dict.keys()) if key_fragment in str(k)
+            ]
+            for k in keys_to_delete:
+                del cache_dict[k]
+            if keys_to_delete:
+                logger.info(
+                    f"ResponseCache: invalidated {len(keys_to_delete)} keys "
+                    f"for view={view_name} (LocMem fallback)"
+                )
+            return len(keys_to_delete)
         except Exception as e:
-            logger.warning(f"ResponseCache: invalidation failed for {view_name}: {e}")
+            logger.warning(
+                f"ResponseCache: invalidation failed for {view_name}: {e}"
+            )
             return 0
 
     @staticmethod
@@ -197,13 +215,10 @@ class ResponseCacheService:
         Returns:
             Number of keys deleted
         """
+        from django.core.cache import cache
+
         try:
-            from django_redis import get_redis_connection
-
-            conn = get_redis_connection("default")
-            pattern = f"*api_cache*"
-            count = conn.delete_pattern(pattern)
-
+            count = cache.delete_pattern("*api_cache*")
             logger.info(f"ResponseCache: invalidated all ({count} keys)")
             return count
         except Exception as e:

@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useMemo } from 'react';
+import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 const DateRangeContext = createContext();
 
@@ -47,8 +48,48 @@ const calculateDateRange = (period) => {
 };
 
 export const DateRangeProvider = ({ children, defaultPeriod = 'week' }) => {
-  const [period, setPeriod] = useState(defaultPeriod);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Read initial period from URL (?period=today) falling back to defaultPeriod
+  const urlPeriod = searchParams.get('period');
+  const validPeriods = ['today', 'week', 'month', 'year', 'custom'];
+  const initialPeriod =
+    urlPeriod && validPeriods.includes(urlPeriod) ? urlPeriod : defaultPeriod;
+
+  const [period, setPeriod] = useState(initialPeriod);
   const [customRange, setCustomRange] = useState(null);
+
+  // Keep URL in sync when period changes (so refresh preserves the selection)
+  useEffect(() => {
+    const current = searchParams.get('period');
+    if (period === defaultPeriod) {
+      // Don't pollute URL for the default period — remove the param
+      if (current) {
+        const next = new URLSearchParams(searchParams);
+        next.delete('period');
+        setSearchParams(next, { replace: true });
+      }
+    } else {
+      if (current !== period) {
+        const next = new URLSearchParams(searchParams);
+        next.set('period', period);
+        setSearchParams(next, { replace: true });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period]);
+
+  // If the URL changes externally (e.g. back/forward), reflect it in state
+  useEffect(() => {
+    const p = searchParams.get('period');
+    if (p && validPeriods.includes(p) && p !== period) {
+      setPeriod(p);
+    } else if (!p && period !== defaultPeriod && validPeriods.includes(period)) {
+      // URL had its period removed — only reset if it's a plain default navigation
+      // (we don't want to clobber a custom range mid-edit, so leave state alone here)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const dateRange = useMemo(() => {
     if (period === 'custom' && customRange) {

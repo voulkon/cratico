@@ -162,6 +162,8 @@ def post_daily_import_orchestrator(job_id: int, reference_date_str: str):
         compute_entity_rankings.si(reference_date_str=reference_date_str),
         # Track 1: Warm the response cache for heavy views
         warm_analytics_cache.si(reference_date_str=reference_date_str),
+        # Invalidate browse caches so fresh entity data appears after import
+        invalidate_browse_cache.si(),
         # Notifications: Check all active subscriptions against yesterday's data
         trigger_check_all_subscriptions.si(reference_date_str=reference_date_str),
     )
@@ -422,6 +424,30 @@ def warm_single_window(
             "view_name": view_name,
             "error": str(exc),
         }
+
+
+# ── Browse cache invalidation ──────────────────────────────────────────
+
+
+@shared_task
+def invalidate_browse_cache():
+    """
+    Invalidate all browse API response caches after daily import.
+
+    Browse views show the current state of entities.  Since entities may be
+    added/updated during import, we flush cached pages so the next user
+    request picks up fresh data.
+
+    Uses a simple invalidation rather than warmup because:
+      - Browse queries are cheap (functional indexes)
+      - The cache key space is large (type × letter × offset × limit)
+      - Warming every combination is wasteful
+    """
+    from core.services.response_cache_service import response_cache
+
+    count = response_cache.invalidate_prefix("browse")
+    logger.info(f"[invalidate_browse_cache] Invalidated {count} browse cache keys")
+    return {"status": "completed", "keys_invalidated": count}
 
 
 # ── Notifications — Bulk check all active subscriptions ──────────────────

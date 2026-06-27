@@ -8,6 +8,21 @@ company, companyperson, afmentity.
 import pytest
 from django.urls import reverse
 
+from core.services.response_cache_service import response_cache
+
+
+# ============================================================================
+# Fixtures
+# ============================================================================
+
+
+@pytest.fixture(autouse=True)
+def _clear_browse_cache():
+    """Isolate browse cache across tests — LocMemCache is process-wide."""
+    response_cache.invalidate_prefix("browse")
+    yield
+    response_cache.invalidate_prefix("browse")
+
 
 # ============================================================================
 # Helper
@@ -520,3 +535,129 @@ class TestAFMEntityBrowse:
         entity = data["results"][0]
         assert entity["id"] == "888888888"
         assert entity["type"] == "afm_entity"
+
+
+# ============================================================================
+# Cache behaviour
+# ============================================================================
+
+
+class TestBrowseCache:
+    """Tests for @cached_view behaviour on browse_entities_api."""
+
+    def test_identical_requests_hit_cache(self, authenticated_client, db):
+        """Two identical requests (no q) should return the same data."""
+        from conftest import OrganizationFactory
+
+        OrganizationFactory(uid="ORG_C1", label="Αθήνα")
+        OrganizationFactory(uid="ORG_C2", label="Βόλος")
+
+        resp1 = _get(authenticated_client, type="organization", letter="Α")
+        resp2 = _get(authenticated_client, type="organization", letter="Α")
+
+        assert resp1.status_code == 200
+        assert resp2.status_code == 200
+        assert resp1.json() == resp2.json()
+
+    def test_different_letter_different_cache_key(self, authenticated_client, db):
+        """Different letter param → different result set (not same cache entry)."""
+        from conftest import OrganizationFactory
+
+        OrganizationFactory(uid="ORG_D1", label="Αθήνα")
+        OrganizationFactory(uid="ORG_D2", label="Βόλος")
+
+        resp_a = _get(authenticated_client, type="organization", letter="Α")
+        resp_b = _get(authenticated_client, type="organization", letter="Β")
+
+        assert resp_a.status_code == 200
+        assert resp_b.status_code == 200
+        # Different letters should have different results
+        assert resp_a.json() != resp_b.json()
+
+    def test_q_param_skips_cache(self, authenticated_client, db):
+        """Requests with q= should bypass the cache (should_cache_fn)."""
+        from conftest import OrganizationFactory
+
+        OrganizationFactory(uid="ORG_Q1", label="Αθήνα")
+        OrganizationFactory(uid="ORG_Q2", label="Αγρίνιο")
+
+        # Both should work fine — the cache just isn't used
+        resp1 = _get(authenticated_client, type="organization", q="Αθ")
+        resp2 = _get(authenticated_client, type="organization", q="Αθ")
+
+        assert resp1.status_code == 200
+        assert resp2.status_code == 200
+        # Results should be the same (just not from cache)
+        assert resp1.json() == resp2.json()
+
+    def test_q_param_does_not_prevent_letter_cache(self, authenticated_client, db):
+        """A search (q=) doesn't pollute the letter-only cache — different keys."""
+        from conftest import OrganizationFactory
+
+        OrganizationFactory(uid="ORG_L1", label="Αθήνα")
+
+        # First, a letter-only request (should be cached)
+        resp_letter = _get(authenticated_client, type="organization", letter="Α")
+        assert resp_letter.status_code == 200
+
+        # Then, a search (should NOT use or overwrite the letter-only cache)
+        resp_search = _get(
+            authenticated_client, type="organization", letter="Α", q="Αθ"
+        )
+        assert resp_search.status_code == 200
+
+        # The letter-only response should still be intact
+        resp_letter2 = _get(authenticated_client, type="organization", letter="Α")
+        assert resp_letter2.status_code == 200
+
+    def test_invalidate_browse_cache_task(self, db):
+        """invalidate_browse_cache task calls invalidate_prefix('browse')."""
+        from core.tasks.tasks_post_import import invalidate_browse_cache
+
+        result = invalidate_browse_cache()
+        assert result["status"] == "completed"
+        assert isinstance(result["keys_invalidated"], int)
+
+    def test_cache_is_populated_after_view_call(self, authenticated_client, db):
+        """After a browse request, the cache key should exist."""
+        from conftest import OrganizationFactory
+
+        OrganizationFactory(uid="ORG_POP", label="Αθήνα")
+
+        resp = _get(authenticated_client, type="organization", letter="Α")
+        assert resp.status_code == 200
+
+        # The cache key should now hold the response.
+        # cache_params=None → only params actually sent are in the key.
+        cache_key = response_cache.build_key(
+            "browse",
+            type="organization",
+            letter="Α",
+        )
+        cached = response_cache.get(cache_key)
+        assert cached is not None
+        assert cached["total_count"] >= 1
+
+    def test_invalidate_clears_cache(self, authenticated_client, db):
+        """After invalidate_browse_cache, the previously cached key is gone."""
+        from conftest import OrganizationFactory
+        from core.tasks.tasks_post_import import invalidate_browse_cache
+
+        OrganizationFactory(uid="ORG_INV", label="Αθήνα")
+
+        # Populate cache
+        resp = _get(authenticated_client, type="organization", letter="Α")
+        assert resp.status_code == 200
+
+        cache_key = response_cache.build_key(
+            "browse",
+            type="organization",
+            letter="Α",
+        )
+        assert response_cache.get(cache_key) is not None
+
+        # Invalidate
+        invalidate_browse_cache()
+
+        # Cache should be gone
+        assert response_cache.get(cache_key) is None

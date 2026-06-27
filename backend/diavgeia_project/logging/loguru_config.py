@@ -37,6 +37,12 @@ def json_formatter(record):
                 escaped_val = json.dumps(value, default=str)
             except (TypeError, ValueError):
                 escaped_val = json.dumps(str(value))
+            # Escape { and } so they are not interpreted as format-map
+            # placeholders by str.format_map when the format string is
+            # rendered.  Without this, a dict value like {"processed": 1}
+            # causes KeyError: '"processed"' because format_map sees
+            # {"processed" as a replacement field.
+            escaped_val = escaped_val.replace("{", "{{").replace("}", "}}")
             parts.append(f'"{key}": {escaped_val}')
         if parts:
             extra_placeholders = ", " + ", ".join(parts)

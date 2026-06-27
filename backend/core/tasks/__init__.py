@@ -86,6 +86,10 @@ from .tasks_post_import import (
     trigger_check_all_subscriptions
     )
 from .tasks_periodic_validation import periodic_validation_task
+from .tasks_browse import (
+    verify_browse_indexes_task,
+    warm_available_letters_cache_task,
+)
 from .tasks_search_management import (
     backfill_search_vectors_batch_task,
     backfill_search_vectors_task,
@@ -95,6 +99,8 @@ from .tasks_search_management import (
 
 # This ensures all tasks are available when importing from core.tasks
 __all__ = [
+    "verify_browse_indexes_task",
+    "warm_available_letters_cache_task",
     "backfill_search_vectors_batch_task",
     "backfill_search_vectors_task",
     "cleanup_search_vectors_task",
