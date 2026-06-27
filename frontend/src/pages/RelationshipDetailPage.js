@@ -92,7 +92,9 @@ const RelationshipDetailPage = () => {
           });
           setTimeRange({ startDate: urlStart, endDate: urlEnd });
         } else {
-          const defaultRange = dateUtils.getDefaultRange();
+          const defaultRange = dateUtils.getProgressiveDefaultRange(
+            response.data.activity_chart?.data
+          );
           setMonthRange(defaultRange);
           setTimeRange({
             startDate: dateUtils.indexToDateString(defaultRange.startIndex),

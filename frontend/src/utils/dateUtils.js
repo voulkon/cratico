@@ -124,11 +124,40 @@ export const createDynamicDateRangeUtils = (entityDateRange) => {
       return `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-01`;
     },
 
-    // Get default range (last 12 months or full range if less)
+    // Get default range (last 3 months or full range if less)
     getDefaultRange: () => {
-      const defaultSpan = Math.min(totalMonths, 12);
+      const defaultSpan = Math.min(totalMonths, 3);
       return {
         startIndex: Math.max(0, totalMonths - defaultSpan),
+        endIndex: totalMonths - 1
+      };
+    },
+
+    // Get progressive default range: expand backwards from the most recent
+    // month until we hit a cumulative threshold of decisions (or cap out).
+    // Falls back to getDefaultRange() when no activity data is available.
+    getProgressiveDefaultRange: (activityData) => {
+      const THRESHOLD = 5;   // stop expanding once we've seen this many decisions
+      const MAX_MONTHS = 12; // never expand beyond 12 months
+
+      if (!activityData || activityData.length === 0) {
+        return this.getDefaultRange();
+      }
+
+      // activityData is ordered oldest → newest; reverse so we walk backwards
+      const months = activityData.slice().reverse();
+      let cumulative = 0;
+      let takeMonths = 1;
+
+      for (let i = 0; i < months.length; i++) {
+        cumulative += months[i].count;
+        takeMonths = i + 1;
+        if (cumulative >= THRESHOLD && takeMonths >= 1) break;
+        if (takeMonths >= MAX_MONTHS) break;
+      }
+
+      return {
+        startIndex: Math.max(0, totalMonths - takeMonths),
         endIndex: totalMonths - 1
       };
     }
