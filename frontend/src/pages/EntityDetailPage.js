@@ -190,7 +190,9 @@ const EntityDetailPage = () => {
           const dateUtils = createDynamicDateRangeUtils(response.data);
           setDynamicDateUtils(dateUtils);
 
-          const defaultRange = dateUtils.getDefaultRange();
+          const defaultRange = dateUtils.getProgressiveDefaultRange(
+            response.data.activity_chart?.data
+          );
           setMonthRange(defaultRange);
           setTimeRange({
             startDate: dateUtils.indexToDateString(defaultRange.startIndex),

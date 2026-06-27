@@ -97,7 +97,9 @@ const AFMEntityDetailPage = () => {
       if (res.data.has_data) {
         const dateUtils = createDynamicDateRangeUtils(res.data);
         setDynamicDateUtils(dateUtils);
-        const defaultRange = dateUtils.getDefaultRange();
+        const defaultRange = dateUtils.getProgressiveDefaultRange(
+          res.data.activity_chart?.data
+        );
         setMonthRange(defaultRange);
         setTimeRange({
           startDate: dateUtils.indexToDateString(defaultRange.startIndex),

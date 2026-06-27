@@ -42,6 +42,58 @@
   margin-bottom: var(--spacing-sm);
 }
 
+/* Zoom controls — discreet, under the bar */
+.slider-zoom-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 2px;
+  margin-bottom: var(--spacing-xs);
+  opacity: 0.55;
+  transition: opacity var(--transition-fast);
+}
+
+.slider-zoom-controls:hover {
+  opacity: 1;
+}
+
+.zoom-button {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  color: var(--muted-text);
+  cursor: pointer;
+  font-size: var(--font-sm);
+  font-weight: var(--font-bold);
+  line-height: 1;
+  padding: 0;
+  transition: var(--transition-fast);
+}
+
+.zoom-button:hover:not(:disabled) {
+  background-color: var(--hover-bg);
+  color: var(--palette-primary);
+}
+
+.zoom-button:active:not(:disabled) {
+  transform: scale(0.9);
+}
+
+.zoom-button:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.zoom-reset {
+  font-size: var(--font-xs);
+}
+
 .slider-track {
   position: absolute;
   top: 50%;
@@ -263,6 +315,32 @@
     gap: 2px;
     text-align: center;
   }
+
+  /* Slightly larger zoom buttons on mobile for easier tapping, still discreet */
+  .zoom-button {
+    width: 24px;
+    height: 24px;
+    font-size: var(--font-md);
+  }
+
+  /* Wider separation on mobile so close handles don't overlap */
+  .slider-handle.close.start {
+    transform: translate(-50%, -50%) translateX(-12px);
+  }
+
+  .slider-handle.close.end {
+    transform: translate(-50%, -50%) translateX(12px);
+  }
+
+  .slider-handle.close.start:hover,
+  .slider-handle.close.start.dragging {
+    transform: translate(-50%, -50%) translateX(-12px) scale(1.15);
+  }
+
+  .slider-handle.close.end:hover,
+  .slider-handle.close.end.dragging {
+    transform: translate(-50%, -50%) translateX(12px) scale(1.15);
+  }
 }
 
 /* Animation for activity path */
@@ -325,4 +403,29 @@
 .slider-handle.overlap.end:hover,
 .slider-handle.overlap.end.dragging {
   transform: translate(-50%, -50%) translateX(12px) scale(1.15);
+}
+
+/* Proximity state: handles are close (but not equal). Offset them slightly so
+   they remain individually grabbable instead of visually merging. */
+.slider-handle.close.start {
+  transform: translate(-50%, -50%) translateX(-8px);
+}
+
+.slider-handle.close.end {
+  transform: translate(-50%, -50%) translateX(8px);
+}
+
+.slider-handle.close.start:hover,
+.slider-handle.close.start.dragging {
+  transform: translate(-50%, -50%) translateX(-8px) scale(1.15);
+}
+
+.slider-handle.close.end:hover,
+.slider-handle.close.end.dragging {
+  transform: translate(-50%, -50%) translateX(8px) scale(1.15);
+}
+
+/* When zoomed in, give the track a subtle indicator that we're viewing a window */
+.slider-container:has(.slider-handle) {
+  /* placeholder for future zoom-aware track styling */
 }
