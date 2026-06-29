@@ -3,6 +3,7 @@ import Logo from './Logo';
 import UserMenu from './UserMenu';
 import BookmarkButton from './BookmarkButton';
 import NotificationButton from './NotificationButton';
+import FontSizeControl from './FontSizeControl';
 import { ChevronRight, ChevronLeft } from './Icons';
 import './TopControls.css';
 
@@ -74,6 +75,7 @@ const TopControls = ({
             onSidebarToggle={onNotificationSidebarToggle}
             isSidebarOpen={isNotificationSidebarOpen}
           />
+          <FontSizeControl />
         </div>
       </div>
     </>

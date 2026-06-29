@@ -16,6 +16,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth import logout as auth_logout
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from loguru import logger
@@ -217,13 +218,19 @@ def logout(request):
             {"error": "Not authenticated"}, status=status.HTTP_401_UNAUTHORIZED
         )
 
-    # Delete the user's token (if using token auth)
+    user_email = request.user.email
+
+    # Delete the DRF token
     try:
         Token.objects.filter(user=request.user).delete()
-        logger.debug(f"Logged out user: {request.user.email}")
     except Exception:
         pass  # No token to delete
 
+    # Flush the Django session so the sessionid cookie stops authenticating
+    # the old user on subsequent requests (prevents stale-session cross-user issues).
+    auth_logout(request)
+
+    logger.debug(f"Logged out user: {user_email}")
     return Response({"message": "Logged out successfully"})
 
 
@@ -613,7 +620,7 @@ def me(request):
                 "email": request.user.email,
                 "username": request.user.username,
                 "auth_method": (
-                    "clerk" if hasattr(request.user, "clerk_id") else "django"
+                    "clerk" if getattr(request.user, "clerk_id", None) else "django"
                 ),
             }
         }

@@ -5,6 +5,9 @@ import ActivitySummary from './ActivitySummary';
 import { useSliderFormatters } from '../hooks/useSliderFormatters';
 import './DualRangeSlider.css';
 
+// Pure utility — no component state needed
+const getClientX = (e) => (e.touches ? e.touches[0].clientX : e.clientX);
+
 const DualRangeSlider = ({
   min,
   max,
@@ -27,6 +30,8 @@ const DualRangeSlider = ({
   const [viewMin, setViewMin] = useState(min);
   const [viewMax, setViewMax] = useState(max);
   const sliderRef = useRef(null);
+  const onChangeRef = useRef(onChange);
+  useEffect(() => { onChangeRef.current = onChange; });
   const { formatAmount, formatPeriod } = useSliderFormatters();
 
   // Keep zoom window in sync when the overall min/max changes
@@ -87,10 +92,6 @@ const DualRangeSlider = ({
     return Math.round(viewMin + percentage * (viewMax - viewMin));
   }, [viewMin, viewMax]);
 
-  const getClientX = useCallback((e) => {
-    return e.touches ? e.touches[0].clientX : e.clientX;
-  }, []);
-
   const handleMouseDown = useCallback((type) => (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -124,7 +125,7 @@ const DualRangeSlider = ({
         }
       }
     }
-  }, [isDragging, viewMin, viewMax, activityData, getClientX]);
+  }, [isDragging, viewMin, viewMax, activityData]);
 
   const handleTrackClick = useCallback((e) => {
     if (isDragging) return; // Don't handle track clicks while dragging
@@ -145,7 +146,7 @@ const DualRangeSlider = ({
       setLocalEndValue(newEndValue);
       onChange(newStartValue, newEndValue);
     }
-  }, [isDragging, getValueFromPosition, getClientX, localStartValue, localEndValue, onChange]);
+  }, [isDragging, getValueFromPosition, localStartValue, localEndValue, onChange]);
 
   const handleTrackMouseLeave = useCallback(() => {
     if (!isDragging) {
@@ -264,7 +265,7 @@ const DualRangeSlider = ({
 
       const handleGlobalMouseUp = () => {
         // Call onChange only when drag completes
-        onChange(localStartValue, localEndValue);
+        onChangeRef.current(localStartValue, localEndValue);
         setIsDragging(null);
       };
 
@@ -287,8 +288,7 @@ const DualRangeSlider = ({
         document.body.style.cursor = '';
       };
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDragging, viewMin, viewMax, localStartValue, localEndValue, onChange, getClientX]);
+  }, [isDragging, viewMin, viewMax, localStartValue, localEndValue]);
 
   // Use local values for rendering during drag, prop values otherwise
   const displayStartValue = isDragging ? localStartValue : startValue;

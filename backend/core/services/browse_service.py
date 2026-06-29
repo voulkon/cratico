@@ -24,10 +24,13 @@ from core.constants.search_service import (
     ENTITY_ORGANIZATION,
     ENTITY_SIGNER,
     ENTITY_UNIT,
+    SearchMethod,
 )
 from core.models.companies import Company, CompanyPerson
 from core.models.entities import AFMEntity
 from core.models.organizations import Organization, Signer, Unit
+from core.services.feature_flag_service import feature_flags
+from core.services.search_service import SearchService
 from django.core.cache import cache
 from django.db import connection
 from django.db.models import Q, QuerySet
@@ -49,6 +52,9 @@ _ENTITY_MODEL_MAP = {
 class BrowseService:
     """Service for alphabetical browsing of entities."""
 
+    def __init__(self):
+        self._search_service = SearchService()
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -68,7 +74,7 @@ class BrowseService:
         Args:
             entity_type: One of BROWSABLE_ENTITY_TYPES ('all', 'organization', ...).
             letter: First-letter filter (Greek Α-Ω or Latin A-Z). None = all letters.
-            query: Free-text prefix filter (e.g. "Tes" matches "Tesla", "Τέσσερα").
+            query: Free-text substring filter (e.g. "ΚΑΠΟΔΙΣΤΡΙΑΚΟ" matches "ΕΘΝΙΚΟ & ΚΑΠΟΔΙΣΤΡΙΑΚΟ ΠΑΝΕΠΙΣΤΗΜΙΟ ΑΘΗΝΩΝ").
                    Applied on top of letter filtering. Case-insensitive.
             sort: 'asc' or 'desc'.
             offset: Pagination offset.
@@ -174,28 +180,48 @@ class BrowseService:
         if entity_key == ENTITY_COMPANY:
             qs = qs.exclude(afm__isnull=True).exclude(afm="")
 
-        # --- Free-text prefix filter ---
-        # e.g. query="Tes" matches entities whose display fields start with "Tes"
+        # --- Free-text filter ---
+        # Routes through SearchService: FTS when configured and query is long
+        # enough, otherwise falls back to ILIKE substring matching.
         if query and query.strip():
             q_term = query.strip()
-            if entity_key == ENTITY_COMPANY:
-                # Greek name prefix OR English name prefix (JSONB array).
-                # Use EXISTS on jsonb_array_elements_text for reliable JSONB
-                # matching (icontains on a JSONField is a text-level substring
-                # match on the serialized JSON and is unreliable).
-                qs = qs.extra(
-                    where=[
-                        "co_name_el ILIKE %s OR EXISTS ("
-                        "  SELECT 1 FROM jsonb_array_elements_text(co_names_en) elem"
-                        "  WHERE elem ILIKE %s)"
-                    ],
-                    params=[f"{q_term}%", f"{q_term}%"],
-                )
+            requested_method = feature_flags.get_value(
+                "ENTITY_SEARCH_METHOD", SearchMethod.DEFAULT
+            )
+            method = self._search_service._get_validated_search_method(requested_method)
+
+            # OpenSearch entity search is not yet implemented in SearchService
+            # either — its _search_*_opensearch methods all fall back to FTS.
+            # Follow the same pattern here.
+            use_fts = method in (
+                SearchMethod.POSTGRES_FTS,
+                SearchMethod.OPENSEARCH,
+            ) and not SearchService._is_query_too_short_for_fts(q_term)
+
+            if use_fts:
+                fts_q = SearchService._build_prefix_search_query(q_term)
+                qs = qs.filter(search_vector=fts_q)
             else:
-                prefix_q = Q()
-                for field in config.display_fields:
-                    prefix_q |= Q(**{f"{field}__istartswith": q_term})
-                qs = qs.filter(prefix_q)
+                # ILIKE fallback.
+                # Company is special here because co_names_en is a JSONB field
+                # and icontains on JSONField does a text-level substring match
+                # on the serialised JSON — unreliable for array element matching.
+                # SearchService._search_companies_simple has the same problem.
+                # Use EXISTS + jsonb_array_elements_text instead.
+                if entity_key == ENTITY_COMPANY:
+                    qs = qs.extra(
+                        where=[
+                            "co_name_el ILIKE %s OR EXISTS ("
+                            "  SELECT 1 FROM jsonb_array_elements_text(co_names_en) elem"
+                            "  WHERE elem ILIKE %s)"
+                        ],
+                        params=[f"%{q_term}%", f"%{q_term}%"],
+                    )
+                else:
+                    q_filter = Q()
+                    for field in config.display_fields:
+                        q_filter |= Q(**{f"{field}__icontains": q_term})
+                    qs = qs.filter(q_filter)
 
         # --- Letter filter ---
         # Uses functional index on UPPER(immutable_unaccent(LEFT(field, 1))).
@@ -255,6 +281,16 @@ class BrowseService:
         subqueries: List[str] = []
         params: list = []
 
+        # Resolve method once — same logic as the single-type path.
+        _requested = feature_flags.get_value("ENTITY_SEARCH_METHOD", SearchMethod.DEFAULT)
+        _method = self._search_service._get_validated_search_method(_requested)
+        union_use_fts = (
+            query
+            and query.strip()
+            and _method in (SearchMethod.POSTGRES_FTS, SearchMethod.OPENSEARCH)
+            and not SearchService._is_query_too_short_for_fts(query.strip())
+        )
+
         for key in BROWSABLE_ENTITIES:
             config = BROWSABLE_ENTITIES[key]
             model = self._get_model(key)
@@ -277,19 +313,26 @@ class BrowseService:
 
             where_clauses: List[str] = []
 
-            # Free-text prefix filter
+            # Free-text filter — method resolved once outside the loop (see above)
             if query and query.strip():
                 q_term = query.strip()
-                prefix_clauses = [f"{f} ILIKE %s" for f in display_fields]
-                param_count = len(display_fields)
-                if key == ENTITY_COMPANY:
-                    prefix_clauses.append(
-                        "EXISTS (SELECT 1 FROM jsonb_array_elements_text(co_names_en) elem"
-                        " WHERE elem ILIKE %s)"
-                    )
-                    param_count += 1
-                where_clauses.append("(" + " OR ".join(prefix_clauses) + ")")
-                params.extend([f"{q_term}%"] * param_count)
+
+                if union_use_fts:
+                    words = q_term.strip().lower().split()
+                    raw_tsquery = " & ".join(f"{w}:*" for w in words if w)
+                    where_clauses.append("search_vector @@ to_tsquery('greek', %s)")
+                    params.append(raw_tsquery)
+                else:
+                    prefix_clauses = [f"{f} ILIKE %s" for f in display_fields]
+                    param_count = len(display_fields)
+                    if key == ENTITY_COMPANY:
+                        prefix_clauses.append(
+                            "EXISTS (SELECT 1 FROM jsonb_array_elements_text(co_names_en) elem"
+                            " WHERE elem ILIKE %s)"
+                        )
+                        param_count += 1
+                    where_clauses.append("(" + " OR ".join(prefix_clauses) + ")")
+                    params.extend([f"%{q_term}%"] * param_count)
 
             # Letter filter
             if letter and len(letter) == 1:

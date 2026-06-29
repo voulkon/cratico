@@ -74,10 +74,12 @@
 /* Prominent Date Display and Decision Type */
 .decision-header-info {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--spacing-md);
   margin-bottom: var(--spacing-md);
   flex-wrap: wrap;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .decision-date-prominent {
@@ -105,7 +107,10 @@
   font-size: var(--font-xs);
   font-weight: var(--font-medium);
   color: var(--palette-primary);
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 /* Metadata Section (Organization & Signers) */
@@ -157,10 +162,9 @@
 .metadata-value {
   color: var(--text-color);
   font-weight: 500;
-  white-space: nowrap; /* Prevent wrapping */
-  overflow: hidden; /* Hide overflow */
-  text-overflow: ellipsis; /* Show ellipsis for long text */
-  min-width: 0; /* Allow shrinking */
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .metadata-value.clickable {
@@ -628,11 +632,11 @@
 
 .counterpart-entity-name {
   flex: 1;
+  min-width: 0;
   color: var(--link-color, var(--palette-primary));
   font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .counterpart-entity-amount {

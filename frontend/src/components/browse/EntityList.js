@@ -267,7 +267,6 @@ const EntityList = ({
                 {TYPE_ICONS[item.type] || <CompanyIcon size={16} />}
               </span>
               <span className="entity-list-row-text">{item.text}</span>
-              <span className="entity-list-row-type">{item.type}</span>
             </div>
           ))}
         </div>

@@ -33,13 +33,18 @@
   --radius-lg: 12px;
   --radius-full: 50%;
 
-  /* Font sizes */
-  --font-xs: 12px;
-  --font-sm: 14px;
-  --font-md: 16px;
-  --font-lg: 18px;
-  --font-xl: 24px;
-  --font-xxl: 32px;
+  /* Font scale — runtime zoom knob; scales ALL text via html font-size.
+     All font-size variables below use rem so they inherit automatically. */
+  --font-scale: 1;
+
+  /* Font sizes — rem-based so every element inherits the html font-size scale */
+  --font-xs: 0.75rem;
+  --font-sm: 0.875rem;
+  --font-md: 1rem;
+  --font-lg: 1.125rem;
+  --font-xl: 1.5rem;
+  --font-xxl: 2rem;
+  --font-xxxl: 2.5rem;
 
   /* Font weights */
   --font-normal: 400;
@@ -57,6 +62,11 @@
      Loaded via Google Fonts in public/index.html. */
   --font-serif: 'DM Serif Display', 'Playfair Display', Georgia, serif;
   --font-sans: 'DM Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Scale ALL text globally — rem values cascade from here automatically */
+html {
+  font-size: calc(16px * var(--font-scale));
 }
 
 /* ===========================================
@@ -517,6 +527,16 @@ body {
   background-color: var(--bg-color);
   color: var(--text-color);
   transition: var(--transition-normal);
+}
+
+/* Buttons and inputs don't inherit font by default in most browsers.
+   Force inheritance so --font-scale propagates through every element. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
 }
 
 /* Global utility for balanced content with fixed controls */

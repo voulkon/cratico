@@ -202,27 +202,15 @@
   font-weight: var(--font-bold, 700);
   margin-bottom: var(--spacing-xs, 4px);
   color: var(--text-color);
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-
-.dashboard-item-title--expanded {
-  -webkit-line-clamp: unset;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .dashboard-item-subtitle {
   font-size: var(--font-xs, 0.8rem);
   color: var(--muted-text);
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-
-.dashboard-item-subtitle--expanded {
-  -webkit-line-clamp: unset;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 /* ── Left rail — rank + expand toggle ────────────────────────── */
