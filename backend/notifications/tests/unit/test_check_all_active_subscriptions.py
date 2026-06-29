@@ -2,15 +2,16 @@
 Unit tests for notifications.tasks.check_all_active_subscriptions
 
 This fan-out task is the bridge between the post-import orchestrator and
-individual per-subscription notification checks.  These tests confirm:
+individual per-user notification checks.  These tests confirm:
 
   - Daily subscriptions are always dispatched
   - Weekly subscriptions are dispatched only when due (>= 7 days since last check)
   - Inactive and non-automatic subscriptions are ignored
-  - The correct kwargs are forwarded to check_single_subscription.delay()
-  - Return counts (total / dispatched / skipped) are accurate
+  - Subscriptions are grouped by user into per-user chords
+  - Each user's chord fires independently (one chord call per user)
+  - The chord callback is send_consolidated_email_for_user
 
-No Celery broker is needed — check_single_subscription.delay() is mocked.
+No Celery broker is needed — chord() is mocked.
 """
 
 from datetime import timedelta
@@ -35,13 +36,16 @@ def clean_subscriptions():
 
 
 @pytest.fixture
-def mock_check_single():
-    """Mock check_single_subscription.delay() to avoid real task dispatch."""
+def mock_chord():
+    """Mock chord() to avoid real Celery broker interaction."""
     with patch(
-        "notifications.tasks.notification_tasks.check_single_subscription"
-    ) as mock_task:
-        mock_task.delay = MagicMock()
-        yield mock_task
+        "notifications.tasks.notification_tasks.chord"
+    ) as mock:
+        # chord returns a callable that returns a fake AsyncResult
+        mock_result = MagicMock()
+        mock_result.id = "fake-chord-id"
+        mock.return_value = MagicMock(return_value=mock_result)
+        yield mock
 
 
 def _run(lookback_days=1):
@@ -58,47 +62,35 @@ def _run(lookback_days=1):
 @pytest.mark.django_db
 class TestCheckAllActiveSubscriptionsFiltering:
 
-    def test_no_subscriptions_returns_zeros(self, mock_check_single):
+    def test_no_subscriptions_returns_zeros(self, mock_chord):
         result = _run()
-        assert result == {"status": "dispatched", "total": 0, "dispatched": 0, "skipped": 0}
-        mock_check_single.delay.assert_not_called()
+        assert result == {
+            "status": "dispatched",
+            "total": 0,
+            "dispatched": 0,
+            "skipped": 0,
+            "users": 0,
+        }
+        mock_chord.assert_not_called()
 
-    def test_daily_subscription_is_dispatched(self, mock_check_single):
-        """Daily subscriptions should always be dispatched."""
+    def test_daily_subscription_is_dispatched(self, mock_chord):
+        """Daily subscriptions should always be dispatched via per-user chord."""
         from conftest import NotificationSubscriptionFactory
         sub = NotificationSubscriptionFactory(check_frequency="daily")
 
         result = _run()
 
         assert result["dispatched"] == 1
-        assert result["skipped"] == 0
-        mock_check_single.delay.assert_called_once_with(
-            subscription_id=sub.id,
-            lookback_days=1,
-            use_batch=True,
-            send_email=True,
-        )
+        assert result["users"] == 1
+        # One chord call per user
+        mock_chord.assert_called_once()
+        # The chord header is a single check_user_subscriptions.s() signature
+        header_sig = mock_chord.call_args[0][0]
+        assert header_sig.kwargs["user_id"] == sub.user_id
+        assert header_sig.kwargs["subscription_ids"] == [sub.id]
+        assert header_sig.kwargs["lookback_days"] == 1
 
-    def test_daily_subscription_without_email_is_dispatched_without_email(
-        self, mock_check_single
-    ):
-        """When also_send_email=False, send_email should be False."""
-        from conftest import NotificationSubscriptionFactory
-        sub = NotificationSubscriptionFactory(
-            check_frequency="daily", also_send_email=False
-        )
-
-        result = _run()
-
-        assert result["dispatched"] == 1
-        mock_check_single.delay.assert_called_once_with(
-            subscription_id=sub.id,
-            lookback_days=1,
-            use_batch=True,
-            send_email=False,
-        )
-
-    def test_inactive_subscription_is_excluded(self, mock_check_single):
+    def test_inactive_subscription_is_excluded(self, mock_chord):
         """is_active=False subscriptions must be filtered by the queryset."""
         from conftest import NotificationSubscriptionFactory
         NotificationSubscriptionFactory(check_frequency="daily", is_active=False)
@@ -106,17 +98,40 @@ class TestCheckAllActiveSubscriptionsFiltering:
         result = _run()
 
         assert result["total"] == 0
-        mock_check_single.delay.assert_not_called()
+        assert result["dispatched"] == 0
+        mock_chord.assert_not_called()
 
-    def test_multiple_daily_subscriptions_all_dispatched(self, mock_check_single):
-        from conftest import NotificationSubscriptionFactory
-        subs = NotificationSubscriptionFactory.create_batch(3, check_frequency="daily")
+    def test_multiple_daily_subscriptions_same_user_one_chord(self, mock_chord):
+        """Multiple subscriptions for the same user → one chord call."""
+        from conftest import NotificationSubscriptionFactory, UserFactory
+
+        user = UserFactory()
+        NotificationSubscriptionFactory.create_batch(
+            3, check_frequency="daily", user=user
+        )
 
         result = _run()
 
         assert result["dispatched"] == 3
-        assert result["total"] == 3
-        assert mock_check_single.delay.call_count == 3
+        assert result["users"] == 1
+        # Only one chord call (grouped by user)
+        mock_chord.assert_called_once()
+        header_sig = mock_chord.call_args[0][0]
+        assert len(header_sig.kwargs["subscription_ids"]) == 3
+
+    def test_multiple_users_multiple_chords(self, mock_chord):
+        """Subscriptions for different users → one chord per user."""
+        from conftest import NotificationSubscriptionFactory
+
+        sub_a = NotificationSubscriptionFactory(check_frequency="daily")
+        sub_b = NotificationSubscriptionFactory(check_frequency="daily")
+
+        result = _run()
+
+        assert result["dispatched"] == 2
+        assert result["users"] == 2
+        # Two chord calls (one per user)
+        assert mock_chord.call_count == 2
 
 
 # ---------------------------------------------------------------------------
@@ -127,23 +142,23 @@ class TestCheckAllActiveSubscriptionsFiltering:
 @pytest.mark.django_db
 class TestCheckAllActiveSubscriptionsWeekly:
 
-    def test_weekly_never_checked_is_dispatched(self, mock_check_single):
+    def test_weekly_never_checked_is_dispatched(self, mock_chord):
         """Weekly subscriptions that have never been checked should be dispatched."""
         from conftest import NotificationSubscriptionFactory
-        sub = NotificationSubscriptionFactory(
+        NotificationSubscriptionFactory(
             check_frequency="weekly", last_checked=None
         )
 
         result = _run()
 
         assert result["dispatched"] == 1
-        mock_check_single.delay.assert_called_once()
+        mock_chord.assert_called_once()
 
     @freeze_time("2026-05-30 12:00:00")
-    def test_weekly_checked_8_days_ago_is_dispatched(self, mock_check_single):
+    def test_weekly_checked_8_days_ago_is_dispatched(self, mock_chord):
         """Weekly subscription last checked 8 days ago — due for a recheck."""
         from conftest import NotificationSubscriptionFactory
-        sub = NotificationSubscriptionFactory(
+        NotificationSubscriptionFactory(
             check_frequency="weekly",
             last_checked=timezone.now() - timedelta(days=8),
         )
@@ -151,10 +166,10 @@ class TestCheckAllActiveSubscriptionsWeekly:
         result = _run()
 
         assert result["dispatched"] == 1
-        mock_check_single.delay.assert_called_once()
+        mock_chord.assert_called_once()
 
     @freeze_time("2026-05-30 12:00:00")
-    def test_weekly_checked_exactly_7_days_ago_is_dispatched(self, mock_check_single):
+    def test_weekly_checked_exactly_7_days_ago_is_dispatched(self, mock_chord):
         """Boundary: exactly 7 days → should be dispatched (>= 7)."""
         from conftest import NotificationSubscriptionFactory
         NotificationSubscriptionFactory(
@@ -167,7 +182,7 @@ class TestCheckAllActiveSubscriptionsWeekly:
         assert result["dispatched"] == 1
 
     @freeze_time("2026-05-30 12:00:00")
-    def test_weekly_checked_3_days_ago_is_skipped(self, mock_check_single):
+    def test_weekly_checked_3_days_ago_is_skipped(self, mock_chord):
         """Weekly subscription checked 3 days ago — not yet due, must be skipped."""
         from conftest import NotificationSubscriptionFactory
         NotificationSubscriptionFactory(
@@ -179,7 +194,7 @@ class TestCheckAllActiveSubscriptionsWeekly:
 
         assert result["dispatched"] == 0
         assert result["skipped"] == 1
-        mock_check_single.delay.assert_not_called()
+        mock_chord.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -191,7 +206,7 @@ class TestCheckAllActiveSubscriptionsWeekly:
 @freeze_time("2026-05-30 12:00:00")
 class TestCheckAllActiveSubscriptionsMixed:
 
-    def test_mix_of_daily_weekly_inactive(self, mock_check_single):
+    def test_mix_of_daily_weekly_inactive(self, mock_chord):
         """
         Realistic scenario:
           - 2 daily (active)      → dispatched
@@ -216,18 +231,30 @@ class TestCheckAllActiveSubscriptionsMixed:
         assert result["total"] == 4         # inactive is excluded by queryset
         assert result["dispatched"] == 3    # 2 daily + 1 weekly (due)
         assert result["skipped"] == 1       # 1 weekly (not due)
-        assert mock_check_single.delay.call_count == 3
 
-    def test_lookback_days_forwarded_to_check_single(self, mock_check_single):
-        """lookback_days should be passed through to check_single_subscription."""
+    def test_lookback_days_forwarded_to_check_user(self, mock_chord):
+        """lookback_days should be passed through to check_user_subscriptions."""
         from conftest import NotificationSubscriptionFactory
         sub = NotificationSubscriptionFactory(check_frequency="daily")
 
         _run(lookback_days=3)
 
-        mock_check_single.delay.assert_called_once_with(
-            subscription_id=sub.id,
-            lookback_days=3,
-            use_batch=True,
-            send_email=True,
-        )
+        mock_chord.assert_called_once()
+        header_sig = mock_chord.call_args[0][0]
+        assert header_sig.kwargs["lookback_days"] == 3
+
+    def test_chord_callback_is_consolidated_email_for_user(self, mock_chord):
+        """Verify the chord callback is send_consolidated_email_for_user."""
+        from conftest import NotificationSubscriptionFactory
+        sub = NotificationSubscriptionFactory(check_frequency="daily")
+
+        _run()
+
+        # chord(header_sig)(callback_sig)
+        # mock_chord.return_value is the callable that receives the callback
+        callback_call = mock_chord.return_value.call_args
+        assert callback_call is not None
+        callback_sig = callback_call[0][0]
+        assert callback_sig is not None
+        # The callback should have user_id kwarg
+        assert callback_sig.kwargs.get("user_id") == sub.user_id
