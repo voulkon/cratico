@@ -117,6 +117,10 @@ from rest_framework.response import Response
         and not req.GET.get("organization_ids")  # No org ID filters
         and not req.GET.get("min_amount")  # No amount filters
         and not req.GET.get("max_amount")
+        # Specific entity+org pair queries are never pre-warmed, so defer_on_miss
+        # would return 202 forever.  Run them synchronously instead — they are
+        # heavily filtered and fast.
+        and not (req.GET.get("entity_afm") and req.GET.get("organization_uid"))
     ),
     defer_on_miss=True,
 )
