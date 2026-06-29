@@ -26,6 +26,15 @@
   gap: var(--spacing-sm);
   transition: left var(--transition-normal);
   align-items: flex-start;
+  /* Immune to font scaling */
+  font-size: 16px;
+  --font-xs: 12px;
+  --font-sm: 14px;
+  --font-md: 16px;
+  --font-lg: 18px;
+  --font-xl: 24px;
+  --font-xxl: 32px;
+  --font-xxxl: 40px;
 }
 
 /* Shift right when sidebar is open */
@@ -53,6 +62,16 @@
   gap: var(--spacing-sm);
   max-width: calc(var(--controls-expanded-width) - var(--spacing-md));
   transition: opacity var(--transition-normal), transform var(--transition-normal);
+  /* Immune to font scaling: override all rem-based font vars with fixed px.
+     rem always resolves from html, but CSS custom properties cascade from here. */
+  font-size: 16px;
+  --font-xs: 12px;
+  --font-sm: 14px;
+  --font-md: 16px;
+  --font-lg: 18px;
+  --font-xl: 24px;
+  --font-xxl: 32px;
+  --font-xxxl: 40px;
 }
 
 /* Wrapper positioning variants */
