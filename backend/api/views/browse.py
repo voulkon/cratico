@@ -50,7 +50,7 @@ class _BrowsePermission(permissions.BasePermission):
         openapi.Parameter(
             "q",
             openapi.IN_QUERY,
-            description="Free-text prefix filter (e.g. 'Tes' matches 'Tesla', 'Τέσσερα'). "
+            description="Free-text substring filter (e.g. 'ΚΑΠΟΔΙΣΤΡΙΑΚΟ' matches 'ΕΘΝΙΚΟ & ΚΑΠΟΔΙΣΤΡΙΑΚΟ ΠΑΝΕΠΙΣΤΗΜΙΟ ΑΘΗΝΩΝ'). "
                         "Applied on top of letter filtering. Case-insensitive.",
             type=openapi.TYPE_STRING,
             required=False,
