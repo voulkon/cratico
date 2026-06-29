@@ -144,10 +144,9 @@
 .library-folder-name {
   font-size: var(--font-sm);
   font-weight: var(--font-medium);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--text-color);
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .library-folder-count {
@@ -433,10 +432,9 @@
   font-size: var(--font-md);
   font-weight: var(--font-bold);
   margin-bottom: var(--spacing-xs);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--text-color);
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .library-bookmark-url {

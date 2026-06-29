@@ -301,11 +301,11 @@
 
 .folder-name {
   flex: 1;
+  min-width: 0;
   font-size: var(--font-sm);
   font-weight: var(--font-medium);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .folder-count {
@@ -472,9 +472,8 @@
   font-weight: var(--font-medium);
   color: var(--text-color);
   margin-bottom: var(--spacing-xs);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   padding: 2px 4px;
   margin-left: -4px;
   border-radius: 4px;
