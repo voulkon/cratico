@@ -59,17 +59,18 @@
   font-size: var(--font-sm);
   color: var(--text-color);
   line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
-.entity-list-row-type {
-  font-size: 11px;
-  color: var(--muted-text);
-  text-transform: capitalize;
+.entity-list-row-type-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  opacity: 0.6;
+  color: var(--muted-text);
+  opacity: 0.5;
 }
 
 /* ── Skeleton loading ───────────────────────────────────────────── */
