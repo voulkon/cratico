@@ -16,6 +16,8 @@ const DecisionList = ({
   emptyFilterMessage = 'No decisions match filters',
   showPaginationInfo = false,
   getDecisionKey,
+  showCount = false,
+  countLabel = 'Decisions',
 }) => {
   const defaultGetKey = (decision) => decision.ada || decision.id;
   const resolveKey = getDecisionKey || defaultGetKey;
@@ -42,6 +44,17 @@ const DecisionList = ({
 
   return (
     <div className="decisions-list">
+      {showCount && (
+        <div className="decisions-header">
+          <h3 className="decisions-title">
+            {countLabel}{' '}
+            <span className="count-badge">
+              {(pagination?.total_count ?? decisions.length).toLocaleString()}
+            </span>
+          </h3>
+        </div>
+      )}
+
       {decisions.map((decision, index) => (
         <DecisionCard
           key={resolveKey(decision)}
