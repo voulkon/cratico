@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useDateRange } from '../contexts/DateRangeContext';
@@ -54,18 +54,6 @@ const DecisionsSection = ({
     onLoadMore: loadMore,
   });
 
-  // Track which card indices are expanded (title + subtitle together)
-  const [expandedCards, setExpandedCards] = useState(new Set());
-
-  const toggleExpand = useCallback((index, e) => {
-    e.stopPropagation();
-    setExpandedCards(prev => {
-      const next = new Set(prev);
-      next.has(index) ? next.delete(index) : next.add(index);
-      return next;
-    });
-  }, []);
-
   if (loading) {
     return <DashboardSectionLoading message={t('homepage.loading')} />;
   }
@@ -108,23 +96,12 @@ const DecisionsSection = ({
               >
                 <div className="dashboard-item-left">
                   <span className="dashboard-rank">#{index + 1}</span>
-                  <button
-                    className="dashboard-item-expand-toggle"
-                    onClick={(e) => toggleExpand(index, e)}
-                    aria-expanded={expandedCards.has(index)}
-                    title={expandedCards.has(index) ? 'Collapse' : 'Expand'}
-                  >
-                    <span
-                      className={`dashboard-collapse-chevron${expandedCards.has(index) ? '' : ' dashboard-collapse-chevron--collapsed'}`}
-                      aria-hidden="true"
-                    />
-                  </button>
                 </div>
                 <div className="dashboard-item-body">
-                  <div className={`dashboard-item-title${expandedCards.has(index) ? ' dashboard-item-title--expanded' : ''}`}>
+                  <div className="dashboard-item-title">
                     {decision.subject}
                   </div>
-                  <div className={`dashboard-item-subtitle${expandedCards.has(index) ? ' dashboard-item-subtitle--expanded' : ''}`}>
+                  <div className="dashboard-item-subtitle">
                     {decision.organization?.label}
                   </div>
                 </div>

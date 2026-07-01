@@ -122,6 +122,13 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
         >
           <Sun size={14} className="theme-slider-icon-left" />
           <div className="theme-slider-rail">
+            {themes.map((t, i) => (
+              <div
+                key={t.id}
+                className={`theme-slider-stop ${i === themeIndex ? 'active' : ''}`}
+                style={{ left: `${(i / (themes.length - 1)) * 100}%` }}
+              />
+            ))}
             <div
               className="theme-slider-thumb"
               style={{ left: `${(themeIndex / (themes.length - 1)) * 100}%` }}
