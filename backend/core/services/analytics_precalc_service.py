@@ -180,7 +180,7 @@ def warm_explore_orgs_window(
             limit=str(page_size),
             offset=str(offset),
         )
-        response_cache.set(cache_key, page_data, end_date=end_date)
+        response_cache.set(cache_key, page_data, end_date=end_date, timeout=response_cache.EXPIRE_HISTORICAL)
         cached += 1
 
     # ── always cache at least page 1 (even if empty) so subsequent
@@ -200,7 +200,7 @@ def warm_explore_orgs_window(
             limit=str(page_size),
             offset="0",
         )
-        response_cache.set(empty_key, empty_data, end_date=end_date)
+        response_cache.set(empty_key, empty_data, end_date=end_date, timeout=response_cache.EXPIRE_HISTORICAL)
         cached += 1
 
     logger.info(
@@ -397,7 +397,7 @@ def warm_da_top_pairs_window(
             limit=str(page_size),
             offset=str(offset),
         )
-        response_cache.set(cache_key, page_data, end_date=end_date)
+        response_cache.set(cache_key, page_data, end_date=end_date, timeout=response_cache.EXPIRE_HISTORICAL)
         cached += 1
 
     # ── always cache at least page 1 (even if empty) so subsequent
@@ -421,7 +421,7 @@ def warm_da_top_pairs_window(
             limit=str(page_size),
             offset="0",
         )
-        response_cache.set(empty_key, empty_data, end_date=end_date)
+        response_cache.set(empty_key, empty_data, end_date=end_date, timeout=response_cache.EXPIRE_HISTORICAL)
         cached += 1
 
     logger.info(
@@ -740,7 +740,7 @@ def warm_explore_decisions_window(
             entity_afm="",
             direct_assignments_only="",
         )
-        response_cache.set(cache_key, page_data, end_date=end_date)
+        response_cache.set(cache_key, page_data, end_date=end_date, timeout=response_cache.EXPIRE_HISTORICAL)
         cached += 1
 
     # ── always cache at least page 1 (even if empty) so subsequent
@@ -769,7 +769,7 @@ def warm_explore_decisions_window(
             entity_afm="",
             direct_assignments_only="",
         )
-        response_cache.set(empty_key, empty_data, end_date=end_date)
+        response_cache.set(empty_key, empty_data, end_date=end_date, timeout=response_cache.EXPIRE_HISTORICAL)
         cached += 1
 
     logger.info(
@@ -950,7 +950,7 @@ def warm_da_top_entities_window(
                 sort_by=sort_by,
                 start_date=start_date_str,
             )
-            response_cache.set(cache_key, page_data, end_date=end_date)
+            response_cache.set(cache_key, page_data, end_date=end_date, timeout=response_cache.EXPIRE_HISTORICAL)
             cached += 1
 
         # ── always cache at least page 1 (even if empty) so subsequent
@@ -977,7 +977,7 @@ def warm_da_top_entities_window(
                 sort_by=sort_by,
                 start_date=start_date_str,
             )
-            response_cache.set(empty_key, empty_data, end_date=end_date)
+            response_cache.set(empty_key, empty_data, end_date=end_date, timeout=response_cache.EXPIRE_HISTORICAL)
             cached += 1
 
         logger.info(
@@ -1158,7 +1158,7 @@ def warm_da_top_orgs_window(
                 sort_by=sort_by,
                 start_date=start_date_str,
             )
-            response_cache.set(cache_key, page_data, end_date=end_date)
+            response_cache.set(cache_key, page_data, end_date=end_date, timeout=response_cache.EXPIRE_HISTORICAL)
             cached += 1
 
         # ── always cache at least page 1 (even if empty) so subsequent
@@ -1185,7 +1185,7 @@ def warm_da_top_orgs_window(
                 sort_by=sort_by,
                 start_date=start_date_str,
             )
-            response_cache.set(empty_key, empty_data, end_date=end_date)
+            response_cache.set(empty_key, empty_data, end_date=end_date, timeout=response_cache.EXPIRE_HISTORICAL)
             cached += 1
 
         logger.info(
@@ -1281,7 +1281,7 @@ def warm_explore_decision_types_window(
         end_date=end_date_str,
         start_date=start_date_str,
     )
-    response_cache.set(cache_key, data, end_date=end_date)
+    response_cache.set(cache_key, data, end_date=end_date, timeout=response_cache.EXPIRE_HISTORICAL)
 
     logger.info(
         f"[AnalyticsPrecalc] Warmed explore_decision_types "
@@ -1499,7 +1499,7 @@ def warm_explore_statistics_window(
         end_date=end_date_str,
         start_date=start_date_str,
     )
-    response_cache.set(cache_key, data, end_date=end_date)
+    response_cache.set(cache_key, data, end_date=end_date, timeout=response_cache.EXPIRE_HISTORICAL)
 
     logger.info(
         f"[AnalyticsPrecalc] Warmed explore_statistics "

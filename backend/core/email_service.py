@@ -377,6 +377,54 @@ class NotificationEmailService:
             language=language,
         )
 
+    @staticmethod
+    def send_consolidated_batch_summary(
+        user_email: str,
+        username: str,
+        batches: List[Dict[str, Any]],
+        total_decisions: int,
+        language: str = "en",
+    ) -> bool:
+        """
+        Send a single consolidated email listing all new batches for a user.
+
+        Args:
+            user_email: User's email address
+            username: User's username
+            batches: List of batch data dicts, each with id, subscription_name,
+                     organization_name, entity_name, decision_count
+            total_decisions: Total decisions across all batches
+            language: User's preferred language ('en' or 'el')
+
+        Returns:
+            bool: True if sent successfully
+        """
+        context = {
+            "username": username,
+            "batches": batches,
+            "total_decisions": total_decisions,
+            "app_name": getattr(settings, "APP_NAME", "Diavgeia Platform"),
+            "app_url": RegistrationEmailService.frontend_url,
+        }
+
+        # Localize subject based on language
+        if language == "el":
+            subject = (
+                f"{len(batches)} συνδρομές βρήκαν {total_decisions} νέες αποφάσεις"
+            )
+        else:
+            subject = (
+                f"{len(batches)} subscriptions found {total_decisions} new decisions"
+            )
+
+        return EmailService.send_template_email(
+            subject=subject,
+            to_emails=[user_email],
+            template_name="emails/notifications/consolidated_batch_summary.html",
+            context=context,
+            language=language,
+        )
+
 
 class PasswordResetEmailService:
     """
