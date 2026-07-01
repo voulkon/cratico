@@ -625,6 +625,7 @@
   },
   "dateRange": {
     "today": "Σήμερα",
+    "yesterday": "Χθες",
     "week": "Εβδομάδα",
     "month": "Μήνας",
     "year": "Έτος",

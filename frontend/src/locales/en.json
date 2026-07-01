@@ -625,6 +625,7 @@
   },
   "dateRange": {
     "today": "Today",
+    "yesterday": "Yesterday",
     "week": "Week",
     "thisWeek": "This Week",
     "month": "Month",

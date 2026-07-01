@@ -17,13 +17,23 @@ export const useDateRange = () => {
 
 // Helper function to calculate date ranges
 const calculateDateRange = (period) => {
+  // Base is YESTERDAY — no intraday imports yet, so the most recent
+  // complete data is always the previous day.  All windows (week, month,
+  // year) end at yesterday.  The 'today' case explicitly moves forward.
   const end = new Date();
-  const start = new Date();
+  end.setDate(end.getDate() - 1);
+  end.setHours(23, 59, 59, 999);
+  const start = new Date(end);
+  start.setHours(0, 0, 0, 0);
 
   switch (period) {
     case 'today':
-      start.setHours(0, 0, 0, 0);
-      end.setHours(23, 59, 59, 999);
+      // Override: move both to today (for future intraday imports)
+      start.setDate(start.getDate() + 1);
+      end.setDate(end.getDate() + 1);
+      break;
+    case 'yesterday':
+      // Already yesterday — nothing to adjust
       break;
     case 'week':
       start.setDate(end.getDate() - 7);
@@ -52,7 +62,8 @@ export const DateRangeProvider = ({ children, defaultPeriod = 'week' }) => {
 
   // Read initial period from URL (?period=today) falling back to defaultPeriod
   const urlPeriod = searchParams.get('period');
-  const validPeriods = ['today', 'week', 'month', 'year', 'custom'];
+  // const validPeriods = ['yesterday', 'today', 'week', 'month', 'year', 'custom'];
+  const validPeriods = ['yesterday', 'week', 'month', 'year', 'custom'];
   const initialPeriod =
     urlPeriod && validPeriods.includes(urlPeriod) ? urlPeriod : defaultPeriod;
 

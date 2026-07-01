@@ -49,13 +49,13 @@ def _calendar_windows(ref: date) -> list[tuple[str, date, date]]:
     (matching the frontend's ``DateRangeContext.calculateDateRange``).
 
     Frontend reference (``DateRangeContext.js``)::
-
-        week:  start.setDate(end.getDate() - 7)          # pure days ✓
-        month: start.setMonth(end.getMonth() - 1)         # calendar month
-        year:  start.setFullYear(end.getFullYear() - 1)   # calendar year
+        yesterday: ref → ref                               # the reference date itself
+        week:     start.setDate(end.getDate() - 7)         # pure days
+        month:    start.setMonth(end.getMonth() - 1)        # calendar month
+        year:     start.setFullYear(end.getFullYear() - 1)  # calendar year
     """
     return [
-        ("daily",   ref - timedelta(days=1),   ref - timedelta(days=1)),
+        ("daily",   ref,   ref),
         ("weekly",  ref - timedelta(days=7),   ref),
         ("monthly", _subtract_calendar_months(ref, 1),  ref),
         ("yearly",  date(ref.year - 1, ref.month,
