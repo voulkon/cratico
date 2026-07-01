@@ -4,7 +4,7 @@ import { useTranslation } from '../contexts/TranslationContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import useUrlFilters from '../hooks/useUrlFilters';
 import useDecisionsList from '../hooks/useDecisionsList';
-import DecisionCard from '../components/DecisionCard';
+import DecisionList from '../components/DecisionList';
 import SortControl from '../components/SortControl';
 import TimeRangeSection from '../components/TimeRangeSection';
 import StatisticsGrid from '../components/StatisticsGrid';
@@ -430,43 +430,19 @@ const RelationshipDetailPage = () => {
         )}
 
         {/* Decisions List */}
-        {loading ? (
-          <div className="loading-text">{t('common.loading')}</div>
-        ) : decisions.length === 0 ? (
-          <div className="no-decisions-message">
-            {activeFiltersCount > 0
-              ? t('relationship.noDecisionsWithFilters')
-              : t('relationship.noDecisions')
-            }
-          </div>
-        ) : (
-          <>
-            <div className="decisions-list">
-              {decisions.map((decision, index) => (
-                <DecisionCard
-                  key={decision.id}
-                  decision={decision}
-                  formatAmount={formatAmount}
-                  index={index}
-                  isLastItem={index === decisions.length - 1}
-                  onViewDocumentContent={handleViewDocumentContent}
-                />
-              ))}
-            </div>
-
-            {pagination?.has_next && (
-              <div className="load-more-container">
-                <button
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                  className={`load-more-button ${loadingMore ? 'loading' : ''}`}
-                >
-                  {loadingMore ? t('common.loading') : t('common.loadMore')}
-                </button>
-              </div>
-            )}
-          </>
-        )}
+        <DecisionList
+          decisions={decisions}
+          loading={loading}
+          loadingMore={loadingMore}
+          pagination={pagination}
+          hasSearchQuery={activeFiltersCount > 0}
+          formatAmount={formatAmount}
+          onViewDocumentContent={handleViewDocumentContent}
+          onLoadMore={loadMore}
+          emptyMessage={t('relationship.noDecisions')}
+          emptyFilterMessage={t('relationship.noDecisionsWithFilters')}
+          getDecisionKey={(d) => d.id}
+        />
       </div>
     </div>
   );
