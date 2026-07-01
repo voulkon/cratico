@@ -26,9 +26,7 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
     themes,
     palettes,
     changeTheme,
-    changePalette,
-    currentThemeName,
-    currentPaletteName
+    changePalette
   } = useTheme();
   const { user, isSignedIn, isClerkAuth, signOut } = useAuth();
 

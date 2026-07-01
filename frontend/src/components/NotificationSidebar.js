@@ -8,8 +8,7 @@ import {
     dismissBatch,
     markBatchRead,
     markAllNotificationsRead,
-    dismissAllNotifications,
-    getBatchDecisions
+    dismissAllNotifications
 } from '../api/notifications';
 import { NOTIFICATION_CONFIG } from '../config/notifications';
 import SubscriptionCard from './SubscriptionCard';
@@ -85,7 +84,7 @@ export default function NotificationSidebar({ isOpen, onClose, onUnreadCountChan
                 document.body.style.userSelect = '';
             };
         }
-    }, [isResizing, handleResizeMove, handleResizeEnd]);
+    }, [isResizing]); // eslint-disable-line
 
     // Apply width on mount and when it changes
     useEffect(() => {
