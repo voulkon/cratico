@@ -502,7 +502,7 @@ export default function NotificationSidebar({ isOpen, onClose, onUnreadCountChan
                                                     {notification.display_name || notification.subscription?.subscription_type || 'notification'}
                                                 </span>
                                                 <span className="notification-item-time">
-                                                    {new Date(notification.created_at).toLocaleDateString()}
+                                                    {new Date(notification.created_at).toLocaleDateString('el-GR')}
                                                 </span>
                                             </div>
 
