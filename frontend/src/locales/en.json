@@ -508,6 +508,7 @@
     "afmLabel": "AFM"
   },
   "notifications": {
+    "decisions" : "Notification's Decisions",
     "myNotifications": "Notifications",
     "close": "Close",
     "notifications": "Notifications",
