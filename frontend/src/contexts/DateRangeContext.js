@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { toLocalISODate } from '../utils/dateUtils';
 
 const DateRangeContext = createContext();
 
@@ -52,8 +53,8 @@ const calculateDateRange = (period) => {
   }
 
   return {
-    start_date: start.toISOString().split('T')[0],
-    end_date: end.toISOString().split('T')[0]
+    start_date: toLocalISODate(start),
+    end_date: toLocalISODate(end),
   };
 };
 
