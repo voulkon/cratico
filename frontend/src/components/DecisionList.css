@@ -126,6 +126,12 @@
   opacity: 0.7;
 }
 
+/* ── Infinite-scroll sentinel ── */
+.scroll-sentinel {
+  height: 1px;
+  width: 100%;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .decisions-header {

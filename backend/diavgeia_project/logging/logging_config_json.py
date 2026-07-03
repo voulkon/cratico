@@ -98,13 +98,6 @@ def get_json_logging_config(
                 "formatter": "json",
                 "stream": "ext://sys.stdout",
             },
-            "console_debug": {
-                "level": "DEBUG",
-                "class": "logging.StreamHandler",
-                "formatter": "verbose",
-                "filters": ["require_debug_true"],
-                "stream": "ext://sys.stderr",
-            },
         },
         "root": {
             "level": logging_level,
@@ -124,6 +117,13 @@ def get_json_logging_config(
             "django.security": {
                 "handlers": ["console_json"],
                 "level": logging_level,
+                "propagate": False,
+            },
+            # django.server handles runserver HTTP request logs (GET /api/... etc.)
+            # Without this, runserver outputs plain text to stderr bypassing JSON formatting
+            "django.server": {
+                "handlers": ["console_json"],
+                "level": "INFO",
                 "propagate": False,
             },
             # Suppress Django DB query logs unless explicitly enabled
@@ -192,12 +192,9 @@ def get_json_logging_config(
         },
     }
 
-    # In debug mode, add verbose console output
+    # In debug mode, ensure console_json outputs at DEBUG level
     if debug_mode:
-        config["handlers"]["console_debug"]["level"] = "DEBUG"
-        for logger_name in ["django", "api", "core", "celery"]:
-            if logger_name in config["loggers"]:
-                config["loggers"][logger_name]["handlers"].append("console_debug")
+        config["handlers"]["console_json"]["level"] = "DEBUG"
 
     return config
 

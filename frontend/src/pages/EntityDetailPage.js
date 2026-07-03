@@ -12,7 +12,6 @@ import FilterPanel from '../components/FilterPanel';
 import StatisticsGrid from '../components/StatisticsGrid';
 import useUrlFilters from '../hooks/useUrlFilters';
 import useDocumentContent from '../hooks/useDocumentContent';
-import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import useDecisionsList from '../hooks/useDecisionsList';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { createDynamicDateRangeUtils, formatAmount } from '../utils/dateUtils';
@@ -394,13 +393,6 @@ const EntityDetailPage = () => {
     fetchStatistics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeRange, sortBy, debouncedSearchQuery, selectedDecisionTypes, amountFilters, organizationFilters, statsRequested]);
-
-  const { sentinelRef } = useInfiniteScroll({
-    hasMore: pagination?.has_next ?? false,
-    loading,
-    loadingMore,
-    onLoadMore: loadMore,
-  });
 
   // Memoize dateRange for TopCounterparts to prevent duplicate fetches from
   // referentially-new inline objects on every render.
@@ -815,9 +807,9 @@ const EntityDetailPage = () => {
           onLoadMore={loadMore}
           emptyMessage={t('entityDetail.noDecisionsFound')}
           showPaginationInfo={true}
+          infiniteScroll={true}
           getDecisionKey={(d) => d.ada}
         />
-        <div ref={sentinelRef} />
       </div>
     </div>
   );

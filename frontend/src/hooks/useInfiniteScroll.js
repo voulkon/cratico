@@ -7,6 +7,7 @@ const useInfiniteScroll = ({
   onLoadMore,
   threshold = 0.1,
   enabled = true,
+  rootRef = null,
 }) => {
   const sentinelRef = useRef(null);
 
@@ -19,7 +20,7 @@ const useInfiniteScroll = ({
           onLoadMore();
         }
       },
-      { threshold }
+      { threshold, root: rootRef?.current ?? null }
     );
 
     const currentTarget = sentinelRef.current;
@@ -28,7 +29,7 @@ const useInfiniteScroll = ({
     return () => {
       if (currentTarget) observer.unobserve(currentTarget);
     };
-  }, [enabled, hasMore, loadingMore, loading, onLoadMore, threshold]);
+  }, [enabled, hasMore, loadingMore, loading, onLoadMore, threshold, rootRef]);
 
   return { sentinelRef };
 };

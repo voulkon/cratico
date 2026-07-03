@@ -441,6 +441,7 @@ const RelationshipDetailPage = () => {
           onLoadMore={loadMore}
           emptyMessage={t('relationship.noDecisions')}
           emptyFilterMessage={t('relationship.noDecisionsWithFilters')}
+          infiniteScroll={true}
           getDecisionKey={(d) => d.id}
         />
       </div>
