@@ -243,6 +243,7 @@ const NotificationBatchDetailPage = () => {
         onViewDocumentContent={handleViewDocumentContent}
         onLoadMore={handleLoadMore}
         emptyMessage={t('notifications.noDecisionsInBatch')}
+        infiniteScroll={true}
         getDecisionKey={(d) => `batch-${batchId}-${d._batchDecisionId || d.id}`}
       />
     </div>

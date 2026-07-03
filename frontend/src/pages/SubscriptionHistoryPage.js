@@ -235,6 +235,7 @@ const SubscriptionHistoryPage = () => {
         onViewDocumentContent={handleViewDocumentContent}
         onLoadMore={handleLoadMore}
         emptyMessage="No decisions found for this subscription yet. Check back after the next scheduled run."
+        infiniteScroll={true}
         getDecisionKey={(d) => `sub-${subscriptionId}-${d._batchDecisionId || d.id}`}
       />
     </div>

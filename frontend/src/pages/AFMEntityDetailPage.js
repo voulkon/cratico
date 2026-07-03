@@ -5,7 +5,6 @@ import { useTranslation } from '../contexts/TranslationContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import useUrlFilters from '../hooks/useUrlFilters';
 import useDocumentContent from '../hooks/useDocumentContent';
-import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import useDecisionsList from '../hooks/useDecisionsList';
 import SortControl from '../components/SortControl';
 import TopCounterparts from '../components/TopCounterparts';
@@ -179,14 +178,6 @@ const AFMEntityDetailPage = () => {
       .catch(() => { /* feature may be disabled or entity has no company record */ });
     return () => { cancelled = true; };
   }, [afm]);
-
-  const { sentinelRef } = useInfiniteScroll({
-    hasMore: pagination?.has_next || false,
-    loading,
-    loadingMore,
-    onLoadMore: loadMore,
-    enabled: true
-  });
 
   const { fetchContent: handleViewDocumentContent } = useDocumentContent();
 
@@ -473,11 +464,9 @@ const AFMEntityDetailPage = () => {
           emptyMessage={t('afmEntityDetail.noDecisions')}
           emptyFilterMessage={t('afmEntityDetail.noDecisionsWithFilters')}
           showPaginationInfo={true}
+          infiniteScroll={true}
           getDecisionKey={(d) => d.id}
         />
-
-        {/* Infinite scroll sentinel */}
-        <div ref={sentinelRef} />
       </div>
     </div>
   );

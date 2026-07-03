@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import DecisionCard from './DecisionCard';
+import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import './DecisionList.css';
 
 const DecisionList = ({
@@ -18,9 +19,23 @@ const DecisionList = ({
   getDecisionKey,
   showCount = false,
   countLabel = 'Decisions',
+  hideLoadMore = false,
+  infiniteScroll = false,
+  scrollMaxHeight = 'calc(100vh - 200px)',
 }) => {
+  const scrollContainerRef = useRef(null);
   const defaultGetKey = (decision) => decision.ada || decision.id;
   const resolveKey = getDecisionKey || defaultGetKey;
+
+  // ── Internal infinite scroll (when scroll container is inside this component) ──
+  const { sentinelRef } = useInfiniteScroll({
+    hasMore: infiniteScroll ? (pagination?.has_next ?? false) : false,
+    loading,
+    loadingMore,
+    onLoadMore,
+    rootRef: infiniteScroll ? scrollContainerRef : null,
+    enabled: infiniteScroll,
+  });
 
   if (loading && decisions.length === 0) {
     return <div className="decision-list-loading">{/* skeleton placeholder */}</div>;
@@ -42,8 +57,8 @@ const DecisionList = ({
     );
   }
 
-  return (
-    <div className="decisions-list">
+  const listContent = (
+    <>
       {showCount && (
         <div className="decisions-header">
           <h3 className="decisions-title">
@@ -78,7 +93,11 @@ const DecisionList = ({
         </div>
       )}
 
-      {pagination?.has_next && (
+      {/* Sentinel for internal infinite scroll */}
+      {infiniteScroll && <div ref={sentinelRef} className="scroll-sentinel" />}
+
+      {/* Manual "Load more" button (only when NOT using infinite scroll) */}
+      {!infiniteScroll && !hideLoadMore && pagination?.has_next && (
         <div className="load-more-container">
           <button
             onClick={onLoadMore}
@@ -89,8 +108,23 @@ const DecisionList = ({
           </button>
         </div>
       )}
-    </div>
+    </>
   );
+
+  // ── Wrap in a scrollable container when infiniteScroll is active ──
+  if (infiniteScroll) {
+    return (
+      <div
+        ref={scrollContainerRef}
+        className="decisions-list decisions-list--scrollable"
+        style={{ maxHeight: scrollMaxHeight, overflowY: 'auto' }}
+      >
+        {listContent}
+      </div>
+    );
+  }
+
+  return <div className="decisions-list">{listContent}</div>;
 };
 
 export default DecisionList;
