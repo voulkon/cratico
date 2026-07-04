@@ -67,15 +67,17 @@ const TimeRangeSection = ({
     >
       <summary className="section-summary">
         <span className="summary-title">{t('exploration.timeRange')}</span>
-        {hasDateRange && (
-          <span className="summary-count">
-            {summaryPrefix && <>{summaryPrefix} — </>}
-            {t('exploration.availableDataShort', {
-              days: dateRange.span_days,
-            })}
-          </span>
-        )}
-        <span className="toggle-icon">{isOpen ? '▼' : '▶'}</span>
+        <svg
+          className={`chevron${isOpen ? ' open' : ''}`}
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M4 6l4 4 4-4" />
+        </svg>
       </summary>
 
       <div className="section-content">
@@ -101,6 +103,17 @@ const TimeRangeSection = ({
           formatValue={formatSliderValue}
           activityData={activityData}
         />
+
+        {hasDateRange && (
+          <div className="summary-count-row">
+            <span className="summary-count">
+              {summaryPrefix && <>{summaryPrefix} — </>}
+              {t('exploration.availableDataShort', {
+                days: dateRange.span_days,
+              })}
+            </span>
+          </div>
+        )}
       </div>
     </details>
   );
