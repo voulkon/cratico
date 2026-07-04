@@ -192,6 +192,7 @@
 }
 
 .decisions-section {
+  margin-top: var(--spacing-xxxl);
   margin-bottom: var(--spacing-xxxl);
 }
 

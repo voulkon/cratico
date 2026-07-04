@@ -67,6 +67,7 @@
 /* StatCard styles imported from StatCard.css */
 
 .decisions-section {
+  margin-top: var(--spacing-xxxl);
   background-color: var(--card-bg);
   padding: var(--spacing-xl);
   border-radius: var(--radius-md);

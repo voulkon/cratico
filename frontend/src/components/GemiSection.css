@@ -1,5 +1,6 @@
 .gemi-section {
   margin-top: var(--spacing-xxxl);
+  margin-bottom: var(--spacing-xxxl);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   background-color: var(--card-bg);

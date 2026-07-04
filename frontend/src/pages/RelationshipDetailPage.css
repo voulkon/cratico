@@ -120,6 +120,8 @@
 /* StatCard styles imported from StatCard.css */
 
 .decisions-section {
+  margin-top: var(--spacing-xxxl);
+  margin-bottom: var(--spacing-xxxl);
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: 12px;
@@ -159,9 +161,9 @@
 }
 
 .filter-toggle-button:hover {
-  background: var(--accent-color);
-  color: white;
-  border-color: var(--accent-color);
+  background: var(--palette-primary);
+  color: var(--palette-primary-contrast);
+  border-color: var(--palette-primary);
 }
 
 .filters-panel {
