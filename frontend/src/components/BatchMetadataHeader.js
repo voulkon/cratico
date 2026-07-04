@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { useTranslation } from '../contexts/TranslationContext';
+import Chevron from './Chevron';
 import './BatchMetadataHeader.css';
 
 /**
@@ -17,9 +18,23 @@ const BatchMetadataHeader = ({
   showCreatedAt = true,
   showSubscriptionInfo = true,
   showStats = true,
-  title
+  title,
+  open: controlledOpen,
+  onToggle,
+  defaultOpen = true,
 }) => {
   const { t } = useTranslation();
+
+  // ── Collapsible state ─────────────────────────────────────────
+  const [localOpen, setLocalOpen] = useState(defaultOpen);
+  const isControlled = controlledOpen !== undefined;
+  const isOpen = isControlled ? !!controlledOpen : localOpen;
+
+  const handleToggle = (e) => {
+    const next = e.target.open;
+    if (isControlled) onToggle?.(next);
+    else setLocalOpen(next);
+  };
 
   if (!batch) {
     return null;
@@ -27,11 +42,21 @@ const BatchMetadataHeader = ({
 
   const { subscription, check_window_start, check_window_end, created_at, match_count, aggregate_stats } = batch;
 
-  return (
-    <div className="batch-metadata-header">
-      {/* Title */}
-      <h1 className="batch-title">{title || t('notifications.notificationBatch')}</h1>
+  const displayTitle = title || t('notifications.notificationBatch');
 
+  return (
+    <details className="batch-metadata-header" open={isOpen} onToggle={handleToggle}>
+      <summary className="batch-metadata-summary">
+        <span className="batch-metadata-summary-title">
+          {displayTitle}
+          {match_count > 0 && (
+            <span className="batch-metadata-summary-count"> — {match_count} {t('notifications.totalMatches').toLowerCase()}</span>
+          )}
+        </span>
+        <Chevron open={isOpen} />
+      </summary>
+
+      <div className="batch-metadata-content">
       {/* Subscription Info */}
       {showSubscriptionInfo && subscription && (
         <div className="subscription-info">
@@ -131,7 +156,8 @@ const BatchMetadataHeader = ({
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </details>
   );
 };
 

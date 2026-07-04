@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
 import useTopCounterparts from '../hooks/useTopCounterparts';
 import useTopOrganizations from '../hooks/useTopOrganizations';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import CounterpartStats from './CounterpartStats';
+import Chevron from './Chevron';
 import './TopCounterparts.css';
 
 /**
@@ -17,10 +18,24 @@ const TopCounterparts = ({
   id, // AFM for entity, UID for organization
   dateRange, // { start_date, end_date } — now stable via useMemo in parent
   limit = 10,
-  onCounterpartClick // callback: (counterpart) => void - parent controls navigation URL
+  onCounterpartClick, // callback: (counterpart) => void - parent controls navigation URL
+  open: controlledOpen,
+  onToggle,
+  defaultOpen = true,
 }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+
+  // ── Collapsible state ─────────────────────────────────────────
+  const [localOpen, setLocalOpen] = useState(defaultOpen);
+  const isControlled = controlledOpen !== undefined;
+  const isOpen = isControlled ? !!controlledOpen : localOpen;
+
+  const handleToggle = (e) => {
+    const next = e.target.open;
+    if (isControlled) onToggle?.(next);
+    else setLocalOpen(next);
+  };
 
   const isOrg = type === 'organization';
 
@@ -87,11 +102,18 @@ const TopCounterparts = ({
 
   // ── Normal render ──────────────────────────────────────────────
   return (
-    <div className="top-counterparts-section">
-      <div className="section-header">
-        <h3 className="section-title">{title}</h3>
-      </div>
+    <details className="top-counterparts-section" open={isOpen} onToggle={handleToggle}>
+      <summary className="top-counterparts-summary">
+        <span className="top-counterparts-summary-title">
+          {title}
+          {totalCount > 0 && (
+            <span className="top-counterparts-summary-count"> ({totalCount.toLocaleString()})</span>
+          )}
+        </span>
+        <Chevron open={isOpen} />
+      </summary>
 
+      <div className="top-counterparts-content">
       {/* Search input (both entity and organization paths) */}
       <div className="counterparts-search">
           <input
@@ -176,7 +198,8 @@ const TopCounterparts = ({
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </details>
   );
 };
 

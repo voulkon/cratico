@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { CalendarIcon, ChartIcon, FileIcon } from './Icons';
 import { RefreshCw } from 'lucide-react';
 import { useTranslation } from '../contexts/TranslationContext';
+import Chevron from './Chevron';
 import './SubscriptionMetadataHeader.css';
 
 /**
@@ -18,9 +19,23 @@ const SubscriptionMetadataHeader = ({
   dateRange,
   formatDate,
   formatAmount,
-  title
+  title,
+  open: controlledOpen,
+  onToggle,
+  defaultOpen = true,
 }) => {
   const { t } = useTranslation();
+
+  // ── Collapsible state ─────────────────────────────────────────
+  const [localOpen, setLocalOpen] = useState(defaultOpen);
+  const isControlled = controlledOpen !== undefined;
+  const isOpen = isControlled ? !!controlledOpen : localOpen;
+
+  const handleToggle = (e) => {
+    const next = e.target.open;
+    if (isControlled) onToggle?.(next);
+    else setLocalOpen(next);
+  };
 
   if (!subscription) {
     return null;
@@ -55,11 +70,29 @@ const SubscriptionMetadataHeader = ({
   // Check if any filters are applied
   const hasFilters = keywords?.length > 0 || amount_min || amount_max || decision_types?.length > 0;
 
-  return (
-    <div className="subscription-metadata-header">
-      {/* Title */}
-      <h1 className="subscription-title">{title || t('notifications.subscriptionHistory')}</h1>
+  const displayTitle = title || t('notifications.subscriptionHistory');
 
+  return (
+    <details className="subscription-metadata-header" open={isOpen} onToggle={handleToggle}>
+      <summary className="subscription-metadata-summary">
+        <span className="subscription-metadata-summary-title">
+          {alias || displayTitle}
+          {organization_label && (
+            <span className="subscription-metadata-summary-target"> — {organization_label}</span>
+          )}
+          {!organization_label && entity_name && (
+            <span className="subscription-metadata-summary-target"> — {entity_name}</span>
+          )}
+        </span>
+        <span className="subscription-metadata-summary-right">
+          {check_frequency && (
+            <span className="subscription-metadata-summary-frequency">{check_frequency}</span>
+          )}
+          <Chevron open={isOpen} />
+        </span>
+      </summary>
+
+      <div className="subscription-metadata-content">
       {/* Subscription Name and Target */}
       <div className="subscription-primary-info">
         <div className="subscription-name-section">
@@ -185,7 +218,8 @@ const SubscriptionMetadataHeader = ({
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </details>
   );
 };
 

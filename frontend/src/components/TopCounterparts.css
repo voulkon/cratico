@@ -1,16 +1,12 @@
 /* Top Counterparts Component Styles */
+
+/* ── Collapsible card shell (<details>) ────────────────────────── */
 .top-counterparts-section {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  padding: 24px;
   margin: 24px 0;
-  transition: all 0.3s ease;
-  display: flex;
-  flex-direction: column;
   overflow: hidden;
-  /* Constrain height so the internal scroll container works */
-  max-height: 620px;
 }
 
 /* When used inside data-grid, remove margin */
@@ -19,6 +15,48 @@
   height: 100%;
 }
 
+/* ── Summary row (clickable header) ────────────────────────────── */
+.top-counterparts-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  transition: background-color 0.2s ease;
+}
+
+.top-counterparts-summary:hover {
+  background-color: var(--hover-bg);
+}
+
+.top-counterparts-summary::-webkit-details-marker {
+  display: none;
+}
+
+.top-counterparts-summary-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.top-counterparts-summary-count {
+  color: var(--muted-text);
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+/* ── Collapsible content area ──────────────────────────────────── */
+.top-counterparts-content {
+  padding: 0 24px 24px;
+  display: flex;
+  flex-direction: column;
+  /* Constrain height so the internal scroll container works */
+  max-height: 560px;
+}
+
+/* ── Legacy section-header (kept for loading state) ────────────── */
 .section-header {
   display: flex;
   justify-content: space-between;
@@ -530,7 +568,7 @@
     justify-content: space-between;
   }
 
-  .top-counterparts-section {
-    max-height: 500px;
+  .top-counterparts-content {
+    max-height: 440px;
   }
 }
