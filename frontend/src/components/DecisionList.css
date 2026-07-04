@@ -57,13 +57,24 @@
 
 .viewed-filter select,
 .sort-select {
-  padding: 0.5rem 0.75rem;
+  padding: var(--spacing-xs) var(--spacing-sm);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: var(--bg-color);
   color: var(--text-color);
   font-size: var(--font-sm);
   cursor: pointer;
+  max-width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.viewed-filter select:focus,
+.sort-select:focus {
+  outline: 2px solid var(--palette-primary);
+  outline-offset: 2px;
 }
 
 .sort-label {

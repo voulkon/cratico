@@ -159,18 +159,24 @@
 }
 
 .sort-select {
-  padding: var(--spacing-sm) var(--spacing-md);
-  border-radius: var(--radius-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
   border: 1px solid var(--border-color);
-  background-color: var(--card-bg);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-color);
   color: var(--text-color);
   font-size: var(--font-sm);
   cursor: pointer;
+  max-width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sort-select:focus {
   outline: none;
-  border-color: var(--focus-color);
+  border-color: var(--palette-primary);
+  box-shadow: 0 0 0 2px var(--palette-bg-subtle);
 }
 
 .filters-section {

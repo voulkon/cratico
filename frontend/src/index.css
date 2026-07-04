@@ -115,6 +115,14 @@ html {
   --shadow: rgba(28,25,23,0.08);
   --shadow-hover: rgba(28,25,23,0.12);
   --shadow-focus: rgba(28,25,23,0.24);
+
+  /* Card shadows — two-layer for the Apple-like floating depth */
+  --card-shadow:
+    0 1px 2px rgba(28,25,23,0.04),
+    0 8px 24px rgba(28,25,23,0.06);
+  --card-shadow-hover:
+    0 2px 4px rgba(28,25,23,0.05),
+    0 14px 36px rgba(28,25,23,0.09);
 }
 
 /* ===========================================
@@ -163,6 +171,14 @@ html {
   --shadow: rgba(0,0,0,0.4);
   --shadow-hover: rgba(0,0,0,0.5);
   --shadow-focus: rgba(0,0,0,0.6);
+
+  /* Card shadows — darker canvas needs heavier depth to read */
+  --card-shadow:
+    0 1px 2px rgba(0,0,0,0.25),
+    0 8px 24px rgba(0,0,0,0.35);
+  --card-shadow-hover:
+    0 2px 4px rgba(0,0,0,0.30),
+    0 14px 36px rgba(0,0,0,0.45);
 }
 
 /* ===========================================
@@ -210,6 +226,14 @@ html {
   --shadow: rgba(101, 123, 131, 0.1);
   --shadow-hover: rgba(101, 123, 131, 0.15);
   --shadow-focus: rgba(101, 123, 131, 0.25);
+
+  /* Card shadows — tinted to match the solarized palette */
+  --card-shadow:
+    0 1px 2px rgba(101,123,131,0.05),
+    0 8px 24px rgba(101,123,131,0.08);
+  --card-shadow-hover:
+    0 2px 4px rgba(101,123,131,0.07),
+    0 14px 36px rgba(101,123,131,0.11);
 }
 
 /* ===========================================
@@ -257,6 +281,14 @@ html {
   --shadow: rgba(0, 0, 0, 0.4);
   --shadow-hover: rgba(0, 0, 0, 0.5);
   --shadow-focus: rgba(0, 0, 0, 0.6);
+
+  /* Card shadows — darker canvas needs heavier depth to read */
+  --card-shadow:
+    0 1px 2px rgba(0,0,0,0.25),
+    0 8px 24px rgba(0,0,0,0.35);
+  --card-shadow-hover:
+    0 2px 4px rgba(0,0,0,0.30),
+    0 14px 36px rgba(0,0,0,0.45);
 }
 
 /* ===========================================
@@ -284,11 +316,19 @@ html {
 }
 
 /* Solarized themes share similar palette adaptations */
-[data-theme="solarized-light"][data-palette="blue"],
+[data-theme="solarized-light"][data-palette="blue"] {
+  --palette-primary: #268bd2;
+  --palette-secondary: #2aa198;
+  --palette-bg-subtle: rgba(38, 139, 210, 0.08);
+  --palette-emphasis: #268bd2;
+  --bg-info: rgba(38, 139, 210, 0.1);
+  --color-text-info: #268bd2;
+  --bg-selected: rgba(38, 139, 210, 0.15);
+}
 [data-theme="solarized-dark"][data-palette="blue"] {
   --palette-primary: #268bd2;
   --palette-secondary: #2aa198;
-  --palette-bg-subtle: #073642;
+  --palette-bg-subtle: rgba(38, 139, 210, 0.12);
   --palette-emphasis: #268bd2;
   --bg-info: rgba(38, 139, 210, 0.1);
   --color-text-info: #268bd2;
@@ -319,11 +359,19 @@ html {
   --bg-selected: #22193a;
 }
 
-[data-theme="solarized-light"][data-palette="purple"],
+[data-theme="solarized-light"][data-palette="purple"] {
+  --palette-primary: #6c71c4;
+  --palette-secondary: #d33682;
+  --palette-bg-subtle: rgba(108, 113, 196, 0.08);
+  --palette-emphasis: #6c71c4;
+  --bg-info: rgba(108, 113, 196, 0.1);
+  --color-text-info: #6c71c4;
+  --bg-selected: rgba(108, 113, 196, 0.15);
+}
 [data-theme="solarized-dark"][data-palette="purple"] {
   --palette-primary: #6c71c4;
   --palette-secondary: #d33682;
-  --palette-bg-subtle: #073642;
+  --palette-bg-subtle: rgba(108, 113, 196, 0.12);
   --palette-emphasis: #6c71c4;
   --bg-info: rgba(108, 113, 196, 0.1);
   --color-text-info: #6c71c4;
@@ -354,11 +402,19 @@ html {
   --bg-selected: #152419;
 }
 
-[data-theme="solarized-light"][data-palette="green"],
+[data-theme="solarized-light"][data-palette="green"] {
+  --palette-primary: #859900;
+  --palette-secondary: #2aa198;
+  --palette-bg-subtle: rgba(133, 153, 0, 0.08);
+  --palette-emphasis: #859900;
+  --bg-info: rgba(133, 153, 0, 0.1);
+  --color-text-info: #859900;
+  --bg-selected: rgba(133, 153, 0, 0.15);
+}
 [data-theme="solarized-dark"][data-palette="green"] {
   --palette-primary: #859900;
   --palette-secondary: #2aa198;
-  --palette-bg-subtle: #073642;
+  --palette-bg-subtle: rgba(133, 153, 0, 0.12);
   --palette-emphasis: #859900;
   --bg-info: rgba(133, 153, 0, 0.1);
   --color-text-info: #859900;
@@ -391,11 +447,19 @@ html {
   --bg-selected: #3a1d12;
 }
 
-[data-theme="solarized-light"][data-palette="orange"],
+[data-theme="solarized-light"][data-palette="orange"] {
+  --palette-primary: #cb4b16;     /* solarized's native orange — already clay-adjacent */
+  --palette-secondary: #b58900;
+  --palette-bg-subtle: rgba(203, 75, 22, 0.08);
+  --palette-emphasis: #cb4b16;
+  --bg-info: rgba(203, 75, 22, 0.1);
+  --color-text-info: #cb4b16;
+  --bg-selected: rgba(203, 75, 22, 0.15);
+}
 [data-theme="solarized-dark"][data-palette="orange"] {
   --palette-primary: #cb4b16;     /* solarized's native orange — already clay-adjacent */
   --palette-secondary: #b58900;
-  --palette-bg-subtle: #073642;
+  --palette-bg-subtle: rgba(203, 75, 22, 0.12);
   --palette-emphasis: #cb4b16;
   --bg-info: rgba(203, 75, 22, 0.1);
   --color-text-info: #cb4b16;
@@ -426,11 +490,19 @@ html {
   --bg-selected: #311515;
 }
 
-[data-theme="solarized-light"][data-palette="red"],
+[data-theme="solarized-light"][data-palette="red"] {
+  --palette-primary: #dc322f;
+  --palette-secondary: #cb4b16;
+  --palette-bg-subtle: rgba(220, 50, 47, 0.08);
+  --palette-emphasis: #dc322f;
+  --bg-info: rgba(220, 50, 47, 0.1);
+  --color-text-info: #dc322f;
+  --bg-selected: rgba(220, 50, 47, 0.15);
+}
 [data-theme="solarized-dark"][data-palette="red"] {
   --palette-primary: #dc322f;
   --palette-secondary: #cb4b16;
-  --palette-bg-subtle: #073642;
+  --palette-bg-subtle: rgba(220, 50, 47, 0.12);
   --palette-emphasis: #dc322f;
   --bg-info: rgba(220, 50, 47, 0.1);
   --color-text-info: #dc322f;
@@ -461,11 +533,19 @@ html {
   --bg-selected: #2e1222;
 }
 
-[data-theme="solarized-light"][data-palette="pink"],
+[data-theme="solarized-light"][data-palette="pink"] {
+  --palette-primary: #d33682;
+  --palette-secondary: #6c71c4;
+  --palette-bg-subtle: rgba(211, 54, 130, 0.08);
+  --palette-emphasis: #d33682;
+  --bg-info: rgba(211, 54, 130, 0.1);
+  --color-text-info: #d33682;
+  --bg-selected: rgba(211, 54, 130, 0.15);
+}
 [data-theme="solarized-dark"][data-palette="pink"] {
   --palette-primary: #d33682;
   --palette-secondary: #6c71c4;
-  --palette-bg-subtle: #073642;
+  --palette-bg-subtle: rgba(211, 54, 130, 0.12);
   --palette-emphasis: #d33682;
   --bg-info: rgba(211, 54, 130, 0.1);
   --color-text-info: #d33682;
