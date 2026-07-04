@@ -379,6 +379,14 @@ const AFMEntityDetailPage = () => {
         />
       )}
 
+      {/* Unified GEMI Section */}
+      <GemiSection
+        companyInfo={companyInfo}
+        entity={entity}
+        gemiFetchStatus={gemiFetchStatus}
+        onRequestFetch={handleRequestGemiFetch}
+      />
+
       {/* Statistics Grid - triggered manually by user */}
       {!statsRequested ? (
         <div className="statistics-manual-trigger" style={{ marginBottom: '1rem' }}>
@@ -417,14 +425,6 @@ const AFMEntityDetailPage = () => {
           }}
         />
       )}
-
-      {/* Unified GEMI Section */}
-      <GemiSection
-        companyInfo={companyInfo}
-        entity={entity}
-        gemiFetchStatus={gemiFetchStatus}
-        onRequestFetch={handleRequestGemiFetch}
-      />
 
       {/* Decisions Section */}
         <DecisionsToolbar
