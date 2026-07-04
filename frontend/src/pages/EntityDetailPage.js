@@ -14,7 +14,7 @@ import useUrlFilters from '../hooks/useUrlFilters';
 import useDocumentContent from '../hooks/useDocumentContent';
 import useDecisionsList from '../hooks/useDecisionsList';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { createDynamicDateRangeUtils, formatAmount } from '../utils/dateUtils';
+import { createDynamicDateRangeUtils, formatAmount, toLocalISODate } from '../utils/dateUtils';
 import { useTranslation } from '../contexts/TranslationContext';
 import './EntityDetailPage.css';
 
@@ -109,8 +109,8 @@ const EntityDetailPage = () => {
       const monthNum = parseInt(month);
       const startOfMonth = new Date(yearNum, monthNum - 1, 1);
       const endOfMonth = new Date(yearNum, monthNum, 0);
-      startDateStr = startOfMonth.toISOString().split('T')[0];
-      endDateStr = endOfMonth.toISOString().split('T')[0];
+      startDateStr = toLocalISODate(startOfMonth);
+      endDateStr = toLocalISODate(endOfMonth);
       label = t('exploration.decisionsIn', {
         period: startOfMonth.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
       });
@@ -124,8 +124,8 @@ const EntityDetailPage = () => {
       weekStart.setDate(jan1.getDate() + (weekNum - 1) * 7 - jan1.getDay());
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekStart.getDate() + 6);
-      startDateStr = weekStart.toISOString().split('T')[0];
-      endDateStr = weekEnd.toISOString().split('T')[0];
+      startDateStr = toLocalISODate(weekStart);
+      endDateStr = toLocalISODate(weekEnd);
       label = t('exploration.week', { week: weekNum, year: yearNum });
     }
 

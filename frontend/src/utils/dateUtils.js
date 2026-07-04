@@ -1,3 +1,17 @@
+/**
+ * Format a Date as YYYY-MM-DD in LOCAL time.
+ *
+ * NEVER use date.toISOString().split('T')[0] — toISOString() converts
+ * to UTC, shifting dates across midnight for timezones ahead of UTC.
+ * A midnight Date in Athens (UTC+3) becomes the previous day in UTC.
+ */
+export const toLocalISODate = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
 export const createDateRangeUtils = () => {
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth();

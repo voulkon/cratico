@@ -641,6 +641,28 @@ def register_all_models():
     # Note: SearchSuggestion uses custom manager interface, not default admin
     admin_site.register(NotificationBatchDecision, NotificationBatchDecisionAdmin)
 
+    # Register django-celery-beat models for periodic task management
+    from django_celery_beat.admin import (
+        ClockedScheduleAdmin,
+        CrontabScheduleAdmin,
+        IntervalScheduleAdmin,
+        PeriodicTaskAdmin,
+        SolarScheduleAdmin,
+    )
+    from django_celery_beat.models import (
+        ClockedSchedule,
+        CrontabSchedule,
+        IntervalSchedule,
+        PeriodicTask,
+        SolarSchedule,
+    )
+
+    admin_site.register(PeriodicTask, PeriodicTaskAdmin)
+    admin_site.register(CrontabSchedule, CrontabScheduleAdmin)
+    admin_site.register(IntervalSchedule, IntervalScheduleAdmin)
+    admin_site.register(ClockedSchedule, ClockedScheduleAdmin)
+    admin_site.register(SolarSchedule, SolarScheduleAdmin)
+
 
 # Auto-register models when module is imported
 register_all_models()
