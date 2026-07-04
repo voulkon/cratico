@@ -34,6 +34,7 @@ const RelationshipDetailPage = () => {
   const [statistics, setStatistics] = useState(null);
   const [statisticsLoading, setStatisticsLoading] = useState(false);
   const [statisticsError, setStatisticsError] = useState(null);
+  const [statsRequested, setStatsRequested] = useState(false);
   const [error, setError] = useState(null);
 
   // Date range state
@@ -184,13 +185,12 @@ const RelationshipDetailPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [decisions]);
 
-  // Statistics load independently when timeRange changes
+  // Statistics load on demand when user clicks "Load statistics"
   useEffect(() => {
-    if (timeRange) {
-      fetchStatistics();
-    }
+    if (!timeRange || !statsRequested) return;
+    fetchStatistics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeRange]);
+  }, [timeRange, statsRequested]);
 
   // ── Slider handlers ────────────────────────────────────────────────────────
   const handleMonthRangeChange = (startIndex, endIndex) => {
@@ -312,33 +312,46 @@ const RelationshipDetailPage = () => {
         />
       )}
 
-      {/* Statistics Section */}
-      <StatisticsGrid
-        loading={statisticsLoading}
-        error={statisticsError}
-        columns={3}
-        cards={
-          statistics
-            ? [
-                {
-                  title: t('relationship.totalDecisions'),
-                  value: statistics.total_decisions?.toLocaleString() || '0',
-                },
-                {
-                  title: t('relationship.totalAmount'),
-                  value: formatAmount(statistics.total_amount),
-                },
-                {
-                  title: t('statistics.averageAmount'),
-                  value: formatAmount(statistics.avg_amount),
-                  subtitle: statistics.decisions_with_amounts
-                    ? `${statistics.decisions_with_amounts} ${t('relationship.withAmounts')}`
-                    : '',
-                },
-              ]
-            : null
-        }
-      />
+      {/* Statistics Section - triggered manually by user */}
+      {!statsRequested ? (
+        <div className="statistics-manual-trigger" style={{ marginBottom: '1rem' }}>
+          <button
+            type="button"
+            className="see-all-button"
+            onClick={() => setStatsRequested(true)}
+          >
+            {t('entityDetail.loadStatistics', 'Load statistics')}
+          </button>
+        </div>
+      ) : (
+        <StatisticsGrid
+          loading={statisticsLoading && !statistics}
+          error={statisticsError}
+          columns={3}
+          cards={
+            statistics
+              ? [
+                  {
+                    title: t('relationship.totalDecisions'),
+                    value: statistics.total_decisions?.toLocaleString() || '0',
+                  },
+                  {
+                    title: t('relationship.totalAmount'),
+                    value: formatAmount(statistics.total_amount),
+                  },
+                  {
+                    title: t('statistics.averageAmount'),
+                    value: formatAmount(statistics.avg_amount),
+                    subtitle: statistics.decisions_with_amounts
+                      ? `${statistics.decisions_with_amounts} ${t('relationship.withAmounts')}`
+                      : '',
+                  },
+                ]
+              : null
+          }
+          onRetry={fetchStatistics}
+        />
+      )}
 
       {/* Decisions Section */}
       <div className="decisions-section">
