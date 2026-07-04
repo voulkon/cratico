@@ -1,0 +1,15 @@
+{
+  "id": "org_fts_multi_word_and_logic",
+  "description": "FTS: multi-word query uses AND logic — both words must be present",
+  "tier": "fts",
+  "entity_type": "organization",
+  "records": [
+    {"label": "MUNICIPALITY ATHENS"},
+    {"label": "MUNICIPALITY THESSALONIKI"},
+    {"label": "PREFECTURE ATTICA"}
+  ],
+  "query": "MUNICIPALITY ATHENS",
+  "limit": 10,
+  "expected_in": ["MUNICIPALITY ATHENS"],
+  "expected_not_in": ["MUNICIPALITY THESSALONIKI", "PREFECTURE ATTICA"]
+}

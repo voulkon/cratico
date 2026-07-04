@@ -36,9 +36,37 @@ apiClient.interceptors.request.use(async config => {
   (error) => Promise.reject(error)
 );
 
-// Add response interceptor to handle rate limiting
+// Add response interceptor to handle rate limiting and defer-on-miss (202)
 apiClient.interceptors.response.use(
-  (response) => {
+  async (response) => {
+    // ── Handle defer_on_miss: 202 Accepted → wait and retry ────────
+    if (response.status === 202 && response.data?.status === 'warming') {
+      const config = response.config;
+
+      // Track retry count on the request config
+      config.__deferRetryCount = config.__deferRetryCount || 0;
+      const MAX_DEFER_RETRIES = 5;
+
+      if (config.__deferRetryCount >= MAX_DEFER_RETRIES) {
+        return Promise.reject(
+          new Error('Data is taking too long to prepare. Please refresh the page.')
+        );
+      }
+      config.__deferRetryCount++;
+
+      const retryAfter = parseInt(response.headers['retry-after'], 10)
+        || response.data?.retry_after
+        || 30;
+
+      console.log(
+        `[Defer] Data warming in progress (attempt ${config.__deferRetryCount}/${MAX_DEFER_RETRIES}), `
+        + `retrying in ${retryAfter}s...`
+      );
+
+      await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+      return apiClient.request(config);
+    }
+
     // Store rate limit info for display
     if (response.headers['x-ratelimit-limit']) {
       const rateLimitInfo = {

@@ -1,7 +1,7 @@
 import time
 from datetime import date, timedelta
 from typing import Any, Dict, List, Optional, Tuple, Union
-
+from core.constants.decision_import_constants import DiavgeiaSearchFields
 from core.fetchers.diavgeia_fetcher import DiavgeiaFetcher
 from core.importers.decisions import DecisionImporter
 from core.models.import_jobs import ImportJob, ImportJobStatus
@@ -177,10 +177,10 @@ class DecisionIngestionService:
                 if search_params is None:
                     search_params = {}
                 # Join types with semicolon (API supports this for multiple types)
-                search_params["type"] = ";".join(filtered_types)
+                search_params[DiavgeiaSearchFields.TYPE] = ";".join(filtered_types)
                 logger.info(
                     f"Feature flag FILTER_DECISION_TYPES active: filtering by types {filtered_types} "
-                    f"(joined as: {search_params['type']})"
+                    f"(joined as: {search_params[DiavgeiaSearchFields.TYPE]})"
                 )
             elif filtered_types is not None:
                 logger.info(
@@ -294,11 +294,13 @@ class DecisionIngestionService:
         if search_params is None:
             search_params = {}
         else:
-            # Remove pagination/date params if accidentally passed
-            search_params.pop("page", None)
-            search_params.pop("size", None)
-            search_params.pop("from_issue_date", None)
-            search_params.pop("to_issue_date", None)
+            # Remove pagination/date params if accidentally passed (both modes)
+            search_params.pop(DiavgeiaSearchFields.PAGE, None)
+            search_params.pop(DiavgeiaSearchFields.SIZE, None)
+            search_params.pop(DiavgeiaSearchFields.FROM_DATE, None)
+            search_params.pop(DiavgeiaSearchFields.TO_DATE, None)
+            search_params.pop(DiavgeiaSearchFields.FROM_ISSUE_DATE, None)
+            search_params.pop(DiavgeiaSearchFields.TO_ISSUE_DATE, None)
 
         logger.info(
             f"Starting decision fetch from {start_date.isoformat()} to {end_date.isoformat()} "
@@ -502,10 +504,12 @@ class DecisionIngestionService:
 
         while page < total_pages:
             current_search_params = base_search_params.copy()
-            current_search_params["from_issue_date"] = start_date.isoformat()
-            current_search_params["to_issue_date"] = end_date.isoformat()
-            current_search_params["page"] = page
-            current_search_params["size"] = self.DEFAULT_PAGE_SIZE
+            from core.constants.decision_import_constants import get_api_date_fields
+            from_field, to_field = get_api_date_fields()
+            current_search_params[from_field] = start_date.isoformat()
+            current_search_params[to_field] = end_date.isoformat()
+            current_search_params[DiavgeiaSearchFields.PAGE] = page
+            current_search_params[DiavgeiaSearchFields.SIZE] = self.DEFAULT_PAGE_SIZE
 
             logger.debug(
                 f"Fetching page {page + 1}/{total_pages if total_pages > 1 else '?'}..."

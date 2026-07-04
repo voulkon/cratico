@@ -10,25 +10,6 @@
   min-height: 100vh;
 }
 
-.gemi-section {
-  margin-top: var(--spacing-xxxl);
-}
-
-.gemi-section-title {
-  font-size: var(--font-xl);
-  font-weight: var(--font-bold);
-  color: var(--text-color);
-  margin: 0 0 var(--spacing-lg) 0;
-  padding-bottom: var(--spacing-sm);
-  border-bottom: 2px solid var(--border-color);
-}
-
-.gemi-components-grid {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-lg);
-}
-
 .entity-header {
   margin-bottom: var(--spacing-xxxl);
 }
@@ -534,6 +515,54 @@
   background: var(--palette-emphasis);
 }
 
+/* Time range slider section — mirror EntityDetailPage */
+.time-range-container {
+  margin: 1rem 0;
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+/* Search input at top of page */
+.entity-search-bar {
+  margin-bottom: 1rem;
+  max-width: 500px;
+}
+
+/* Collapsible sections — shared pattern */
+.collapsible-section .section-summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  user-select: none;
+  font-weight: var(--font-bold);
+  color: var(--text-color);
+}
+
+.collapsible-section .summary-title {
+  font-size: var(--font-md);
+}
+
+.collapsible-section .summary-count {
+  font-size: var(--font-xs);
+  color: var(--muted-text);
+  background: var(--bg-selected);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.collapsible-section .toggle-icon {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: var(--muted-text);
+}
+
+.collapsible-section .section-content {
+  margin-top: 1rem;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .afm-entity-detail-page {
@@ -569,5 +598,13 @@
     flex-direction: column;
     align-items: flex-start;
     gap: var(--spacing-xs);
+  }
+
+  .entity-search-bar {
+    max-width: 100%;
+  }
+
+  .collapsible-section .section-summary {
+    flex-wrap: wrap;
   }
 }

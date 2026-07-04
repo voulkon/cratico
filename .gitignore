@@ -5,6 +5,7 @@ logs/
 implementation-tasks/
 extraction_results/
 decision_samples/
+staticfiles/
 .env.coolify-config
 coolify/archive/
 afm_exploration_*

@@ -12,6 +12,10 @@
         "no-restricted-syntax": [
           "warn",
           {
+            "selector": "CallExpression[callee.property.name='split'] > MemberExpression[callee.property.name='toISOString']",
+            "message": "❌ NEVER use date.toISOString().split('T')[0] — it converts to UTC. Use toLocalISODate(date) from 'utils/dateUtils' instead."
+          },
+          {
             "selector": "CallExpression[callee.name='useEffect'] > ArrayExpression.arguments:last-child > Identifier[name=/^(fetch|load|handle|get|set)[A-Z]/]",
             "message": "❌ Avoid putting callback functions directly in useEffect dependencies. Use useCallback or eslint-disable."
           },

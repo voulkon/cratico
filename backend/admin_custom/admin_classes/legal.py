@@ -1,7 +1,8 @@
 """
 Admin interface for Legal Documents.
 
-Simple markdown-based editor for Terms of Service, Privacy Policy, etc.
+Markdown-based editor for Terms of Service, Privacy Policy, etc.
+Each document is identified by a unique (type, language) pair.
 """
 
 from core.models import LegalDocument
@@ -29,11 +30,13 @@ class LegalDocumentForm(forms.ModelForm):
 
 @admin.register(LegalDocument)
 class LegalDocumentAdmin(admin.ModelAdmin):
-    """Simple admin interface for legal documents."""
+    """Admin interface for legal documents.  One entry per (type, language)."""
 
     form = LegalDocumentForm
 
     list_display = [
+        "type",
+        "title",
         "language",
         "updated_at",
         "updated_by",
@@ -41,6 +44,12 @@ class LegalDocumentAdmin(admin.ModelAdmin):
 
     list_filter = [
         "language",
+        "type",
+    ]
+
+    search_fields = [
+        "type",
+        "title",
     ]
 
     readonly_fields = [
@@ -48,14 +57,13 @@ class LegalDocumentAdmin(admin.ModelAdmin):
     ]
 
     fieldsets = (
-        ("Document", {"fields": ("language",)}),
+        ("Document Identity", {"fields": ("type", "title", "language")}),
         (
             "Content (Markdown)",
             {
                 "fields": ("content",),
                 "description": (
-                    "Edit the full legal page content using Markdown. "
-                    "Use headings (##) to separate sections like Terms, Privacy, Cookies. "
+                    "Edit the legal page content using Markdown. "
                     '<a href="https://www.markdownguide.org/basic-syntax/" target="_blank">Markdown Guide</a>'
                 ),
             },
@@ -68,8 +76,5 @@ class LegalDocumentAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         """Track who updated the document."""
-        if not obj.pk:  # New document
-            obj.updated_by = request.user
-        else:  # Updated document
-            obj.updated_by = request.user
+        obj.updated_by = request.user
         super().save_model(request, obj, form, change)

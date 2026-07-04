@@ -1,0 +1,19 @@
+/* FontSizeControl — overrides on top of SplitButton base classes */
+
+/* Hide the inherited chevron SVG icon; + is the label itself */
+.font-size-control .split-button-chevron-icon {
+  display: none;
+}
+
+/* Typography for both halves */
+.font-size-btn {
+  font-size: 1.1rem;
+  font-weight: var(--font-bold);
+  font-family: var(--font-sans);
+  line-height: 1;
+}
+
+/* The + side doesn't need extra styling beyond the base chevron */
+.font-size-btn--increase {
+  letter-spacing: -0.5px;
+}

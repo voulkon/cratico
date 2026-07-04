@@ -90,6 +90,7 @@ class NotificationSubscriptionSerializer(serializers.ModelSerializer):
             "amount_min",
             "amount_max",
             "decision_types",
+            "also_send_email",
             "is_active",
             "check_frequency",
             "subscription_type",
@@ -211,6 +212,7 @@ class NotificationSubscriptionCreateSerializer(serializers.ModelSerializer):
             "amount_min",
             "amount_max",
             "decision_types",
+            "also_send_email",
             "is_active",
             "check_frequency",
         ]
@@ -447,6 +449,7 @@ class NotificationSubscriptionListSerializer(serializers.ModelSerializer):
             "amount_min",
             "amount_max",
             "decision_types",
+            "also_send_email",
             "is_active",
             "check_frequency",
             "notification_count",

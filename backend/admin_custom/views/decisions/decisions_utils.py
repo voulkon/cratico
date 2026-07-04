@@ -33,9 +33,7 @@ def get_month_calendar_data(month, year, entity_type, entity_id):
             last_day = date(year, month + 1, 1) - timedelta(days=1)
 
         decisions_by_day = (
-            Decision.objects.filter(
-                issue_date_day__gte=first_day, issue_date_day__lte=last_day
-            )
+            Decision.objects.filter_by_date_range(first_day, last_day)
             .values("issue_date_day")
             .annotate(count=Count("id"))
             .order_by("issue_date_day")
@@ -161,9 +159,8 @@ def get_year_summary_data(year, entity_type, entity_id):
         last_day_of_year = date(year, 12, 31)
 
         decisions_by_month = (
-            Decision.objects.filter(
-                issue_date_month__gte=first_day_of_year,
-                issue_date_month__lte=last_day_of_year,
+            Decision.objects.filter_by_date_range(
+                first_day_of_year, last_day_of_year, field="issue_date_month"
             )
             .values("issue_date_month")
             .annotate(count=Count("id"))

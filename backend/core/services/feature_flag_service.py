@@ -222,6 +222,88 @@ class FeatureFlagService:
             "category": "data_enrichment",
             "requires_restart": False,
         },
+        # ── Date-Mode Alignment (fetch ↔ coverage) ───────────────────
+        "COVERAGE_DATE_MODE": {
+            "name": "Coverage Date Mode",
+            "description": "Controls which date field is used for both fetching from the Diavgeia API "
+            "AND counting decisions for coverage/backfill. "
+            "Options: submission (from_date/to_date & publish_date_day — when uploaded), "
+            "issue (from_issue_date/to_issue_date & issue_date_day — when issued). "
+            "WARNING: Changing this mid-backfill will cause coverage mismatches. "
+            "Only toggle for short experiments on low-traffic days.",
+            "default": "submission",
+            "env_var": "COVERAGE_DATE_MODE",
+            "category": "data_ingestion",
+            "requires_restart": False,
+            "value_type": "choice",
+            "choices": ["submission", "issue"],
+        },
+        # ── Post-Import Pipeline ──────────────────────────────────────
+        "POST_IMPORT_ORCHESTRATOR_ENABLED": {
+            "name": "Post-Import Orchestrator",
+            "description": "Master switch for the post-import task pipeline (analytics, "
+            "cache warming, notifications).  When enabled, fires automatically after "
+            "a global daily import completes.  Individual sub-tasks can be toggled "
+            "independently via their own flags.",
+            "default": False,
+            "env_var": "POST_IMPORT_ORCHESTRATOR_ENABLED",
+            "category": "data_ingestion",
+            "requires_restart": False,
+        },
+        "ANALYTICS_PRECALC_ENABLED": {
+            "name": "Analytics Pre-calculation (Entity Rankings)",
+            "description": "Pre-compute per-entity statistics (amounts, counts, rankings) "
+            "for daily/weekly/monthly/yearly windows after each global daily import. "
+            "Stores results in AnalyticsSnapshotRun + EntityAnalyticsSnapshot models. "
+            "Requires POST_IMPORT_ORCHESTRATOR_ENABLED.",
+            "default": False,
+            "env_var": "ANALYTICS_PRECALC_ENABLED",
+            "category": "analytics",
+            "requires_restart": False,
+        },
+        "ANALYTICS_WARMUP_ENABLED": {
+            "name": "Analytics Cache Warming",
+            "description": "Pre-populate Redis cache keys for heavy analytics views "
+            "(top pairs, top organizations, recent high-value decisions) so the "
+            "first real user request is always a cache hit. "
+            "Requires POST_IMPORT_ORCHESTRATOR_ENABLED.",
+            "default": False,
+            "env_var": "ANALYTICS_WARMUP_ENABLED",
+            "category": "analytics",
+            "requires_restart": False,
+        },
+        "POST_IMPORT_NOTIFICATIONS_ENABLED": {
+            "name": "Post-Import Notification Checks",
+            "description": "After a global daily import, fan out and check all active "
+            "notification subscriptions for new matching decisions. "
+            "Requires POST_IMPORT_ORCHESTRATOR_ENABLED.",
+            "default": False,
+            "env_var": "POST_IMPORT_NOTIFICATIONS_ENABLED",
+            "category": "notifications",
+            "requires_restart": False,
+        },
+        # ── User-Triggered GEMI Fetch ─────────────────────────────────
+        "GEMI_FETCH_REQUEST_PUBLIC_ACCESS": {
+            "name": "GEMI Fetch Request — Public Access",
+            "description": "Allow unauthenticated (not logged-in) users to request company data "
+            "fetching from the GEMI registry via the public API button. "
+            "When disabled, only authenticated users can trigger a fetch.",
+            "default": True,
+            "env_var": "GEMI_FETCH_REQUEST_PUBLIC_ACCESS",
+            "category": "data_enrichment",
+            "requires_restart": False,
+        },
+        "GEMI_FETCH_REQUEST_DAILY_LIMIT": {
+            "name": "GEMI Fetch Request — Daily Limit per IP",
+            "description": "Maximum number of user-triggered GEMI company fetch requests "
+            "allowed per IP address per UTC day. "
+            "Applies to both authenticated and unauthenticated users.",
+            "default": 10,
+            "env_var": "GEMI_FETCH_REQUEST_DAILY_LIMIT",
+            "category": "data_enrichment",
+            "requires_restart": False,
+            "value_type": "integer",
+        },
     }
 
     def __init__(self):
@@ -353,7 +435,7 @@ class FeatureFlagService:
             logger.error(f"Unexpected error checking feature flag '{flag_key}': {e}")
             return None
 
-    def _get_from_environment(self, flag_key: str) -> Optional[bool]:
+    def _get_from_environment(self, flag_key: str) -> Optional[Any]:
         """
         Get feature flag value from environment variable.
 
@@ -361,7 +443,7 @@ class FeatureFlagService:
             flag_key: The feature flag key (or env var name)
 
         Returns:
-            Optional[bool]: The flag value if env var exists, None otherwise
+            The flag value coerced to the correct type, or None if not set
         """
         # First try the flag_key directly
         env_value = os.getenv(flag_key)
@@ -373,7 +455,16 @@ class FeatureFlagService:
                 env_value = os.getenv(env_var_name)
 
         if env_value is not None:
-            # Convert to boolean
+            value_type = self.KNOWN_FLAGS.get(flag_key, {}).get("value_type", "boolean")
+            if value_type == "integer":
+                try:
+                    return int(env_value)
+                except (ValueError, TypeError):
+                    logger.warning(
+                        f"Could not parse env var for '{flag_key}' as integer: {env_value!r}"
+                    )
+                    return None
+            # Default: convert to boolean
             return env_value.lower() in ("true", "1", "t", "yes", "on")
 
         return None

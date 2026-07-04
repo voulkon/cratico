@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import DjangoPasswordReset from '../components/DjangoPasswordReset';
 
 /**
@@ -8,6 +9,7 @@ import DjangoPasswordReset from '../components/DjangoPasswordReset';
  * URL: /reset-password?token=<reset-token>
  */
 function PasswordResetPage() {
+  useDocumentTitle('Reset Password');
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [token, setToken] = useState(null);

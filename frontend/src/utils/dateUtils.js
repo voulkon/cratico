@@ -1,3 +1,17 @@
+/**
+ * Format a Date as YYYY-MM-DD in LOCAL time.
+ *
+ * NEVER use date.toISOString().split('T')[0] — toISOString() converts
+ * to UTC, shifting dates across midnight for timezones ahead of UTC.
+ * A midnight Date in Athens (UTC+3) becomes the previous day in UTC.
+ */
+export const toLocalISODate = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
 export const createDateRangeUtils = () => {
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth();
@@ -46,13 +60,9 @@ export const createDateRangeUtils = () => {
   };
 };
 
-export const formatAmount = (amount) => {
-  if (!amount || amount === 0) return 'No amount';
-  return `€${amount.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })}`;
-};
+// Re-exported from utils/format.js for backward compatibility.
+// Prefer importing directly from '../utils/format' in new code.
+export { formatAmount } from './format';
 
 export const formatDate = (dateString, options = {}) => {
   if (!dateString) return '';
@@ -118,19 +128,50 @@ export const createDynamicDateRangeUtils = (entityDateRange) => {
 
     // Convert to date string for API
     indexToDateString: (index, isEndOfMonth = false) => {
-      const date = new Date(startYear, startMonth + index, isEndOfMonth ? 0 : 1);
+      const targetYear = startYear + Math.floor((startMonth + index) / 12);
+      const targetMonth = (startMonth + index) % 12;
       if (isEndOfMonth) {
-        date.setMonth(date.getMonth() + 1);
-        date.setDate(0);
+        // Last day of targetMonth: day 0 of the next month
+        const lastDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+        return `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
       }
-      return date.toISOString().split('T')[0];
+      return `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-01`;
     },
 
-    // Get default range (last 12 months or full range if less)
+    // Get default range (last 3 months or full range if less)
     getDefaultRange: () => {
-      const defaultSpan = Math.min(totalMonths, 12);
+      const defaultSpan = Math.min(totalMonths, 3);
       return {
         startIndex: Math.max(0, totalMonths - defaultSpan),
+        endIndex: totalMonths - 1
+      };
+    },
+
+    // Get progressive default range: expand backwards from the most recent
+    // month until we hit a cumulative threshold of decisions (or cap out).
+    // Falls back to getDefaultRange() when no activity data is available.
+    getProgressiveDefaultRange: (activityData) => {
+      const THRESHOLD = 5;   // stop expanding once we've seen this many decisions
+      const MAX_MONTHS = 12; // never expand beyond 12 months
+
+      if (!activityData || activityData.length === 0) {
+        return this.getDefaultRange();
+      }
+
+      // activityData is ordered oldest → newest; reverse so we walk backwards
+      const months = activityData.slice().reverse();
+      let cumulative = 0;
+      let takeMonths = 1;
+
+      for (let i = 0; i < months.length; i++) {
+        cumulative += months[i].count;
+        takeMonths = i + 1;
+        if (cumulative >= THRESHOLD && takeMonths >= 1) break;
+        if (takeMonths >= MAX_MONTHS) break;
+      }
+
+      return {
+        startIndex: Math.max(0, totalMonths - takeMonths),
         endIndex: totalMonths - 1
       };
     }

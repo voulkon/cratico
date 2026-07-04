@@ -1,165 +1,60 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useAuthConfig } from '../contexts/AuthConfigContext';
 import { DateRangeProvider, useDateRange } from '../contexts/DateRangeContext';
-import apiClient from '../api/client';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import SuperSearch from '../components/SuperSearch';
+import { GlobeIcon } from '../components/Icons';
 import TopRelationshipPairs from '../components/TopRelationshipPairs';
 import DateRangeSelector from '../components/DateRangeSelector';
+import DashboardGrid from '../components/DashboardGrid';
+import OrganizationsSection from '../components/OrganizationsSection';
+import DecisionsSection from '../components/DecisionsSection';
 import './HomePage.css';
 
 /**
- * Dashboard Data Component - uses DateRangeContext
+ * Home Page Data Component — uses DateRangeContext.
+ *
+ * Renders a unified DashboardGrid with three columns:
+ *   1. Top Org×Entity Relationship Pairs (loads independently)
+ *   2. Most Active Organizations
+ *   3. Notable Recent Decisions
+ *
+ * Each column has uniform appearance: card background, scrollable list,
+ * section header with "See All" link.
  */
 const DashboardData = () => {
+  useDocumentTitle('Home');
   const navigate = useNavigate();
-  const { t } = useTranslation();
   const { dateRange } = useDateRange();
-  const [topOrganizations, setTopOrganizations] = useState([]);
-  const [recentDecisions, setRecentDecisions] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const loadDashboardData = async () => {
-    if (!dateRange) return;
-
-    try {
-      setLoading(true);
-
-      // Parallel API calls for dashboard data
-      const [
-        organizationsResponse,
-        decisionsResponse
-      ] = await Promise.all([
-        // Top organizations
-        apiClient.get(`/explore/organizations/?start_date=${dateRange.start_date}&end_date=${dateRange.end_date}&limit=6`),
-
-        // Get recent high-value decisions using optimized endpoint
-        apiClient.get(
-          `/explore/decisions-optimized/?start_date=${dateRange.start_date}&end_date=${dateRange.end_date}&sort_by=entity_amount_desc&page_size=5`
-        )
-      ]);
-
-      setTopOrganizations(organizationsResponse.data.organizations || []);
-      setRecentDecisions(decisionsResponse.data.results || []);
-
-    } catch (error) {
-      console.error('Failed to load dashboard data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadDashboardData();
-    // eslint-disable-next-line
-  }, [dateRange]);
-
-  const formatAmount = (amount) => {
-    if (amount >= 1000000) {
-      return `€${(amount / 1000000).toFixed(1)}M`;
-    } else if (amount >= 1000) {
-      return `€${(amount / 1000).toFixed(0)}K`;
-    }
-    return `€${amount?.toLocaleString() || 0}`;
-  };
-
-  if (loading) {
-    return (
-      <div className="homepage-loading">
-        <div className="loading-spinner"></div>
-        <p>{t('homepage.loading')}</p>
-      </div>
-    );
-  }
 
   return (
-    <>
-      {/* Top Org×Entity Relationships - Full Width */}
-      <TopRelationshipPairs
-        limit={6}
-        showDirectAssignmentsToggle={true}
-        defaultDirectAssignmentsOnly={true}
+    <DashboardGrid columns={2} collapsible header={<DateRangeSelector />}>
+      {/* Featured — Top Org×Entity Relationship Pairs (spans full width) */}
+      <DashboardGrid.Featured>
+        <TopRelationshipPairs
+          limit={6}
+          showDirectAssignmentsToggle={true}
+          defaultDirectAssignmentsOnly={true}
+          className="data-section"
+          collapsible
+        />
+      </DashboardGrid.Featured>
+
+      {/* Column 1 — Most Active Organizations (infinite scroll) */}
+      <OrganizationsSection
+        onSeeAll={() => navigate(`/explore/temporal/${dateRange.start_date}/${dateRange.end_date}`)}
+        collapsible
       />
 
-      {/* Two Column Grid: Organizations & Decisions */}
-      <div className="data-grid">
-        {/* Top Organizations */}
-        <section className="data-section">
-          <div className="section-header">
-            <h2 className="section-title">{t('homepage.mostActiveOrganizations')}</h2>
-            <button
-              className="see-all-button"
-              onClick={() => navigate(`/explore/temporal/${dateRange.start_date}/${dateRange.end_date}`)}
-            >
-              {t('homepage.seeAll')} →
-            </button>
-          </div>
-          <div className="organizations-list">
-            {topOrganizations.slice(0, 5).map((org, index) => (
-              <div
-                key={org.uid}
-                className="organization-card compact"
-                onClick={() => navigate(`/entity/organization/${org.uid}`)}
-              >
-                <div className="card-rank">#{index + 1}</div>
-                <div className="org-info">
-                  <h4 className="org-name">{org.label}</h4>
-                  <div className="org-stats">
-                    <span className="org-decisions">{org.count} {t('homepage.decisions')}</span>
-                    <span className="org-amount">{formatAmount(org.total_amount)}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Recent High-Value Decisions */}
-        <section className="data-section">
-          <div className="section-header">
-            <h2 className="section-title">{t('homepage.notableRecentDecisions')}</h2>
-            <button
-              className="see-all-button"
-              onClick={() => navigate(`/explore/temporal/${dateRange.start_date}/${dateRange.end_date}?sort_by=amount_desc`)}
-            >
-              {t('homepage.seeAll')} →
-            </button>
-          </div>
-          <div className="decisions-list compact">
-            {recentDecisions.slice(0, 5).map((decision, index) => (
-              <div
-                key={decision.ada}
-                className="decision-item compact clickable"
-                onClick={() => navigate(`/decision/${decision.id}`)}
-              >
-                <div className="card-rank">#{index + 1}</div>
-                <div className="decision-content">
-                  <div className="decision-subject">
-                    {decision.subject.length > 80
-                      ? `${decision.subject.substring(0, 80)}...`
-                      : decision.subject
-                    }
-                  </div>
-                  <div className="decision-meta">
-                    <span className="decision-org">
-                      {decision.organization?.label && decision.organization.label.length > 40
-                        ? `${decision.organization.label.substring(0, 40)}...`
-                        : decision.organization?.label
-                      }
-                    </span>
-                  </div>
-                  <div className="decision-amount-compact">
-                    {formatAmount(decision.amount)}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-    </>
+      {/* Column 2 — Notable Recent Decisions (infinite scroll) */}
+      <DecisionsSection
+        onSeeAll={() => navigate(`/explore/temporal/${dateRange.start_date}/${dateRange.end_date}?sort_by=amount_desc`)}
+        collapsible
+      />
+    </DashboardGrid>
   );
 };
 
@@ -170,6 +65,7 @@ const HomePage = () => {
   const { t } = useTranslation();
   const { isSignedIn, isLoaded } = useAuth();
   const { stealthMode, loading: configLoading } = useAuthConfig();
+  const navigate = useNavigate();
 
   // Show loading state while checking config
   if (configLoading) {
@@ -200,19 +96,26 @@ const HomePage = () => {
                 {t('homepage.subtitle')}
               </p>
 
-              {/* Super Search Component - Main Feature */}
-              <div className="hero-search-enhanced">
+              {/* Super Search + Browse button */}
+              <div className="hero-action-bar">
                 <SuperSearch
                   placeholder={t('homepage.searchPlaceholder')}
                   autoFocus={false}
                   showFullResults={true}
                   className="homepage-super-search"
                 />
+                <button
+                  className="homepage-browse-btn"
+                  onClick={() => navigate('/browse')}
+                  title={t('homepage.browse')}
+                >
+                  <GlobeIcon size={18} />
+                  {t('homepage.browse')}
+                </button>
               </div>
 
               {/* Sign-in message */}
               <div style={{
-                marginTop: '48px',
                 padding: '24px',
                 backgroundColor: 'var(--card-bg, #ffffff)',
                 borderRadius: '12px',
@@ -249,22 +152,27 @@ const HomePage = () => {
                 {t('homepage.subtitle')}
               </p>
 
-              {/* Super Search Component - Main Feature */}
-              <div className="hero-search-enhanced">
+              {/* Super Search + Browse button */}
+              <div className="hero-action-bar">
                 <SuperSearch
                   placeholder={t('homepage.searchPlaceholder')}
                   autoFocus={false}
                   showFullResults={true}
                   className="homepage-super-search"
                 />
+                <button
+                  className="homepage-browse-btn"
+                  onClick={() => navigate('/browse')}
+                  title={t('homepage.browse')}
+                >
+                  <GlobeIcon size={18} />
+                  {t('homepage.browse')}
+                </button>
               </div>
             </div>
           </section>
 
-          {/* Date Range Selector - Controls all dashboard components */}
-          <DateRangeSelector />
-
-          {/* Dashboard Data - All components use DateRangeContext */}
+          {/* Date Range Selector + Dashboard Data — unified card */}
           <DashboardData />
         </div>
       </div>

@@ -24,7 +24,7 @@ from django.core.management.base import BaseCommand
 from django.db import connection, connections
 from django.http import HttpRequest
 
-from backend.api.views.version import version_check as health_check
+from api.views.version import version_check as health_check
 
 
 class LoadTestStats:

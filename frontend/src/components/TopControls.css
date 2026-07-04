@@ -1,4 +1,21 @@
-/* Left controls container - Logo + Library button */
+/* ── Background strip ──────────────────────────────────────── */
+/* Full-width band that prevents scrolled content from bleeding
+   through the transparent/blurred control buttons.
+   Rendered as a sibling of TopControls in App.js, conditionally.
+   Sits below controls (1003) and overlay (1002), above content. */
+.top-controls-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--top-controls-offset);
+  background: var(--bg-color);
+  z-index: 1001;
+  pointer-events: none;
+}
+
+/* Left controls container - Logo.
+   Stays fixed at top-left so it's always visible regardless of scroll. */
 .left-controls {
   position: fixed;
   top: var(--spacing-md);
@@ -9,6 +26,15 @@
   gap: var(--spacing-sm);
   transition: left var(--transition-normal);
   align-items: flex-start;
+  /* Immune to font scaling */
+  font-size: 16px;
+  --font-xs: 12px;
+  --font-sm: 14px;
+  --font-md: 16px;
+  --font-lg: 18px;
+  --font-xl: 24px;
+  --font-xxl: 32px;
+  --font-xxxl: 40px;
 }
 
 /* Shift right when sidebar is open */
@@ -20,35 +46,49 @@
   /* Ensure logo aligns with right controls */
   display: flex;
   align-items: center;
-  height: 40px; /* Match the height of control buttons */
+  height: var(--top-controls-height);
 }
 
-/* Top controls wrapper - Contains collapse button and controls */
+/* Top controls wrapper — fixed to the viewport top-right.
+   max-width = reserved space minus the right margin so it can
+   never be wider than what .main-area's padding-right reserves. */
 .top-controls-wrapper {
   position: fixed;
+  top: var(--spacing-md);
+  right: var(--spacing-md);
   z-index: 1003;
   display: flex;
-  align-items: flex-start; /* Align to top, not center */
+  align-items: flex-start;
   gap: var(--spacing-sm);
-  transition: transform var(--transition-normal), opacity var(--transition-normal);
+  max-width: calc(var(--controls-expanded-width) - var(--spacing-md));
+  transition: opacity var(--transition-normal), transform var(--transition-normal);
+  /* Immune to font scaling: override all rem-based font vars with fixed px.
+     rem always resolves from html, but CSS custom properties cascade from here. */
+  font-size: 16px;
+  --font-xs: 12px;
+  --font-sm: 14px;
+  --font-md: 16px;
+  --font-lg: 18px;
+  --font-xl: 24px;
+  --font-xxl: 32px;
+  --font-xxxl: 40px;
 }
 
-/* Wrapper positioning based on layout */
+/* Wrapper positioning variants */
 .top-controls-wrapper.horizontal-right,
 .top-controls-wrapper.vertical-right,
 .top-controls-wrapper.split-corners {
-  top: var(--spacing-md);
-  right: var(--spacing-md);
+  justify-content: flex-end;
 }
 
-/* For vertical layouts, make wrapper a column too */
 .top-controls-wrapper.vertical-right {
-  flex-direction: row; /* Chevron and controls side-by-side */
+  flex-direction: row;
 }
 
 .top-controls-wrapper.horizontal-left,
 .top-controls-wrapper.vertical-left {
   top: var(--spacing-md);
+  right: auto;
   left: var(--spacing-md);
 }
 
@@ -56,17 +96,23 @@
   flex-direction: row;
 }
 
-/* Collapsed state - slide to the right */
+/* Collapsed — slide right until only the toggle button peeks out.
+   translateX = (wrapper max-width) - (toggle width) - (gap)
+   ≈ (expanded - margin) - toggle - gap */
 .top-controls-wrapper.collapsed {
-  transform: translateX(calc(100% - 48px)); /* Show only the toggle button */
+  transform: translateX(calc(var(--controls-expanded-width) - var(--controls-collapsed-width)));
 }
 
+.top-controls-wrapper.collapsed .top-controls {
+  opacity: 0;
+  pointer-events: none;
+}
 /* Collapse/Expand Toggle Button */
 .controls-collapse-toggle {
   background: var(--surface-color);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  padding: var(--spacing-sm);
+  padding: var(--spacing-xs);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -75,8 +121,8 @@
   transition: all var(--transition-fast);
   backdrop-filter: blur(10px);
   box-shadow: 0 2px 8px var(--shadow);
-  height: 40px;
-  width: 40px;
+  height: var(--top-controls-height);
+  width: var(--top-controls-height);
   flex-shrink: 0;
 }
 
@@ -96,13 +142,6 @@
   gap: var(--spacing-sm);
   padding: 0; /* Remove padding to align perfectly with chevron */
   transition: opacity var(--transition-normal), transform var(--transition-normal);
-}
-
-/* Hide controls when collapsed */
-.top-controls.hidden {
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(20px);
 }
 
 /* Horizontal layout - right aligned (default) */
@@ -141,22 +180,32 @@
   box-shadow: 0 2px 8px var(--shadow);
 }
 
-/* Responsive adjustments for different layouts */
 @media (max-width: 768px) {
-  /* On mobile, maybe force vertical layout */
-  .left-controls.shifted {
-    left: calc(100vw - 80px); /* Move to right edge on mobile */
+  .left-controls {
+    top: var(--spacing-sm);
+    left: var(--spacing-sm);
   }
 
-  .top-controls {
+  .left-controls.shifted {
+    left: var(--spacing-sm);
+  }
+
+  .top-controls-wrapper {
+    top: var(--spacing-sm);
+    right: var(--spacing-sm);
+  }
+
+  .top-controls-wrapper:not(.collapsed) .top-controls {
     flex-direction: column !important;
     align-items: flex-end !important;
+    gap: 3px;
   }
 }
 
 @media (max-width: 480px) {
-  /* On very small screens, ensure proper stacking */
-  .top-controls {
+  .top-controls-wrapper {
     gap: var(--spacing-xs);
+    top: var(--spacing-xs);
+    right: var(--spacing-xs);
   }
 }

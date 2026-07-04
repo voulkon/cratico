@@ -5,6 +5,9 @@ import ActivitySummary from './ActivitySummary';
 import { useSliderFormatters } from '../hooks/useSliderFormatters';
 import './DualRangeSlider.css';
 
+// Pure utility — no component state needed
+const getClientX = (e) => (e.touches ? e.touches[0].clientX : e.clientX);
+
 const DualRangeSlider = ({
   min,
   max,
@@ -23,8 +26,55 @@ const DualRangeSlider = ({
   // Local state for drag values (only update parent on drag complete)
   const [localStartValue, setLocalStartValue] = useState(startValue);
   const [localEndValue, setLocalEndValue] = useState(endValue);
+  // Zoom state: viewMin/viewMax define the visible window into the full range
+  const [viewMin, setViewMin] = useState(min);
+  const [viewMax, setViewMax] = useState(max);
   const sliderRef = useRef(null);
+  const onChangeRef = useRef(onChange);
+  useEffect(() => { onChangeRef.current = onChange; });
   const { formatAmount, formatPeriod } = useSliderFormatters();
+
+  // Keep zoom window in sync when the overall min/max changes
+  useEffect(() => {
+    setViewMin(min);
+    setViewMax(max);
+  }, [min, max]);
+
+  const isZoomed = viewMin !== min || viewMax !== max;
+  const zoomSpan = viewMax - viewMin;
+
+  // Gradual zoom: each step halves/doubles the visible span around the current
+  // view center. This avoids the jarring jump from 1× to 12.6× that happened when
+  // zoom-in targeted the (possibly tiny) selected range directly.
+  const zoomIn = useCallback(() => {
+    const center = (viewMin + viewMax) / 2;
+    const halfSpan = Math.max(1, (viewMax - viewMin) / 4); // halve the visible span
+    const newMin = Math.max(min, Math.round(center - halfSpan));
+    const newMax = Math.min(max, Math.round(center + halfSpan));
+    if (newMax - newMin < 2) return; // Don't zoom in too far
+    setViewMin(newMin);
+    setViewMax(newMax);
+  }, [viewMin, viewMax, min, max]);
+
+  const zoomOut = useCallback(() => {
+    if (!isZoomed) return;
+    const center = (viewMin + viewMax) / 2;
+    const halfSpan = (viewMax - viewMin); // double the visible span
+    const newMin = Math.max(min, Math.round(center - halfSpan));
+    const newMax = Math.min(max, Math.round(center + halfSpan));
+    setViewMin(newMin);
+    setViewMax(newMax);
+    // Snap to full range if we've returned to (roughly) the full span
+    if (newMin <= min && newMax >= max) {
+      setViewMin(min);
+      setViewMax(max);
+    }
+  }, [isZoomed, viewMin, viewMax, min, max]);
+
+  const resetZoom = useCallback(() => {
+    setViewMin(min);
+    setViewMax(max);
+  }, [min, max]);
 
   // Update local values when props change (but not during drag)
   useEffect(() => {
@@ -35,16 +85,12 @@ const DualRangeSlider = ({
   }, [startValue, endValue, isDragging]);
 
   const getValueFromPosition = useCallback((clientX) => {
-    if (!sliderRef.current) return min;
+    if (!sliderRef.current) return viewMin;
 
     const rect = sliderRef.current.getBoundingClientRect();
     const percentage = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    return Math.round(min + percentage * (max - min));
-  }, [min, max]);
-
-  const getClientX = useCallback((e) => {
-    return e.touches ? e.touches[0].clientX : e.clientX;
-  }, []);
+    return Math.round(viewMin + percentage * (viewMax - viewMin));
+  }, [viewMin, viewMax]);
 
   const handleMouseDown = useCallback((type) => (e) => {
     e.preventDefault();
@@ -62,7 +108,7 @@ const DualRangeSlider = ({
     const clientX = getClientX(e);
     const rect = sliderRef.current.getBoundingClientRect();
     const percentage = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const value = Math.round(min + percentage * (max - min));
+    const value = Math.round(viewMin + percentage * (viewMax - viewMin));
 
     // Always update hover value when not dragging
     if (!isDragging) {
@@ -79,7 +125,7 @@ const DualRangeSlider = ({
         }
       }
     }
-  }, [isDragging, min, max, activityData, getClientX]);
+  }, [isDragging, viewMin, viewMax, activityData]);
 
   const handleTrackClick = useCallback((e) => {
     if (isDragging) return; // Don't handle track clicks while dragging
@@ -100,7 +146,7 @@ const DualRangeSlider = ({
       setLocalEndValue(newEndValue);
       onChange(newStartValue, newEndValue);
     }
-  }, [isDragging, getValueFromPosition, getClientX, localStartValue, localEndValue, onChange]);
+  }, [isDragging, getValueFromPosition, localStartValue, localEndValue, onChange]);
 
   const handleTrackMouseLeave = useCallback(() => {
     if (!isDragging) {
@@ -112,7 +158,7 @@ const DualRangeSlider = ({
 
   // Keyboard navigation
   const handleKeyDown = useCallback((type) => (e) => {
-    const step = e.shiftKey ? Math.ceil((max - min) / 10) : 1; // Shift for bigger steps
+    const step = e.shiftKey ? Math.ceil((viewMax - viewMin) / 10) : 1; // Shift for bigger steps
 
     switch (e.key) {
       case 'ArrowLeft':
@@ -164,7 +210,7 @@ const DualRangeSlider = ({
       case 'PageUp':
         e.preventDefault();
         {
-          const bigStep = Math.ceil((max - min) / 5);
+          const bigStep = Math.ceil((viewMax - viewMin) / 5);
           if (type === 'start') {
             const newValue = Math.min(localEndValue, localStartValue + bigStep);
             setLocalStartValue(newValue);
@@ -179,7 +225,7 @@ const DualRangeSlider = ({
       case 'PageDown':
         e.preventDefault();
         {
-          const bigStep = Math.ceil((max - min) / 5);
+          const bigStep = Math.ceil((viewMax - viewMin) / 5);
           if (type === 'start') {
             const newValue = Math.max(min, localStartValue - bigStep);
             setLocalStartValue(newValue);
@@ -194,7 +240,7 @@ const DualRangeSlider = ({
       default:
         break;
     }
-  }, [min, max, localStartValue, localEndValue, onChange]);
+  }, [min, max, viewMin, viewMax, localStartValue, localEndValue, onChange]);
 
   // Global mouse event handlers for dragging
   useEffect(() => {
@@ -205,7 +251,7 @@ const DualRangeSlider = ({
         const clientX = getClientX(e);
         const rect = sliderRef.current.getBoundingClientRect();
         const percentage = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-        const value = Math.round(min + percentage * (max - min));
+        const value = Math.round(viewMin + percentage * (viewMax - viewMin));
 
         // Update local state during drag (don't call onChange yet)
         if (isDragging === 'start') {
@@ -219,7 +265,7 @@ const DualRangeSlider = ({
 
       const handleGlobalMouseUp = () => {
         // Call onChange only when drag completes
-        onChange(localStartValue, localEndValue);
+        onChangeRef.current(localStartValue, localEndValue);
         setIsDragging(null);
       };
 
@@ -242,20 +288,29 @@ const DualRangeSlider = ({
         document.body.style.cursor = '';
       };
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDragging, min, max, localStartValue, localEndValue, onChange, getClientX]);
+  }, [isDragging, viewMin, viewMax, localStartValue, localEndValue]);
 
   // Use local values for rendering during drag, prop values otherwise
   const displayStartValue = isDragging ? localStartValue : startValue;
   const displayEndValue = isDragging ? localEndValue : endValue;
 
-  const startPercentage = ((displayStartValue - min) / (max - min)) * 100;
-  const endPercentage = ((displayEndValue - min) / (max - min)) * 100;
+  // Percentages are computed against the *visible* (zoomed) window, not the full range.
+  const span = Math.max(1, viewMax - viewMin);
+  const startPercentage = Math.max(0, Math.min(100, ((displayStartValue - viewMin) / span) * 100));
+  const endPercentage = Math.max(0, Math.min(100, ((displayEndValue - viewMin) / span) * 100));
 
   const startLabel = formatValue(displayStartValue);
   const endLabel = formatValue(displayEndValue);
 
-  const isOverlapping = displayStartValue === displayEndValue;
+  // Proximity detection: when handles are within a few units, offset them visually
+  // so they don't overlap and remain individually grabbable. Previously this only
+  // triggered when the values were exactly equal, which left a dead zone where the
+  // two handles sat on top of each other but got no separation.
+  const proximityThreshold = Math.max(1, Math.ceil(span / 40)); // ~2.5% of visible span
+  const valueGap = displayEndValue - displayStartValue;
+  const isOverlapping = valueGap === 0;
+  const isClose = !isOverlapping && valueGap <= proximityThreshold;
+
   const handleStyle = (percentage) => ({
     left: `${percentage}%`,
     ...(isOverlapping ? { '--handle-position': `${percentage}%` } : {}),
@@ -294,7 +349,7 @@ const DualRangeSlider = ({
         />
 
         <div
-          className={`slider-handle start${isDragging === 'start' ? ' dragging' : ''}${isOverlapping ? ' overlap start' : ''}`}
+          className={`slider-handle start${isDragging === 'start' ? ' dragging' : ''}${isOverlapping ? ' overlap start' : ''}${isClose ? ' close start' : ''}`}
           style={handleStyle(startPercentage)}
           onMouseDown={handleMouseDown('start')}
           onTouchStart={handleTouchStart('start')}
@@ -308,7 +363,7 @@ const DualRangeSlider = ({
           aria-valuetext={startLabel}
         />
         <div
-          className={`slider-handle end${isDragging === 'end' ? ' dragging' : ''}${isOverlapping ? ' overlap end' : ''}`}
+          className={`slider-handle end${isDragging === 'end' ? ' dragging' : ''}${isOverlapping ? ' overlap end' : ''}${isClose ? ' close end' : ''}`}
           style={handleStyle(endPercentage)}
           onMouseDown={handleMouseDown('end')}
           onTouchStart={handleTouchStart('end')}
@@ -340,6 +395,40 @@ const DualRangeSlider = ({
           >
             {isDragging === 'start' ? startLabel : endLabel}
           </div>
+        )}
+      </div>
+
+      <div className="slider-zoom-controls" role="group" aria-label="Zoom controls">
+        <button
+          type="button"
+          className="zoom-button"
+          onClick={zoomOut}
+          disabled={!isZoomed}
+          title="Zoom out"
+          aria-label="Zoom out"
+        >
+          −
+        </button>
+        <button
+          type="button"
+          className="zoom-button"
+          onClick={zoomIn}
+          disabled={zoomSpan <= 2}
+          title="Zoom in"
+          aria-label="Zoom in"
+        >
+          +
+        </button>
+        {isZoomed && (
+          <button
+            type="button"
+            className="zoom-button zoom-reset"
+            onClick={resetZoom}
+            title="Reset to full range"
+            aria-label="Reset zoom"
+          >
+            ⤢
+          </button>
         )}
       </div>
 

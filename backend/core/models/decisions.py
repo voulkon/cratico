@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 
 from core.models.organizations import Organization, Signer, Unit
 from django.conf import settings
+from django.contrib.postgres.search import SearchVectorField
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
@@ -25,11 +26,41 @@ class DecisionStatus(str, Enum):
         return [(member.value, member.name.title().replace("_", " ")) for member in cls]
 
 
+class DecisionQuerySet(models.QuerySet):
+    """Custom QuerySet for Decision with reusable filter/sort patterns."""
+
+    def filter_by_date_range(self, start_dt=None, end_dt=None, field="issue_date_day"):
+        """
+        Apply optional date-range filtering to the queryset.
+
+        Args:
+            start_dt: timezone-aware datetime (start of day) or None
+            end_dt: timezone-aware datetime (end of day) or None
+            field: The date field to filter on (default: issue_date_day)
+
+        Returns:
+            Filtered QuerySet
+        """
+        qs = self
+        if start_dt is not None:
+            qs = qs.filter(**{f"{field}__gte": start_dt})
+        if end_dt is not None:
+            qs = qs.filter(**{f"{field}__lte": end_dt})
+        return qs
+
+
+class DecisionManager(models.Manager.from_queryset(DecisionQuerySet)):
+    """Custom manager that exposes DecisionQuerySet methods."""
+    pass
+
+
 class Decision(models.Model):
     """
     Django ORM representation of a Diavgeia Decision.
     Field names mirror the Pydantic `Decision` model (camelCase → snake_case).
     """
+
+    objects = DecisionManager()
 
     # ------------------------------------------------------------------
     # Identification
@@ -238,6 +269,24 @@ class Decision(models.Model):
         db_index=True,
     )
 
+    # submission_timestamp is the upload/publish date used by the Diavgeia API's
+    # from_date / to_date search parameters.  We store its date portion so that
+    # BackfillCoverageService can count decisions by the same date type the
+    # fetch pipeline uses, keeping both in sync.
+    publish_date_day = models.DateField(
+        _("Publish Date (Day Only)"),
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=_(
+            "Date portion of publish_timestamp in Athens timezone. "
+            "Matches the from_date / to_date Diavgeia API parameters."
+        ),
+    )
+
+    # PostgreSQL Full-Text Search
+    search_vector = SearchVectorField(null=True, blank=True)
+
     def save(self, *args, **kwargs):
         # Auto-populate the computed fields
         # Diavgeia encodes issue dates as midnight Athens time, so we must
@@ -248,6 +297,13 @@ class Decision(models.Model):
             self.issue_date_day = athens_dt.date()
             self.issue_date_month = athens_dt.date().replace(day=1)
             self.issue_date_year = athens_dt.year
+        # publish_date_day mirrors the Diavgeia API's from_date / to_date.
+        # publish_timestamp is a real clock time (not Athens midnight), but we
+        # still convert to Athens timezone so that 23:30 UTC (= 01:30 Athens next
+        # day) lands on the correct calendar day.
+        if self.publish_timestamp:
+            pub_athens = self.publish_timestamp.astimezone(ZoneInfo(settings.TIME_ZONE))
+            self.publish_date_day = pub_athens.date()
         super().save(*args, **kwargs)
 
     # ------------------------------------------------------------------
@@ -276,6 +332,9 @@ class Decision(models.Model):
             models.Index(fields=["organization", "issue_date_month"]),
             models.Index(fields=["organization", "issue_date_year"]),
             models.Index(fields=["issue_date_month", "amount"]),
+            # Publish-date grouping (mirrors Diavgeia API from_date / to_date)
+            models.Index(fields=["publish_date_day"]),
+            models.Index(fields=["organization", "publish_date_day"]),
             # For M2M relationships (these help with JOIN operations)
             # Note: These are automatically created for M2M fields, but listing for completeness
         ]

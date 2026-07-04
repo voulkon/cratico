@@ -1,0 +1,14 @@
+{
+  "id": "org_fts_no_match",
+  "description": "FTS: query with no matching lexemes returns empty results",
+  "tier": "fts",
+  "entity_type": "organization",
+  "records": [
+    {"label": "MUNICIPALITY ATHENS"},
+    {"label": "MUNICIPALITY THESSALONIKI"},
+    {"label": "PREFECTURE ATTICA"}
+  ],
+  "query": "XXXXXXNOTEXISTS",
+  "limit": 10,
+  "expected_exact_count": 0
+}

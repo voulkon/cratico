@@ -93,6 +93,11 @@ TRANSMIT_TO_JAEGER = os.getenv("TRANSMIT_TO_JAEGER", "False").lower() == "true"
 #   OpenTelemetry/Jaeger tracing is disabled
 #   No spans will be sent to Jaeger
 
+ENABLE_SILK = os.getenv("ENABLE_SILK", "False").lower() in ("true", "1", "t")
+# If True:
+#   Silk profiling middleware and UI are enabled at /api/silk/
+#   Defaults to DEBUG value (on in dev, off in prod)
+
 LIGHT_WORKER = os.getenv("LIGHT_WORKER", "False").lower() == "true"
 # If True:
 #   Celery worker uses lightweight mode without PDF processing dependencies (Docling)

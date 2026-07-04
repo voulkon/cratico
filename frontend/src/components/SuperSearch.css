@@ -3,7 +3,8 @@
 .super-search-container {
   position: relative;
   width: 100%;
-  max-width: 800px;
+  /* Use CSS custom property so each context can override; 800px is the sensible default */
+  max-width: var(--search-max-width, 800px);
 }
 
 .super-search-input-wrapper {

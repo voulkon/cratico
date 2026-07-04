@@ -15,7 +15,8 @@ import apiClient from './client';
 export const superSearch = async (query, options = {}) => {
   const {
     includeDocuments = true,
-    limit = 10
+    limit = 10,
+    signal
   } = options;
 
   const params = new URLSearchParams({
@@ -25,10 +26,12 @@ export const superSearch = async (query, options = {}) => {
   });
 
   try {
-    const response = await apiClient.get(`/search/super/?${params}`);
+    const response = await apiClient.get(`/search/super/?${params}`, { signal });
     return response.data;
   } catch (error) {
-    console.error('Super search failed:', error);
+    if (error?.code !== 'ERR_CANCELED') {
+      console.error('Super search failed:', error);
+    }
     throw error;
   }
 };
@@ -64,17 +67,19 @@ export const getSearchSuggestions = async (query, limit = 5) => {
  * @param {number} limit - Maximum number of results per category
  * @returns {Promise<Object>} Entity search results
  */
-export const searchEntitiesFast = async (query, limit = 5) => {
+export const searchEntitiesFast = async (query, limit = 5, signal = null) => {
   const params = new URLSearchParams({
     q: query,
     limit: limit
   });
 
   try {
-    const response = await apiClient.get(`/search/entities-fast/?${params}`);
+    const response = await apiClient.get(`/search/entities-fast/?${params}`, { signal });
     return response.data;
   } catch (error) {
-    console.error('Fast entity search failed:', error);
+    if (error?.code !== 'ERR_CANCELED') {
+      console.error('Fast entity search failed:', error);
+    }
     throw error;
   }
 };
@@ -85,17 +90,19 @@ export const searchEntitiesFast = async (query, limit = 5) => {
  * @param {number} limit - Maximum number of results
  * @returns {Promise<Object>} Document search results
  */
-export const searchDocuments = async (query, limit = 5) => {
+export const searchDocuments = async (query, limit = 5, signal = null) => {
   const params = new URLSearchParams({
     q: query,
     limit: limit
   });
 
   try {
-    const response = await apiClient.get(`/search/documents/?${params}`);
+    const response = await apiClient.get(`/search/documents/?${params}`, { signal });
     return response.data;
   } catch (error) {
-    console.error('Document search failed:', error);
+    if (error?.code !== 'ERR_CANCELED') {
+      console.error('Document search failed:', error);
+    }
     throw error;
   }
 };
@@ -128,49 +135,43 @@ export const streamSearch = (query, options = {}) => {
   const {
     includeDocuments = true,
     limit = 5,
+    signal,
     onEntities = () => {},
     onDocuments = () => {},
     onDone = () => {},
     onError = () => {}
   } = options;
 
-  let isCancelled = false;
-
   // Immediately start the fast entity search
   (async () => {
     try {
       // Phase 1: Fast entity search
-      const entityResults = await searchEntitiesFast(query, limit);
+      const entityResults = await searchEntitiesFast(query, limit, signal);
 
-      if (isCancelled) return;
+      if (signal?.aborted) return;
 
       onEntities(entityResults);
 
       // Phase 2: Slow document search (if requested)
       if (includeDocuments) {
-        const documentResults = await searchDocuments(query, limit);
+        const documentResults = await searchDocuments(query, limit, signal);
 
-        if (isCancelled) return;
+        if (signal?.aborted) return;
 
         onDocuments(documentResults);
       }
 
       // All done
-      if (!isCancelled) {
+      if (!signal?.aborted) {
         onDone({ query });
       }
     } catch (error) {
-      if (!isCancelled) {
+      if (error?.code !== 'ERR_CANCELED') {
         console.error('Search failed:', error);
         onError(error);
       }
     }
   })();
-
-  // Return cleanup function
-  return () => {
-    isCancelled = true;
-  };
 };
 
 /**
@@ -217,7 +218,7 @@ export const getDefaultSuggestions = async (limit = 10) => {
  * @param {Object} categoryLimits - Limits per category { organizations: 5, signers: 10, ... }
  * @returns {Promise<Object>} Category-specific search results
  */
-export const searchCategories = async (query, categoryLimits = {}) => {
+export const searchCategories = async (query, categoryLimits = {}, signal = null) => {
   const {
     organizations = 5,
     signers = 5,
@@ -260,7 +261,7 @@ export const searchCategories = async (query, categoryLimits = {}) => {
       limit: maxEntityLimit
     });
 
-    const entityResponse = await apiClient.get(`/search/entities-fast/?${entityParams}`);
+    const entityResponse = await apiClient.get(`/search/entities-fast/?${entityParams}`, { signal });
     const results = {
       query: query,
       results: {},
@@ -289,7 +290,7 @@ export const searchCategories = async (query, categoryLimits = {}) => {
 
     // Fetch documents if requested
     if (documents > 0) {
-      const docResponse = await searchDocuments(query, documents);
+      const docResponse = await searchDocuments(query, documents, signal);
       if (docResponse.results?.documents) {
         results.results.documents = docResponse.results.documents;
         results.total_count += results.results.documents.length;

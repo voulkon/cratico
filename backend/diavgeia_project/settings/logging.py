@@ -23,6 +23,10 @@ DJANGO_LOG_LEVEL = os.getenv(
     "DJANGO_LOG_LEVEL", "INFO"
 )  # Changed default from DEBUG to INFO
 CELERY_LOG_LEVEL = os.getenv("CELERY_LOG_LEVEL", "INFO")
+# Separate level for noisy per-task "received/succeeded" messages.
+# These fire once per task and flood Grafana during imports (hundreds/sec).
+# Default WARNING hides them; set to INFO to bring them back for debugging.
+CELERY_TASK_EVENT_LOG_LEVEL = os.getenv("CELERY_TASK_EVENT_LOG_LEVEL", "WARNING")
 DB_LOG_LEVEL = os.getenv(
     "DB_LOG_LEVEL", "WARNING"
 )  # Only show DB queries on WARNING+ unless explicitly enabled
@@ -38,6 +42,7 @@ if USE_JSON_LOGGING:
         debug_mode=DEBUG,
         logging_level=DJANGO_LOG_LEVEL,
         celery_level=CELERY_LOG_LEVEL,
+        celery_task_event_level=CELERY_TASK_EVENT_LOG_LEVEL,
         db_level=DB_LOG_LEVEL,
     )
 else:
@@ -140,6 +145,21 @@ else:
             "celery.task": {
                 "handlers": ["console", "file"],
                 "level": "INFO",
+                "propagate": False,
+            },
+            "celery.worker": {
+                "handlers": ["console", "file"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "celery.worker.strategy": {
+                "handlers": ["console", "file"],
+                "level": CELERY_TASK_EVENT_LOG_LEVEL,  # "Task X received" — noisy, default WARNING
+                "propagate": False,
+            },
+            "celery.app.trace": {
+                "handlers": ["console", "file"],
+                "level": CELERY_TASK_EVENT_LOG_LEVEL,  # "Task Y succeeded" — noisy, default WARNING
                 "propagate": False,
             },
             # Third party

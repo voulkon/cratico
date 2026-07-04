@@ -46,6 +46,8 @@
   backdrop-filter: none;
   box-shadow: none;
   min-width: 50px;
+  /* Responsive height via CSS variable — overridable by media queries & parent components */
+  height: var(--split-btn-height, var(--top-controls-height));
 }
 
 .split-button-main:hover:not(:disabled) {
@@ -87,6 +89,8 @@
   transition: all var(--transition-fast);
   box-shadow: none;
   min-width: 40px;
+  /* Responsive height via CSS variable — overridable by media queries & parent components */
+  height: var(--split-btn-height, var(--top-controls-height));
 }
 
 .split-button-chevron:hover:not(:disabled) {
@@ -97,6 +101,25 @@
   background-color: var(--palette-primary);
   color: var(--bg-color);
   border-color: var(--palette-primary);
+}
+
+/* ── Responsive ───────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .split-button {
+    /* Responsive: inherits --top-controls-height which uses clamp() on mobile */
+    --split-btn-height: var(--top-controls-height);
+  }
+
+  .split-button-main {
+    min-width: 36px;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-md);
+  }
+
+  .split-button-chevron {
+    min-width: 32px;
+    padding: 0 var(--spacing-xs);
+  }
 }
 
 .split-button-chevron.active:hover:not(:disabled) {

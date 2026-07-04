@@ -67,6 +67,11 @@ SEARCH_HISTORY_USER_PREFIX = (
 SEARCH_HISTORY_IP_PREFIX = f"{SEARCH_HISTORY_NS}:ip:"  # search_history:ip:<ip_address>
 SEARCH_HISTORY_EXPIRE = 60 * 60 * 24 * 90  # 90 days (recent searches)
 
+PREREQUISITE_CHECK_CACHE_PREFIX = "prerequisite:postgres_fts"
+PREREQUISITE_CHECK_CACHE_MIGRATION = f"{PREREQUISITE_CHECK_CACHE_PREFIX}:migration"
+PREREQUISITE_CHECK_CACHE_BACKFILL_STATUS = f"{PREREQUISITE_CHECK_CACHE_PREFIX}:backfill_status"
+PREREQUISITE_CHECK_CACHE_FULL_CHECK = f"{PREREQUISITE_CHECK_CACHE_PREFIX}:full_check"
+
 # API Response Cache (cached view responses for expensive queries)
 API_CACHE_NS = "api_cache"
 API_CACHE_DA_PREFIX = f"{API_CACHE_NS}:da:"  # api_cache:da:<view>:<params>
@@ -74,6 +79,16 @@ API_CACHE_EXPIRE_HISTORICAL = 60 * 60 * 24  # 24 hours (past data won't change)
 API_CACHE_EXPIRE_CURRENT = 60 * 5  # 5 minutes (current data may update)
 API_CACHE_EXPIRE_STATS = 60 * 10  # 10 minutes (stats change slowly)
 
+# Warmup status tracking (defer_on_miss)
+WARMUP_STATUS_PREFIX = "warmup:"
+WARMUP_STATUS_TTL = 120  # 2 min — if warmup takes longer, something is wrong
+
+FEATURE_FLAG_PREFIX = "feature_flag"
+
+# Browse API (alphabetical entity browsing)
+BROWSE_NS = "browse"
+BROWSE_AVAILABLE_LETTERS_PREFIX = f"{BROWSE_NS}:available_letters:"  # browse:available_letters:<entity_type>
+BROWSE_CACHE_TIMEOUT = 300  # 5 minutes
 
 def get_endpoint_key(endpoint):
     """Get the Redis key for endpoint stats"""
@@ -139,7 +154,23 @@ def get_api_cache_key(view_name: str, **params) -> str:
     Returns:
         Redis key string, e.g., "api_cache:da:top_pairs:end=2025-12-31:limit=6:start=2025-01-01"
     """
-    parts = [API_CACHE_DA_PREFIX, view_name]
+    # API_CACHE_DA_PREFIX already ends with ":", so start with it directly
+    # (joining would produce a double colon: "api_cache:da::top_pairs:...").
+    parts = [API_CACHE_DA_PREFIX + view_name]
     for key, value in sorted(params.items()):
         parts.append(f"{key}={value}")
     return ":".join(parts)
+
+
+def get_warmup_status_key(cache_key: str) -> str:
+    """
+    Convert a standard API cache key to its warmup-status tracking key.
+
+    Args:
+        cache_key: A key from get_api_cache_key(), e.g.
+                   "api_cache:da:explore_orgs:end_date=2025-12-31:..."
+
+    Returns:
+        Warmup status key, e.g. "warmup:api_cache:da:explore_orgs:end_date=2025-12-31:..."
+    """
+    return f"{WARMUP_STATUS_PREFIX}{cache_key}"

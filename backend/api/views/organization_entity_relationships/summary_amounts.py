@@ -11,12 +11,12 @@ Key use cases:
 - Financial breakdowns by entity
 """
 
+from api.utils.date_utils import _parse_and_validate_date_range
 from core.models.entities import AFMEntity
 from core.models.organizations import Organization
-from core.services.financial_calculation_service import FinancialCalculationService
+from core.services.financial_calculation_service import financial_service
 from core.utils.performance_monitoring import monitor_query_performance
 from django.conf import settings
-from django.utils.dateparse import parse_datetime
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from loguru import logger
@@ -24,84 +24,12 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-
-def _parse_and_validate_date_range(request, context_label: str = None):
-    """
-    Parse and validate start_date and end_date from request query parameters.
-
-    Args:
-        request: Django request object
-        context_label: Optional label for logging context (e.g., organization UID, entity AFM)
-
-    Returns:
-        Tuple of (start_date, end_date, error_response)
-        - If successful: (date, date, None)
-        - If error: (None, None, Response)
-    """
-    start_date_str = request.GET.get("start_date")
-    end_date_str = request.GET.get("end_date")
-
-    # Validate required parameters
-    if not start_date_str or not end_date_str:
-        return (
-            None,
-            None,
-            Response({"error": "start_date and end_date are required"}, status=400),
-        )
-
-    try:
-        # Parse datetime strings (ISO 8601 format) and extract date component
-        start_datetime = parse_datetime(start_date_str)
-        end_datetime = parse_datetime(end_date_str)
-
-        if start_datetime is None or end_datetime is None:
-            return (
-                None,
-                None,
-                Response(
-                    {
-                        "error": "Invalid date format. Expected ISO 8601 format (e.g., '2025-12-22T16:27:17.386689Z')"
-                    },
-                    status=400,
-                ),
-            )
-
-        start_date = start_datetime.date()
-        end_date = end_datetime.date()
-    except (ValueError, AttributeError) as e:
-        return (
-            None,
-            None,
-            Response({"error": f"Invalid date format: {str(e)}"}, status=400),
-        )
-
-    # Validate date range
-    if start_date > end_date:
-        return (
-            None,
-            None,
-            Response(
-                {"error": "start_date must be before or equal to end_date"}, status=400
-            ),
-        )
-
-    # Warn on large date ranges
-    if (end_date - start_date).days > 365:
-        context_info = f" for {context_label}" if context_label else ""
-        logger.warning(
-            f"Large date range requested{context_info}: "
-            f"{start_date} to {end_date} ({(end_date - start_date).days} days)"
-        )
-
-    return start_date, end_date, None
-
-
 @swagger_auto_schema(
     method="get",
     manual_parameters=[
         openapi.Parameter(
             "organization_uid",
-            openapi.IN_PATH,  # Changed from IN_QUERY to IN_PATH
+            openapi.IN_PATH,
             description="Organization UID",
             type=openapi.TYPE_STRING,
             required=True,
@@ -132,6 +60,12 @@ def _parse_and_validate_date_range(request, context_label: str = None):
             description="Pagination offset",
             type=openapi.TYPE_INTEGER,
         ),
+        openapi.Parameter(
+            "q",
+            openapi.IN_QUERY,
+            description="Search counterpart entities by name",
+            type=openapi.TYPE_STRING,
+        ),
     ],
 )
 @api_view(["GET"])
@@ -156,11 +90,12 @@ def organization_top_counterparts_api(
     if error_response:
         return error_response
 
-    # Get pagination parameters
+    # Get pagination and search parameters
     start_date_str = request.GET.get("start_date")
     end_date_str = request.GET.get("end_date")
     limit = int(request.GET.get("limit", 5))
     offset = int(request.GET.get("offset", 0))
+    search_query = request.GET.get("q")
 
     try:
         # Get organization
@@ -173,13 +108,13 @@ def organization_top_counterparts_api(
             )
 
         # Get top counterparts using financial service
-        financial_service = FinancialCalculationService()
         result = financial_service.get_top_counterparts_for_organization(
             organization=organization,
             start_date=start_date,
             end_date=end_date,
             limit=limit,
             offset=offset,
+            search_query=search_query,
         )
 
         return Response(
@@ -192,12 +127,12 @@ def organization_top_counterparts_api(
                     "start": start_date_str,
                     "end": end_date_str,
                 },
-                "results": result["results"],
+                "results": [r.model_dump() for r in result.results],
                 "pagination": {
                     "limit": limit,
                     "offset": offset,
-                    "total_count": result["total_count"],
-                    "has_more": result["has_more"],
+                    "total_count": result.total_count,
+                    "has_more": result.has_more,
                 },
             }
         )
@@ -251,6 +186,12 @@ def organization_top_counterparts_api(
             description="Pagination offset",
             type=openapi.TYPE_INTEGER,
         ),
+        openapi.Parameter(
+            "q",
+            openapi.IN_QUERY,
+            description="Search organizations by name",
+            type=openapi.TYPE_STRING,
+        ),
     ],
 )
 @api_view(["GET"])
@@ -274,11 +215,12 @@ def entity_top_organizations_api(request, afm):
     if error_response:
         return error_response
 
-    # Get pagination parameters
+    # Get pagination and search parameters
     start_date_str = request.GET.get("start_date")
     end_date_str = request.GET.get("end_date")
     limit = int(request.GET.get("limit", 5))
     offset = int(request.GET.get("offset", 0))
+    search_query = request.GET.get("q")
 
     try:
         # Get entity
@@ -288,7 +230,6 @@ def entity_top_organizations_api(request, afm):
             return Response({"error": f"Entity with AFM '{afm}' not found"}, status=404)
 
         # Get top organizations using financial service
-        financial_service = FinancialCalculationService()
 
         # Use existing method but aggregate by organization instead of entity
         from core.models.entities import DecisionEntityRelationship
@@ -296,14 +237,50 @@ def entity_top_organizations_api(request, afm):
 
         roles = financial_service.MONEY_RECEIVED_ROLES
 
+        # Build base queryset
+        qs = DecisionEntityRelationship.objects.filter(
+            entity=entity,
+            decision__issue_date_day__gte=start_date,
+            decision__issue_date_day__lte=end_date,
+            role__in=roles,
+        )
+
+        # Apply search filter on organization name using the tiered search infrastructure
+        if search_query:
+            from core.services.search_service import SearchService
+
+            matching_orgs = SearchService().search_organizations(
+                search_query, limit=10000  # High limit for filtering, not display
+            )
+            matching_uids = list(matching_orgs.values_list("uid", flat=True))
+            if matching_uids:
+                qs = qs.filter(decision__organization__uid__in=matching_uids)
+            else:
+                # No matching organizations found — return empty result early
+                return Response(
+                    {
+                        "entity": {
+                            "afm": entity.afm,
+                            "name": entity.name,
+                            "entity_type": entity.entity_type,
+                        },
+                        "date_range": {
+                            "start": start_date_str,
+                            "end": end_date_str,
+                        },
+                        "results": [],
+                        "pagination": {
+                            "limit": limit,
+                            "offset": offset,
+                            "total_count": 0,
+                            "has_more": False,
+                        },
+                    }
+                )
+
         # Query top organizations for this entity
         results = list(
-            DecisionEntityRelationship.objects.filter(
-                entity=entity,
-                decision__issue_date__gte=start_date,
-                decision__issue_date__lte=end_date,
-                role__in=roles,
-            )
+            qs
             .values("decision__organization__uid", "decision__organization__label")
             .annotate(
                 total_amount=Sum("linked_amounts__amount"),
@@ -315,12 +292,7 @@ def entity_top_organizations_api(request, afm):
 
         # Get total count for pagination
         total_count = (
-            DecisionEntityRelationship.objects.filter(
-                entity=entity,
-                decision__issue_date__gte=start_date,
-                decision__issue_date__lte=end_date,
-                role__in=roles,
-            )
+            qs
             .values("decision__organization")
             .distinct()
             .count()
@@ -421,7 +393,6 @@ def temporal_top_relationship_pairs_api(request):
 
     try:
         # Get top relationship pairs using financial service
-        financial_service = FinancialCalculationService()
         result = financial_service.get_top_relationship_pairs(
             start_date=start_date, end_date=end_date, limit=limit, offset=offset
         )
@@ -432,12 +403,12 @@ def temporal_top_relationship_pairs_api(request):
                     "start": start_date_str,
                     "end": end_date_str,
                 },
-                "results": result["results"],
+                "results": [r.model_dump() for r in result.results],
                 "pagination": {
                     "limit": limit,
                     "offset": offset,
-                    "total_count": result["total_count"],
-                    "has_more": result["has_more"],
+                    "total_count": result.total_count,
+                    "has_more": result.has_more,
                 },
             }
         )

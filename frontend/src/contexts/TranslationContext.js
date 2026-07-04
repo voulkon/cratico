@@ -83,8 +83,8 @@ export const TranslationProvider = ({ children }) => {
   };
 
   const availableLanguages = [
-    { code: 'el', name: 'Greek', nativeName: 'Ελληνικά' },
-    { code: 'en', name: 'English', nativeName: 'English' }
+    { code: 'el', name: 'Greek', nativeName: 'ΕΛ' },
+    { code: 'en', name: 'English', nativeName: 'EN' }
   ];
 
   const getCurrentLanguage = () => {

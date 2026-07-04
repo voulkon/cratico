@@ -16,6 +16,7 @@ URL Structure:
 - /api/notifications/* - Notification subscriptions and batches
 - /api/decisions/* - Decision details
 - /api/companies/* - Company information
+- /api/browse/* - Alphabetical entity browsing
 - /api/organizations/* - Organization information
 - /api/direct-assignments/* - Direct assignment analytics
 - /api/system/* - System configuration
@@ -25,6 +26,7 @@ URL Structure:
 # Import URL modules to get their PREFIX constants (single source of truth)
 from api.urls import (
     auth,
+    browse,
     companies,
     decisions,
     direct_assignments,
@@ -35,10 +37,15 @@ from api.urls import (
     search,
     system,
     tasks,
+    public,
 )
 from api.views import entities as entities_views
 from api.views.direct_assignments import entity_direct_assignment_top_organizations
-from api.views.organization_entity_relationships import entity_top_organizations_api
+from api.views.organization_entity_relationships import (
+    entity_top_organizations_api,
+    relationship_date_range_api,
+    relationship_statistics_api,
+)
 
 # Import remaining views not extracted to modules
 from api.views.organization_views import (
@@ -58,6 +65,8 @@ router.register("user-data", UserDataViewSet, basename="user-data")
 urlpatterns = [
     # Include router URLs
     path("", include(router.urls)),
+    # Public sharing endpoints (no auth required - exempted from stealth mode)
+    path(public.PREFIX, include("api.urls.public")),
     # Modular URL includes using PREFIX constants (single source of truth)
     # The PREFIX from each module is used both here AND in the stealth middleware
     path(auth.PREFIX, include("api.urls.auth")),
@@ -68,6 +77,7 @@ urlpatterns = [
     path(decisions.PREFIX, include("api.urls.decisions")),
     path(companies.PREFIX, include("api.urls.companies")),
     path(organizations.PREFIX, include("api.urls.organizations")),
+    path(browse.PREFIX, include("api.urls.browse")),
     path(direct_assignments.PREFIX, include("api.urls.direct_assignments")),
     path(system.PREFIX, include("api.urls.system")),
     path(tasks.PREFIX, include("api.urls.tasks")),
@@ -86,6 +96,11 @@ urlpatterns = [
         name="afm_entity_decisions",
     ),
     path(
+        "entity/afm/<str:afm>/request-fetch/",
+        entities_views.request_afm_fetch,
+        name="afm_entity_request_fetch",
+    ),
+    path(
         "entities/<str:afm>/top-organizations/",
         entity_top_organizations_api,
         name="entity_top_organizations",
@@ -100,6 +115,17 @@ urlpatterns = [
         "transactions/top/",
         summary_amounts_views.top_transactions,
         name="top-transactions",
+    ),
+    # Relationship detail endpoints
+    path(
+        "relationship/entity/<str:afm>/org/<str:orgUid>/date-range/",
+        relationship_date_range_api,
+        name="relationship_date_range",
+    ),
+    path(
+        "relationship/entity/<str:afm>/org/<str:orgUid>/statistics/",
+        relationship_statistics_api,
+        name="relationship_statistics",
     ),
     # Debug/tracing endpoints (TODO: move to debug module or remove in production)
     path(

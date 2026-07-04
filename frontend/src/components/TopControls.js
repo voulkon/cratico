@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import Logo from './Logo';
 import UserMenu from './UserMenu';
 import BookmarkButton from './BookmarkButton';
 import NotificationButton from './NotificationButton';
+import FontSizeControl from './FontSizeControl';
 import { ChevronRight, ChevronLeft } from './Icons';
 import './TopControls.css';
 
@@ -16,9 +17,11 @@ import './TopControls.css';
  *   - 'vertical-left': Vertical layout from top to bottom, aligned to the left
  *   - 'split-corners': Split layout with logo on left, controls on right
  * @param {boolean} hideLogo - Whether to hide the logo (e.g., on homepage)
+ * @param {boolean} isCollapsed - Whether the controls column is collapsed
+ * @param {function} onToggleCollapse - Toggle callback for collapse/expand
  */
 const TopControls = ({
-  layout = 'horizontal-right',
+  layout = 'vertical-right',
   onLibraryToggle,
   isLibraryOpen,
   bookmarkCount,
@@ -26,32 +29,26 @@ const TopControls = ({
   isNotificationSidebarOpen,
   onUserMenuToggle,
   isUserMenuOpen,
-  hideLogo = false
+  hideLogo = false,
+  isCollapsed = false,
+  onToggleCollapse
 }) => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-
   const toggleCollapse = () => {
-    setIsCollapsed(!isCollapsed);
-    // Close any open menus when collapsing
-    if (!isCollapsed) {
-      if (isUserMenuOpen) onUserMenuToggle();
-      if (isLibraryOpen) onLibraryToggle();
-      if (isNotificationSidebarOpen) onNotificationSidebarToggle();
-    }
+    onToggleCollapse();
   };
 
   return (
     <>
-      {/* Left side: Logo (conditionally rendered) */}
+      {/* Left side: Logo (conditionally rendered) — stays fixed at top-left */}
       {!hideLogo && (
         <div className={`left-controls ${isLibraryOpen ? 'shifted' : ''}`}>
           <div className="logo-container">
-            <Logo size="medium" />
+            <Logo size="small" />
           </div>
         </div>
       )}
 
-      {/* Right side: Collapsible controls */}
+      {/* Right side: Collapsible controls — lives inside the grid's .controls-area */}
       <div className={`top-controls-wrapper ${layout} ${isCollapsed ? 'collapsed' : 'expanded'}`}>
         {/* Collapse/Expand Toggle Button */}
         <button
@@ -64,7 +61,7 @@ const TopControls = ({
         </button>
 
         {/* User Menu, Bookmark button, then Notification button */}
-        <div className={`top-controls ${layout} ${isCollapsed ? 'hidden' : ''}`}>
+        <div className={`top-controls ${layout}`}>
           <UserMenu
             isOpen={isUserMenuOpen}
             onToggle={onUserMenuToggle}
@@ -78,6 +75,7 @@ const TopControls = ({
             onSidebarToggle={onNotificationSidebarToggle}
             isSidebarOpen={isNotificationSidebarOpen}
           />
+          <FontSizeControl />
         </div>
       </div>
     </>

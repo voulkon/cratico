@@ -42,9 +42,8 @@
   color: var(--text-color);
   font-weight: 600;
   max-width: 300px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 /* Loading, Error, Not Found States */

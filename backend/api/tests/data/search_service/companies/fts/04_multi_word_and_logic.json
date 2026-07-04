@@ -1,0 +1,15 @@
+{
+  "id": "company_fts_multi_word_and_logic",
+  "description": "FTS: multi-word query uses AND logic — both words must be present",
+  "tier": "fts",
+  "entity_type": "company",
+  "records": [
+    {"co_name_el": "UMBRELLA CORPORATION EE"},
+    {"co_name_el": "BANANA GMBH"},
+    {"co_name_el": "UMBRELLA LTD"}
+  ],
+  "query": "UMBRELLA CORPORATION",
+  "limit": 10,
+  "expected_in": ["UMBRELLA CORPORATION EE"],
+  "expected_not_in": ["BANANA GMBH", "UMBRELLA LTD"]
+}

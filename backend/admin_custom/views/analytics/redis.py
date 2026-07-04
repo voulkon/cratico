@@ -238,3 +238,193 @@ def endpoint_deep_dive(request):
     }
 
     return render(request, "admin/endpoint_deep_dive.html", context)
+
+
+@staff_member_required
+def trigger_analytics_warmup(request):
+    """
+    Admin view to trigger analytics cache warming ad hoc.
+
+    GET  → shows a simple form with a date picker and trigger button.
+    POST → dispatches warm_analytics_cache as a background Celery task.
+
+    Accepts an optional 'date' POST param (ISO format, defaults to today).
+
+    When the scheduled post-import warmup runs later, it will naturally
+    overwrite any Redis keys set by this ad-hoc run (cache.set always
+    overwrites, so the scheduled run is the final source of truth).
+    """
+    from datetime import date, datetime
+
+    from core.tasks.tasks_post_import import warm_analytics_cache
+    from django.http import JsonResponse
+
+    if request.method == "POST":
+        reference_date_str = request.POST.get("date") or None
+
+        # Validate date if provided
+        if reference_date_str:
+            try:
+                datetime.strptime(reference_date_str, "%Y-%m-%d")
+            except ValueError:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "error": "Invalid date format. Use YYYY-MM-DD.",
+                    },
+                    status=400,
+                )
+
+        try:
+            task = warm_analytics_cache.delay(
+                reference_date_str=reference_date_str
+            )
+            return JsonResponse(
+                {
+                    "success": True,
+                    "task_id": task.id,
+                    "reference_date": reference_date_str or str(date.today()),
+                    "message": (
+                        f"Cache warmup dispatched (task {task.id}). "
+                        f"The scheduled run will overwrite these Redis keys "
+                        f"with fresh data at the normal time."
+                    ),
+                }
+            )
+        except Exception as e:
+            return JsonResponse(
+                {"success": False, "error": str(e)}, status=500
+            )
+
+    # GET: render the trigger form
+    from django.shortcuts import render
+
+    return render(
+        request,
+        "admin/analytics_warmup.html",
+        {"today": date.today().isoformat()},
+    )
+
+
+@staff_member_required
+def trigger_subscription_checks(request):
+    """
+    Admin view to trigger subscription notification checks ad hoc.
+
+    GET  → shows a simple form with a date picker and trigger button.
+    POST → dispatches trigger_check_all_subscriptions as a background
+           Celery task.
+
+    Accepts an optional 'date' POST param (ISO format, defaults to today).
+    """
+    from datetime import date, datetime
+
+    from core.tasks.tasks_post_import import trigger_check_all_subscriptions
+    from django.http import JsonResponse
+
+    if request.method == "POST":
+        reference_date_str = request.POST.get("date") or None
+
+        # Validate date if provided
+        if reference_date_str:
+            try:
+                datetime.strptime(reference_date_str, "%Y-%m-%d")
+            except ValueError:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "error": "Invalid date format. Use YYYY-MM-DD.",
+                    },
+                    status=400,
+                )
+
+        try:
+            task = trigger_check_all_subscriptions.delay(
+                reference_date_str=reference_date_str
+            )
+            return JsonResponse(
+                {
+                    "success": True,
+                    "task_id": task.id,
+                    "reference_date": reference_date_str or str(date.today()),
+                    "message": (
+                        f"Subscription checks dispatched (task {task.id}). "
+                        f"This fans out to check_all_active_subscriptions, "
+                        f"which checks each active daily/weekly subscription "
+                        f"against yesterday's new decisions."
+                    ),
+                }
+            )
+        except Exception as e:
+            return JsonResponse(
+                {"success": False, "error": str(e)}, status=500
+            )
+
+    # GET: render the trigger form
+    from django.shortcuts import render
+
+    return render(
+        request,
+        "admin/subscription_checks.html",
+        {"today": date.today().isoformat()},
+    )
+
+
+@staff_member_required
+def trigger_entity_rankings(request):
+    """
+    Admin view to trigger entity rankings computation ad hoc.
+
+    GET  → shows a simple form with a date picker and trigger button.
+    POST → dispatches compute_entity_rankings as a background Celery task.
+
+    Accepts an optional 'date' POST param (ISO format, defaults to today).
+    """
+    from datetime import date, datetime
+
+    from core.tasks.tasks_post_import import compute_entity_rankings
+    from django.http import JsonResponse
+
+    if request.method == "POST":
+        reference_date_str = request.POST.get("date") or None
+
+        if reference_date_str:
+            try:
+                datetime.strptime(reference_date_str, "%Y-%m-%d")
+            except ValueError:
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "error": "Invalid date format. Use YYYY-MM-DD.",
+                    },
+                    status=400,
+                )
+
+        try:
+            task = compute_entity_rankings.delay(
+                reference_date_str=reference_date_str
+            )
+            return JsonResponse(
+                {
+                    "success": True,
+                    "task_id": task.id,
+                    "reference_date": reference_date_str or str(date.today()),
+                    "message": (
+                        f"Entity rankings dispatched (task {task.id}). "
+                        f"Computes per-entity statistics across "
+                        f"daily/weekly/monthly/yearly windows."
+                    ),
+                }
+            )
+        except Exception as e:
+            return JsonResponse(
+                {"success": False, "error": str(e)}, status=500
+            )
+
+    from django.shortcuts import render
+
+    return render(
+        request,
+        "admin/entity_rankings.html",
+        {"today": date.today().isoformat()},
+    )

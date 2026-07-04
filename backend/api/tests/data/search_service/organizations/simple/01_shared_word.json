@@ -1,0 +1,15 @@
+{
+  "id": "org_simple_shared_word",
+  "description": "Query matching a shared word returns all matching organizations",
+  "tier": "simple",
+  "entity_type": "organization",
+  "records": [
+    {"label": "MUNICIPALITY ATHENS", "latin_name": "Municipality of Athens"},
+    {"label": "MUNICIPALITY THESSALONIKI", "latin_name": "Municipality of Thessaloniki"},
+    {"label": "PREFECTURE ATTICA", "latin_name": "Prefecture of Attica"}
+  ],
+  "query": "MUNICIPALITY",
+  "limit": 10,
+  "expected_in": ["MUNICIPALITY ATHENS", "MUNICIPALITY THESSALONIKI"],
+  "expected_not_in": ["PREFECTURE ATTICA"]
+}

@@ -1,6 +1,7 @@
 from datetime import timedelta
 
-from celery import shared_task
+from celery import chord, shared_task
+from diavgeia_project.settings.base import FRONTEND_DOMAINS_clean
 from django.conf import settings
 from django.utils import timezone
 from loguru import logger
@@ -76,12 +77,22 @@ def check_single_subscription(
             )
 
             # Send email notification if requested and batch has decisions
+            # Also send if all decisions are duplicates but the existing batch hasn't been emailed
             email_sent = False
-            if (
+            should_email = (
                 send_email
                 and batch_result.get("batch_id")
-                and batch_result.get("decisions_added", 0) > 0
-            ):
+                and (
+                    batch_result.get("decisions_added", 0) > 0
+                    or not batch_result.get("batch_already_emailed", True)
+                )
+            )
+            if should_email:
+                logger.info(
+                    f"Triggering email for batch {batch_result['batch_id']} "
+                    f"(subscription {subscription_id}, decisions_added={batch_result.get('decisions_added', 0)}, "
+                    f"all_duplicates={batch_result.get('all_duplicates', False)})"
+                )
                 try:
                     from core.email_service import NotificationEmailService
 
@@ -94,17 +105,19 @@ def check_single_subscription(
                     )  # Limit to first 10 for email
                     batch_data = {
                         "id": batch.id,
-                        "subscription_name": subscription.name
+                        "subscription_name": subscription.alias
                         or f"Subscription #{subscription.id}",
                         "organization_name": (
-                            subscription.organization.name
+                            subscription.organization.label
                             if subscription.organization
                             else None
                         ),
                         "entity_name": (
                             subscription.entity.name if subscription.entity else None
                         ),
-                        "decision_count": batch_result.get("decisions_added", 0),
+                        "decision_count": batch.match_count
+                        if batch.match_count
+                        else batch_result.get("decisions_added", 0),
                         "check_window_start": check_window_start,
                         "check_window_end": check_window_end,
                         "decisions": [
@@ -112,7 +125,7 @@ def check_single_subscription(
                                 "id": d.ada,
                                 "subject": d.subject,
                                 "organization": (
-                                    d.organization.name if d.organization else "Unknown"
+                                    d.organization.label if d.organization else "Unknown"
                                 ),
                                 "date": d.submission_timestamp,
                             }
@@ -122,10 +135,12 @@ def check_single_subscription(
 
                     # Send email
                     frontend_url = (
-                        settings.FRONTEND_DOMAINS_clean[0]
-                        if settings.FRONTEND_DOMAINS_clean
+                        FRONTEND_DOMAINS_clean[0]
+                        if FRONTEND_DOMAINS_clean
                         else "https://crati.co"
                     )
+                    # TODO: Remove this log
+                    logger.debug("Using frontend URL for email links: {}", frontend_url)
                     batch_data["app_url"] = frontend_url
 
                     # Get user's preferred language (default to 'en')
@@ -159,6 +174,16 @@ def check_single_subscription(
                         f"Error sending email for batch {batch_result.get('batch_id')}: {e}",
                         exc_info=True,
                     )
+            elif batch_result.get("batch_id") and batch_result.get("decisions_added", 0) > 0:
+                logger.info(
+                    f"Skipping email for batch {batch_result['batch_id']}: "
+                    f"send_email={send_email}"
+                )
+            elif batch_result.get("all_duplicates") and batch_result.get("batch_id"):
+                logger.info(
+                    f"Skipping email for batch {batch_result['batch_id']}: "
+                    f"all decisions are duplicates and batch was already emailed"
+                )
 
             # Update last_checked
             subscription.last_checked = timezone.now()
@@ -373,10 +398,26 @@ def create_batch_for_matches(
     new_decisions = [d for d in decisions_list if d.id not in existing_decision_ids]
 
     if not new_decisions:
+        # Find the most recent batch for this subscription that overlaps with the check window
+        # (for email re-sending if the batch hasn't been emailed yet)
+        existing_batch = (
+            NotificationBatch.objects.filter(
+                subscription=subscription,
+                check_window_end__gte=check_window_start,
+                check_window_start__lte=check_window_end,
+            )
+            .order_by("-created_at")
+            .first()
+        )
         logger.info(
             f"All {len(decisions_list)} decisions already exist in batches for subscription {subscription.id}"
         )
-        return {"batch_id": None, "decisions_added": 0, "all_duplicates": True}
+        return {
+            "batch_id": existing_batch.id if existing_batch else None,
+            "decisions_added": 0,
+            "all_duplicates": True,
+            "batch_already_emailed": existing_batch.email_sent if existing_batch else True,
+        }
 
     logger.info(
         f"Subscription {subscription.id}: {len(new_decisions)} new decisions, "
@@ -476,3 +517,367 @@ def create_batch_for_matches(
             exc_info=True,
         )
         return {"batch_id": None, "decisions_added": 0, "error": str(e)}
+
+
+def _subscription_criteria_hash(subscription) -> str:
+    """
+    Build a stable hash of a subscription's matching criteria.
+
+    Two subscriptions with the same hash will match the exact same set of
+    decisions for a given time window, so the matching query only needs to
+    run once per unique hash.
+
+    Includes all fields that affect find_matching_decisions():
+    - Target: organization, entity, relationship_org, relationship_entity,
+              person_name, signer_name
+    - Filters: keywords, keyword_match_operator, amount_min, amount_max,
+              decision_types
+    """
+    import hashlib
+    import json
+
+    criteria = {
+        "organization_id": subscription.organization_id,
+        "entity_id": subscription.entity_id,
+        "relationship_org_id": subscription.relationship_org_id,
+        "relationship_entity_id": subscription.relationship_entity_id,
+        "person_name": (subscription.person_name or "").strip().lower(),
+        "signer_name": (subscription.signer_name or "").strip().lower(),
+        "keywords": sorted(subscription.keywords) if subscription.keywords else None,
+        "keyword_match_operator": subscription.keyword_match_operator,
+        "amount_min": str(subscription.amount_min) if subscription.amount_min else None,
+        "amount_max": str(subscription.amount_max) if subscription.amount_max else None,
+        "decision_types": (
+            sorted(subscription.decision_types)
+            if subscription.decision_types
+            else None
+        ),
+    }
+    raw = json.dumps(criteria, sort_keys=True, default=str)
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+@shared_task
+def check_all_active_subscriptions(lookback_days: int = 1):
+    """
+    Fan-out task: check ALL active subscriptions for new matching decisions.
+
+    Called by the post-import orchestrator after a global daily import completes.
+
+    Groups subscriptions by user and dispatches one per-user chord:
+        check_user_subscriptions(user_id, [sub_ids], lookback_days)
+          → send_consolidated_email_for_user(user_id)
+
+    Each user's chord fires independently — user A's email doesn't wait for
+    user B's checks to finish.
+
+    Only checks subscriptions with check_frequency='daily' or 'weekly' that
+    are due for a check.  Manual-only subscriptions are skipped.
+
+    Args:
+        lookback_days: How many days back to check (default: 1 for yesterday's data).
+
+    Returns:
+        dict with total/dispatched/skipped/users counts.
+    """
+    from notifications.constants import CHECK_FREQUENCY_DAILY, CHECK_FREQUENCY_WEEKLY
+
+    now = timezone.now()
+
+    active_subscriptions = (
+        NotificationSubscription.objects.filter(
+            is_active=True,
+            check_frequency__in=[CHECK_FREQUENCY_DAILY, CHECK_FREQUENCY_WEEKLY],
+        )
+        .select_related("user")
+        .order_by("user_id")
+    )
+
+    total = active_subscriptions.count()
+
+    # Group due subscription IDs by user
+    user_subscriptions: dict[int, list[int]] = {}
+    skipped = 0
+
+    for subscription in active_subscriptions:
+        try:
+            should_check = False
+
+            if subscription.check_frequency == CHECK_FREQUENCY_DAILY:
+                should_check = True
+            elif subscription.check_frequency == CHECK_FREQUENCY_WEEKLY:
+                if subscription.last_checked is None:
+                    should_check = True
+                elif (now - subscription.last_checked).days >= 7:
+                    should_check = True
+
+            if not should_check:
+                skipped += 1
+                continue
+
+            user_subscriptions.setdefault(subscription.user_id, []).append(
+                subscription.id
+            )
+
+        except Exception as e:
+            logger.error(
+                f"Error dispatching check for subscription {subscription.id}: {e}",
+                exc_info=True,
+            )
+            skipped += 1
+
+    dispatched = sum(len(subs) for subs in user_subscriptions.values())
+
+    logger.info(
+        f"Bulk notification check: "
+        f"{dispatched} dispatched across {len(user_subscriptions)} users, "
+        f"{skipped} skipped out of {total} total"
+    )
+
+    if not user_subscriptions:
+        logger.info("No subscriptions to check, skipping consolidated emails")
+        return {
+            "status": "dispatched",
+            "total": total,
+            "dispatched": 0,
+            "skipped": skipped,
+            "users": 0,
+        }
+
+    # Dispatch one chord per user — each fires independently
+    for user_id, subscription_ids in user_subscriptions.items():
+        chord(
+            check_user_subscriptions.s(
+                user_id=user_id,
+                subscription_ids=subscription_ids,
+                lookback_days=lookback_days,
+            )
+        )(send_consolidated_email_for_user.s(user_id=user_id))
+
+    return {
+        "status": "dispatched",
+        "total": total,
+        "dispatched": dispatched,
+        "skipped": skipped,
+        "users": len(user_subscriptions),
+    }
+
+
+@shared_task
+def check_user_subscriptions(user_id, subscription_ids, lookback_days=1):
+    """
+    Check all subscriptions for a single user, with criteria deduplication.
+
+    Subscriptions with identical matching criteria (same target + same filters)
+    share a single find_matching_decisions() query.  Each subscription still
+    gets its own NotificationBatch (so users can manage them independently),
+    but the expensive DB query runs only once per unique criteria set.
+
+    This task does NOT send emails — the chord callback handles that.
+
+    Args:
+        user_id: User ID
+        subscription_ids: List of subscription IDs to check
+        lookback_days: How many days back to check
+
+    Returns:
+        dict with user_id, batches_created, total_decisions, errors
+    """
+    check_window_end = timezone.now()
+    check_window_start = check_window_end - timedelta(days=lookback_days)
+
+    subscriptions = NotificationSubscription.objects.filter(
+        id__in=subscription_ids
+    ).select_related(
+        "user", "organization", "entity", "relationship_org", "relationship_entity"
+    )
+
+    # Group subscriptions by criteria hash for deduplication
+    criteria_groups: dict[str, list[NotificationSubscription]] = {}
+    for sub in subscriptions:
+        criteria_hash = _subscription_criteria_hash(sub)
+        criteria_groups.setdefault(criteria_hash, []).append(sub)
+
+    logger.info(
+        f"User {user_id}: {len(subscriptions)} subscriptions, "
+        f"{len(criteria_groups)} unique criteria sets"
+    )
+
+    batches_created = 0
+    total_decisions = 0
+    errors = 0
+
+    for criteria_hash, group_subs in criteria_groups.items():
+        try:
+            # Use the first subscription in the group to run the query
+            primary_sub = group_subs[0]
+
+            matching_decisions = find_matching_decisions(
+                primary_sub, check_window_start
+            )
+
+            if not matching_decisions:
+                logger.debug(
+                    f"Criteria group {criteria_hash[:8]}: no matching decisions"
+                )
+                # Still update last_checked for all subs in the group
+                for sub in group_subs:
+                    sub.last_checked = timezone.now()
+                    sub.save(update_fields=["last_checked"])
+                continue
+
+            matching_list = list(matching_decisions)
+            logger.info(
+                f"Criteria group {criteria_hash[:8]}: {len(matching_list)} matches, "
+                f"creating batches for {len(group_subs)} subscriptions"
+            )
+
+            # Create a batch for EACH subscription in the group
+            # (each needs its own batch for independent user management)
+            for sub in group_subs:
+                batch_result = create_batch_for_matches(
+                    sub, matching_list, check_window_start, check_window_end
+                )
+
+                if batch_result.get("batch_id"):
+                    batches_created += 1
+                    total_decisions += batch_result.get("decisions_added", 0)
+
+                # Update last_checked
+                sub.last_checked = timezone.now()
+                sub.save(update_fields=["last_checked"])
+
+        except Exception as e:
+            errors += 1
+            logger.error(
+                f"Error checking criteria group {criteria_hash[:8]} "
+                f"for user {user_id}: {e}",
+                exc_info=True,
+            )
+            # Still try to update last_checked
+            for sub in group_subs:
+                try:
+                    sub.last_checked = timezone.now()
+                    sub.save(update_fields=["last_checked"])
+                except Exception:
+                    pass
+
+    logger.info(
+        f"User {user_id}: check complete — {batches_created} batches, "
+        f"{total_decisions} decisions, {errors} errors"
+    )
+
+    return {
+        "user_id": user_id,
+        "batches_created": batches_created,
+        "total_decisions": total_decisions,
+        "errors": errors,
+    }
+
+
+@shared_task
+def send_consolidated_email_for_user(*args, user_id=None):
+    """
+    Send a single consolidated email to a user summarizing all their new batches.
+
+    Called as the callback of a per-user chord after check_user_subscriptions
+    completes.  Finds all un-emailed NotificationBatch records for this user
+    and sends one email listing all of them.
+
+    Args:
+        *args: Results from the chord header task (ignored).
+        user_id: The user ID to send the email to (passed via .s(user_id=...)).
+
+    Returns:
+        dict with user_id, batches_emailed, success
+    """
+    from core.email_service import NotificationEmailService
+    from django.contrib.auth import get_user_model
+
+    if user_id is None:
+        logger.error("send_consolidated_email_for_user called without user_id")
+        return {"user_id": None, "batches_emailed": 0, "success": False}
+
+    User = get_user_model()
+
+    # Find all un-emailed batches for this user
+    unemailed_batches = (
+        NotificationBatch.objects.filter(email_sent=False, user_id=user_id)
+        .select_related("subscription__organization", "subscription__entity")
+        .order_by("-created_at")
+    )
+
+    if not unemailed_batches.exists():
+        logger.info(f"User {user_id}: no un-emailed batches, skipping email")
+        return {"user_id": user_id, "batches_emailed": 0, "success": True}
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        logger.error(f"User {user_id} not found, cannot send consolidated email")
+        return {"user_id": user_id, "batches_emailed": 0, "success": False}
+
+    user_language = getattr(user, "preferred_language", "en") or "en"
+
+    # Build batch data for the template
+    batch_data_list = []
+    total_decisions = 0
+    batch_ids_to_mark = []
+
+    for batch in unemailed_batches:
+        batch_ids_to_mark.append(batch.id)
+        total_decisions += batch.match_count
+
+        batch_data_list.append(
+            {
+                "id": batch.id,
+                "subscription_name": (
+                    batch.subscription.alias
+                    or f"Subscription #{batch.subscription.id}"
+                ),
+                "organization_name": (
+                    batch.subscription.organization.label
+                    if batch.subscription.organization
+                    else None
+                ),
+                "entity_name": (
+                    batch.subscription.entity.name
+                    if batch.subscription.entity
+                    else None
+                ),
+                "decision_count": batch.match_count,
+            }
+        )
+
+    # Send one consolidated email
+    email_sent = NotificationEmailService.send_consolidated_batch_summary(
+        user_email=user.email,
+        username=user.username or user.email,
+        batches=batch_data_list,
+        total_decisions=total_decisions,
+        language=user_language,
+    )
+
+    if email_sent:
+        # Mark all batches as emailed
+        now = timezone.now()
+        NotificationBatch.objects.filter(id__in=batch_ids_to_mark).update(
+            email_sent=True,
+            email_sent_at=now,
+        )
+        logger.info(
+            f"Consolidated email sent to {user.email}: "
+            f"{len(batch_ids_to_mark)} batches, {total_decisions} decisions"
+        )
+        return {
+            "user_id": user_id,
+            "batches_emailed": len(batch_ids_to_mark),
+            "success": True,
+        }
+    else:
+        logger.error(f"Failed to send consolidated email to {user.email}")
+        return {
+            "user_id": user_id,
+            "batches_emailed": 0,
+            "success": False,
+        }

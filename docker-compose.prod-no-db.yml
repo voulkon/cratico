@@ -31,8 +31,10 @@ services:
       - loki_data:/loki
       - ./docker/loki-config:/etc/loki
     command: -config.file=/etc/loki/local-config.yaml
+    user: "0:0"  # run as root — volume is owned by root, otherwise mkdir fails
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider http://localhost:3100/ready || exit 1"]
+      # grafana/loki:latest is distroless (no shell, no wget).
+      test: ["CMD", "/usr/bin/loki", "-version"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -107,21 +109,21 @@ services:
       timeout: 3s
       retries: 5
 
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    container_name: diavgeia_redis_commander
-    restart: always
-    environment:
-      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD}
-      - SERVICE_FQDN_REDIS_COMMANDER=
-    expose:
-      - "8081"
-    # labels:
-    #   - "caddy_0.basicauth.${JAEGER_AUTH_USER}=${JAEGER_AUTH_HASH}"
-    networks:
-      - diavgeia-prod-net
-    depends_on:
-      - redis
+  # redis-commander:
+  #   image: rediscommander/redis-commander:latest
+  #   container_name: diavgeia_redis_commander
+  #   restart: always
+  #   environment:
+  #     - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD}
+  #     - SERVICE_FQDN_REDIS_COMMANDER=
+  #   expose:
+  #     - "8081"
+  #   # labels:
+  #   #   - "caddy_0.basicauth.${JAEGER_AUTH_USER}=${JAEGER_AUTH_HASH}"
+  #   networks:
+  #     - diavgeia-prod-net
+  #   depends_on:
+  #     - redis
 
   # ──────────────────── Connection Pooler ────────────────────
   pgbouncer:

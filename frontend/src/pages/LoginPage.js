@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import DjangoLoginForm from '../components/DjangoLoginForm';
 import DjangoRegisterForm from '../components/DjangoRegisterForm';
 import DjangoPasswordResetRequest from '../components/DjangoPasswordResetRequest';
 
 const LoginPage = () => {
+  useDocumentTitle('Login');
   const [showLogin, setShowLogin] = useState(true);
   const [showRegister, setShowRegister] = useState(false);
   const [showPasswordResetRequest, setShowPasswordResetRequest] = useState(false);

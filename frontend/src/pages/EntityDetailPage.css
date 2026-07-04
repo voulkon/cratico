@@ -11,19 +11,10 @@
   margin-bottom: var(--spacing-xxxl);
 }
 
-.back-button {
-  margin-bottom: var(--spacing-md);
-  padding: var(--spacing-sm) var(--spacing-lg);
-  background-color: var(--palette-secondary);
-  color: white;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: var(--transition-fast);
-}
-
-.back-button:hover {
-  background-color: var(--palette-emphasis);
+.entity-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
 }
 
 .entity-title {
@@ -448,32 +439,27 @@
   opacity: 0.7;
 }
 
-.header-actions {
-  display: flex;
-  gap: var(--spacing-sm);
-  align-items: center;
-  margin-bottom: var(--spacing-md);
-}
-
-.org-chart-button {
-  padding: var(--spacing-sm) var(--spacing-md);
-  background-color: var(--palette-primary);
-  color: white;
-  border: none;
+.org-chart-button-icon {
+  padding: var(--spacing-xs);
+  background: transparent;
+  color: var(--palette-primary);
+  border: 1px solid var(--palette-primary);
   border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: var(--font-sm);
   display: flex;
   align-items: center;
-  gap: var(--spacing-xs);
-  transition: background-color 0.2s ease;
+  justify-content: center;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  flex-shrink: 0;
 }
 
-.org-chart-button:hover {
-  background-color: var(--palette-emphasis);
+.org-chart-button-icon:hover {
+  background-color: var(--palette-primary);
+  color: var(--palette-primary-contrast);
 }
 
-.org-chart-button:focus {
+.org-chart-button-icon:focus {
   outline: 2px solid var(--palette-primary);
   outline-offset: 2px;
 }

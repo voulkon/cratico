@@ -2,6 +2,7 @@ import json
 
 from api.utils.common import get_client_ip
 from api.views.search.entity_search_utils import (
+    format_afmentity,
     format_company,
     format_company_person,
     format_organization,
@@ -82,6 +83,13 @@ def get_search_data_for_api(query, **kwargs):
         ]
         results["total_count"] += len(company_persons)
 
+    if "afmentity" in entity_types:
+        afm_entities = search_service.search_afm_entities(query, limit)
+        results["results"]["afm_entities"] = [
+            format_afmentity(entity, query) for entity in afm_entities
+        ]
+        results["total_count"] += len(afm_entities)
+
     if include_documents:
         doc_results = search_service.search_documents(query, limit=limit)
         serialized_docs = []
@@ -121,8 +129,8 @@ def get_search_data_for_api(query, **kwargs):
                             decision.get_decision_type_label() if decision else None
                         ),
                         "issue_date": (
-                            decision.issue_date.isoformat()
-                            if decision and decision.issue_date
+                            decision.issue_date_day.isoformat()
+                            if decision and decision.issue_date_day
                             else None
                         ),
                         "amount": (
@@ -187,8 +195,8 @@ def get_search_data_for_api(query, **kwargs):
                             decision.get_decision_type_label() if decision else None
                         ),
                         "issue_date": (
-                            decision.issue_date.isoformat()
-                            if decision and decision.issue_date
+                            decision.issue_date_day.isoformat()
+                            if decision and decision.issue_date_day
                             else None
                         ),
                         "amount": (
@@ -258,6 +266,7 @@ def get_default_suggestions_for_api():
     """
     from core.models import SearchSuggestion
     from core.models.companies import Company, CompanyPerson
+    from core.models.entities import AFMEntity
     from core.models.organizations import Organization, Signer, Unit
 
     suggestions = SearchSuggestion.get_active_suggestions(limit=10)
@@ -270,6 +279,7 @@ def get_default_suggestions_for_api():
             "units": [],
             "companies": [],
             "company_persons": [],
+            "afm_entities": [],
         },
         "total_count": 0,
         "is_default_suggestions": True,
@@ -306,6 +316,12 @@ def get_default_suggestions_for_api():
             lambda id: CompanyPerson.objects.select_related("company").get(id=id),
             format_company_person,
             "company_persons",
+        ),
+        "afmentity": (
+            AFMEntity,
+            lambda id: AFMEntity.objects.get(id=id),
+            format_afmentity,
+            "afm_entities",
         ),
     }
 
@@ -362,7 +378,7 @@ def entities_fast_search_api(request):
     """
     query = request.GET.get("q", "")
     types_param = request.GET.get(
-        "types", "organization,signer,unit,company,company_person"
+        "types", "organization,signer,unit,company,company_person,afmentity"
     )
     limit = int(request.GET.get("limit", 5))
 
@@ -876,6 +892,7 @@ def super_search_api(request):
                 "unit",
                 "company",
                 "company_person",
+                "afmentity",
             ],
             include_documents=include_documents,
             limit=limit,

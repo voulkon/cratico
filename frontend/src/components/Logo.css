@@ -5,12 +5,12 @@
   cursor: pointer;
   transition: transform 0.2s ease, opacity 0.2s ease;
   text-decoration: none;
-  padding: var(--spacing-sm) var(--spacing-md);
+  padding: var(--spacing-xs) var(--spacing-sm);
   border-radius: var(--radius-md);
   background-color: var(--surface-color);
   backdrop-filter: blur(10px);
   box-shadow: 0 2px 8px var(--shadow);
-  height: 40px; /* Match control buttons height */
+  height: var(--top-controls-height);
   min-width: fit-content;
 }
 
@@ -64,4 +64,22 @@
 
 .logo-large .logo-text {
   font-size: 28px;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .logo-link {
+    /* height inherits from --top-controls-height (32px at this breakpoint) */
+    padding: var(--spacing-xs);
+  }
+
+  .logo-small .logo-text {
+    font-size: 14px;
+  }
+
+  /* Compact logo: "Crati.Co" → "C Co" on narrow screens */
+  .logo-rest,
+  .logo-dot {
+    display: none;
+  }
 }

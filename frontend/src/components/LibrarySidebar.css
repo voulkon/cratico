@@ -125,9 +125,9 @@
 }
 
 .library-tab.active {
-  background-color: var(--accent-color);
+  background-color: var(--accent-color, var(--palette-primary));
   color: white;
-  border-color: var(--accent-color);
+  border-color: var(--accent-color, var(--palette-primary));
 }
 
 /* Search */
@@ -149,7 +149,7 @@
 
 .library-search-input:focus {
   outline: none;
-  border-color: var(--accent-color);
+  border-color: var(--accent-color, var(--palette-primary));
   box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb, 59, 130, 246), 0.1);
 }
 
@@ -167,6 +167,13 @@
   flex: 1;
   overflow-y: auto;
   border-bottom: none;
+}
+
+/* ── Tree scroll area ────────────────────────────────────────────── */
+.library-tree-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-sm) 0;
 }
 
 .library-section-header {
@@ -190,7 +197,7 @@
 }
 
 .library-btn-sm {
-  background-color: var(--accent-color);
+  background-color: var(--accent-color, var(--palette-primary));
   color: white;
   border: none;
   border-radius: var(--radius-sm);
@@ -205,35 +212,88 @@
   filter: brightness(1.1);
 }
 
-/* Folders */
-.library-folders {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
+/* ── Root section (drop target for removing from folders) ──────────── */
+.library-root-section {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  margin: 0 var(--spacing-xs);
+  transition: all var(--transition-fast);
+  min-height: 40px; /* always visible as drop target */
 }
 
-.library-folder-item {
+.library-root-section.drag-over-root {
+  background-color: var(--accent-color, var(--palette-primary));
+  opacity: 0.15;
+  outline: 2px dashed var(--accent-color, var(--palette-primary));
+  outline-offset: -2px;
+}
+
+/* ── Folder tree nodes ───────────────────────────────────────────── */
+.library-folder-tree-node {
+  margin: var(--spacing-xs) 0;
+}
+
+.library-folder-tree-header {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
+  margin: 0 var(--spacing-xs);
   border-radius: var(--radius-md);
   cursor: pointer;
   transition: all var(--transition-fast);
   background-color: var(--card-bg);
   border: 1px solid transparent;
+  user-select: none;
 }
 
-.library-folder-item:hover {
+.library-folder-tree-header:hover {
   background-color: var(--hover-bg);
   border-color: var(--border-color);
 }
 
-.library-folder-item.active {
-  background-color: var(--accent-color);
-  color: white;
-  border-color: var(--accent-color);
+.library-folder-tree-header.drag-over {
+  background-color: var(--accent-color, var(--palette-primary));
+  opacity: 0.12;
+  border-color: var(--accent-color, var(--palette-primary));
+  border-style: dashed;
+  box-shadow: inset 0 0 0 1px var(--accent-color, var(--palette-primary));
 }
+
+/* Folder children container */
+.library-folder-children {
+  padding-left: 20px;
+  border-left: 2px solid var(--border-color);
+  margin-left: 28px;
+}
+
+.library-folder-empty {
+  padding: var(--spacing-md);
+  text-align: center;
+  font-size: var(--font-xs);
+  color: var(--muted-text);
+  font-style: italic;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  margin: var(--spacing-xs) var(--spacing-md) var(--spacing-xs) 0;
+  transition: all var(--transition-fast);
+}
+
+.library-folder-empty:hover {
+  border-color: var(--accent-color, var(--palette-primary));
+  color: var(--accent-color, var(--palette-primary));
+}
+
+/* Folder chevron */
+.folder-chevron {
+  display: flex;
+  align-items: center;
+  color: var(--muted-text);
+  transition: transform var(--transition-fast);
+  flex-shrink: 0;
+}
+
+/* ── Old folder styles (now used within tree nodes) ──────────────── */
 
 .folder-icon {
   font-size: var(--font-lg);
@@ -241,11 +301,11 @@
 
 .folder-name {
   flex: 1;
+  min-width: 0;
   font-size: var(--font-sm);
   font-weight: var(--font-medium);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .folder-count {
@@ -254,11 +314,7 @@
   background-color: var(--hover-bg);
   padding: 2px 6px;
   border-radius: var(--radius-sm);
-}
-
-.library-folder-item.active .folder-count {
-  background-color: rgba(255, 255, 255, 0.2);
-  color: white;
+  flex-shrink: 0;
 }
 
 .folder-actions {
@@ -266,7 +322,7 @@
   gap: var(--spacing-xs);
 }
 
-.library-folder-item:hover .folder-actions {
+.library-folder-tree-header:hover .folder-actions {
   display: flex;
 }
 
@@ -334,12 +390,41 @@
 
 .library-bookmark-item:hover {
   background-color: var(--hover-bg);
-  border-color: var(--accent-color);
+  border-color: var(--accent-color, var(--palette-primary));
 }
 
 .library-bookmark-item.expanded {
-  border-color: var(--accent-color);
+  border-color: var(--accent-color, var(--palette-primary));
   background-color: var(--hover-bg);
+}
+
+/* Dragging state */
+.library-bookmark-item.dragging {
+  opacity: 0.4;
+}
+
+/* Indented bookmark (inside a folder) */
+.library-bookmark-item.indented {
+  margin-left: 0;
+}
+
+/* Drag handle */
+.bookmark-drag-handle {
+  display: flex;
+  align-items: center;
+  color: var(--muted-text);
+  cursor: grab;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.bookmark-drag-handle:active {
+  cursor: grabbing;
+}
+
+.library-bookmark-item:hover .bookmark-drag-handle {
+  opacity: 1;
 }
 
 .bookmark-favorite-btn {
@@ -355,6 +440,28 @@
   transform: scale(1.2);
 }
 
+.bookmark-notes-toggle-btn {
+  background: none;
+  border: none;
+  color: var(--muted-text);
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  opacity: 0;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.library-bookmark-item:hover .bookmark-notes-toggle-btn {
+  opacity: 1;
+}
+
+.bookmark-notes-toggle-btn:hover {
+  color: var(--accent-color, var(--palette-primary));
+  transform: scale(1.15);
+}
+
 .bookmark-content {
   flex: 1;
   min-width: 0;
@@ -365,9 +472,42 @@
   font-weight: var(--font-medium);
   color: var(--text-color);
   margin-bottom: var(--spacing-xs);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  padding: 2px 4px;
+  margin-left: -4px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+  cursor: text;
+}
+
+/* Hover cue: toned background + dashed border to hint at editability */
+.bookmark-title.editable:hover {
+  background-color: var(--hover-bg);
+  border: 2px dashed var(--border-color);
+}
+
+/* Inline title edit input */
+.bookmark-title-input {
+  font-size: var(--font-sm);
+  font-weight: var(--font-medium);
+  color: var(--text-color);
+  background-color: var(--card-bg);
+  border: 2px solid var(--accent-color, var(--palette-primary));
+  border-radius: 4px;
+  padding: 2px 4px;
+  margin-bottom: var(--spacing-xs);
+  margin-left: -4px;
+  width: 100%;
+  box-sizing: border-box;
+  outline: none;
+  font-family: inherit;
+}
+
+.bookmark-title-input:focus {
+  border-color: var(--accent-color, var(--palette-primary));
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
 .bookmark-url {
@@ -414,6 +554,134 @@
   color: var(--danger-color);
 }
 
+/* Share button – hidden by default, appears on row hover */
+.bookmark-share-btn {
+  background: none;
+  border: none;
+  font-size: var(--font-md);
+  color: var(--muted-text);
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  opacity: 0;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.library-bookmark-item:hover .bookmark-share-btn {
+  opacity: 1;
+}
+
+.bookmark-share-btn:hover {
+  color: var(--accent-color, var(--palette-primary));
+  transform: scale(1.15);
+}
+
+/* Globe toggle button (public/private) - in sidebar */
+.bookmark-globe-toggle-btn {
+  background: none;
+  border: none;
+  font-size: var(--font-md);
+  color: var(--muted-text);
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bookmark-globe-toggle-btn:hover {
+  color: var(--accent-color, var(--palette-primary));
+  transform: scale(1.15);
+}
+
+.bookmark-globe-toggle-btn.public {
+  color: var(--accent-color, var(--palette-primary));
+}
+
+/* Folder globe toggle button – always visible, gray when private, accent when public */
+.folder-globe-toggle-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  color: var(--muted-text);
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: var(--spacing-xs);
+}
+
+.folder-globe-toggle-btn:hover {
+  color: var(--accent-color, var(--palette-primary));
+}
+
+.folder-globe-toggle-btn.public {
+  color: var(--accent-color, var(--palette-primary));
+}
+
+/* Folder share button – hidden by default, appears on row hover */
+.folder-share-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  color: var(--muted-text);
+  transition: all var(--transition-fast);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  margin-right: var(--spacing-xs);
+}
+
+.library-folder-tree-header:hover .folder-share-btn {
+  display: flex;
+}
+
+.folder-share-btn:hover {
+  color: var(--accent-color, var(--palette-primary));
+}
+
+/* Share feedback toast */
+.share-feedback-toast {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  margin: 2px 0;
+  font-size: 12px;
+  color: var(--accent-color, var(--palette-primary));
+  animation: shareFeedbackFadeIn 0.2s ease;
+}
+
+.share-feedback-toast.folder-feedback {
+  padding-left: 36px;
+}
+
+.share-feedback-unshare {
+  background: none;
+  border: none;
+  color: var(--muted-text);
+  cursor: pointer;
+  font-size: 11px;
+  margin-left: auto;
+  padding: 0 4px;
+  text-decoration: underline;
+  transition: color var(--transition-fast);
+}
+
+.share-feedback-unshare:hover {
+  color: var(--danger-color);
+}
+
+@keyframes shareFeedbackFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* Expanded bookmark details */
 .bookmark-expanded-details {
   padding: var(--spacing-md);
@@ -446,7 +714,7 @@
 }
 
 .bookmark-action-btn.primary {
-  background-color: var(--accent-color);
+  background-color: var(--accent-color, var(--palette-primary));
   color: white;
 }
 
@@ -485,7 +753,7 @@
 
 .notes-edit-btn:hover {
   background-color: var(--hover-bg);
-  border-color: var(--accent-color);
+  border-color: var(--accent-color, var(--palette-primary));
 }
 
 .notes-editor {
@@ -510,7 +778,7 @@
 
 .notes-textarea:focus {
   outline: none;
-  border-color: var(--accent-color);
+  border-color: var(--accent-color, var(--palette-primary));
   box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb, 59, 130, 246), 0.1);
 }
 
@@ -545,7 +813,7 @@
 }
 
 .notes-btn.save {
-  background-color: var(--accent-color);
+  background-color: var(--accent-color, var(--palette-primary));
   color: white;
 }
 
@@ -581,8 +849,8 @@
   width: 100%;
   padding: var(--spacing-md);
   background-color: transparent;
-  color: var(--accent-color);
-  border: 1px solid var(--accent-color);
+  color: var(--accent-color, var(--palette-primary));
+  border: 1px solid var(--accent-color, var(--palette-primary));
   border-radius: var(--radius-md);
   cursor: pointer;
   font-size: var(--font-sm);
@@ -591,7 +859,7 @@
 }
 
 .library-full-link:hover {
-  background-color: var(--accent-color);
+  background-color: var(--accent-color, var(--palette-primary));
   color: white;
 }
 
@@ -602,11 +870,11 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
+  background-color: var(--shadow-focus);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1001;
+  z-index: 1004; /* Above sidebar (1003) */
   animation: fadeIn var(--transition-fast);
 }
 
@@ -664,7 +932,7 @@
 .modal-input:focus,
 .modal-textarea:focus {
   outline: none;
-  border-color: var(--accent-color);
+  border-color: var(--accent-color, var(--palette-primary));
   box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb, 59, 130, 246), 0.1);
 }
 
@@ -709,7 +977,7 @@
 }
 
 .modal-btn-primary {
-  background-color: var(--accent-color);
+  background-color: var(--accent-color, var(--palette-primary));
   color: white;
 }
 
@@ -735,19 +1003,19 @@
 }
 
 /* Scrollbar styling for webkit browsers */
-.library-bookmarks-section::-webkit-scrollbar {
+.library-tree-scroll::-webkit-scrollbar {
   width: 8px;
 }
 
-.library-bookmarks-section::-webkit-scrollbar-track {
+.library-tree-scroll::-webkit-scrollbar-track {
   background: var(--bg-color);
 }
 
-.library-bookmarks-section::-webkit-scrollbar-thumb {
+.library-tree-scroll::-webkit-scrollbar-thumb {
   background: var(--border-color);
   border-radius: var(--radius-sm);
 }
 
-.library-bookmarks-section::-webkit-scrollbar-thumb:hover {
+.library-tree-scroll::-webkit-scrollbar-thumb:hover {
   background: var(--muted-text);
 }

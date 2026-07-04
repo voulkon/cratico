@@ -23,6 +23,7 @@
     "yearOverview": "Year Overview",
     "recentActivity": "Recent Activity",
     "browseOrganizations": "Browse Organizations",
+    "browse": "Explore",
     "browseOrganizationsDesc": "Search and explore by government organization",
     "searchExploreByOrg": "Search and explore by government organization",
     "thisMonthDesc": "Explore all decisions from {month} {year}",
@@ -80,7 +81,8 @@
     "period": "Period",
     "days": "{count} days",
     "amountDiscrepancy": "⚠️ Amount discrepancy detected ({percentage}%)",
-    "organizationsCount": "Organizations"
+    "organizationsCount": "Organizations",
+    "loadError": "Could not load statistics"
   },
   "filters": {
     "decisionTypes": "Decision Types",
@@ -268,7 +270,8 @@
     "lastActivity": "Last Activity",
     "organizationsAndPositions" : "Organizations and Positions",
     "organizationsCountLabel": "organizations",
-    "positionsCountLabel": "positions"
+    "positionsCountLabel": "positions",
+    "loadStatistics" : "Load Statistics"
   },
   "decisionDetail": {
     "loadingDecision": "Loading decision details...",
@@ -366,7 +369,23 @@
     "filterByRole": "Filter by Role",
     "gemiCompanyInformation": "Company Information from Business Registry (GEMI)",
     "noDecisionsWithFilters": "No decisions found with current filters",
-    "noDecisions": "No decisions found for this entity"
+    "noDecisions": "No decisions found for this entity",
+    "requestGemiFetch": "Request company data",
+    "requestGemiFetchTitle": "Request GEMI Lookup",
+    "requestGemiFetchDescription": "No company registry data available yet. Click to request a lookup from the Business Registry (GEMI).",
+    "requestGemiFetchDataAvailable": "Company data is available. Refresh the page if details don't appear.",
+    "requestGemiFetchDataMissing": "Company data appears to be missing. Click to re-request a lookup from the Business Registry (GEMI).",
+    "requestGemiFetchPending": "Requesting…",
+    "requestGemiFetchQueued": "Request received! Data will appear here once fetched.",
+    "requestGemiFetchAlreadyQueued": "Already in queue — data will appear here once fetched.",
+    "requestGemiFetchAlreadyFetched": "Company data has already been retrieved.",
+    "requestGemiFetchRateLimited": "Daily request limit reached. Please try again tomorrow.",
+    "requestGemiFetchInQueue": "Your request is in the queue. Company data will appear here once fetched.",
+    "requestGemiFetchProcessing": "Your request is being processed right now. Data will appear here shortly.",
+    "requestGemiFetchNotFound": "No company data found in the GEMI Business Registry for this tax number.",
+    "requestGemiFetchError": "Failed to queue fetch request. Please try again.",
+    "requestGemiFetchAuthSupertitle": "Company Registry Lookup",
+    "requestGemiFetchAuthMessage": "Sign in to request a lookup of this company's data from the Business Registry (GEMI). Once fetched, the data will be visible to all visitors of this page."
   },
   "library": {
     "myLibrary": "My Library",
@@ -413,7 +432,18 @@
     "showingOf": "Showing {current} of {total}",
     "folder": "Folder",
     "title": "Title",
-    "noFolder": "No folder"
+    "noFolder": "No folder",
+    "bookmarks": "Bookmarks",
+    "dragToReorder": "Drag to move into a folder",
+    "dropBookmarksHere": "Drop bookmarks here",
+    "clickToRename": "Click to rename",
+    "share": "Make public & copy link",
+    "copyLink": "Copy share link",
+    "unshare": "Make private",
+    "makePublic": "Make public",
+    "makePrivate": "Make private",
+    "linkCopied": "Link copied!",
+    "notShared": "Not public – make public to share"
   },
   "auth": {
     "signInRequired": "Please sign in to access this feature",
@@ -444,7 +474,9 @@
     "of": "of",
     "totalAmount": "Total Amount",
     "decisions": "Decisions",
-    "seeAll": "See All"
+    "seeAll": "See All",
+    "searchPlaceholder": "Search entities...",
+    "allLoaded": "All {count} entities loaded"
   },
   "relationship": {
     "title": "Relationship Details",
@@ -460,7 +492,8 @@
     "noData": "No Relationship Data Found",
     "noDataMessage": "No decisions found linking this entity and organization",
     "noDecisions": "No decisions found for this relationship",
-    "noDecisionsWithFilters": "No decisions match your filters"
+    "noDecisionsWithFilters": "No decisions match your filters",
+    "withAmounts": "with amounts"
   },
   "entityTypes": {
     "person": "Person",
@@ -475,6 +508,7 @@
     "afmLabel": "AFM"
   },
   "notifications": {
+    "decisions" : "Notification's Decisions",
     "myNotifications": "Notifications",
     "close": "Close",
     "notifications": "Notifications",
@@ -521,6 +555,13 @@
     "notification": "notification",
     "checkNowTitle": "Check for new decisions now",
     "checkNow": "Check Now",
+    "checkNowYesterday": "Yesterday",
+    "checkNowLast7Days": "Last 7 days",
+    "checkNowLast30Days": "Last 30 days",
+    "checkNowLast90Days": "Last 90 days",
+    "checkNowCustom": "Custom…",
+    "checkNowCustomDays": "days",
+    "checkNowCustomGo": "Go",
     "viewHistory": "View History",
     "viewAllFromSubscription": "View All Decisions from This Subscription",
     "pauseSubscription": "Pause subscription",
@@ -577,10 +618,15 @@
     "maxAmount": "Max Amount",
     "minAmount": "Min Amount",
     "totalMatches": "Total Matches",
-    "batch" : "Batch Number"
+    "batch" : "Batch Number",
+    "emailOn": "Email on",
+    "emailOff": "Email off",
+    "emailNotificationsOn": "Email notifications are on. Click to turn off.",
+    "emailNotificationsOff": "Email notifications are off. Click to turn on."
   },
   "dateRange": {
     "today": "Today",
+    "yesterday": "Yesterday",
     "week": "Week",
     "thisWeek": "This Week",
     "month": "Month",
@@ -592,7 +638,8 @@
     "cancel": "Cancel",
     "clickToEdit": "Click to edit",
     "endBeforeStart" : "End date must be after start date",
-    "startAfterEnd" : "Start date must be before end date"
+    "startAfterEnd" : "Start date must be before end date",
+    "explore" : "Explore"
   },
   "companyPersonsTable": {
     "sectionTitle": "Administration / Representatives",

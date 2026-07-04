@@ -139,10 +139,10 @@ class NotificationSubscriptionViewSet(viewsets.ModelViewSet):
 
         Optional query params:
         - lookback_days: Override - check specific number of days back (e.g., 30, 90)
-                        If not provided, checks from last_checked to now for continuity
+                        Defaults to 1 (yesterday's data) if not provided.
 
         Behavior:
-        - Default (no lookback_days): Checks from last_checked (or created_at) to now
+        - Default (no lookback_days): Checks yesterday's decisions (1-day lookback)
         - With lookback_days: Checks from (now - lookback_days) to now
         - Always updates last_checked to now after check
 
@@ -151,21 +151,20 @@ class NotificationSubscriptionViewSet(viewsets.ModelViewSet):
                 "status": "check started",
                 "task_id": "<task_id>",
                 "subscription_id": <id>,
-                "lookback_days": <days> or null,
-                "check_mode": "continuity" or "override"
+                "lookback_days": <days>,
+                "check_mode": "override"
             }
         """
         subscription = self.get_object()
 
-        # Get optional lookback_days from query params
+        # Get optional lookback_days from query params (default to 1 day)
         lookback_days_param = request.query_params.get("lookback_days")
-        lookback_days = None
-        check_mode = "continuity"
+        lookback_days = 1  # Default: check yesterday's data
+        check_mode = "override"
 
         if lookback_days_param:
             try:
                 lookback_days = int(lookback_days_param)
-                check_mode = "override"
             except ValueError:
                 return Response(
                     {"error": "lookback_days must be a valid integer"},
@@ -175,8 +174,9 @@ class NotificationSubscriptionViewSet(viewsets.ModelViewSet):
         # Trigger the check task
         from notifications.tasks import check_single_subscription
 
+        should_email = getattr(subscription, "also_send_email", True)
         task = check_single_subscription.delay(
-            subscription.id, lookback_days=lookback_days
+            subscription.id, lookback_days=lookback_days, send_email=should_email
         )
 
         return Response(
@@ -690,7 +690,11 @@ class NotificationBatchViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(subscription_id=subscription_id)
 
         return queryset.select_related(
-            "subscription", "subscription__organization", "subscription__entity"
+            "subscription",
+            "subscription__organization",
+            "subscription__entity",
+            "subscription__relationship_org",
+            "subscription__relationship_entity",
         ).order_by("-created_at")
 
     def get_serializer_class(self):

@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { ReactFlowProvider } from 'reactflow';
 import { useTranslation } from '../contexts/TranslationContext';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import organizationApi from '../api/organizationApi';
 import apiClient from '../api/client';
 import TopCounterparts from '../components/TopCounterparts';
@@ -9,6 +10,7 @@ import OrgChartViewer from '../components/org-chart';
 import './OrganizationsPage.css';
 
 const OrganizationsPage = () => {
+  useDocumentTitle('Organizations');
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -29,7 +31,7 @@ const OrganizationsPage = () => {
   // Date range state for top counterparts
   const [orgDateRange, setOrgDateRange] = useState(null);
 
-  const fetchOrgData = async (uid) => {
+  const fetchOrgData = useCallback(async (uid) => {
     if (!uid) return;
 
     try {
@@ -60,14 +62,14 @@ const OrganizationsPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
 
   // Load initial data
   useEffect(() => {
     if (orgUid) {
       fetchOrgData(orgUid);
     }
-  }, [orgUid, t]);
+  }, [orgUid, fetchOrgData]);
 
   // New search function
   const searchOrganizations = async (query) => {
@@ -265,6 +267,10 @@ const OrganizationsPage = () => {
           id={orgUid}
           dateRange={orgDateRange}
           limit={5}
+          onCounterpartClick={(counterpart) => {
+            const afm = counterpart.entity_afm;
+            navigate(`/relationship/entity/${afm}/org/${orgUid}?start_date=${orgDateRange.start_date}&end_date=${orgDateRange.end_date}`);
+          }}
         />
       )}
 

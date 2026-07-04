@@ -18,65 +18,52 @@ from loguru import logger
 
 def json_formatter(record):
     """
-    Format Loguru records as JSON, matching the structure of python-json-logger.
+    Return a LOGURU FORMAT STRING that produces flat JSON.
 
-    This ensures Loguru logs are consistent with standard Python logging when
-    USE_JSON_LOGGING is enabled.
+    IMPORTANT: loguru treats callable ``format`` as returning a *format string*
+    (with {placeholders}), NOT the final output.  Double-braces {{ }} are
+    literal braces in the final output; single braces {field} are loguru
+    placeholders.
     """
-    try:
-        # Extract exception info if present
-        exception_info = None
-        if record["exception"] is not None:
-            exc = record["exception"]
-            exception_info = {
-                "type": exc.type.__name__ if exc.type else None,
-                "value": str(exc.value) if exc.value else None,
-            }
+    # Build extra-field placeholders dynamically from record["extra"].
+    # We embed them as literal JSON key-value pairs inside the format string.
+    extra_placeholders = ""
+    if record["extra"]:
+        parts = []
+        for key, value in record["extra"].items():
+            # Embed the JSON-escaped value directly as literal text in the
+            # format string (not as a loguru placeholder).
+            try:
+                escaped_val = json.dumps(value, default=str)
+            except (TypeError, ValueError):
+                escaped_val = json.dumps(str(value))
+            # Escape { and } so they are not interpreted as format-map
+            # placeholders by str.format_map when the format string is
+            # rendered.  Without this, a dict value like {"processed": 1}
+            # causes KeyError: '"processed"' because format_map sees
+            # {"processed" as a replacement field.
+            escaped_val = escaped_val.replace("{", "{{").replace("}", "}}")
+            parts.append(f'"{key}": {escaped_val}')
+        if parts:
+            extra_placeholders = ", " + ", ".join(parts)
 
-        # Format timestamp with milliseconds (matching Python logging format)
-        timestamp = (
-            record["time"].strftime("%Y-%m-%d %H:%M:%S.")
-            + f"{record['time'].microsecond // 1000:03d}"
-        )
+    # Exception placeholder (only meaningful if exception is not None)
+    exc_placeholder = ""
+    if record["exception"] is not None:
+        exc_placeholder = ', "exception": "{exception}"'
 
-        log_record = {
-            "timestamp": timestamp,
-            "logger": record["name"],
-            "level": record["level"].name,
-            "message": record["message"],
-            "function": record["function"],
-            "file": str(record["file"].path),
-            "line": record["line"],
-        }
-
-        # Add extra context fields if present
-        if record["extra"]:
-            for key, value in record["extra"].items():
-                # Convert non-serializable types to strings
-                try:
-                    json.dumps(value)
-                    log_record[key] = value
-                except (TypeError, ValueError):
-                    log_record[key] = str(value)
-
-        # Add exception info if present
-        if exception_info:
-            log_record["exception"] = exception_info
-
-        return json.dumps(log_record, default=str) + "\n"
-    except Exception as e:
-        # Fallback to simple format if JSON serialization fails
-        return (
-            json.dumps(
-                {
-                    "timestamp": record["time"].isoformat(),
-                    "level": record["level"].name,
-                    "message": str(record["message"]),
-                    "error": f"JSON formatting failed: {e}",
-                }
-            )
-            + "\n"
-        )
+    return (
+        '{{"timestamp": "{time:YYYY-MM-DD HH:mm:ss.SSS}",'
+        ' "level": "{level}",'
+        ' "logger": "{name}",'
+        ' "message": "{message}",'
+        ' "function": "{function}",'
+        ' "file": "{file}",'
+        ' "line": {line}'
+        + extra_placeholders
+        + exc_placeholder
+        + "}}\n"
+    )
 
 
 def text_formatter(record):
@@ -117,12 +104,13 @@ def configure_loguru():
     logger.remove()
 
     if use_json_logging:
-        # Use Loguru's built-in serialize feature for JSON output
-        # This avoids format string issues with curly braces
+        # json_formatter returns a loguru *format string* that produces flat JSON.
+        # loguru interpolates {time}, {level}, {name}, {message}, etc. and the
+        # double-braces {{ }} become literal braces → valid flat JSON.
         logger.add(
             sys.stdout,
-            serialize=True,  # Built-in JSON serialization
-            level=log_level,  # Use env var instead of hardcoded DEBUG
+            format=json_formatter,  # Returns format string → flat JSON
+            level=log_level,
             colorize=False,
             backtrace=True,
             diagnose=False,  # Don't include variable values in production

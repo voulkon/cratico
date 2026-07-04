@@ -178,7 +178,7 @@ class AFMFetchQueueService:
         # Update stats hash
         self._update_stats(queue_populated_at=timezone.now().isoformat())
 
-        logger.info(f"Queue population completed", extra=stats)
+        logger.bind(**stats).info(f"Queue population completed")
 
         # Auto-trigger processing if items were added
         if auto_trigger and added > 0:
@@ -317,7 +317,7 @@ class AFMFetchQueueService:
                 last_batch_failed=stats["failed"],
             )
 
-            logger.info(f"Batch processing completed", extra=stats)
+            logger.bind(**stats).info(f"Batch processing completed")
             return stats
 
         finally:

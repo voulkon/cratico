@@ -13,6 +13,7 @@ from typing import Literal
 from core.models.decisions import Decision
 from core.models.import_jobs import ImportJob, ImportJobStatus
 from core.services.public_holiday_detection_service import PublicHolidayDetectionService
+from core.constants.decision_import_constants import get_coverage_date_field
 
 DayVerdict = Literal["done_job", "done_threshold", "under_imported"]
 
@@ -28,12 +29,12 @@ class BackfillCoverageService:
 
     2. FALLBACK — No ImportJob found, but decision count meets the minimum
                   threshold for the day type:
-                    Workdays  ≥ 14,000
+                    Workdays  ≥ 10,000
                     Weekends  ≥     300
                     Holidays  ≥     200
     """
 
-    THRESHOLD_WORKDAY = 14_000
+    THRESHOLD_WORKDAY = 10_000
     THRESHOLD_WEEKEND = 300
     THRESHOLD_HOLIDAY = 200
 
@@ -77,9 +78,6 @@ class BackfillCoverageService:
             return cls.THRESHOLD_HOLIDAY
         return cls.THRESHOLD_WORKDAY
 
-    # Minimum decisions a "completed" job must have recorded to be trusted
-    MIN_DECISIONS_FOR_VALID_JOB = 50
-
     # ------------------------------------------------------------------ #
     #  Job sanity check                                                    #
     # ------------------------------------------------------------------ #
@@ -89,30 +87,28 @@ class BackfillCoverageService:
         """
         Return ``(is_valid, reason)`` for a completed ImportJob.
 
-        A job is only considered authoritative if ALL of the following hold:
+        A job is considered authoritative if all chunks ran to completion:
 
-        1. ``total_decisions >= MIN_DECISIONS_FOR_VALID_JOB``
-        2. ``total_chunks > 0`` and ``chunks_completed == total_chunks``
-        3. ``decisions_assigned_to_pipeline == decisions_restored_from_redis``
+            ``total_chunks > 0`` and ``chunks_completed == total_chunks``
 
-        A job that fails any check falls through to the threshold check.
+        The old ``total_decisions >= MIN_DECISIONS_FOR_VALID_JOB`` floor has been
+        removed.  It was redundant: if 0 decisions were fetched then total_chunks
+        is also 0 (chunks are created from fetched decision ADAs), so the chunk
+        check already rejects empty jobs.  The floor only caused problems for
+        dates with genuinely low decision counts (e.g. Easter Sunday with 32
+        decisions), making them unresolvable and creating an infinite backfill loop.
+
+        NOTE: We intentionally do NOT compare decisions_assigned_to_pipeline with
+        decisions_restored_from_redis.  Since the introduction of the health-check
+        skip (healthy decisions bypass run_decision_pipeline_task), "assigned" is
+        always ≤ "restored" — they are only equal when every single decision in
+        the job is unhealthy.  The mismatch is expected and correct; checking for
+        equality would cause every valid job to be rejected.
         """
-        if job.total_decisions < cls.MIN_DECISIONS_FOR_VALID_JOB:
-            return False, (
-                f"total_decisions={job.total_decisions} "
-                f"< {cls.MIN_DECISIONS_FOR_VALID_JOB} (minimum)"
-            )
-
         if job.total_chunks == 0 or job.chunks_completed != job.total_chunks:
             return False, (
                 f"chunks_completed={job.chunks_completed} "
                 f"!= total_chunks={job.total_chunks}"
-            )
-
-        if job.decisions_assigned_to_pipeline != job.decisions_restored_from_redis:
-            return False, (
-                f"decisions_assigned_to_pipeline={job.decisions_assigned_to_pipeline} "
-                f"!= decisions_restored_from_redis={job.decisions_restored_from_redis}"
             )
 
         return True, "ok"
@@ -150,13 +146,16 @@ class BackfillCoverageService:
         day_type = PublicHolidayDetectionService.get_day_type(day)
         min_expected = cls.min_expected_for_day_type(day_type)
 
-        # ── PRIMARY: completed ImportJob? ────────────────────────────────
+        # ── PRIMARY: completed (or partially completed) ImportJob? ──────
         completed_job = (
             ImportJob.objects.filter(
                 **job_filter,
                 start_date=day,
                 end_date=day,
-                status=ImportJobStatus.COMPLETED,
+                status__in=[
+                    ImportJobStatus.COMPLETED,
+                    ImportJobStatus.PARTIALLY_COMPLETED,
+                ],
             )
             .order_by("-completed_at")
             .first()
@@ -181,8 +180,9 @@ class BackfillCoverageService:
             job_skip_reason = None
 
         # ── FALLBACK: count-based threshold ──────────────────────────────
+        coverage_field = get_coverage_date_field()
         decision_count = Decision.objects.filter(
-            **decision_filter, issue_date_day=day
+            **decision_filter, **{coverage_field: day}
         ).count()
 
         details = {

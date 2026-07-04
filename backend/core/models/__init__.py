@@ -1,3 +1,4 @@
+from .afm_entity_stats import AFMEntityStats
 from .afm_scoring import AFMEntityScore, AFMScoringConfig
 from .ai_pricing import (
     AIJobDefinition,

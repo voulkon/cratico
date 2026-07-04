@@ -26,6 +26,32 @@ class CustomAdminSite(admin.AdminSite):
                 self._wrap_view("analytics", "endpoint_deep_dive"),
                 name="endpoint_deep_dive",
             ),
+            path(
+                "analytics/warmup/",
+                self._wrap_view("analytics", "trigger_analytics_warmup"),
+                name="trigger_analytics_warmup",
+            ),
+            path(
+                "analytics/subscription-checks/",
+                self._wrap_view("analytics", "trigger_subscription_checks"),
+                name="trigger_subscription_checks",
+            ),
+            path(
+                "analytics/entity-rankings/",
+                self._wrap_view("analytics", "trigger_entity_rankings"),
+                name="trigger_entity_rankings",
+            ),
+            # Amount-Entity Linkage Analysis
+            path(
+                "amount-entity-analysis/",
+                self._wrap_view("amount_entity_analysis", "amount_entity_analysis"),
+                name="amount_entity_analysis",
+            ),
+            path(
+                "amount-entity-analysis/samples/refresh/",
+                self._wrap_view("amount_entity_analysis", "refresh_samples_api"),
+                name="amount_entity_analysis_refresh_samples",
+            ),
             # Decision URLs
             path(
                 "decisions/coverage/",
@@ -278,6 +304,12 @@ class CustomAdminSite(admin.AdminSite):
                     "admin_url": "/api/admin/analytics/export/",
                     "view_only": True,
                 },
+                {
+                    "name": "Cache Warmup",
+                    "object_name": "CacheWarmup",
+                    "admin_url": "/api/admin/analytics/warmup/",
+                    "view_only": True,
+                },
             ],
         }
         app_list.append(analytics_app)
@@ -303,6 +335,12 @@ class CustomAdminSite(admin.AdminSite):
                     "name": "Entity Search",
                     "object_name": "EntitySearch",
                     "admin_url": "/api/admin/decisions/entity-search/",
+                    "view_only": True,
+                },
+                {
+                    "name": "Amount ↔ Entity Linkage",
+                    "object_name": "AmountEntityLinkage",
+                    "admin_url": "/api/admin/amount-entity-analysis/",
                     "view_only": True,
                 },
             ],
@@ -429,6 +467,33 @@ class CustomAdminSite(admin.AdminSite):
         }
         app_list.append(health_app)
 
+        # Add Post-Import Tasks section
+        post_import_app = {
+            "name": "Post-Import Tasks",
+            "app_label": "post_import",
+            "models": [
+                {
+                    "name": "Entity Rankings",
+                    "object_name": "EntityRankings",
+                    "admin_url": "/api/admin/analytics/entity-rankings/",
+                    "view_only": True,
+                },
+                {
+                    "name": "Cache Warmup",
+                    "object_name": "CacheWarmup",
+                    "admin_url": "/api/admin/analytics/warmup/",
+                    "view_only": True,
+                },
+                {
+                    "name": "Subscription Checks",
+                    "object_name": "SubscriptionChecks",
+                    "admin_url": "/api/admin/analytics/subscription-checks/",
+                    "view_only": True,
+                },
+            ],
+        }
+        app_list.append(post_import_app)
+
         return app_list
 
 
@@ -440,6 +505,7 @@ admin_site = CustomAdminSite(name="custom_admin")
 def register_all_models():
     """Register all models with the custom admin site"""
     from admin_custom.admin_classes import (
+        AFMEntityStatsAdmin,
         AIJobDefinitionAdmin,
         AIJobExecutionAdmin,
         AIModelPricingAdmin,
@@ -561,10 +627,12 @@ def register_all_models():
     admin_site.register(ClassificationJob, ClassificationJobAdmin)
 
     # Register AFM Scoring models
+    from core.models.afm_entity_stats import AFMEntityStats
     from core.models.afm_scoring import AFMEntityScore, AFMScoringConfig
     from core.models.afm_scoring_job import AFMScoringJob
     from core.models.entities import AFMEntity
 
+    admin_site.register(AFMEntityStats, AFMEntityStatsAdmin)
     admin_site.register(AFMEntity, AFMEntityAdmin)
     admin_site.register(AFMScoringConfig, AFMScoringConfigAdmin)
     admin_site.register(AFMEntityScore, AFMEntityScoreAdmin)
@@ -572,6 +640,28 @@ def register_all_models():
 
     # Note: SearchSuggestion uses custom manager interface, not default admin
     admin_site.register(NotificationBatchDecision, NotificationBatchDecisionAdmin)
+
+    # Register django-celery-beat models for periodic task management
+    from django_celery_beat.admin import (
+        ClockedScheduleAdmin,
+        CrontabScheduleAdmin,
+        IntervalScheduleAdmin,
+        PeriodicTaskAdmin,
+        SolarScheduleAdmin,
+    )
+    from django_celery_beat.models import (
+        ClockedSchedule,
+        CrontabSchedule,
+        IntervalSchedule,
+        PeriodicTask,
+        SolarSchedule,
+    )
+
+    admin_site.register(PeriodicTask, PeriodicTaskAdmin)
+    admin_site.register(CrontabSchedule, CrontabScheduleAdmin)
+    admin_site.register(IntervalSchedule, IntervalScheduleAdmin)
+    admin_site.register(ClockedSchedule, ClockedScheduleAdmin)
+    admin_site.register(SolarSchedule, SolarScheduleAdmin)
 
 
 # Auto-register models when module is imported

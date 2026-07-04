@@ -2,6 +2,36 @@
   text-align: center;
 }
 
+/* Main content area.
+   Right padding reserves space equal to the controls column width so
+   content never slides under the fixed controls panel. */
+.main-area {
+  padding-right: var(--controls-expanded-width);
+  transition: padding-right var(--transition-normal);
+}
+
+/* When controls are collapsed, shrink the reserved right space */
+.main-area.controls-collapsed {
+  padding-right: var(--controls-collapsed-width);
+}
+
+/* Offset page content below the fixed top controls (logo + action buttons). */
+.app-content {
+  padding-top: var(--top-controls-offset);
+}
+
+@media (max-width: 768px) {
+  .main-area {
+    padding-right: var(--controls-expanded-width);
+  }
+}
+
+@media (max-width: 480px) {
+  .main-area {
+    padding-right: var(--controls-expanded-width);
+  }
+}
+
 .App-logo {
   height: 40vmin;
   pointer-events: none;

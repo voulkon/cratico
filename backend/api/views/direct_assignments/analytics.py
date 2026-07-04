@@ -12,8 +12,9 @@ Key use cases:
 - Monitoring and statistics
 """
 
+from api.utils.date_utils import _parse_and_validate_date_range
 import traceback
-
+from core.services.response_cache_service import response_cache
 from core.decorators.cache_decorator import cached_view
 from core.models.decision_classification import DecisionClassification
 from core.models.entities import AFMEntity, DecisionEntityRelationship
@@ -30,73 +31,6 @@ from loguru import logger
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-
-
-def _parse_and_validate_date_range(request, context_label: str = None):
-    """
-    Parse and validate start_date and end_date from request query parameters.
-
-    Returns:
-        Tuple of (start_date, end_date, error_response)
-        Returns timezone-aware datetime objects for proper comparison with DateTimeFields.
-    """
-    start_date_str = request.GET.get("start_date")
-    end_date_str = request.GET.get("end_date")
-
-    if not start_date_str or not end_date_str:
-        return (
-            None,
-            None,
-            Response({"error": "start_date and end_date are required"}, status=400),
-        )
-
-    try:
-        start_datetime = parse_datetime(start_date_str)
-        end_datetime = parse_datetime(end_date_str)
-
-        if start_datetime is None or end_datetime is None:
-            return (
-                None,
-                None,
-                Response(
-                    {
-                        "error": "Invalid date format. Expected ISO 8601 format (e.g., '2025-12-22T16:27:17.386689Z')"
-                    },
-                    status=400,
-                ),
-            )
-
-        # Make timezone-aware if naive (Django USE_TZ = True requires this)
-        if timezone.is_naive(start_datetime):
-            start_datetime = timezone.make_aware(start_datetime)
-        if timezone.is_naive(end_datetime):
-            end_datetime = timezone.make_aware(end_datetime)
-
-    except (ValueError, AttributeError) as e:
-        return (
-            None,
-            None,
-            Response({"error": f"Invalid date format: {str(e)}"}, status=400),
-        )
-
-    if start_datetime > end_datetime:
-        return (
-            None,
-            None,
-            Response(
-                {"error": "start_date must be before or equal to end_date"}, status=400
-            ),
-        )
-
-    if (end_datetime - start_datetime).days > 365:
-        context_info = f" for {context_label}" if context_label else ""
-        logger.warning(
-            f"Large date range requested{context_info}: "
-            f"{start_datetime} to {end_datetime} ({(end_datetime - start_datetime).days} days)"
-        )
-
-    return start_datetime, end_datetime, None
-
 
 @swagger_auto_schema(
     method="get",
@@ -225,61 +159,44 @@ def organization_direct_assignment_top_recipients(request, organization_uid):
                 status=404,
             )
 
-        # Query direct assignments for this organization
-        # Using the MONEY_RECEIVED_ROLES from financial_service
-        roles = financial_service.MONEY_RECEIVED_ROLES
-
-        # Base filter — reused across all queries to avoid repeating 5 filter conditions
-        base_filter = dict(
-            decision__organization=organization,
-            decision__issue_date__gte=start_date,
-            decision__issue_date__lte=end_date,
-            decision__classification__is_direct_assignment=True,
-            role__in=roles,
+        # Get top entities receiving direct assignment money via financial service
+        result_page = financial_service.get_top_counterparts_for_organization(
+            organization=organization,
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+            offset=offset,
+            direct_assignments_only=True,
         )
 
-        # Get top entities receiving direct assignment money
-        results = list(
-            DecisionEntityRelationship.objects.filter(**base_filter)
-            .values("entity__afm", "entity__name", "entity__entity_type")
-            .annotate(
-                total_amount=Sum("linked_amounts__amount"),
-                decision_count=Count("decision", distinct=True),
-                avg_amount=Avg("linked_amounts__amount"),
-                max_amount=Max("linked_amounts__amount"),
-                min_amount=Min("linked_amounts__amount"),
-            )
-            .filter(total_amount__gt=0)
-            .order_by("-total_amount")[offset : offset + limit]
-        )
+        # Build formatted results from Pydantic models
+        formatted_results = [
+            {
+                "entity_afm": r.entity_afm,
+                "entity_name": r.entity_name,
+                "entity_type": r.entity_type,
+                "total_amount": str(r.total_amount) if r.total_amount else "0",
+                "decision_count": r.decision_count,
+                "avg_amount": str(r.avg_amount) if r.avg_amount else "0",
+                "max_amount": str(r.max_amount) if r.max_amount else "0",
+                "min_amount": str(r.min_amount) if r.min_amount else "0",
+            }
+            for r in result_page.results
+        ]
 
-        # Combine total_count + summary_stats into a single query
-        # (previously these were 2 separate queries with the same filter)
+        # Summary stats (aggregate query for total amount, decisions, unique entities)
         combined_stats = DecisionEntityRelationship.objects.filter(
-            **base_filter
+            decision__organization=organization,
+            decision__issue_date_day__gte=start_date,
+            decision__issue_date_day__lte=end_date,
+            decision__classification__is_direct_assignment=True,
+            role__in=financial_service.MONEY_RECEIVED_ROLES,
         ).aggregate(
-            # For pagination
             unique_entities=Count("entity", distinct=True),
-            # For summary
             total_amount=Sum("linked_amounts__amount"),
             total_decisions=Count("decision", distinct=True),
         )
-        total_count = combined_stats["unique_entities"] or 0
-
-        # Format results
-        formatted_results = [
-            {
-                "entity_afm": r["entity__afm"],
-                "entity_name": r["entity__name"],
-                "entity_type": r["entity__entity_type"],
-                "total_amount": str(r["total_amount"]) if r["total_amount"] else "0",
-                "decision_count": r["decision_count"],
-                "avg_amount": str(r["avg_amount"]) if r["avg_amount"] else "0",
-                "max_amount": str(r["max_amount"]) if r["max_amount"] else "0",
-                "min_amount": str(r["min_amount"]) if r["min_amount"] else "0",
-            }
-            for r in results
-        ]
+        total_count = result_page.total_count
 
         response_data = {
             "organization": {
@@ -414,8 +331,8 @@ def entity_direct_assignment_top_organizations(request, afm):
         # Base filter — reused across all queries
         base_filter = dict(
             entity=entity,
-            decision__issue_date__gte=start_date,
-            decision__issue_date__lte=end_date,
+            decision__issue_date_day__gte=start_date,
+            decision__issue_date_day__lte=end_date,
             decision__classification__is_direct_assignment=True,
             role__in=roles,
         )
@@ -539,6 +456,7 @@ def entity_direct_assignment_top_organizations(request, afm):
     cache_prefix="da_top_pairs",
     cache_params=["start_date", "end_date", "limit", "offset"],
     end_date_param="end_date",
+    defer_on_miss=True,
 )
 @api_view(["GET"])
 @permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
@@ -563,93 +481,18 @@ def direct_assignment_top_pairs_global(request):
     offset = int(request.GET.get("offset", 0))
 
     try:
-        roles = financial_service.MONEY_RECEIVED_ROLES
+        from core.services.analytics_precalc_service import compute_da_top_pairs
 
-        # Base filter — reused across all queries
-        base_filter = dict(
-            decision__issue_date__gte=start_date,
-            decision__issue_date__lte=end_date,
-            decision__classification__is_direct_assignment=True,
-            role__in=roles,
-        )
-
-        # Get top org-entity pairs for direct assignments
-        results = list(
-            DecisionEntityRelationship.objects.filter(**base_filter)
-            .values(
-                "decision__organization__uid",
-                "decision__organization__label",
-                "entity__afm",
-                "entity__name",
-                "entity__entity_type",
+        return Response(
+            compute_da_top_pairs(
+                start_dt=start_date,
+                end_dt=end_date,
+                start_date_str=start_date_str,
+                end_date_str=end_date_str,
+                limit=limit,
+                offset=offset,
             )
-            .annotate(
-                total_amount=Sum("linked_amounts__amount"),
-                decision_count=Count("decision", distinct=True),
-                avg_amount=Avg("linked_amounts__amount"),
-                max_amount=Max("linked_amounts__amount"),
-                min_amount=Min("linked_amounts__amount"),
-            )
-            .filter(total_amount__gt=0)
-            .order_by("-total_amount")[offset : offset + limit]
         )
-
-        # Combine total_count + summary_stats into a single query
-        combined_stats = DecisionEntityRelationship.objects.filter(
-            **base_filter
-        ).aggregate(
-            unique_org_entity_pairs=Count("id", distinct=True),
-            total_amount=Sum("linked_amounts__amount"),
-            total_decisions=Count("decision", distinct=True),
-            unique_organizations=Count("decision__organization", distinct=True),
-            unique_entities=Count("entity", distinct=True),
-        )
-        total_count = combined_stats["unique_org_entity_pairs"] or 0
-
-        # Format results
-        formatted_results = [
-            {
-                "organization": {
-                    "uid": r["decision__organization__uid"],
-                    "label": r["decision__organization__label"],
-                },
-                "entity": {
-                    "afm": r["entity__afm"],
-                    "name": r["entity__name"],
-                    "entity_type": r["entity__entity_type"],
-                },
-                "total_amount": str(r["total_amount"]) if r["total_amount"] else "0",
-                "decision_count": r["decision_count"],
-                "avg_amount": str(r["avg_amount"]) if r["avg_amount"] else "0",
-                "max_amount": str(r["max_amount"]) if r["max_amount"] else "0",
-                "min_amount": str(r["min_amount"]) if r["min_amount"] else "0",
-            }
-            for r in results
-        ]
-
-        response_data = {
-            "date_range": {
-                "start": start_date_str,
-                "end": end_date_str,
-            },
-            "results": formatted_results,
-            "pagination": {
-                "limit": limit,
-                "offset": offset,
-                "total_count": total_count,
-                "has_more": offset + limit < total_count,
-            },
-            "summary": {
-                "total_direct_assignment_amount": str(
-                    combined_stats["total_amount"] or 0
-                ),
-                "total_direct_assignments": combined_stats["total_decisions"] or 0,
-                "unique_organizations": combined_stats["unique_organizations"] or 0,
-                "unique_entities": combined_stats["unique_entities"] or 0,
-            },
-        }
-
-        return Response(response_data)
 
     except Exception as e:
         logger.error(f"Error in direct_assignment_top_pairs_global: {e}")
@@ -708,6 +551,7 @@ def direct_assignment_top_pairs_global(request):
     cache_prefix="da_top_entities",
     cache_params=["start_date", "end_date", "limit", "offset", "sort_by"],
     end_date_param="end_date",
+    defer_on_miss=True,
 )
 @api_view(["GET"])
 @permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
@@ -732,110 +576,20 @@ def direct_assignment_top_entities_global(request):
     offset = int(request.GET.get("offset", 0))
     sort_by = request.GET.get("sort_by", "amount")
 
-    # Try cache first
-    cache_key = response_cache.build_key(
-        "top_entities",
-        start=start_date_str,
-        end=end_date_str,
-        limit=limit,
-        offset=offset,
-        sort=sort_by,
-    )
-    cached_response = response_cache.get(cache_key)
-    if cached_response is not None:
-        return Response(cached_response)
-
     try:
-        roles = financial_service.MONEY_RECEIVED_ROLES
+        from core.services.analytics_precalc_service import compute_da_top_entities
 
-        # Base filter — reused across all queries
-        base_filter = dict(
-            decision__issue_date__gte=start_date,
-            decision__issue_date__lte=end_date,
-            decision__classification__is_direct_assignment=True,
-            role__in=roles,
-        )
-
-        # Determine sort order
-        if sort_by == "frequency":
-            order_by = "-decision_count"
-            metric_label = "Most Direct Assignments Received"
-        else:  # amount
-            order_by = "-total_amount"
-            metric_label = "Highest Direct Assignment Revenue"
-
-        # Get top entities globally
-        results = list(
-            DecisionEntityRelationship.objects.filter(**base_filter)
-            .values("entity__afm", "entity__name", "entity__entity_type")
-            .annotate(
-                total_amount=Sum("linked_amounts__amount"),
-                decision_count=Count("decision", distinct=True),
-                avg_amount=Avg("linked_amounts__amount"),
-                max_amount=Max("linked_amounts__amount"),
-                min_amount=Min("linked_amounts__amount"),
-                organization_count=Count("decision__organization", distinct=True),
+        return Response(
+            compute_da_top_entities(
+                start_dt=start_date,
+                end_dt=end_date,
+                start_date_str=start_date_str,
+                end_date_str=end_date_str,
+                limit=limit,
+                offset=offset,
+                sort_by=sort_by,
             )
-            .filter(total_amount__gt=0)
-            .order_by(order_by)[offset : offset + limit]
         )
-
-        # Combine total_count + summary_stats into a single query
-        combined_stats = DecisionEntityRelationship.objects.filter(
-            **base_filter
-        ).aggregate(
-            unique_entities=Count("entity", distinct=True),
-            total_amount=Sum("linked_amounts__amount"),
-            total_decisions=Count("decision", distinct=True),
-            unique_organizations=Count("decision__organization", distinct=True),
-        )
-        total_count = combined_stats["unique_entities"] or 0
-
-        # Format results
-        formatted_results = [
-            {
-                "rank": offset + i + 1,
-                "entity_afm": r["entity__afm"],
-                "entity_name": r["entity__name"],
-                "entity_type": r["entity__entity_type"],
-                "total_amount": str(r["total_amount"]) if r["total_amount"] else "0",
-                "decision_count": r["decision_count"],
-                "organization_count": r["organization_count"],
-                "avg_amount": str(r["avg_amount"]) if r["avg_amount"] else "0",
-                "max_amount": str(r["max_amount"]) if r["max_amount"] else "0",
-                "min_amount": str(r["min_amount"]) if r["min_amount"] else "0",
-            }
-            for i, r in enumerate(results)
-        ]
-
-        response_data = {
-            "metric": metric_label,
-            "sort_by": sort_by,
-            "date_range": {
-                "start": start_date_str,
-                "end": end_date_str,
-            },
-            "results": formatted_results,
-            "pagination": {
-                "limit": limit,
-                "offset": offset,
-                "total_count": total_count,
-                "has_more": offset + limit < total_count,
-            },
-            "summary": {
-                "total_direct_assignment_amount": str(
-                    combined_stats["total_amount"] or 0
-                ),
-                "total_direct_assignments": combined_stats["total_decisions"] or 0,
-                "unique_entities": combined_stats["unique_entities"] or 0,
-                "unique_organizations": combined_stats["unique_organizations"] or 0,
-            },
-        }
-
-        # Cache the response
-        response_cache.set(cache_key, response_data, end_date=end_date)
-
-        return Response(response_data)
 
     except Exception as e:
         logger.error(f"Error in direct_assignment_top_entities_global: {e}")
@@ -894,6 +648,7 @@ def direct_assignment_top_entities_global(request):
     cache_prefix="da_top_orgs",
     cache_params=["start_date", "end_date", "limit", "offset", "sort_by"],
     end_date_param="end_date",
+    defer_on_miss=True,
 )
 @api_view(["GET"])
 @permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
@@ -918,109 +673,20 @@ def direct_assignment_top_organizations_global(request):
     offset = int(request.GET.get("offset", 0))
     sort_by = request.GET.get("sort_by", "amount")
 
-    # Try cache first
-    cache_key = response_cache.build_key(
-        "top_orgs",
-        start=start_date_str,
-        end=end_date_str,
-        limit=limit,
-        offset=offset,
-        sort=sort_by,
-    )
-    cached_response = response_cache.get(cache_key)
-    if cached_response is not None:
-        return Response(cached_response)
-
     try:
-        roles = financial_service.MONEY_RECEIVED_ROLES
+        from core.services.analytics_precalc_service import compute_da_top_orgs
 
-        # Base filter — reused across all queries
-        base_filter = dict(
-            decision__issue_date__gte=start_date,
-            decision__issue_date__lte=end_date,
-            decision__classification__is_direct_assignment=True,
-            role__in=roles,
-        )
-
-        # Determine sort order
-        if sort_by == "frequency":
-            order_by = "-decision_count"
-            metric_label = "Most Direct Assignments Issued"
-        else:  # amount
-            order_by = "-total_amount"
-            metric_label = "Highest Direct Assignment Spending"
-
-        # Get top organizations globally
-        results = list(
-            DecisionEntityRelationship.objects.filter(**base_filter)
-            .values("decision__organization__uid", "decision__organization__label")
-            .annotate(
-                total_amount=Sum("linked_amounts__amount"),
-                decision_count=Count("decision", distinct=True),
-                avg_amount=Avg("linked_amounts__amount"),
-                max_amount=Max("linked_amounts__amount"),
-                min_amount=Min("linked_amounts__amount"),
-                entity_count=Count("entity", distinct=True),
+        return Response(
+            compute_da_top_orgs(
+                start_dt=start_date,
+                end_dt=end_date,
+                start_date_str=start_date_str,
+                end_date_str=end_date_str,
+                limit=limit,
+                offset=offset,
+                sort_by=sort_by,
             )
-            .filter(total_amount__gt=0)
-            .order_by(order_by)[offset : offset + limit]
         )
-
-        # Combine total_count + summary_stats into a single query
-        combined_stats = DecisionEntityRelationship.objects.filter(
-            **base_filter
-        ).aggregate(
-            unique_organizations=Count("decision__organization", distinct=True),
-            total_amount=Sum("linked_amounts__amount"),
-            total_decisions=Count("decision", distinct=True),
-            unique_entities=Count("entity", distinct=True),
-        )
-        total_count = combined_stats["unique_organizations"] or 0
-
-        # Format results
-        formatted_results = [
-            {
-                "rank": offset + i + 1,
-                "organization_uid": r["decision__organization__uid"],
-                "organization_label": r["decision__organization__label"],
-                "total_amount": str(r["total_amount"]) if r["total_amount"] else "0",
-                "decision_count": r["decision_count"],
-                "entity_count": r["entity_count"],
-                "avg_amount": str(r["avg_amount"]) if r["avg_amount"] else "0",
-                "max_amount": str(r["max_amount"]) if r["max_amount"] else "0",
-                "min_amount": str(r["min_amount"]) if r["min_amount"] else "0",
-            }
-            for i, r in enumerate(results)
-        ]
-
-        response_data = {
-            "metric": metric_label,
-            "sort_by": sort_by,
-            "date_range": {
-                "start": start_date_str,
-                "end": end_date_str,
-            },
-            "results": formatted_results,
-            "pagination": {
-                "limit": limit,
-                "offset": offset,
-                "total_count": total_count,
-                "has_more": offset + limit < total_count,
-            },
-            "summary": {
-                "total_direct_assignment_amount": str(
-                    combined_stats["total_amount"] or 0
-                ),
-                "total_direct_assignments": combined_stats["total_decisions"] or 0,
-                "unique_organizations": combined_stats["unique_organizations"] or 0,
-                "unique_entities": combined_stats["unique_entities"] or 0,
-            },
-        }
-
-        # Cache the response
-        response_cache.set(cache_key, response_data, end_date=end_date)
-
-        return Response(response_data)
 
     except Exception as e:
         logger.error(f"Error in direct_assignment_top_organizations_global: {e}")

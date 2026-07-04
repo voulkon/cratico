@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { streamSearch, getDefaultSuggestions, searchCategories, trackSearchSelection, getRecentlyVisited, clearSearchHistory, deleteSingleHistoryItem } from '../api/searchApi';
-import { OrganizationIcon, UserIcon, UnitIcon, CompanyIcon, FileIcon, SearchIcon, PenIcon, TimerIcon, TrashIcon } from './Icons.js';
+import { TimerIcon, TrashIcon, SearchIcon } from './Icons.js';
+import CategoryTabs from './CategoryTabs';
+import { getCategoryIcon, getCategoryLabel } from '../constants/categoryDefinitions';
 import './SuperSearch.css';
 
 const SuperSearch = ({
@@ -24,7 +26,8 @@ const SuperSearch = ({
     units: 5,
     companies: 5,
     company_persons: 5,
-    documents: 5
+    documents: 5,
+    afm_entities: 5
   });
   const [hasMoreResults, setHasMoreResults] = useState({
     organizations: true,
@@ -32,14 +35,15 @@ const SuperSearch = ({
     units: true,
     companies: true,
     company_persons: true,
-    documents: true
+    documents: true,
+    afm_entities: true
   });
 
   const navigate = useNavigate();
   const inputRef = useRef(null);
   const resultsRef = useRef(null);
   const searchTimeoutRef = useRef(null);
-  const sseCleanupRef = useRef(null);
+  const abortControllerRef = useRef(null);
   const currentResultsRef = useRef(null);
   const loadMoreObserverRef = useRef(null);
   const loadMoreTriggerRef = useRef(null);
@@ -52,11 +56,11 @@ const SuperSearch = ({
     }
   }, [autoFocus]);
 
-  // Cleanup SSE connection on unmount
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (sseCleanupRef.current) {
-        sseCleanupRef.current();
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
       }
     };
   }, []);
@@ -66,7 +70,7 @@ const SuperSearch = ({
     currentResultsRef.current = results;
   }, [results]);
 
-  // Debounced search function using SSE
+  // Debounced search function
   const performSearch = useCallback(async (searchQuery) => {
     if (!searchQuery.trim()) {
       setResults(null);
@@ -74,20 +78,24 @@ const SuperSearch = ({
       return;
     }
 
-    // Cancel any existing SSE connection
-    if (sseCleanupRef.current) {
-      sseCleanupRef.current();
-      sseCleanupRef.current = null;
+    // Abort any in-flight request before starting a new one
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
+
+    // Create a new AbortController for this search
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     setIsLoading(true);
     setDocumentsLoading(false);
 
     try {
-      // Start SSE streaming search
-      const cleanup = streamSearch(searchQuery, {
+      // Start streaming search with the abort signal
+      streamSearch(searchQuery, {
         includeDocuments: showFullResults,
         limit: 5,
+        signal: controller.signal,
 
         // Handle entity results (fast)
         onEntities: (entityData) => {
@@ -115,6 +123,7 @@ const SuperSearch = ({
             units: (entityData.results.units?.length || 0) >= 5,
             companies: (entityData.results.companies?.length || 0) >= 5,
             company_persons: (entityData.results.company_persons?.length || 0) >= 5,
+            afm_entities: (entityData.results.afm_entities?.length || 0) >= 5,
             documents: true // Will be updated when documents arrive
           };
           setHasMoreResults(initialHasMore);
@@ -161,7 +170,7 @@ const SuperSearch = ({
         onDone: () => {
           setDocumentsLoading(false);
           setIsLoading(false);
-          sseCleanupRef.current = null;
+          abortControllerRef.current = null;
         },
 
         // Handle errors
@@ -169,7 +178,7 @@ const SuperSearch = ({
           console.error('Search stream failed:', error);
           setIsLoading(false);
           setDocumentsLoading(false);
-          sseCleanupRef.current = null;
+          abortControllerRef.current = null;
 
           // Show error state but don't hide existing results
           if (!currentResultsRef.current) {
@@ -183,15 +192,15 @@ const SuperSearch = ({
         }
       });
 
-      // Store cleanup function
-      sseCleanupRef.current = cleanup;
-
     } catch (error) {
-      console.error('Search initialization failed:', error);
-      setIsLoading(false);
-      setDocumentsLoading(false);
-      setResults(null);
-      setShowResults(false);
+      // Ignore cancellation errors from AbortController
+      if (error?.code !== 'ERR_CANCELED') {
+        console.error('Search initialization failed:', error);
+        setIsLoading(false);
+        setDocumentsLoading(false);
+        setResults(null);
+        setShowResults(false);
+      }
     }
   }, [showFullResults]);
 
@@ -224,6 +233,14 @@ const SuperSearch = ({
     }
 
     try {
+      // Abort any in-flight request before loading more
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       setIsLoading(true);
 
       // Determine which categories to increase limits for
@@ -244,7 +261,7 @@ const SuperSearch = ({
       }
 
       // Fetch with new limits
-      const newResults = await searchCategories(query, newLimits);
+      const newResults = await searchCategories(query, newLimits, controller.signal);
       console.log('Received results:', newResults);
 
       // Check which categories have reached their end
@@ -268,7 +285,9 @@ const SuperSearch = ({
       setHasMoreResults(newHasMoreResults);
       setIsLoading(false);
     } catch (error) {
-      console.error('Load more failed:', error);
+      if (error?.code !== 'ERR_CANCELED') {
+        console.error('Load more failed:', error);
+      }
       setIsLoading(false);
     }
   }, [query, categoryLimits, selectedCategory, hasMoreResults, isLoading]);
@@ -336,7 +355,8 @@ const SuperSearch = ({
       units: 5,
       companies: 5,
       company_persons: 5,
-      documents: 5
+      documents: 5,
+      afm_entities: 5
     });
 
     setHasMoreResults({
@@ -345,7 +365,8 @@ const SuperSearch = ({
       units: true,
       companies: true,
       company_persons: true,
-      documents: true
+      documents: true,
+      afm_entities: true
     });
 
     // Clear previous timeout
@@ -514,6 +535,9 @@ const SuperSearch = ({
       case 'company_person':
         itemUrl = `/person/${encodeURIComponent(item.text || item.details?.person_name)}`;
         break;
+      case 'afmentity':
+        itemUrl = `/entity/afm/${item.details?.afm}`;
+        break;
       case 'document':
         itemUrl = `/decision/${item.details?.decision_id}`;
         itemName = item.subject || item.description || itemName;
@@ -553,6 +577,9 @@ const SuperSearch = ({
         break;
       case 'company_person':
         navigate(`/person/${encodeURIComponent(item.text || item.details?.person_name)}`);
+        break;
+      case 'afmentity':
+        navigate(`/entity/afm/${item.details?.afm}`);
         break;
       case 'document':
         navigate(`/decision/${item.details.decision_id}`);
@@ -642,33 +669,7 @@ const SuperSearch = ({
     navigate(`/search?q=${encodeURIComponent(query)}`);
   };
 
-  // Get icon for item type
-  const getItemIcon = (type) => {
-    const iconProps = { size: 16 };
-    const icons = {
-      organization: <OrganizationIcon {...iconProps} />,
-      signer: <PenIcon {...iconProps} />,
-      unit: <UnitIcon {...iconProps} />,
-      company: <CompanyIcon {...iconProps} />,
-      company_person: <UserIcon {...iconProps} />,
-      document: <FileIcon {...iconProps} />
-    };
-    return icons[type] || <FileIcon {...iconProps} />;
-  };
 
-  // Get category display name
-  const getCategoryName = (category) => {
-    const names = {
-      recently_visited: 'Recently Visited',
-      organizations: 'Organizations',
-      signers: 'Signers',
-      units: 'Units',
-      companies: 'Companies',
-      company_persons: 'Company Persons',
-      documents: 'Documents'
-    };
-    return names[category] || category;
-  };
 
   // Render highlights in text
   const renderHighlightedText = (text) => {
@@ -791,105 +792,55 @@ const SuperSearch = ({
           ) : (
             <>
               {/* Category Tabs */}
-              <div className="super-search-tabs">
-                <button
-                  className={`super-search-tab ${selectedCategory === 'all' ? 'active' : ''}`}
-                  onClick={() => setSelectedCategory('all')}
-                  onMouseDown={(e) => e.preventDefault()}
-                >
-                  All Results
-                  <span className="super-search-tab-count">{results.total_count}</span>
-                </button>
-                {results.results.recently_visited && results.results.recently_visited.length > 0 && (
-                  <div className="super-search-tab-wrapper">
-                    <button
-                      className={`super-search-tab ${selectedCategory === 'recently_visited' ? 'active' : ''}`}
-                      onClick={() => setSelectedCategory('recently_visited')}
-                      onMouseDown={(e) => e.preventDefault()}
-                    >
-                      <TimerIcon size={14} />
-                      Recently Visited
-                      <span className="super-search-tab-count">{results.results.recently_visited.length}</span>
-                    </button>
-                    {selectedCategory === 'recently_visited' && (
-                      <button
-                        className="super-search-clear-history"
-                        onClick={handleClearHistory}
-                        onMouseDown={(e) => e.preventDefault()}
-                        title="Clear all history"
-                      >
-                        <TrashIcon size={12} />
-                      </button>
-                    )}
-                  </div>
-                )}
-                {results.results.organizations && results.results.organizations.length > 0 && (
-                  <button
-                    className={`super-search-tab ${selectedCategory === 'organizations' ? 'active' : ''}`}
-                    onClick={() => setSelectedCategory('organizations')}
-                    onMouseDown={(e) => e.preventDefault()}
-                  >
-                    <OrganizationIcon size={14} />
-                    Organizations
-                    <span className="super-search-tab-count">{results.results.organizations.length}</span>
-                  </button>
-                )}
-                {results.results.signers && results.results.signers.length > 0 && (
-                  <button
-                    className={`super-search-tab ${selectedCategory === 'signers' ? 'active' : ''}`}
-                    onClick={() => setSelectedCategory('signers')}
-                    onMouseDown={(e) => e.preventDefault()}
-                  >
-                    <PenIcon size={14} />
-                    Signers
-                    <span className="super-search-tab-count">{results.results.signers.length}</span>
-                  </button>
-                )}
-                {results.results.units && results.results.units.length > 0 && (
-                  <button
-                    className={`super-search-tab ${selectedCategory === 'units' ? 'active' : ''}`}
-                    onClick={() => setSelectedCategory('units')}
-                    onMouseDown={(e) => e.preventDefault()}
-                  >
-                    <UnitIcon size={14} />
-                    Units
-                    <span className="super-search-tab-count">{results.results.units.length}</span>
-                  </button>
-                )}
-                {results.results.companies && results.results.companies.length > 0 && (
-                  <button
-                    className={`super-search-tab ${selectedCategory === 'companies' ? 'active' : ''}`}
-                    onClick={() => setSelectedCategory('companies')}
-                    onMouseDown={(e) => e.preventDefault()}
-                  >
-                    <CompanyIcon size={14} />
-                    Companies
-                    <span className="super-search-tab-count">{results.results.companies.length}</span>
-                  </button>
-                )}
-                {results.results.company_persons && results.results.company_persons.length > 0 && (
-                  <button
-                    className={`super-search-tab ${selectedCategory === 'company_persons' ? 'active' : ''}`}
-                    onClick={() => setSelectedCategory('company_persons')}
-                    onMouseDown={(e) => e.preventDefault()}
-                  >
-                    <UserIcon size={14} />
-                    People
-                    <span className="super-search-tab-count">{results.results.company_persons.length}</span>
-                  </button>
-                )}
-                {results.results.documents && results.results.documents.length > 0 && (
-                  <button
-                    className={`super-search-tab ${selectedCategory === 'documents' ? 'active' : ''}`}
-                    onClick={() => setSelectedCategory('documents')}
-                    onMouseDown={(e) => e.preventDefault()}
-                  >
-                    <FileIcon size={14} />
-                    Documents
-                    <span className="super-search-tab-count">{results.results.documents.length}</span>
-                  </button>
-                )}
-              </div>
+              <CategoryTabs
+                className="super-search-tabs"
+                categories={(() => {
+                  const tabs = [
+                    { key: 'all', label: 'All Results', count: results.total_count },
+                  ];
+
+                  // Recently Visited
+                  if (results.results.recently_visited?.length > 0) {
+                    tabs.push({
+                      key: 'recently_visited',
+                      label: 'Recently Visited',
+                      icon: <TimerIcon size={14} />,
+                      count: results.results.recently_visited.length,
+                      actionSlot: (
+                        <button
+                          className="super-search-clear-history"
+                          onClick={handleClearHistory}
+                          onMouseDown={(e) => e.preventDefault()}
+                          title="Clear all history"
+                        >
+                          <TrashIcon size={12} />
+                        </button>
+                      ),
+                    });
+                  }
+
+                  // All other categories with results
+                  const categoryKeys = [
+                    'organizations', 'signers', 'units', 'companies',
+                    'company_persons', 'afm_entities', 'documents',
+                  ];
+                  categoryKeys.forEach((key) => {
+                    const items = results.results[key];
+                    if (items?.length > 0) {
+                      tabs.push({
+                        key,
+                        label: getCategoryLabel(key),
+                        icon: getCategoryIcon(key, 14),
+                        count: items.length,
+                      });
+                    }
+                  });
+
+                  return tabs;
+                })()}
+                selectedKey={selectedCategory}
+                onSelect={setSelectedCategory}
+              />
 
               {Object.entries(results.results)
                 .filter(([category]) => {
@@ -907,10 +858,10 @@ const SuperSearch = ({
                         {category === 'recently_visited' ? (
                           <TimerIcon size={16} />
                         ) : (
-                          getItemIcon(categoryResults[0]?.type)
+                          getCategoryIcon(categoryResults[0]?.type, 16)
                         )}
                       </span>
-                      <span>{getCategoryName(category)}</span>
+                      <span>{getCategoryLabel(category)}</span>
                       <span className="super-search-category-count">
                         {categoryResults.length}
                       </span>
@@ -935,7 +886,7 @@ const SuperSearch = ({
                           }}
                         >
                           <div className="super-search-item-icon">
-                            {getItemIcon(item.type)}
+                            {getCategoryIcon(item.type, 16)}
                           </div>
 
                           <div className="super-search-item-content">

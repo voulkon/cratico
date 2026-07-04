@@ -216,6 +216,12 @@ class NotificationBatchListSerializer(serializers.ModelSerializer):
         source="subscription.subscription_type", read_only=True
     )
 
+    # Human-readable target name (alias, org label, entity, person, etc.)
+    display_name = serializers.SerializerMethodField()
+
+    # Formatted check-window period (e.g. "May 1–15, 2026")
+    period_label = serializers.SerializerMethodField()
+
     class Meta:
         model = NotificationBatch
         fields = [
@@ -223,6 +229,8 @@ class NotificationBatchListSerializer(serializers.ModelSerializer):
             "subscription",
             "subscription_alias",
             "subscription_type",
+            "display_name",
+            "period_label",
             "match_count",
             "check_window_start",
             "check_window_end",
@@ -231,6 +239,90 @@ class NotificationBatchListSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = fields
+
+    @staticmethod
+    def _get_target_name(sub):
+        """Extract the subscription's target name (no period)."""
+        if sub.alias:
+            return sub.alias
+        if sub.organization_id:
+            return (
+                sub.organization.label
+                if sub.organization and sub.organization.label
+                else f"Organization #{sub.organization_id}"
+            )
+        if sub.entity_id:
+            return (
+                sub.entity.name or sub.entity.afm
+                if sub.entity
+                else f"Entity #{sub.entity_id}"
+            )
+        if sub.relationship_org_id and sub.relationship_entity_id:
+            org_label = (
+                sub.relationship_org.label
+                if sub.relationship_org and sub.relationship_org.label
+                else f"Org #{sub.relationship_org_id}"
+            )
+            ent_label = (
+                sub.relationship_entity.name or sub.relationship_entity.afm
+                if sub.relationship_entity
+                else f"Entity #{sub.relationship_entity_id}"
+            )
+            return f"{org_label} × {ent_label}"
+        if sub.person_name:
+            return sub.person_name
+        if sub.signer_name:
+            return sub.signer_name
+        return f"Subscription #{sub.id}"
+
+    def get_display_name(self, obj):
+        """
+        Human-readable label for the subscription target.
+
+        Examples: "Δήμος Αθηναίων", "My Alias", "123456789"
+        """
+        return self._get_target_name(obj.subscription)
+
+    def get_period_label(self, obj):
+        """
+        Formatted check-window period.
+
+        Examples: "May 1–15, 2026", "Jun 10, 2026"
+        """
+        return _format_date_range(obj.check_window_start, obj.check_window_end)
+
+
+def _format_date_range(start, end):
+    """
+    Format a date range into a compact human-readable string.
+
+    Examples:
+        Same day:      "Jun 10, 2026"
+        Same month:    "May 1–15, 2026"
+        Same year:     "May 1 – Jun 5, 2026"
+        Across years:  "Dec 20, 2025 – Jan 5, 2026"
+    """
+    if start is None and end is None:
+        return ""
+    if start is None:
+        return end.strftime("%b %d, %Y")
+    if end is None:
+        return start.strftime("%b %d, %Y")
+
+    same_day = start.date() == end.date()
+    same_month = start.year == end.year and start.month == end.month
+    same_year = start.year == end.year
+
+    if same_day:
+        return start.strftime("%b %d, %Y")
+
+    if same_month:
+        return f"{start.strftime('%b %d')}–{end.strftime('%d, %Y')}"
+
+    if same_year:
+        return f"{start.strftime('%b %d')} – {end.strftime('%b %d, %Y')}"
+
+    return f"{start.strftime('%b %d, %Y')} – {end.strftime('%b %d, %Y')}"
 
 
 class NotificationBatchDetailSerializer(serializers.ModelSerializer):

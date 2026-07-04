@@ -6,20 +6,21 @@ Contains REST_FRAMEWORK configuration including authentication and permission cl
 
 import os
 
-# Check if Clerk authentication is available
-CLERK_JWT_PUBLIC_KEY = os.getenv("CLERK_JWT_PUBLIC_KEY")
-CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY")
-USE_CLERK_AUTH = bool(CLERK_JWT_PUBLIC_KEY and CLERK_SECRET_KEY)
+# Respect the explicit USE_CLERK_AUTH flag, not just key presence.
+# Keys may be set in env even when Clerk is intentionally disabled.
+USE_CLERK_AUTH = os.getenv("USE_CLERK_AUTH", "False").lower() == "true"
 
-# Build authentication classes list
+# Build authentication classes list.
+# TokenAuthentication is first so an explicit Bearer token always wins
+# over a residual session cookie (avoids stale-session cross-user issues).
 AUTH_CLASSES = [
-    "rest_framework.authentication.BasicAuthentication",
-    # Use CSRF-exempt session auth for API endpoints that primarily use token auth
-    "api.authentication.CsrfExemptSessionAuthentication",
     "rest_framework.authentication.TokenAuthentication",
+    # CSRF-exempt session auth: fallback for browsable API / same-origin requests
+    "api.authentication.CsrfExemptSessionAuthentication",
+    "rest_framework.authentication.BasicAuthentication",
 ]
 
-# Add Clerk authentication if credentials are available
+# Add Clerk authentication only when the feature flag is explicitly on
 if USE_CLERK_AUTH:
     AUTH_CLASSES.append("api.authentication.ClerkAuthentication")
 

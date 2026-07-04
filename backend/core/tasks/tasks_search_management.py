@@ -11,7 +11,10 @@ import time
 from io import StringIO
 
 from celery import shared_task
+from django.apps import apps
+from django.contrib.postgres.search import SearchVector
 from django.core.management import call_command
+from django.db import transaction
 from loguru import logger
 
 
@@ -90,6 +93,178 @@ def backfill_search_vectors_task(
         }
     finally:
         output.close()
+
+
+@shared_task(
+    bind=True,
+    name="search.backfill_search_vectors_batch",
+    max_retries=0,  # self-chaining; retries handled by re-enqueue
+    acks_late=False,
+)
+def backfill_search_vectors_batch_task(
+    self,
+    model_key: str,
+    batch_size: int = 5000,
+    last_id: int = 0,
+    total_to_backfill: int | None = None,
+    total_processed: int = 0,
+    only_null: bool = False,
+    dry_run: bool = False,
+) -> dict:
+    """
+    Backfill search_vector for a single model using key-based pagination.
+
+    Self-chains through batches so no single invocation holds a DB
+    transaction open too long.  Survives worker restarts.
+
+    Args:
+        model_key: Which model to backfill (e.g. 'decision', 'extraction', 'afmentity').
+        batch_size: Rows per batch (default 5 000).
+        last_id: Internal – highest pk processed so far.
+        total_to_backfill: Internal – cached count of rows to process.
+        total_processed: Internal – running total of processed rows.
+        only_null: If True, only backfill rows where search_vector IS NULL.
+        dry_run: If True, count and return without writing.
+
+    Returns:
+        dict with status, progress, and timing.
+    """
+    from core.constants.search_service import POSTGRES_FTS_MODELS
+
+    if model_key not in POSTGRES_FTS_MODELS:
+        raise ValueError(
+            f"Unknown model_key '{model_key}'. Choices: {list(POSTGRES_FTS_MODELS.keys())}"
+        )
+
+    config = POSTGRES_FTS_MODELS[model_key]
+    model_class = apps.get_model(
+        config["model_path"].rsplit(".", 1)[0].split(".")[0],
+        config["model_path"].rsplit(".", 1)[1],
+    )
+    text_fields = config["text_fields"]
+    search_config_name = config["search_config"]
+
+    # --- first invocation: count affected rows ---
+    if total_to_backfill is None:
+        qs = model_class.objects.all().order_by("pk")
+        if only_null:
+            qs = qs.filter(search_vector__isnull=True)
+        total_to_backfill = qs.count()
+        logger.info(
+            "backfill_search_vectors_batch | model=%s | %s rows to backfill (dry_run=%s, only_null=%s)",
+            model_key,
+            total_to_backfill,
+            dry_run,
+            only_null,
+        )
+
+    if dry_run:
+        return {
+            "status": "dry_run",
+            "model": model_key,
+            "total_to_backfill": total_to_backfill,
+            "message": (
+                f"Would backfill {total_to_backfill:,} rows "
+                f"for model '{model_key}'. Re-run with dry_run=False."
+            ),
+        }
+
+    if total_to_backfill == 0:
+        return {
+            "status": "done",
+            "model": model_key,
+            "total_processed": 0,
+        }
+
+    # --- update one batch (key-based pagination: pk > last_id) ---
+    # Build SearchVector expression from the model's text fields
+    search_vector_expr = SearchVector(
+        text_fields[0], config=search_config_name
+    )
+    for field in text_fields[1:]:
+        search_vector_expr = search_vector_expr + SearchVector(
+            field, config=search_config_name
+        )
+
+    # Query for this batch
+    qs = model_class.objects.filter(pk__gt=last_id).order_by("pk")
+    if only_null:
+        qs = qs.filter(search_vector__isnull=True)
+
+    batch_ids = list(qs.values_list("pk", flat=True)[:batch_size])
+
+    if not batch_ids:
+        # --- finished ---
+        # Clear prerequisite cache so admin sees updated status
+        from core.services.prerequisite_check_service import prerequisite_check
+
+        prerequisite_check.clear_cache()
+
+        return {
+            "status": "done",
+            "model": model_key,
+            "total_processed": total_processed,
+            "total_to_backfill": total_to_backfill,
+            "message": (
+                f"Backfilled {total_processed:,} rows for model '{model_key}'."
+            ),
+        }
+
+    # Update search_vector for this batch
+    with transaction.atomic():
+        model_class.objects.filter(pk__in=batch_ids).update(
+            search_vector=search_vector_expr
+        )
+
+    rows_in_batch = len(batch_ids)
+    new_last_id = batch_ids[-1]
+    total_processed += rows_in_batch
+
+    # --- progress report ---
+    pct = (
+        round(total_processed / total_to_backfill * 100, 2)
+        if total_to_backfill
+        else 100
+    )
+    self.update_state(
+        state="PROGRESS",
+        meta={
+            "model": model_key,
+            "total_processed": total_processed,
+            "total_to_backfill": total_to_backfill,
+            "pct": pct,
+            "last_id": new_last_id,
+        },
+    )
+    logger.info(
+        "backfill_search_vectors_batch | model=%s | last_id=%s → +%s rows  "
+        "(%s/%s, %s%%)",
+        model_key,
+        new_last_id,
+        rows_in_batch,
+        total_processed,
+        total_to_backfill,
+        pct,
+    )
+
+    # --- chain next batch ---
+    backfill_search_vectors_batch_task.apply_async(
+        kwargs={
+            "model_key": model_key,
+            "batch_size": batch_size,
+            "last_id": new_last_id,
+            "total_to_backfill": total_to_backfill,
+            "total_processed": total_processed,
+            "only_null": only_null,
+            "dry_run": False,
+        },
+    )
+    return {
+        "status": "chained",
+        "model": model_key,
+        "total_processed": total_processed,
+        "last_id": new_last_id,
+    }
 
 
 @shared_task(bind=True, name="search.cleanup_search_vectors")

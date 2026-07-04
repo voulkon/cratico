@@ -22,6 +22,13 @@ def ping(message="Hello Celery!"):
 
 
 @shared_task
+def say_hi(message="Hi from the worker!"):
+    """Super simple task: the worker just says hi."""
+    logger.info(f"Worker says: {message} at {datetime.now().isoformat()}")
+    return {"greeting": message}
+
+
+@shared_task
 def test_tracing():
     tracer = trace.get_tracer(__name__)
 

@@ -18,6 +18,7 @@ from datetime import date, timedelta
 
 from celery import shared_task
 from core.models.decisions import Decision
+from core.models.import_jobs import ImportJob, ImportJobStatus, ImportJobType
 from core.services.coverage_service import BackfillCoverageService
 from core.services.feature_flag_service import feature_flags
 from core.services.import_job_queue import ImportJobQueue
@@ -56,6 +57,7 @@ def auto_daily_import_task():
             created_by=None,  # System-initiated
             auto_dispatch=True,
             skip_duplicates=True,
+            import_type=ImportJobType.DAILY,
         )
 
         logger.info(f"Daily import queued: Job #{job.id} for {yesterday}")
@@ -104,6 +106,20 @@ def trigger_next_backfill():
         logger.info("Cannot start new job (concurrency limit reached)")
         return {"status": "skipped", "reason": "concurrency_limit"}
 
+    # Guard against concurrent trigger_next_backfill executions.
+    #
+    # Two workers can both pass can_start_new_job() before either enqueues a job,
+    # creating two interleaved backfill chains.  If a PENDING import job already
+    # exists, another trigger instance has already found the next date and queued it;
+    # let that chain continue via on_job_completed → dispatch_next_job().
+    pending_count = queue.get_pending_jobs_count()
+    if pending_count > 0:
+        logger.info(
+            f"Already have {pending_count} pending import job(s) — "
+            f"skipping duplicate backfill trigger"
+        )
+        return {"status": "skipped", "reason": "pending_jobs_exist", "pending": pending_count}
+
     # Find the next oldest day to import
     next_date = find_next_oldest_missing_day()
 
@@ -120,6 +136,7 @@ def trigger_next_backfill():
             created_by=None,
             auto_dispatch=True,
             skip_duplicates=True,
+            import_type=ImportJobType.BACKFILL,
         )
 
         logger.info(f"Backfill queued: Job #{job.id} for {next_date}")
@@ -150,7 +167,7 @@ def find_next_oldest_missing_day(entity_type="all", entity_id=None) -> date | No
 
     2. FALLBACK — No ImportJob found, but decision count meets the minimum
        threshold for the day type (via PublicHolidayDetectionService):
-       - Workdays:    ≥ 14,000 decisions
+       - Workdays:    ≥ 10,000 decisions
        - Weekends:    ≥ 300 decisions
        - Holidays:    ≥ 200 decisions
 
@@ -226,6 +243,69 @@ def find_next_oldest_missing_day(entity_type="all", entity_id=None) -> date | No
             continue
 
         # under_imported — neither check passed
+        # Before scheduling, check if there's already an active job for this date.
+        # An active job means data is still being imported; returning this date
+        # would either be a no-op (skip_duplicates catches it) or, in a brief
+        # status-transition window, spawn a duplicate import.  Skip it and keep
+        # looking for a date that has no active coverage attempt.
+        active_job = ImportJob.objects.filter(
+            **job_filter,
+            start_date=current_date,
+            end_date=current_date,
+            status__in=[
+                ImportJobStatus.PENDING,
+                ImportJobStatus.FETCHING,
+                ImportJobStatus.RUNNING,
+                ImportJobStatus.PROCESSING,
+                ImportJobStatus.SPLITTING,
+            ],
+        ).first()
+
+        if active_job:
+            logger.debug(
+                f"[{current_date}] Skipping — active ImportJob #{active_job.id} "
+                f"already in progress (status={active_job.status})"
+            )
+            current_date -= timedelta(days=1)
+            continue
+
+        # Guard against infinite re-import of dates where the API has
+        # consistently returned nothing.
+        #
+        # We only stop retrying when ALL completed jobs for this date fetched
+        # 0 decisions (total_decisions=0 → total_chunks=0) on 2+ independent
+        # attempts.  A single 0-decision run may just be an API failure and
+        # deserves one retry.
+        #
+        # We deliberately do NOT short-circuit based on decision_count alone:
+        # a date that has, say, 6,560 decisions in the DB (below the 10,000
+        # workday threshold) should still be retried — a successful new import
+        # job will pass is_job_substantive and classify_day will return
+        # "done_job", regardless of whether the count exceeds the threshold.
+        # Accepting it prematurely would leave it permanently under-imported.
+        #
+        # NOTE: The Easter Sunday case (32 real decisions, all chunks done)
+        # never reaches this guard — classify_day returns "done_job" for it.
+        zero_decision_attempts = ImportJob.objects.filter(
+            **job_filter,
+            start_date=current_date,
+            end_date=current_date,
+            status__in=[
+                ImportJobStatus.COMPLETED,
+                ImportJobStatus.PARTIALLY_COMPLETED,
+            ],
+            total_decisions=0,
+        ).count()
+
+        if zero_decision_attempts >= 2:
+            logger.warning(
+                f"[{current_date}] Skipping — {zero_decision_attempts} completed jobs "
+                f"returned 0 decisions (DB has {decision_count:,} for this date). "
+                f"Accepting as-is to avoid infinite loop."
+            )
+            current_date -= timedelta(days=1)
+            continue
+
         logger.info(
             f"[{current_date}] Under-imported — no valid ImportJob and below threshold "
             f"(type={day_type}, count={decision_count:,}, min_expected={min_expected:,}) "

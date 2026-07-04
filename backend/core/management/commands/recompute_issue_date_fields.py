@@ -12,10 +12,21 @@ example, "March 20, 2023" is stored as 2023-03-19T22:00:00Z (22:00 UTC =
 
 The old save() method called ``self.issue_date.date()`` which returns the
 *UTC* date, so that record would get issue_date_day = 2023-03-19 instead of
-the correct 2023-03-20.  This command corrects all affected rows in bulk via
-a single SQL UPDATE.
+the correct 2023-03-20.  This command corrects all affected rows.
 
-After running this command you should also run:
+Modes
+-----
+
+Sync (default)
+    Runs the UPDATE in‑process, batch by batch.  Suitable for small
+    datasets or when you have a stable terminal session.
+
+Async (--async)
+    Dispatches the work to a Celery task that self‑chains through
+    batches.  This is the recommended mode for the 20M+ row
+    production table.
+
+After running this command you should also run::
 
     python manage.py backfill_date_coverage --reset
 
@@ -45,10 +56,50 @@ class Command(BaseCommand):
             default=50_000,
             help="Number of rows to update per transaction (default: 50 000).",
         )
+        parser.add_argument(
+            "--async",
+            action="store_true",
+            dest="async_mode",
+            help=(
+                "Dispatch to Celery instead of running synchronously. "
+                "The task self‑chains through batches."
+            ),
+        )
 
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
         batch_size = options["batch_size"]
+        async_mode = options["async_mode"]
+
+        if async_mode:
+            self._dispatch_async(dry_run, batch_size)
+        else:
+            self._run_sync(dry_run, batch_size)
+
+    def _dispatch_async(self, dry_run: bool, batch_size: int):
+        from core.tasks.tasks_data_migration import (
+            recompute_issue_date_fields_task,
+        )
+
+        result = recompute_issue_date_fields_task.apply_async(
+            kwargs={"dry_run": dry_run, "batch_size": batch_size},
+        )
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Task dispatched.\n"
+                f"  Task ID: {result.id}\n"
+                f"  dry_run: {dry_run}\n"
+                f"  batch_size: {batch_size:,}\n\n"
+                f"Monitor progress via Flower or:\n"
+                f"  celery -A diavgeia_project inspect active"
+            )
+        )
+
+    # ------------------------------------------------------------------
+    # synchronous path (original behaviour)
+    # ------------------------------------------------------------------
+
+    def _run_sync(self, dry_run: bool, batch_size: int):
 
         with connection.cursor() as cursor:
             # Count how many rows will be affected (UTC date ≠ Athens date).

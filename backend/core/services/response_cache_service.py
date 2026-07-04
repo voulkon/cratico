@@ -34,7 +34,9 @@ from api.redis_keys import (
     API_CACHE_EXPIRE_CURRENT,
     API_CACHE_EXPIRE_HISTORICAL,
     API_CACHE_EXPIRE_STATS,
+    WARMUP_STATUS_TTL,
     get_api_cache_key,
+    get_warmup_status_key,
 )
 from django.core.cache import cache
 from loguru import logger
@@ -161,8 +163,8 @@ class ResponseCacheService:
         """
         Invalidate all cached responses for a specific view.
 
-        Uses Django-Redis's delete_pattern for bulk invalidation.
-        Useful after data imports that change query results.
+        Uses the Django cache backend's delete_pattern (works with both
+        django-redis and LocMemCache).
 
         Args:
             view_name: The view identifier used in build_key()
@@ -170,21 +172,39 @@ class ResponseCacheService:
         Returns:
             Number of keys deleted
         """
+        from django.core.cache import cache
+
+        pattern = f"*api_cache:da:{view_name}*"
+
         try:
-            from django_redis import get_redis_connection
-
-            # Use the default cache connection (DB 1)
-            conn = get_redis_connection("default")
-            pattern = f"*api_cache:da:{view_name}*"
-            count = conn.delete_pattern(pattern)
-
+            count = cache.delete_pattern(pattern)
             if count > 0:
                 logger.info(
                     f"ResponseCache: invalidated {count} keys for view={view_name}"
                 )
             return count
+        except AttributeError:
+            # Backend doesn't support delete_pattern (e.g. LocMemCache).
+            # Fall back to iterating the internal cache dict.
+            cache_dict = getattr(cache, "_cache", None)
+            if cache_dict is None:
+                return 0
+            key_fragment = f":{view_name}:"
+            keys_to_delete = [
+                k for k in list(cache_dict.keys()) if key_fragment in str(k)
+            ]
+            for k in keys_to_delete:
+                del cache_dict[k]
+            if keys_to_delete:
+                logger.info(
+                    f"ResponseCache: invalidated {len(keys_to_delete)} keys "
+                    f"for view={view_name} (LocMem fallback)"
+                )
+            return len(keys_to_delete)
         except Exception as e:
-            logger.warning(f"ResponseCache: invalidation failed for {view_name}: {e}")
+            logger.warning(
+                f"ResponseCache: invalidation failed for {view_name}: {e}"
+            )
             return 0
 
     @staticmethod
@@ -195,18 +215,58 @@ class ResponseCacheService:
         Returns:
             Number of keys deleted
         """
+        from django.core.cache import cache
+
         try:
-            from django_redis import get_redis_connection
-
-            conn = get_redis_connection("default")
-            pattern = f"*api_cache*"
-            count = conn.delete_pattern(pattern)
-
+            count = cache.delete_pattern("*api_cache*")
             logger.info(f"ResponseCache: invalidated all ({count} keys)")
             return count
         except Exception as e:
             logger.warning(f"ResponseCache: full invalidation failed: {e}")
             return 0
+
+    # ── Warmup status tracking (defer_on_miss) ─────────────────────────
+
+    @staticmethod
+    def get_warmup_status(cache_key: str) -> Optional[str]:
+        """
+        Check the warmup status for a cache key.
+
+        Returns:
+            "in_progress", "ready", or None (no warmup has been initiated)
+        """
+        status_key = get_warmup_status_key(cache_key)
+        return cache.get(status_key)
+
+    @staticmethod
+    def set_warmup_status(
+        cache_key: str, status: str, timeout: Optional[int] = None
+    ) -> None:
+        """
+        Set the warmup status for a cache key.
+
+        Args:
+            cache_key: The standard API cache key
+            status: "in_progress" or "ready"
+            timeout: TTL in seconds (default: WARMUP_STATUS_TTL = 120s)
+        """
+        effective_timeout = timeout if timeout is not None else WARMUP_STATUS_TTL
+        status_key = get_warmup_status_key(cache_key)
+        cache.set(status_key, status, effective_timeout)
+        logger.debug(
+            f"[ResponseCache WARMUP] status={status} key={status_key} "
+            f"ttl={effective_timeout}s"
+        )
+
+    @staticmethod
+    def clear_warmup_status(cache_key: str) -> None:
+        """
+        Remove the warmup status key (typically after a successful warmup,
+        the status becomes redundant once the data cache exists).
+        """
+        status_key = get_warmup_status_key(cache_key)
+        cache.delete(status_key)
+        logger.debug(f"[ResponseCache WARMUP] cleared status key={status_key}")
 
 
 # Singleton instance for import convenience

@@ -41,7 +41,13 @@ class StealthModeMiddleware:
             return self.get_response(request)
 
         # Only enforce in stealth mode and for API endpoints
-        if stealth_mode and request.path.startswith("/api/"):
+        # Skip enforcement for force-authenticated requests (used by DRF's
+        # APIClient.force_authenticate() in tests). The _force_auth_user flag
+        # means the test client has explicitly declared this request as
+        # authenticated — we should trust it and skip all stealth checks.
+        force_auth_user = getattr(request, '_force_auth_user', None)
+
+        if stealth_mode and request.path.startswith("/api/") and force_auth_user is None:
             # Get all exempt prefixes (defaults + feature flag configured)
             # This automatically includes: health, admin, docs, auth, and any additional configured
             exempt_prefixes = get_all_exempt_prefixes()
@@ -99,6 +105,15 @@ class StealthModeMiddleware:
         """
         from django.conf import settings
         from rest_framework.request import Request as DRFRequest
+
+        # Check for force-authenticated requests first (used by APIClient in tests).
+        # When DRF's APIClient.force_authenticate() is used, the ForceAuthClientHandler
+        # sets _force_auth_user on the Django request before middleware runs.
+        # We must handle this here because the settings-based authentication classes
+        # below look for real credentials (headers/tokens), not the force-auth metadata.
+        force_user = getattr(request, '_force_auth_user', None)
+        if force_user is not None:
+            return force_user
 
         # Wrap Django request in DRF request
         drf_request = DRFRequest(request)

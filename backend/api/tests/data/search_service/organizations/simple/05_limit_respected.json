@@ -1,0 +1,13 @@
+{
+  "id": "org_simple_limit_respected",
+  "description": "limit parameter caps the number of returned results",
+  "tier": "simple",
+  "entity_type": "organization",
+  "records": [
+    {"label": "MUNICIPALITY ATHENS"},
+    {"label": "MUNICIPALITY THESSALONIKI"}
+  ],
+  "query": "MUNICIPALITY",
+  "limit": 1,
+  "expected_exact_count": 1
+}

@@ -1,0 +1,608 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}Amount ↔ Entity Linkage Analysis{% endblock %}
+
+{% block extrastyle %}
+<style>
+  .analysis-container { padding: 20px; max-width: 1400px; }
+  .analysis-container h2 {
+    margin-top: 30px; padding-bottom: 8px;
+    border-bottom: 2px solid #417690; color: #417690;
+  }
+  .analysis-container h3 {
+    margin-top: 20px; color: #555;
+  }
+  table.data-table {
+    width: 100%; border-collapse: collapse; margin-bottom: 20px;
+    font-size: 13px;
+  }
+  table.data-table th, table.data-table td {
+    padding: 6px 10px; border: 1px solid #ddd; text-align: right;
+  }
+  table.data-table th { background: #f5f5f5; font-weight: 600; text-align: right; }
+  table.data-table td.left, table.data-table th.left { text-align: left; }
+  table.data-table td.center, table.data-table th.center { text-align: center; }
+  table.data-table tr:hover { background: #f9f9f9; }
+
+  .good { color: #2d8b2d; font-weight: 600; }
+  .warn { color: #c98a00; font-weight: 600; }
+  .bad  { color: #c0392b; font-weight: 600; }
+
+  .pattern-badge {
+    display: inline-block; background: #eef; padding: 2px 8px;
+    border-radius: 3px; font-family: monospace; font-size: 12px;
+  }
+  .role-badge {
+    display: inline-block; background: #efe; padding: 2px 8px;
+    border-radius: 3px; font-family: monospace; font-size: 12px;
+  }
+
+  .json-block {
+    background: #1e1e1e; color: #d4d4d4; padding: 12px;
+    border-radius: 4px; font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
+    font-size: 11px; line-height: 1.4; overflow-x: auto;
+    white-space: pre-wrap; max-height: 400px; overflow-y: auto;
+    margin: 4px 0 12px 0;
+  }
+  .sample-card {
+    background: #fff; border: 1px solid #ddd; padding: 14px;
+    margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .sample-card .ada { font-weight: 700; color: #417690; }
+  .sample-card .subject { color: #555; }
+  .sample-card .meta { font-size: 12px; color: #888; margin-top: 4px; }
+
+  .summary-stats {
+    display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px;
+  }
+  .summary-stat {
+    background: #fff; border: 1px solid #ddd; padding: 14px 20px;
+    min-width: 160px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .summary-stat .value { font-size: 28px; font-weight: 700; color: #417690; }
+  .summary-stat .label { font-size: 12px; color: #888; margin-top: 4px; }
+
+  .collapsible-toggle {
+    cursor: pointer; color: #417690; font-weight: 600;
+    user-select: none;
+  }
+  .collapsible-toggle::before { content: "▸ "; }
+  .collapsible-toggle.open::before { content: "▾ "; }
+  .collapsible-body { display: none; }
+  .collapsible-body.open { display: block; }
+
+  .sticky-header { position: sticky; top: 0; z-index: 1; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="analysis-container">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+    <h1 style="margin:0;">Amount ↔ Entity Linkage Analysis</h1>
+
+    <form method="POST" style="margin:0;">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="refresh">
+      <button type="submit" class="button" style="
+        background:#417690; color:#fff; border:none; padding:10px 24px;
+        border-radius:4px; font-size:14px; cursor:pointer;
+      ">
+        🔄 Refresh Analysis
+      </button>
+    </form>
+  </div>
+
+  {% if cached %}
+  <p style="color:#2d8b2d; margin-top:8px; margin-bottom:25px;">
+    ✅ Loaded from cache (refreshes every {{ cache_ttl_hours }}h).
+    Analyzes which <code>DecisionAmountField</code> rows are linked to
+    <code>DecisionEntityRelationship</code> via <code>associated_relationship_id</code>.
+  </p>
+  {% else %}
+  <div style="background:#fff3cd; border:1px solid #ffc107; padding:20px; margin:15px 0 25px 0; border-radius:4px;">
+    <strong>⚠️ No cached analysis found.</strong>
+    <p style="margin:8px 0 0 0;">
+      Click <strong>"Refresh Analysis"</strong> above to run the computation.
+      This dispatches a background task; reload the page after ~30 seconds to see results.
+    </p>
+  </div>
+  {% endif %}
+
+  {# --- Summary stats --- #}
+  <div class="summary-stats">
+    <div class="summary-stat">
+      <div class="value">{{ linkage_table|length }}</div>
+      <div class="label">Decision types with amounts</div>
+    </div>
+    <div class="summary-stat">
+      <div class="value">{{ pattern_sections|length }}</div>
+      <div class="label">Types with linked amounts</div>
+    </div>
+    <div class="summary-stat">
+      <div class="value">{{ role_sections|length }}</div>
+      <div class="label">Entity roles found</div>
+    </div>
+    <div class="summary-stat">
+      <div class="value">{{ samples|length }}</div>
+      <div class="label">Unlinked samples shown</div>
+    </div>
+  </div>
+
+  {# ================================================================== #}
+  {# SECTION 1: Linkage Rate                                               #}
+  {# ================================================================== #}
+  <h2 class="collapsible-toggle open" onclick="
+    this.classList.toggle('open');
+    this.nextElementSibling.classList.toggle('open');
+  ">1. Linkage Rate by Decision Type</h2>
+  <div class="collapsible-body open">
+  <p style="color:#888;">
+    Click <strong>🔍</strong> to fetch live unlinked samples for that type
+    and understand <em>why</em> the linkage isn't 100%.
+  </p>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th class="left">Decision Type</th>
+        <th>Total Amounts</th>
+        <th>Linked</th>
+        <th class="center">Link %</th>
+        <th>Decisions w/ $</th>
+        <th>Decisions w/ linked</th>
+        <th class="center">Dec Link %</th>
+        <th>Unique Rels</th>
+        <th class="center">Samples</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in linkage_table %}
+      <tr id="linkage-row-{{ row.uid|slugify }}">
+        <td class="left">{{ row.label }} <small>({{ row.uid }})</small></td>
+        <td>{{ row.total|floatformat:"0" }}</td>
+        <td>{{ row.linked|floatformat:"0" }}</td>
+        <td class="center">
+          <span class="{% if row.link_pct >= 60 %}good{% elif row.link_pct >= 20 %}warn{% else %}bad{% endif %}">
+            {{ row.link_pct }}%
+          </span>
+        </td>
+        <td>{{ row.total_decisions|floatformat:"0" }}</td>
+        <td>{{ row.linked_decisions|floatformat:"0" }}</td>
+        <td class="center">{{ row.decisions_pct }}%</td>
+        <td>{{ row.unique_rels|floatformat:"0" }}</td>
+        <td class="center">
+          {% if row.link_pct < 100 %}
+          <button class="drilldown-btn" data-type-uid="{{ row.uid }}" style="
+            background:none; border:1px solid #417690; color:#417690;
+            padding:3px 10px; border-radius:3px; cursor:pointer;
+            font-size:12px; white-space:nowrap;
+          " title="Show unlinked samples for {{ row.label }}">
+            🔍 Unlinked
+          </button>
+          {% else %}
+          <span style="color:#2d8b2d;">✅ 100%</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  {# --- Per-type drill-down results appear here --- #}
+  <div id="drilldown-container" style="display:none; margin-top:20px;">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h3 id="drilldown-title" style="color:#417690;"></h3>
+      <button id="drilldown-close" style="
+        background:none; border:none; color:#888; cursor:pointer; font-size:20px;
+      " title="Close">✕</button>
+    </div>
+    <div id="drilldown-samples"></div>
+    <div id="drilldown-summary" style="margin-top:20px;"></div>
+  </div>
+
+  {# ================================================================== #}
+  {# SECTION 2: Pattern Distribution (linked only)                          #}
+  {# ================================================================== #}
+  <h2 class="collapsible-toggle open" onclick="
+    this.classList.toggle('open');
+    this.nextElementSibling.classList.toggle('open');
+  ">2. Pattern Distribution — Linked Amounts Only</h2>
+  <div class="collapsible-body open">
+  {% for section in pattern_sections %}
+  <h3 class="collapsible-toggle open" onclick="
+    this.classList.toggle('open');
+    this.nextElementSibling.classList.toggle('open');
+  ">
+    {{ section.label }} ({{ section.uid }}) —
+    {{ section.total }} linked, €{{ section.total_euros|floatformat:"0" }}
+  </h3>
+  <div class="collapsible-body open">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th class="left">Pattern</th>
+          <th>Count</th>
+          <th class="center">%</th>
+          <th>Total €</th>
+          <th>Relationships</th>
+          <th class="center">Variants</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in section.patterns %}
+        <tr>
+          <td class="left"><span class="pattern-badge">{{ p.name }}</span></td>
+          <td>{{ p.count }}</td>
+          <td class="center">{{ p.pct }}%</td>
+          <td>€{{ p.euros|floatformat:"0" }}</td>
+          <td>{{ p.rels }}</td>
+          <td class="center">{{ p.variants }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if section.more %}
+    <p style="color:#888; font-size:12px;">… and {{ section.more }} more pattern groups</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+  </div>
+
+  {# ================================================================== #}
+  {# SECTION 3: Top Entities                                                #}
+  {# ================================================================== #}
+  <h2 class="collapsible-toggle open" onclick="
+    this.classList.toggle('open');
+    this.nextElementSibling.classList.toggle('open');
+  ">3. Top Entities by Linked Amount</h2>
+  <div class="collapsible-body open">
+  {% for section in entity_sections %}
+  <h3>{{ section.label }} ({{ section.uid }})</h3>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th class="left">AFM</th>
+        <th class="left">Name</th>
+        <th class="left">Role</th>
+        <th>Total €</th>
+        <th>Decisions</th>
+        <th>Fields</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in section.top %}
+      <tr>
+        <td class="left">{{ e.afm }}</td>
+        <td class="left">{{ e.name|default:"(no name)"|truncatechars:60 }}</td>
+        <td class="left"><span class="role-badge">{{ e.role }}</span></td>
+        <td>€{{ e.euros|floatformat:"0" }}</td>
+        <td>{{ e.decisions }}</td>
+        <td>{{ e.fields }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endfor %}
+  </div>
+
+  {# ================================================================== #}
+  {# SECTION 4: Role × Pattern Cross-tab                                    #}
+  {# ================================================================== #}
+  <h2 class="collapsible-toggle open" onclick="
+    this.classList.toggle('open');
+    this.nextElementSibling.classList.toggle('open');
+  ">4. Role × Pattern Cross-tab</h2>
+  <div class="collapsible-body open">
+  <p style="color:#888;">
+    Which entity roles receive which amount patterns?
+  </p>
+  {% for section in role_sections %}
+  <h3>
+    <span class="role-badge">{{ section.role }}</span>
+    — {{ section.total }} linked amounts, €{{ section.total_euros|floatformat:"0" }}
+  </h3>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th class="left">Pattern</th>
+        <th>Count</th>
+        <th class="center">%</th>
+        <th>Total €</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in section.patterns %}
+      <tr>
+        <td class="left"><span class="pattern-badge">{{ p.pattern }}</span></td>
+        <td>{{ p.count }}</td>
+        <td class="center">{{ p.pct }}%</td>
+        <td>€{{ p.euros|floatformat:"0" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endfor %}
+  </div>
+
+  {# ================================================================== #}
+  {# SECTION 5: Unlinked Amounts                                            #}
+  {# ================================================================== #}
+  <h2 class="collapsible-toggle open" onclick="
+    this.classList.toggle('open');
+    this.nextElementSibling.classList.toggle('open');
+  ">5. Unlinked Amounts — What's Not Connected to Entities?</h2>
+  <div class="collapsible-body open">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th class="left">Pattern</th>
+        <th class="left">Raw Path</th>
+        <th>Count</th>
+        <th>Decisions</th>
+        <th>Total €</th>
+        <th class="left">Decision Type</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in unlinked_table %}
+      <tr>
+        <td class="left"><span class="pattern-badge">{{ row.pattern }}</span></td>
+        <td class="left" style="font-family:monospace;font-size:11px;">{{ row.raw_path }}</td>
+        <td>{{ row.count }}</td>
+        <td>{{ row.decisions }}</td>
+        <td>€{{ row.euros|floatformat:"0" }}</td>
+        <td class="left">{{ row.type_label }} ({{ row.type_uid }})</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if unlinked_has_more %}
+  <p style="color:#888; font-size:12px;">… and {{ unlinked_has_more }} more combos</p>
+  {% endif %}
+  </div>
+
+  {# ================================================================== #}
+  {# SECTION 6: Unlinked Samples with Raw JSON                               #}
+  {# ================================================================== #}
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+    <h2 class="collapsible-toggle open" style="border:none; margin:0;" onclick="
+      this.classList.toggle('open');
+      document.getElementById('section6-body').classList.toggle('open');
+    ">6. Sample Unlinked Amounts with Raw <code>extra_field_values_json</code></h2>
+    <button id="refresh-samples-btn" class="button" style="
+      background:#417690; color:#fff; border:none; padding:8px 20px;
+      border-radius:4px; font-size:13px; cursor:pointer;
+    ">
+      🔄 Refresh Samples
+    </button>
+  </div>
+  <div id="section6-body" class="collapsible-body open">
+  <p style="color:#888;">
+    Showing up to 2 samples for each of the top 12 unlinked (type × path) combos,
+    sorted by amount descending. <strong>Runs live SQL — reflects current DB state.</strong>
+  </p>
+
+  <div id="samples-container">
+    {% for sample in samples %}
+    <div class="sample-card">
+      <div class="ada">{{ sample.ada }}</div>
+      <div class="subject">{{ sample.subject }}</div>
+      <div class="meta">
+        Type: {{ sample.type_label }} ({{ sample.type_uid }}) |
+        Path: <code>{{ sample.path }}</code> |
+        Classified: <span class="pattern-badge">{{ sample.classified }}</span> |
+        Field: <code>{{ sample.source_field_name }}</code> |
+        Amount: €{{ sample.amount|floatformat:"2"|default:"null" }} |
+        Structure: {{ sample.structure_type|default:"—" }}
+      </div>
+      <div style="margin-top:8px; font-weight:600; font-size:12px; color:#888;">
+        extra_field_values_json:
+      </div>
+      <div class="json-block">{{ sample.extra_json_display }}</div>
+    </div>
+    {% empty %}
+    <p id="samples-empty-msg" style="color:#888;">(No unlinked samples to show — everything is linked!)</p>
+    {% endfor %}
+  </div>
+  </div>
+
+</div>
+
+<script>
+  // Collapsible sections
+  document.querySelectorAll('.collapsible-toggle').forEach(el => {
+    el.addEventListener('click', function() {
+      this.classList.toggle('open');
+      this.nextElementSibling.classList.toggle('open');
+    });
+  });
+
+  // --- Helper: escape HTML to prevent XSS ---
+  function esc(s) { return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  // --- Helper: build sample-card HTML from a sample object ---
+  //     JSON section is collapsed by default; click to expand.
+  function buildSampleCard(s, idx) {
+    var cardId = 'sample-' + (idx || Math.random().toString(36).slice(2));
+    var amountDisplay = (s.amount != null) ? '€' + s.amount.toFixed(2) : 'null';
+    var apiLink = s.api_url
+      ? '<a href="' + s.api_url + '" target="_blank" rel="noopener" style="color:#417690; font-weight:600;">📡 View on Diavgeia API →</a>'
+      : '';
+    var jsonContent = esc(s.extra_json_full || s.extra_json_display || '(null)');
+    var jsonSize = jsonContent.length.toLocaleString();
+    return '<div class="sample-card">' +
+      '<div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">' +
+        '<div class="ada">' + esc(s.ada || '') + '</div>' +
+        '<div>' + apiLink + '</div>' +
+      '</div>' +
+      '<div class="subject">' + esc(s.subject || '') + '</div>' +
+      '<div class="meta">' +
+        'Type: ' + esc(s.type_label || '') + ' (' + esc(s.type_uid || '') + ') | ' +
+        'Path: <code>' + esc(s.path || '') + '</code> | ' +
+        'Classified: <span class="pattern-badge">' + esc(s.classified || '') + '</span> | ' +
+        'Field: <code>' + esc(s.source_field_name || '') + '</code> | ' +
+        'Amount: ' + amountDisplay + ' | ' +
+        'Structure: ' + esc(s.structure_type || '—') +
+      '</div>' +
+      '<div class="collapsible-toggle" style="margin-top:8px; font-size:12px;" ' +
+        'onclick="var b=document.getElementById(\'' + cardId + '-body\');' +
+        'this.classList.toggle(\'open\');b.classList.toggle(\'open\');">' +
+        '📋 extra_field_values_json (' + jsonSize + ' chars)' +
+      '</div>' +
+      '<div id="' + cardId + '-body" class="collapsible-body" style="margin-top:4px;">' +
+        '<div class="json-block" style="max-height:600px;">' + jsonContent + '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  // --- Section 1: Per-type drill-down ---
+  (function() {
+    var container = document.getElementById('drilldown-container');
+    var titleEl = document.getElementById('drilldown-title');
+    var summaryEl = document.getElementById('drilldown-summary');
+    var samplesEl = document.getElementById('drilldown-samples');
+    var closeBtn = document.getElementById('drilldown-close');
+    var activeBtn = null;
+
+    function hideDrilldown() {
+      container.style.display = 'none';
+      if (activeBtn) {
+        activeBtn.textContent = activeBtn.getAttribute('data-orig-text') || '🔍';
+        activeBtn.style.background = '';
+        activeBtn.style.color = '';
+        activeBtn = null;
+      }
+    }
+
+    closeBtn.addEventListener('click', hideDrilldown);
+
+    document.querySelectorAll('.drilldown-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var typeUid = btn.getAttribute('data-type-uid');
+        var typeLabel = btn.closest('tr').querySelector('td:first-child').textContent.trim();
+
+        // Deactivate previous
+        if (activeBtn && activeBtn !== btn) {
+          activeBtn.textContent = activeBtn.getAttribute('data-orig-text') || '🔍';
+          activeBtn.style.background = '';
+          activeBtn.style.color = '';
+        }
+        activeBtn = btn;
+        btn.setAttribute('data-orig-text', btn.textContent);
+        btn.textContent = '⏳';
+        btn.style.background = '#417690';
+        btn.style.color = '#fff';
+
+        // Scroll to drill-down area
+        container.style.display = 'block';
+        titleEl.textContent = 'Unlinked samples: ' + typeLabel;
+        samplesEl.innerHTML = '<p style="color:#888;">Loading...</p>';
+        summaryEl.innerHTML = '';
+        container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        fetch('{% url "admin:amount_entity_analysis_refresh_samples" %}?type_uid=' + encodeURIComponent(typeUid))
+          .then(function(resp) { return resp.json(); })
+          .then(function(data) {
+            if (!data.success) {
+              samplesEl.innerHTML = '<p style="color:#c0392b;">❌ Error: ' + esc(data.error || 'unknown') + '</p>';
+              summaryEl.innerHTML = '';
+              return;
+            }
+
+            // --- Samples FIRST (what the user cares about) ---
+            if (!data.samples || data.samples.length === 0) {
+              samplesEl.innerHTML = '<p style="color:#888;">(No unlinked samples found for this type)</p>';
+            } else {
+              var html = '';
+              data.samples.forEach(function(s, i) { html += buildSampleCard(s, i); });
+              samplesEl.innerHTML = html;
+            }
+
+            // --- Summary SECOND (collapsible stats) ---
+            var summaryHtml = '';
+            if (data.summary && data.summary.length > 0) {
+              var totalCount = data.summary.reduce(function(acc, r) { return acc + r.count; }, 0);
+              summaryHtml = '<h4 class="collapsible-toggle" onclick="' +
+                "this.classList.toggle('open');this.nextElementSibling.classList.toggle('open');" +
+                '" style="margin-top:0;">📊 Pattern Breakdown (' + totalCount.toLocaleString() + ' unlinked amounts)</h4>' +
+                '<div class="collapsible-body">' +
+                '<table class="data-table" style="margin-bottom:16px;"><thead><tr>' +
+                '<th class="left">Pattern</th><th>Count</th><th>Decisions</th><th>Total €</th>' +
+                '</tr></thead><tbody>';
+              data.summary.forEach(function(r) {
+                summaryHtml += '<tr>' +
+                  '<td class="left"><span class="pattern-badge">' + esc(r.classified) + '</span> ' +
+                    '<span style="font-family:monospace;font-size:10px;color:#999;">' + esc(r.raw_path) + '</span></td>' +
+                  '<td>' + r.count.toLocaleString() + '</td>' +
+                  '<td>' + r.decisions.toLocaleString() + '</td>' +
+                  '<td>€' + r.euros.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0}) + '</td>' +
+                '</tr>';
+              });
+              summaryHtml += '</tbody></table></div>';
+            }
+            summaryEl.innerHTML = summaryHtml;
+          })
+          .catch(function(err) {
+            samplesEl.innerHTML = '<p style="color:#c0392b;">❌ Network error: ' + err + '</p>';
+            summaryEl.innerHTML = '';
+          })
+          .finally(function() {
+            btn.textContent = btn.getAttribute('data-orig-text') || '🔍';
+            btn.style.background = '';
+            btn.style.color = '';
+          });
+      });
+    });
+  })();
+
+  // --- Section 6: Refresh Samples (live SQL) ---
+  (function() {
+    var btn = document.getElementById('refresh-samples-btn');
+    if (!btn) return;
+
+    btn.addEventListener('click', function() {
+      var origText = btn.textContent;
+      btn.textContent = '⏳ Loading...';
+      btn.disabled = true;
+
+      fetch('{% url "admin:amount_entity_analysis_refresh_samples" %}')
+        .then(function(resp) { return resp.json(); })
+        .then(function(data) {
+          var container = document.getElementById('samples-container');
+          if (!container) return;
+
+          if (!data.success) {
+            container.innerHTML = '<p style="color:#c0392b;">❌ Error: ' + (data.error || 'unknown') + '</p>';
+            return;
+          }
+
+          if (!data.samples || data.samples.length === 0) {
+            container.innerHTML = '<p style="color:#888;">(No unlinked samples to show — everything is linked!)</p>';
+            return;
+          }
+
+          var html = '';
+          data.samples.forEach(function(s, i) { html += buildSampleCard(s, i); });
+          container.innerHTML = html;
+
+          // Update the summary stat count
+          var statValues = document.querySelectorAll('.summary-stat .value');
+          if (statValues.length >= 4) {
+            statValues[3].textContent = data.count;
+          }
+        })
+        .catch(function(err) {
+          var container = document.getElementById('samples-container');
+          if (container) {
+            container.innerHTML = '<p style="color:#c0392b;">❌ Network error: ' + err + '</p>';
+          }
+        })
+        .finally(function() {
+          btn.textContent = origText;
+          btn.disabled = false;
+        });
+    });
+  })();
+</script>
+{% endblock %}

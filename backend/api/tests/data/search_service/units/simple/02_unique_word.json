@@ -1,0 +1,15 @@
+{
+  "id": "unit_simple_unique_word",
+  "description": "Unique word returns exactly one unit",
+  "tier": "simple",
+  "entity_type": "unit",
+  "records": [
+    {"label": "DEPARTMENT OF FINANCE"},
+    {"label": "DEPARTMENT OF EDUCATION"},
+    {"label": "OFFICE OF PROCUREMENT"}
+  ],
+  "query": "FINANCE",
+  "limit": 10,
+  "expected_in": ["DEPARTMENT OF FINANCE"],
+  "expected_not_in": ["DEPARTMENT OF EDUCATION", "OFFICE OF PROCUREMENT"]
+}

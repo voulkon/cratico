@@ -7,7 +7,7 @@ import './DecisionCard.css';
 import {OrganizationIcon, PenIcon, CalendarIcon, EyeIcon, DownloadIcon, ExternalLinkIcon, BookOpenIcon, LoaderIcon} from './Icons.js';
 
 import EntityDisplay from './EntityDisplay';
-import { getMainRecipient, getTotalAmount, groupEntityRelationships } from '../utils/decisionUtils';
+import { getMainRecipient, getTotalAmount, groupEntityRelationships, getCounterpartEntities } from '../utils/decisionUtils';
 import { formatDate } from '../utils/dateUtils';
 
 
@@ -23,7 +23,9 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
   const [loadingEntities, setLoadingEntities] = useState(false);
 
   // Check if entity data is already included in decision (from optimized endpoint)
-  const hasPreloadedEntityData = decision.entity_amount !== undefined || decision.main_recipient !== undefined;
+  const hasPreloadedEntityData = decision.entity_amount !== undefined
+    || decision.main_recipient !== undefined
+    || decision.entities !== undefined;
 
   const handleViewContent = async () => {
     if (documentContent) {
@@ -97,16 +99,24 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
     navigate(`/decision/${decision.id}`);
   };
 
-  // Auto-load entities on mount (only if not preloaded)
+  // Populate entity relationships from preloaded data (avoids N+1 API calls)
   useEffect(() => {
-    if (!hasPreloadedEntityData && !entityRelationships && !loadingEntities) {
-      handleViewEntities();
+    if (decision.entities && !entityRelationships) {
+      setEntityRelationships({ relationships: decision.entities });
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [decision.entities, entityRelationships]);
+
+  // NOTE: The auto-fetch useEffect was intentionally removed.
+  // Entity data is now embedded in the decision list response by the backend
+  // (via serialize_decision_with_entities + batch prefetch).  If a backend
+  // endpoint still omits entities, the card gracefully degrades to showing
+  // only the decision-level amount and the user can click "View Entities"
+  // to fetch on demand.
 
   // Use utility functions to calculate recipient and amount
   const mainRecipient = getMainRecipient(decision, entityRelationships, hasPreloadedEntityData);
   const displayAmount = getTotalAmount(decision, entityRelationships, hasPreloadedEntityData, mainRecipient);
+  const counterpartEntities = getCounterpartEntities(decision);
 
   return (
     <div className={`decision-card ${isLastItem ? 'last-item' : ''}`}>
@@ -162,6 +172,33 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
           </>
         )}
       </div>
+
+      {/* Counterpart entities (all non-org entities from this decision) */}
+      {counterpartEntities && counterpartEntities.length > 0 && (
+        <div className="counterpart-entities">
+          <div className="counterpart-entities-title">
+            {t('decisionCard.counterpartEntities', 'Συνδεδεμένες οντότητες')}
+          </div>
+          {counterpartEntities.map((ent, idx) => (
+            <button
+              key={`${ent.entity.afm}-${ent.role}-${idx}`}
+              className="counterpart-entity-item"
+              onClick={() => handleEntityClick(ent.entity.afm)}
+              title={t('decisionCard.viewEntityDetails')}
+            >
+              <span className="counterpart-entity-role">{ent.role}</span>
+              <span className="counterpart-entity-name">
+                {ent.entity.name || `AFM: ${ent.entity.afm}`}
+              </span>
+              {ent.total_amount > 0 && (
+                <span className="counterpart-entity-amount">
+                  {formatAmount(ent.total_amount)}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Organization and Signers Metadata */}
       <div className="decision-metadata">

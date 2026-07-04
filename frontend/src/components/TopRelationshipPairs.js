@@ -1,17 +1,18 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useContext, createContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
 import { useTranslation } from '../contexts/TranslationContext';
 import { OrganizationIcon, EntityIcon } from './Icons';
+import CounterpartStats from './CounterpartStats';
 import './TopCounterparts.css'; // Reuse the same styles
 
-// Import DateRangeContext if available
-let useDateRange;
+// Import DateRangeContext if available; fall back to a dummy context
+// so useContext is always called unconditionally (rules-of-hooks).
+let DateRangeContext;
 try {
-  const DateRangeContext = require('../contexts/DateRangeContext');
-  useDateRange = DateRangeContext.useDateRange;
+  DateRangeContext = require('../contexts/DateRangeContext').DateRangeContext;
 } catch (e) {
-  // DateRangeContext not available, will use props only
+  DateRangeContext = createContext(); // dummy — useContext will return undefined
 }
 
 /**
@@ -24,11 +25,15 @@ const TopRelationshipPairs = ({
   limit = 20, // Items per page
   showDirectAssignmentsToggle = true,
   defaultDirectAssignmentsOnly = true,
-  enableInfiniteScroll = true // Enable/disable infinite scrolling
+  enableInfiniteScroll = true, // Enable/disable infinite scrolling
+  className = '', // Optional: additional class for grid integration
+  collapsible = false, // If true, section header acts as a collapse toggle
+  defaultCollapsed = false, // Initial collapsed state (only when collapsible)
 }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const contextDateRange = useDateRange?.()?.dateRange; // Optional: use context if available
+  // useContext always called unconditionally; returns undefined when provider is absent
+  const contextDateRange = useContext(DateRangeContext)?.dateRange;
 
   // Use prop dateRange if provided, otherwise fall back to context
   const dateRange = propDateRange || contextDateRange;
@@ -41,6 +46,7 @@ const TopRelationshipPairs = ({
   const [directAssignmentsOnly, setDirectAssignmentsOnly] = useState(defaultDirectAssignmentsOnly);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [sectionCollapsed, setSectionCollapsed] = useState(defaultCollapsed);
 
   const observerTarget = useRef(null);
 
@@ -174,14 +180,6 @@ const TopRelationshipPairs = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enableInfiniteScroll, hasMore, loadingMore, loading, offset]);
 
-  const formatAmount = (amount) => {
-    if (!amount || amount === 0) return t('common.noAmount');
-    return `€${amount.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    })}`;
-  };
-
   const handlePairClick = (pair) => {
     // Navigate to relationship page
     const orgUid = pair['decision__organization__uid'];
@@ -191,14 +189,37 @@ const TopRelationshipPairs = ({
     );
   };
 
+  const rootClass = className || 'top-counterparts-section data-section';
+
+  const handleSectionToggle = () => {
+    setSectionCollapsed((prev) => !prev);
+  };
+
   if (error || !results || results.length === 0) {
     if (loading) {
       return (
-        <div className="top-counterparts-section">
-          <h3 className="section-title">
-            {t('relationships.topPairs')}
-          </h3>
-          <div className="counterparts-loading">{t('common.loading')}...</div>
+        <div className={rootClass}>
+          <div className="section-header">
+            {collapsible && (
+              <button
+                className="dashboard-section-collapse-toggle"
+                onClick={handleSectionToggle}
+                aria-expanded={!sectionCollapsed}
+                title={sectionCollapsed ? 'Expand section' : 'Collapse section'}
+              >
+                <span
+                  className={`dashboard-collapse-chevron${sectionCollapsed ? ' dashboard-collapse-chevron--collapsed' : ''}`}
+                  aria-hidden="true"
+                />
+              </button>
+            )}
+            <h3 className="section-title">
+              {t('relationships.topPairs')}
+            </h3>
+          </div>
+          {!sectionCollapsed && (
+            <div className="counterparts-loading">{t('common.loading')}...</div>
+          )}
         </div>
       );
     }
@@ -206,10 +227,23 @@ const TopRelationshipPairs = ({
   }
 
   return (
-    <div className="top-counterparts-section data-section">
+    <div className={rootClass}>
       <div className="section-header">
+        {collapsible && (
+          <button
+            className="dashboard-section-collapse-toggle"
+            onClick={handleSectionToggle}
+            aria-expanded={!sectionCollapsed}
+            title={sectionCollapsed ? 'Expand section' : 'Collapse section'}
+          >
+            <span
+              className={`dashboard-collapse-chevron${sectionCollapsed ? ' dashboard-collapse-chevron--collapsed' : ''}`}
+              aria-hidden="true"
+            />
+          </button>
+        )}
         <h3 className="section-title">{t('relationships.topPairs')}</h3>
-        {showDirectAssignmentsToggle && (
+        {!sectionCollapsed && showDirectAssignmentsToggle && (
           <label className="toggle-switch">
             <input
               type="checkbox"
@@ -224,17 +258,19 @@ const TopRelationshipPairs = ({
         )}
       </div>
 
-      <div className="counterparts-info">
-        <span className="info-text">
-          {directAssignmentsOnly || !totalCount
-            ? `${results.length} ${t('relationships.pairs') || 'pairs'}`
-            : `${results.length} ${t('common.of')} ${totalCount}`
-          }
-        </span>
-      </div>
+      {!sectionCollapsed && (
+        <>
+          <div className="counterparts-info">
+            <span className="info-text">
+              {directAssignmentsOnly || !totalCount
+                ? `${results.length} ${t('relationships.pairs') || 'pairs'}`
+                : `${results.length} ${t('common.of')} ${totalCount}`
+              }
+            </span>
+          </div>
 
-      <div className="counterparts-scroll-container">
-        {results.map((pair, index) => {
+          <div className="counterparts-scroll-container">
+            {results.map((pair, index) => {
           const orgUid = pair['decision__organization__uid'];
           const orgLabel = pair['decision__organization__label'];
           const entityAfm = pair['entity__afm'];
@@ -251,29 +287,29 @@ const TopRelationshipPairs = ({
                 <div className="pair-names">
                   <div className="pair-org">
                     <span className="pair-label">
-                      <OrganizationIcon size={16} className="pair-icon" /> {orgLabel}
+                      <OrganizationIcon size={16} className="pair-icon" />
+                      <span className="pair-label-text" title={orgLabel}>{orgLabel}</span>
                     </span>
-                    <span className="pair-id">{t('relationships.uidLabel')}: {orgUid}</span>
                   </div>
                   <div className="pair-connector">⇄</div>
                   <div className="pair-entity">
                     <span className="pair-label">
-                      <EntityIcon size={16} className="pair-icon" /> {entityName}
+                      <EntityIcon size={16} className="pair-icon" />
+                      <span className="pair-label-text" title={entityName}>{entityName}</span>
                     </span>
-                    <span className="pair-id">{t('relationships.afmLabel')}: {entityAfm}</span>
+                    <div className="pair-entity-details">
+                      <span className="pair-id">{t('relationships.afmLabel')}: {entityAfm}</span>
+                      {pair['entity__entity_type'] && (
+                        <span className="pair-entity-type">{pair['entity__entity_type']}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-              <div className="counterpart-stats">
-                <div className="stat-item">
-                  <span className="stat-label">{t('counterparts.totalAmount')}</span>
-                  <span className="stat-value amount">{formatAmount(pair.total_amount)}</span>
-                </div>
-                <div className="stat-item">
-                  <span className="stat-label">{t('counterparts.decisions')}</span>
-                  <span className="stat-value count">{pair.decision_count}</span>
-                </div>
-              </div>
+              <CounterpartStats
+                totalAmount={pair.total_amount}
+                decisionCount={pair.decision_count}
+              />
             </button>
           );
         })}
@@ -302,6 +338,8 @@ const TopRelationshipPairs = ({
           </button>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 };

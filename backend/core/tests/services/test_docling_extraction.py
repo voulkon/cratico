@@ -4,6 +4,9 @@ Run this inside the worker container to see the actual error.
 """
 
 import pytest
+
+pytest.importorskip("docling", reason="docling is not installed (install the 'docling' poetry group)")
+
 from core.services.extractors.docling import DoclingExtractor
 from core.services.extractors.pymupdf import PyMuPDFExtractor
 from loguru import logger

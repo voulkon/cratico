@@ -1,0 +1,449 @@
+/* ================================================================
+   DashboardGrid — Unified grid layout for dashboard data sections
+   ================================================================ */
+
+/* ── Grid container ───────────────────────────────────────────── */
+.dashboard-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: var(--spacing-xxl);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg, 12px);
+  background: var(--bg-color);
+  position: relative;     /* anchor for the collapse toggle */
+  overflow: hidden;       /* clip children to border-radius */
+}
+
+/* ── Header area (DateRangeSelector lives here) ───────────────── */
+.dashboard-grid-header {
+  padding: var(--spacing-lg, 16px) var(--spacing-xl);
+  border-bottom: 1px solid var(--border-color);
+  /* Leave room for the collapse toggle on the left */
+  padding-left: calc(var(--spacing-xl) + 36px);
+  transition: padding 0.25s ease, opacity 0.25s ease;
+}
+
+.dashboard-grid--collapsed .dashboard-grid-header {
+  opacity: 0;
+  pointer-events: none;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+  max-height: 0;
+  overflow: hidden;
+}
+
+/* ── Grid content (the inner grid of sections) ────────────────── */
+.dashboard-grid-content {
+  display: grid;
+  gap: var(--spacing-xl);
+  align-items: stretch;
+  padding: var(--spacing-xl);
+}
+
+.dashboard-grid--cols-2 .dashboard-grid-content {
+  grid-template-columns: 1fr 1fr;
+}
+
+.dashboard-grid--cols-3 .dashboard-grid-content {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+/* ── Individual section wrapper ───────────────────────────────── */
+.dashboard-grid-section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;           /* CRITICAL: prevent grid blowout from long content */
+  min-height: 0;          /* allow flex shrink for scroll */
+  max-height: 560px;      /* uniform max height across all sections */
+  overflow: hidden;       /* contain children */
+}
+
+/* ── Featured section — spans full grid width ─────────────────── */
+.dashboard-grid-section--featured {
+  grid-column: 1 / -1;
+  max-height: 620px;      /* slightly taller when spanning full width */
+}
+
+/* ── Section header (title + controls) ────────────────────────── */
+.dashboard-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+  flex-shrink: 0;
+}
+
+.dashboard-section-title {
+  font-size: var(--font-lg, 1.125rem);
+  font-weight: var(--font-bold, 700);
+  color: var(--text-color);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dashboard-section-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex-shrink: 0;
+}
+
+.dashboard-see-all-button {
+  background: none;
+  border: none;
+  color: var(--palette-primary);
+  font-size: var(--font-sm, 0.85rem);
+  cursor: pointer;
+  font-weight: var(--font-medium, 500);
+  white-space: nowrap;
+  transition: color 0.2s ease;
+}
+
+.dashboard-see-all-button:hover {
+  color: var(--palette-secondary);
+}
+
+/* ── Section info bar (count, etc.) ───────────────────────────── */
+.dashboard-section-info {
+  display: flex;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+  font-size: 0.85rem;
+  color: var(--muted-text);
+  flex-shrink: 0;
+}
+
+/* ── Scrollable list area ─────────────────────────────────────── */
+.dashboard-section-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  /* match the old data-section-scrollable feel */
+  padding-right: 4px;
+}
+
+.dashboard-section-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dashboard-section-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dashboard-section-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+.dashboard-section-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-text);
+}
+
+/* ── Item card (shared across all section types) ──────────────── */
+.dashboard-item-card {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md, 8px);
+  padding: var(--spacing-md);
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  text-align: left;
+  width: 100%;
+  min-width: 0;           /* CRITICAL: prevent flex blowout */
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+.dashboard-item-card:hover {
+  border-color: var(--palette-primary);
+  box-shadow: 0 2px 8px var(--shadow-hover);
+  transform: translateX(4px);
+}
+
+.dashboard-item-card:focus-visible {
+  outline: 2px solid var(--palette-primary);
+  outline-offset: 2px;
+}
+
+.dashboard-item-card + .dashboard-item-card {
+  margin-top: var(--spacing-sm);
+}
+
+/* ── Rank badge ────────────────────────────────────────────────── */
+.dashboard-rank {
+  font-size: var(--font-sm, 0.85rem);
+  font-weight: var(--font-bold, 700);
+  color: var(--palette-primary);
+  background: var(--hover-bg);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm, 4px);
+  min-width: 32px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* ── Item body ────────────────────────────────────────────────── */
+.dashboard-item-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.dashboard-item-title {
+  font-size: var(--font-md, 0.95rem);
+  font-weight: var(--font-bold, 700);
+  margin-bottom: var(--spacing-xs, 4px);
+  color: var(--text-color);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-item-subtitle {
+  font-size: var(--font-xs, 0.8rem);
+  color: var(--muted-text);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* ── Left rail — rank ─────────────────────────────────────────── */
+.dashboard-item-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs, 4px);
+  flex-shrink: 0;
+}
+
+.dashboard-item-meta {
+  display: flex;
+  gap: var(--spacing-md);
+  font-size: var(--font-sm, 0.85rem);
+  color: var(--muted-text);
+  margin-top: 2px;
+}
+
+.dashboard-item-amount {
+  font-size: var(--font-sm, 0.85rem);
+  font-weight: var(--font-bold, 700);
+  color: var(--palette-primary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ── "Load more" button ───────────────────────────────────────── */
+.dashboard-load-more {
+  width: 100%;
+  margin-top: var(--spacing-sm);
+  padding: 10px;
+  background: none;
+  border: 1px dashed var(--border-color);
+  border-radius: 6px;
+  color: var(--palette-primary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.dashboard-load-more:hover {
+  background: var(--hover-bg);
+  border-color: var(--palette-primary);
+}
+
+.dashboard-load-more:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Loading skeleton ─────────────────────────────────────────── */
+.dashboard-section-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  gap: var(--spacing-md);
+  flex: 1;
+}
+
+.dashboard-section-loading .loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--palette-primary);
+  border-radius: 50%;
+  animation: dashboard-spin 0.8s linear infinite;
+}
+
+@keyframes dashboard-spin {
+  to { transform: rotate(360deg); }
+}
+
+.dashboard-section-loading p {
+  color: var(--muted-text);
+  font-size: var(--font-sm, 0.85rem);
+}
+
+/* ── Loading-more indicator ───────────────────────────────────── */
+.dashboard-loading-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  color: var(--muted-text);
+  font-size: 0.85rem;
+}
+
+.dashboard-loading-more .spinner-small {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--palette-primary);
+  border-radius: 50%;
+  animation: dashboard-spin 0.8s linear infinite;
+}
+
+/* ── Infinite-scroll sentinel ──────────────────────────────────── */
+.dashboard-scroll-sentinel {
+  height: 20px;
+  margin: 10px 0;
+}
+
+/* ── Empty state ──────────────────────────────────────────────── */
+.dashboard-empty {
+  text-align: center;
+  color: var(--muted-text);
+  font-size: 0.85rem;
+  padding: var(--spacing-lg);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Collapse / Fold — grid-level and section-level toggles
+   ════════════════════════════════════════════════════════════════ */
+
+/* ── OS‑style collapse toggle (top‑left corner) ───────────────── */
+.dashboard-grid-collapse-toggle {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--muted-text);
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.dashboard-grid-collapse-toggle:hover {
+  background: var(--hover-bg);
+  border-color: var(--palette-primary);
+  color: var(--palette-primary);
+}
+
+/* Larger chevron inside the OS‑style button */
+.dashboard-grid-collapse-toggle .dashboard-collapse-chevron,
+.dashboard-section-collapse-toggle .dashboard-collapse-chevron {
+  width: 7px;
+  height: 7px;
+}
+
+/* ── Collapsed grid state ─────────────────────────────────────── */
+.dashboard-grid--collapsed {
+  min-height: 48px;       /* just enough to show the toggle */
+}
+
+.dashboard-grid--collapsed .dashboard-grid-collapse-toggle {
+  position: relative;     /* let it sit naturally in the thin bar */
+  top: auto;
+  left: auto;
+  margin: 10px auto 10px 12px;
+}
+
+/* ── Section collapse toggle (in header) ──────────────────────── */
+.dashboard-section-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  min-width: 0;
+  flex: 1;
+}
+
+.dashboard-section-collapse-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--muted-text);
+  flex-shrink: 0;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.dashboard-section-collapse-toggle:hover {
+  background: var(--hover-bg);
+  border-color: var(--palette-primary);
+  color: var(--palette-primary);
+}
+
+/* ── Shared chevron icon (CSS-only, no icon lib needed) ───────── */
+.dashboard-collapse-chevron {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);    /* ▲ pointing up when expanded → click collapses */
+  transition: transform 0.25s ease;
+  flex-shrink: 0;
+}
+
+.dashboard-collapse-chevron--collapsed {
+  transform: rotate(-135deg);  /* ▼ pointing down when collapsed → click expands */
+}
+
+/* ── Section collapse body (animate in/out) ───────────────────── */
+.dashboard-section-collapse-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Responsive ────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .dashboard-grid--cols-3 .dashboard-grid-content {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-grid--cols-2 .dashboard-grid-content,
+  .dashboard-grid--cols-3 .dashboard-grid-content {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-grid-section {
+    max-height: 420px;
+  }
+}

@@ -1,15 +1,20 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Filter } from 'lucide-react';
-import { OrganizationIcon } from '../components/Icons';
+import { NetworkIcon } from '../components/Icons';
 import apiClient from '../api/client';
-import DualRangeSlider from '../components/DualRangeSlider';
-import DecisionCard from '../components/DecisionCard';
+import TimeRangeSection from '../components/TimeRangeSection';
 import SortControl from '../components/SortControl';
 import TopCounterparts from '../components/TopCounterparts';
 import TopRelationshipPairs from '../components/TopRelationshipPairs';
+import SearchInput from '../components/SearchInput';
+import DecisionList from '../components/DecisionList';
+import FilterPanel from '../components/FilterPanel';
+import StatisticsGrid from '../components/StatisticsGrid';
 import useUrlFilters from '../hooks/useUrlFilters';
-import { createDynamicDateRangeUtils, formatAmount } from '../utils/dateUtils';
+import useDocumentContent from '../hooks/useDocumentContent';
+import useDecisionsList from '../hooks/useDecisionsList';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { createDynamicDateRangeUtils, formatAmount, toLocalISODate } from '../utils/dateUtils';
 import { useTranslation } from '../contexts/TranslationContext';
 import './EntityDetailPage.css';
 
@@ -18,6 +23,15 @@ const EntityDetailPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation();
+
+  // Enhanced state to handle both modes
+  const [entityData, setEntityData] = useState(null);
+
+  useDocumentTitle(
+    entityData?.name
+      ? entityData.name
+      : (entityType && entityId ? `${entityType}/${entityId}` : null)
+  );
 
   // Determine exploration mode
   const explorationMode = location.pathname.startsWith('/explore') ? 'temporal' : 'entity';
@@ -42,14 +56,10 @@ const EntityDetailPage = () => {
   // Debounced search query
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
 
-  // Enhanced state to handle both modes
-  const [entityData, setEntityData] = useState(null);
   const [statistics, setStatistics] = useState(null);
-  const [decisions, setDecisions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [statisticsLoading, setStatisticsLoading] = useState(false);
+  const [statisticsError, setStatisticsError] = useState(null);
   const [error, setError] = useState(null);
-  const [pagination, setPagination] = useState(null);
-  const [loadingMore, setLoadingMore] = useState(false);
 
   // Enhanced date range state
   const [entityDateRange, setEntityDateRange] = useState(null);
@@ -60,11 +70,19 @@ const EntityDetailPage = () => {
 
   // Decision type filtering state
   const [availableDecisionTypes, setAvailableDecisionTypes] = useState([]);
-  const [showDecisionTypeFilter, setShowDecisionTypeFilter] = useState(false);
   const [decisionTypesLoading, setDecisionTypesLoading] = useState(false);
   const [isOrganizationsExpanded, setIsOrganizationsExpanded] = useState(true);
   const [isTimeRangeExpanded, setIsTimeRangeExpanded] = useState(true);
   const [temporalSummary, setTemporalSummary] = useState(null);
+
+  const requiresManualStatistics = explorationMode === 'entity' && entityType === 'organization';
+  const [statsRequested, setStatsRequested] = useState(!requiresManualStatistics);
+
+  useEffect(() => {
+    setStatsRequested(!requiresManualStatistics);
+    setStatistics(null);
+    setStatisticsError(null);
+  }, [requiresManualStatistics]);
 
   // Parse temporal parameters into date range
   const parseTemporalDateRange = useCallback(() => {
@@ -91,8 +109,8 @@ const EntityDetailPage = () => {
       const monthNum = parseInt(month);
       const startOfMonth = new Date(yearNum, monthNum - 1, 1);
       const endOfMonth = new Date(yearNum, monthNum, 0);
-      startDateStr = startOfMonth.toISOString().split('T')[0];
-      endDateStr = endOfMonth.toISOString().split('T')[0];
+      startDateStr = toLocalISODate(startOfMonth);
+      endDateStr = toLocalISODate(endOfMonth);
       label = t('exploration.decisionsIn', {
         period: startOfMonth.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
       });
@@ -106,8 +124,8 @@ const EntityDetailPage = () => {
       weekStart.setDate(jan1.getDate() + (weekNum - 1) * 7 - jan1.getDay());
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekStart.getDate() + 6);
-      startDateStr = weekStart.toISOString().split('T')[0];
-      endDateStr = weekEnd.toISOString().split('T')[0];
+      startDateStr = toLocalISODate(weekStart);
+      endDateStr = toLocalISODate(weekEnd);
       label = t('exploration.week', { week: weekNum, year: yearNum });
     }
 
@@ -123,29 +141,7 @@ const EntityDetailPage = () => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const handleViewDocumentContent = async (decisionId) => {
-    try {
-      // Use integer ID - no encoding needed!
-      const response = await apiClient.get(`/decision/${decisionId}/content/`);
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching document content:', error);
-
-      // Handle axios-specific error structure
-      if (error.response) {
-        const errorMessage = error.response.data?.error ||
-                            error.response.data?.message ||
-                            `HTTP ${error.response.status}: ${error.response.statusText}`;
-        throw new Error(errorMessage);
-      } else if (error.request) {
-        // The request was made but no response was received
-        throw new Error('No response from server');
-      } else {
-        // Something happened in setting up the request that triggered an Error
-        throw new Error(error.message || 'Request failed');
-      }
-    }
-  };
+  const { fetchContent: handleViewDocumentContent } = useDocumentContent();
   // Enhanced fetch functions for both modes
   const fetchEntityDateRange = useCallback(async () => {
     try {
@@ -182,11 +178,20 @@ const EntityDetailPage = () => {
 
         setEntityDateRange(response.data);
 
+        // Populate entity metadata (name, type, etc.) from the date-range
+        // response so the page title renders correctly even when full
+        // statistics are deferred (e.g. for organizations).
+        if (response.data.entity) {
+          setEntityData(response.data.entity);
+        }
+
         if (response.data.has_data) {
           const dateUtils = createDynamicDateRangeUtils(response.data);
           setDynamicDateUtils(dateUtils);
 
-          const defaultRange = dateUtils.getDefaultRange();
+          const defaultRange = dateUtils.getProgressiveDefaultRange(
+            response.data.activity_chart?.data
+          );
           setMonthRange(defaultRange);
           setTimeRange({
             startDate: dateUtils.indexToDateString(defaultRange.startIndex),
@@ -232,6 +237,9 @@ const EntityDetailPage = () => {
   const fetchStatistics = useCallback(async () => {
     if (!timeRange) return;
 
+    setStatisticsLoading(true);
+    setStatisticsError(null);
+
     try {
       const params = new URLSearchParams({
         start_date: timeRange.startDate,
@@ -242,10 +250,13 @@ const EntityDetailPage = () => {
       if (explorationMode === 'temporal') {
         endpoint = `/explore/statistics/?${params.toString()}`;
       } else {
+        if (requiresManualStatistics) {
+          params.append('lite', 'true');
+        }
         endpoint = `/entity/${entityType}/${entityId}/statistics/?${params.toString()}`;
       }
 
-      const response = await apiClient.get(endpoint);
+      const response = await apiClient.get(endpoint, { timeout: 60000 });
       setStatistics(response.data);
 
       if (explorationMode === 'temporal') {
@@ -255,89 +266,75 @@ const EntityDetailPage = () => {
       }
     } catch (err) {
       console.error('Failed to fetch statistics:', err);
-      setError(t('errors.failedToLoad'));
-    }
-  }, [explorationMode, entityType, entityId, timeRange, t]);
-
-  const fetchDecisions = useCallback(async (page = 1, append = false) => {
-    if (!timeRange) return;
-
-    try {
-      if (!append) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
-      }
-
-      const params = new URLSearchParams({
-        start_date: timeRange.startDate,
-        end_date: timeRange.endDate,
-        page_size: '20',
-        sort_by: sortBy,
-        page: page.toString()
-      });
-
-      if (debouncedSearchQuery.trim()) {
-        params.append('q', debouncedSearchQuery.trim());
-      }
-
-      // Add decision type filtering
-      if (selectedDecisionTypes.length > 0) {
-        params.append('decision_types', selectedDecisionTypes.join(','));
-      }
-
-      // Add amount filtering
-      if (amountFilters.minAmount) {
-        params.append('min_amount', amountFilters.minAmount);
-      }
-      if (amountFilters.maxAmount) {
-        params.append('max_amount', amountFilters.maxAmount);
-      }
-
-      // Add organization filtering for temporal mode
-      if (explorationMode === 'temporal' && organizationFilters.length > 0) {
-        params.append('organization_ids', organizationFilters.join(','));
-      }
-
-      // Add direct assignments filter
-      if (directAssignmentsOnly) {
-        params.append('direct_assignments_only', 'true');
-      }
-
-      let endpoint;
-      if (explorationMode === 'temporal') {
-        endpoint = `/explore/decisions-optimized/?${params.toString()}`;
-      } else {
-        endpoint = `/entity/${entityType}/${entityId}/decisions/?${params.toString()}`;
-      }
-
-      const response = await apiClient.get(endpoint);
-
-      if (append) {
-        setDecisions(prevDecisions => [...prevDecisions, ...response.data.results]);
-      } else {
-        setDecisions(response.data.results);
-      }
-
-      setPagination(response.data.pagination);
-
-    } catch (err) {
-      console.error('Failed to fetch decisions:', err);
-      setError(t('errors.failedToLoad'));
+      setStatisticsError(t('statistics.loadError'));
     } finally {
-      if (!append) {
-        setLoading(false);
-      } else {
-        setLoadingMore(false);
-      }
+      setStatisticsLoading(false);
     }
-  }, [explorationMode, entityType, entityId, timeRange, sortBy, debouncedSearchQuery, selectedDecisionTypes, amountFilters, organizationFilters, directAssignmentsOnly, t]);
+  }, [explorationMode, entityType, entityId, timeRange, t, requiresManualStatistics]);
 
-  const loadMoreDecisions = useCallback(() => {
-    if (pagination && pagination.has_next && !loadingMore) {
-      fetchDecisions(pagination.current_page + 1, true);
+  // ── Unified decisions list hook ────────────────────────────────────────
+  const decisionsEndpoint = explorationMode === 'temporal'
+    ? '/explore/decisions-optimized/'
+    : `/entity/${entityType}/${entityId}/decisions/`;
+
+  const decisionsParams = {
+    sort_by: sortBy,
+    start_date: timeRange?.startDate,
+    end_date: timeRange?.endDate,
+    ...(debouncedSearchQuery.trim() && { q: debouncedSearchQuery.trim() }),
+    ...(selectedDecisionTypes.length > 0 && { decision_types: selectedDecisionTypes.join(',') }),
+    ...(amountFilters.minAmount && { min_amount: amountFilters.minAmount }),
+    ...(amountFilters.maxAmount && { max_amount: amountFilters.maxAmount }),
+    ...(explorationMode === 'temporal' && organizationFilters.length > 0 && { organization_ids: organizationFilters.join(',') }),
+    ...(directAssignmentsOnly && { direct_assignments_only: 'true' }),
+  };
+
+  const {
+    decisions,
+    pagination,
+    loading,
+    loadingMore,
+    loadMore,
+  } = useDecisionsList({
+    endpoint: decisionsEndpoint,
+    params: decisionsParams,
+    enabled: !!timeRange,
+  });
+
+  // Build a human-readable subtitle from metadata instead of showing the raw ID
+  const getEntitySubtitle = useCallback(() => {
+    const typeLabel = entityType.charAt(0).toUpperCase() + entityType.slice(1);
+
+    if (!entityData?.metadata) {
+      return `${typeLabel} • ${entityId}`;
     }
-  }, [pagination, loadingMore, fetchDecisions]);
+
+    const meta = entityData.metadata;
+
+    if (entityType === 'organization') {
+      const parts = [typeLabel];
+      if (meta.category) parts.push(meta.category);
+      if (meta.status) parts.push(meta.status);
+      return parts.join(' • ');
+    }
+
+    if (entityType === 'afm') {
+      const parts = [typeLabel];
+      if (meta.entity_type) parts.push(meta.entity_type);
+      if (meta.total_appearances != null) parts.push(`${meta.total_appearances} ${t('statistics.totalDecisions').toLowerCase()}`);
+      return parts.join(' • ');
+    }
+
+    if (entityType === 'signer') {
+      const parts = [typeLabel];
+      if (meta.total_organizations != null) {
+        parts.push(`${meta.total_organizations} ${t('statistics.organizationsCount').toLowerCase()}`);
+      }
+      return parts.join(' • ');
+    }
+
+    return `${typeLabel} • ${entityId}`;
+  }, [entityType, entityId, entityData, t]);
 
   // Enhanced page title and breadcrumbs
   const getPageInfo = () => {
@@ -350,8 +347,8 @@ const EntityDetailPage = () => {
       };
     } else {
       return {
-        title: entityData?.name || t('common.unknown') + ' Entity',
-        subtitle: `${entityType.charAt(0).toUpperCase() + entityType.slice(1)} • ID: ${entityId}`,
+        title: entityData?.name || entityId,
+        subtitle: getEntitySubtitle(),
         breadcrumb: t('entityDetail.exploreArrow') + ' ' + t('entityDetail.entityArrow')
       };
     }
@@ -366,18 +363,15 @@ const EntityDetailPage = () => {
   };
 
   // Update URL params when filters change
-  // Initial load effect
+  // Initial load: fetch date range
   useEffect(() => {
     const loadInitialData = async () => {
-      setLoading(true);
       setError(null);
 
       try {
         await fetchEntityDateRange();
       } catch (err) {
         setError(t('errors.failedToLoad'));
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -385,44 +379,27 @@ const EntityDetailPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [explorationMode, entityType, entityId]);
 
-  // Load data when time range is set
+  // Load decision types when time range is set (decisions are handled by useDecisionsList)
   useEffect(() => {
     if (timeRange) {
-      const loadData = async () => {
-        try {
-          await Promise.all([
-            fetchStatistics(),
-            fetchDecisions(1, false),
-            fetchDecisionTypes()
-          ]);
-        } catch (err) {
-          setError(t('errors.failedToLoad'));
-        }
-      };
-
-      loadData();
+      fetchDecisionTypes();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeRange, sortBy, debouncedSearchQuery, selectedDecisionTypes, amountFilters, organizationFilters]);
+  }, [timeRange]);
 
   useEffect(() => {
-    const handleScroll = () => {
-      if (
-        window.innerHeight + document.documentElement.scrollTop >=
-        document.documentElement.offsetHeight - 1000 &&
-        pagination &&
-        pagination.has_next &&
-        !loadingMore &&
-        !loading
-      ) {
-        loadMoreDecisions();
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    if (!timeRange || !statsRequested) return;
+    // Non-blocking: statistics load independently from decision list/counterparts.
+    fetchStatistics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagination, loadingMore, loading]);
+  }, [timeRange, sortBy, debouncedSearchQuery, selectedDecisionTypes, amountFilters, organizationFilters, statsRequested]);
+
+  // Memoize dateRange for TopCounterparts to prevent duplicate fetches from
+  // referentially-new inline objects on every render.
+  const topCounterpartDateRange = useMemo(() => ({
+    start_date: timeRange?.startDate,
+    end_date: timeRange?.endDate,
+  }), [timeRange?.startDate, timeRange?.endDate]);
 
   // Handlers
   const handleMonthRangeChange = (startIndex, endIndex) => {
@@ -447,15 +424,10 @@ const EntityDetailPage = () => {
     });
   };
 
-  const formatSliderValue = useCallback((value) => {
-    if (!dynamicDateUtils) return '';
-    return dynamicDateUtils.formatMonth(value);
-  }, [dynamicDateUtils]);
-
-  // Loading states
-  if (dateRangeLoading || loading) {
+  // Loading states (date range loading, or entity metadata not yet available while decisions are loading)
+  if (dateRangeLoading || (loading && !entityData)) {
     return (
-      <div style={{ padding: '20px', textAlign: 'center' }}>
+      <div style={{ padding: 'var(--spacing-xl)', textAlign: 'center' }}>
         <h2>{t('entityDetail.loadingEntity', { entityType })}</h2>
         <div>{t('entityDetail.loadingData', { entityId })}</div>
       </div>
@@ -465,17 +437,13 @@ const EntityDetailPage = () => {
   // No data state
   if (entityDateRange && !entityDateRange.has_data) {
     return (
-      <div style={{ padding: '20px' }}>
-        <button onClick={() => navigate('/dev')} className="back-button">
-          {t('entityDetail.backToOrgChart')}
-        </button>
-
+      <div style={{ padding: 'var(--spacing-xl)' }}>
         <div style={{
           backgroundColor: '#fff3cd',
           border: '1px solid #ffeaa7',
-          borderRadius: '6px',
-          padding: '20px',
-          marginTop: '20px',
+          borderRadius: 'var(--radius-md)',
+          padding: 'var(--spacing-xl)',
+          marginTop: 'var(--spacing-xl)',
           textAlign: 'center'
         }}>
           <h2>{t('entityDetail.noDataAvailable')}</h2>
@@ -488,44 +456,69 @@ const EntityDetailPage = () => {
 
   if (error) {
     return (
-      <div style={{ padding: '20px' }}>
+      <div style={{ padding: 'var(--spacing-xl)' }}>
         <div style={{
           backgroundColor: '#ffe6e6',
           border: '1px solid #ff9999',
-          borderRadius: '4px',
-          padding: '15px',
-          marginBottom: '20px'
+          borderRadius: 'var(--radius-sm)',
+          padding: 'var(--spacing-md)',
+          marginBottom: 'var(--spacing-xl)'
         }}>
           <strong>{t('common.error')}:</strong> {error}
         </div>
-        <button onClick={() => navigate('/dev')}>
-          {t('entityDetail.backToOrgChart')}
-        </button>
       </div>
     );
   }
 
   const pageInfo = getPageInfo();
 
+  // Build statistics cards for StatisticsGrid component
+  const statCards = statistics ? [
+    {
+      title: t('statistics.totalDecisions'),
+      value: statistics.summary.decisions.total_count.toLocaleString(),
+      subtitle: explorationMode === 'temporal'
+        ? t('entityDetail.acrossOrganizations', { count: temporalSummary?.organizations_count || 0 })
+        : undefined,
+    },
+    {
+      title: t('statistics.totalAmount'),
+      value: formatAmount(statistics.summary.financial.primary_amount),
+      warning: statistics.summary.financial.has_discrepancy
+        ? t('statistics.amountDiscrepancy', { percentage: statistics.summary.financial.discrepancy_percentage })
+        : undefined,
+    },
+    ...(!requiresManualStatistics
+      ? [{
+          title: t('statistics.averageAmount'),
+          value: formatAmount(statistics.summary.decisions.avg_amount),
+        }]
+      : []),
+    {
+      title: t('statistics.period'),
+      value: t('statistics.days', { count: statistics.period.days_count }),
+      subtitle: `${new Date(statistics.period.start_date).toLocaleDateString()} - ${new Date(statistics.period.end_date).toLocaleDateString()}`,
+    },
+  ] : null;
+
   return (
     <div className="entity-detail-page">
       <div className="entity-header">
-        <div className="header-actions">
-          {/* Organization Chart Button for organization entities */}
+        <div className="page-breadcrumb">{pageInfo.breadcrumb}</div>
+
+        <div className="entity-title-row">
+          <h1 className="entity-title">{pageInfo.title}</h1>
           {entityType === 'organization' && explorationMode !== 'temporal' && (
             <button
               onClick={handleViewOrganizationChart}
-              className="org-chart-button"
+              className="org-chart-button-icon"
               title={t('entityDetail.viewOrganizationChart')}
+              aria-label={t('entityDetail.viewOrganizationChart')}
             >
-              <OrganizationIcon /> {t('entityDetail.viewOrganizationChart')}
+              <NetworkIcon />
             </button>
           )}
         </div>
-
-        <div className="page-breadcrumb">{pageInfo.breadcrumb}</div>
-
-        <h1 className="entity-title">{pageInfo.title}</h1>
         <div className="entity-subtitle">{pageInfo.subtitle}</div>
 
         {/* Signer Organizations and Positions - Collapsible */}
@@ -557,7 +550,7 @@ const EntityDetailPage = () => {
                         onClick={() => navigate(`/entity/organization/${orgData.organization.uid}`)}
                         title={t('entityDetail.viewOrganizationDetails')}
                       >
-                        <OrganizationIcon /> {orgData.organization.label}
+                        <NetworkIcon /> {orgData.organization.label}
                       </button>
                       {orgData.decision_count && (
                         <span className="decision-count">
@@ -606,113 +599,51 @@ const EntityDetailPage = () => {
 
         {/* Enhanced time range - Collapsible */}
         {dynamicDateUtils && monthRange && (
-          <details
-            className="time-range-container collapsible-section"
+          <TimeRangeSection
+            dynamicDateUtils={dynamicDateUtils}
+            monthRange={monthRange}
+            onMonthRangeChange={handleMonthRangeChange}
+            dateRange={entityDateRange.date_range}
+            activityData={entityDateRange.activity_chart}
+            summaryPrefix={explorationMode === 'temporal' ? t('exploration.globalData') : t('exploration.entityData')}
+            showDateSpanInfo={true}
             open={isTimeRangeExpanded}
-            onToggle={(e) => setIsTimeRangeExpanded(e.target.open)}
-          >
-            <summary className="section-summary">
-              <span className="summary-title">
-                {t('entityDetail.timeRange')}
-              </span>
-              <span className="summary-count">
-                {explorationMode === 'temporal' ? t('exploration.globalData') : t('exploration.entityData')} — {t('exploration.availableDataShort', {
-                  days: entityDateRange.date_range.span_days
-                })}
-              </span>
-              <span className="toggle-icon">
-                {isTimeRangeExpanded ? '▼' : '▶'}
-              </span>
-            </summary>
-
-            <div className="section-content">
-              <div className="time-range-header">
-                <span className="date-span-info">
-                  {t('exploration.availableData', {
-                    start: entityDateRange.date_range.earliest,
-                    end: entityDateRange.date_range.latest,
-                    days: entityDateRange.date_range.span_days
-                  })}
-                </span>
-              </div>
-
-              <DualRangeSlider
-                min={0}
-                max={dynamicDateUtils.totalMonths - 1}
-                startValue={monthRange.startIndex}
-                endValue={monthRange.endIndex}
-                onChange={handleMonthRangeChange}
-                label={t('entityDetail.selectTimePeriod')}
-                formatValue={formatSliderValue}
-                activityData={entityDateRange.activity_chart}
-              />
-            </div>
-          </details>
+            onToggle={setIsTimeRangeExpanded}
+          />
         )}
       </div>
 
       {/* Enhanced Statistics Cards for both modes */}
-      {statistics && (
-        <div className="statistics-grid">
-          <div className="stat-card">
-            <h3 className="stat-title">{t('statistics.totalDecisions')}</h3>
-            <div className="stat-value">
-              {statistics.summary.decisions.total_count.toLocaleString()}
-            </div>
-            {explorationMode === 'temporal' && (
-              <div className="stat-context">
-                {t('entityDetail.acrossOrganizations', { count: temporalSummary?.organizations_count || 0 })}
-              </div>
-            )}
-          </div>
-
-          <div className="stat-card">
-            <h3 className="stat-title">{t('statistics.totalAmount')}</h3>
-            <div className="stat-value">
-              €{statistics.summary.financial.primary_amount.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              })}
-            </div>
-            {statistics.summary.financial.has_discrepancy && (
-              <div className="discrepancy-warning">
-                {t('statistics.amountDiscrepancy', { percentage: statistics.summary.financial.discrepancy_percentage })}
-              </div>
-            )}
-          </div>
-
-          <div className="stat-card">
-            <h3 className="stat-title">{t('statistics.averageAmount')}</h3>
-            <div className="stat-value">
-              €{statistics.summary.decisions.avg_amount.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              })}
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <h3 className="stat-title">{t('statistics.period')}</h3>
-            <div className="stat-period">
-              {t('statistics.days', { count: statistics.period.days_count })}
-            </div>
-            <div className="stat-date-range">
-              {new Date(statistics.period.start_date).toLocaleDateString()} - {new Date(statistics.period.end_date).toLocaleDateString()}
-            </div>
-          </div>
+      {requiresManualStatistics && !statsRequested ? (
+        <div className="statistics-manual-trigger" style={{ marginBottom: 'var(--spacing-xl)' }}>
+          <button
+            type="button"
+            className="see-all-button"
+            onClick={() => setStatsRequested(true)}
+          >
+            {t('entityDetail.loadStatistics', 'Load statistics')}
+          </button>
         </div>
+      ) : (
+        <StatisticsGrid
+          loading={statisticsLoading}
+          error={statisticsError}
+          cards={statCards}
+          onRetry={fetchStatistics}
+        />
       )}
 
       {/* Top Counterparts - Shows related entities/organizations */}
-      {explorationMode === 'entity' && entityData && entityType === 'organization' && timeRange && (
+      {explorationMode === 'entity' && entityType === 'organization' && timeRange && (
         <TopCounterparts
           type="organization"
           id={entityId}
-          dateRange={{
-            start_date: timeRange.startDate,
-            end_date: timeRange.endDate
-          }}
+          dateRange={topCounterpartDateRange}
           limit={5}
+          onCounterpartClick={(counterpart) => {
+            const afm = counterpart.entity_afm;
+            navigate(`/relationship/entity/${afm}/org/${entityId}?start_date=${timeRange.startDate}&end_date=${timeRange.endDate}`);
+          }}
         />
       )}
 
@@ -735,23 +666,12 @@ const EntityDetailPage = () => {
           </h3>
 
           <div className="controls-container">
-            <div className="search-container">
-              <label className="search-label">{t('entityDetail.search')}:</label>
-              <div className="search-input-wrapper">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={t('entityDetail.searchInDecisions')}
-                  className="search-input"
-                />
-                {searchQuery && (
-                  <button onClick={() => setSearchQuery('')} className="clear-button">
-                    ×
-                  </button>
-                )}
-              </div>
-            </div>
+            <SearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder={t('entityDetail.searchInDecisions')}
+              label={`${t('entityDetail.search')}:`}
+            />
 
             <label className="checkbox-label" style={{ marginRight: '1rem' }}>
               <input
@@ -766,93 +686,70 @@ const EntityDetailPage = () => {
           </div>
         </div>
 
-        <div className="filters-section">
-          <div
-            className="filters-header clickable"
-            onClick={() => setShowDecisionTypeFilter(!showDecisionTypeFilter)}
-          >
-            <div className="filter-toggle-content">
-              <Filter size={18} />
-              <span>{t('entityDetail.filters')} {activeFiltersCount > 0 && `(${activeFiltersCount})`}</span>
-              <span className="toggle-arrow">{showDecisionTypeFilter ? '▲' : '▼'}</span>
+        <FilterPanel
+          activeFiltersCount={activeFiltersCount}
+          onClearAll={clearAllFilters}
+          filterLabel={t('entityDetail.filters')}
+        >
+          {/* Amount Filters */}
+          <div className="filter-group">
+            <h4>{t('entityDetail.amountRange')}</h4>
+            <div className="amount-filters">
+              <input
+                type="number"
+                placeholder={t('entityDetail.minAmountPlaceholder')}
+                value={amountFilters.minAmount}
+                onChange={(e) => handleAmountFilterChange('minAmount', e.target.value)}
+                className="amount-input"
+              />
+              <span className="amount-separator">{t('entityDetail.amountTo')}</span>
+              <input
+                type="number"
+                placeholder={t('entityDetail.maxAmountPlaceholder')}
+                value={amountFilters.maxAmount}
+                onChange={(e) => handleAmountFilterChange('maxAmount', e.target.value)}
+                className="amount-input"
+              />
             </div>
+          </div>
 
-            {activeFiltersCount > 0 && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  clearAllFilters();
-                }}
-                className="clear-filters-button"
-              >
-                {t('entityDetail.clearAllFilters')}
-              </button>
+          {/* Decision Type Filters */}
+          <div className="filter-group">
+            <h4>{t('entityDetail.decisionTypes')}</h4>
+            {decisionTypesLoading ? (
+              <div className="loading-text">{t('entityDetail.loadingDecisionTypes')}</div>
+            ) : (
+              <div className="decision-types-grid">
+                {availableDecisionTypes.map(type => (
+                  <label key={type.uid} className="decision-type-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={selectedDecisionTypes.includes(type.uid)}
+                      onChange={(e) => handleDecisionTypeToggle(type.uid, e.target.checked)}
+                    />
+                    <span className="checkbox-content">
+                      <span className="type-label">{type.label}</span>
+                      <span className="type-stats">
+                        {t('entityDetail.decisionTypesCount', {
+                          count: type.count,
+                          amount: type.total_amount.toLocaleString()
+                        })}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
             )}
           </div>
 
-          {showDecisionTypeFilter && (
-            <div className="filters-panel">
-              {/* Amount Filters */}
-              <div className="filter-group">
-                <h4>{t('entityDetail.amountRange')}</h4>
-                <div className="amount-filters">
-                  <input
-                    type="number"
-                    placeholder={t('entityDetail.minAmountPlaceholder')}
-                    value={amountFilters.minAmount}
-                    onChange={(e) => handleAmountFilterChange('minAmount', e.target.value)}
-                    className="amount-input"
-                  />
-                  <span className="amount-separator">{t('entityDetail.amountTo')}</span>
-                  <input
-                    type="number"
-                    placeholder={t('entityDetail.maxAmountPlaceholder')}
-                    value={amountFilters.maxAmount}
-                    onChange={(e) => handleAmountFilterChange('maxAmount', e.target.value)}
-                    className="amount-input"
-                  />
-                </div>
-              </div>
-
-              {/* Decision Type Filters */}
-              <div className="filter-group">
-                <h4>{t('entityDetail.decisionTypes')}</h4>
-                {decisionTypesLoading ? (
-                  <div className="loading-text">{t('entityDetail.loadingDecisionTypes')}</div>
-                ) : (
-                  <div className="decision-types-grid">
-                    {availableDecisionTypes.map(type => (
-                      <label key={type.uid} className="decision-type-checkbox">
-                        <input
-                          type="checkbox"
-                          checked={selectedDecisionTypes.includes(type.uid)}
-                          onChange={(e) => handleDecisionTypeToggle(type.uid, e.target.checked)}
-                        />
-                        <span className="checkbox-content">
-                          <span className="type-label">{type.label}</span>
-                          <span className="type-stats">
-                            {t('entityDetail.decisionTypesCount', {
-                              count: type.count,
-                              amount: type.total_amount.toLocaleString()
-                            })}
-                          </span>
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Organization Filters - only for temporal mode */}
-              {explorationMode === 'temporal' && (
-                <div className="filter-group">
-                  <h4>{t('entityDetail.organizations')}</h4>
-                  {/* Add organization filter UI */}
-                </div>
-              )}
+          {/* Organization Filters - only for temporal mode */}
+          {explorationMode === 'temporal' && (
+            <div className="filter-group">
+              <h4>{t('entityDetail.organizations')}</h4>
+              {/* Add organization filter UI */}
             </div>
           )}
-        </div>
+        </FilterPanel>
 
         {/* Search Results Info */}
         {searchQuery && (
@@ -898,56 +795,21 @@ const EntityDetailPage = () => {
 
 
 
-        {decisions.length > 0 ? (
-          <div>
-            {decisions.map((decision, index) => (
-              <DecisionCard
-                key={decision.ada}
-                decision={decision}
-                formatAmount={formatAmount}
-                index={index}
-                isLastItem={index === decisions.length - 1}
-                onViewDocumentContent={handleViewDocumentContent}
-              />
-            ))}
-
-            {loadingMore && (
-              <div className="loading-more-container">
-                <div className="loading-more-text">
-                  {t('entityDetail.loadingMoreDecisions')}
-                </div>
-              </div>
-            )}
-
-            {pagination && (
-              <div className="pagination-info">
-                {t('entityDetail.showingDecisions', {
-                  current: decisions.length,
-                  total: pagination.total_count
-                })}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="no-decisions-message">
-            {t('entityDetail.noDecisionsFound')}
-          </div>
-        )}
-
-        {pagination && pagination.has_next && (
-          <div className="load-more-container">
-            <button
-              onClick={loadMoreDecisions}
-              disabled={loadingMore}
-              className={`load-more-button ${loadingMore ? 'loading' : ''}`}
-            >
-              {loadingMore ?
-                t('entityDetail.loadingMoreButton') :
-                t('entityDetail.loadMoreButton', { remaining: pagination.total_count - decisions.length })
-              }
-            </button>
-          </div>
-        )}
+        <DecisionList
+          decisions={decisions}
+          loading={loading}
+          loadingMore={loadingMore}
+          error={null}
+          pagination={pagination}
+          hasSearchQuery={!!(searchQuery || activeFiltersCount > 0)}
+          formatAmount={formatAmount}
+          onViewDocumentContent={handleViewDocumentContent}
+          onLoadMore={loadMore}
+          emptyMessage={t('entityDetail.noDecisionsFound')}
+          showPaginationInfo={true}
+          infiniteScroll={true}
+          getDecisionKey={(d) => d.ada}
+        />
       </div>
     </div>
   );

@@ -1,39 +1,26 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 
+from api.utils.date_utils import _parse_optional_date_range
+from api.utils.sorting import apply_decision_sorting
 from core.decorators.cache_decorator import cached_view
 from core.models.decisions import Decision
+from core.models.entities import DecisionAmountField
 from core.services.feature_flag_service import feature_flags
-from core.services.financial_calculation_service import FinancialCalculationService
+
 from core.services.search_analytics_service import SearchAnalyticsService
 from core.utils.performance_monitoring import monitor_query_performance
 from django.conf import settings
 from django.core.paginator import Paginator
 from django.db import models
-from django.db.models.functions import TruncDay, TruncMonth, TruncQuarter, TruncWeek
+
 from django.utils import timezone
-from django.utils.dateparse import parse_date
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from .base import calculate_financial_summary, serialize_decision_with_content_info
-
-
-@swagger_auto_schema(...)
-@api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
-def explore_date_range_api_dev(request):
-    """Get the global date range and activity overview for temporal exploration"""
-    # Move all explore_* endpoints here
-
-
-@api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
-def explore_statistics_api_dev(request):
-    """Get statistics for temporal exploration across all organizations"""
-    # Move temporal exploration endpoints here
+from .base import serialize_decision_with_entities
 
 
 @swagger_auto_schema(
@@ -59,23 +46,25 @@ def explore_statistics_api_dev(request):
 def explore_date_range_api_dev(request):
     """Get the global date range and activity overview for temporal exploration"""
     try:
-        # Use financial service for improved calculations
-        financial_service = FinancialCalculationService()
-
         # Get all decisions queryset (no entity filtering)
         decisions_qs = Decision.objects.all()
 
-        # Get date range with accurate financial calculations
+        # Single aggregation: date range + count + total amount.
+        # We use Decision.amount (the legacy field) here — NOT because accurate
+        # amounts via DecisionAmountField are inherently slow, but because this
+        # endpoint has no date filter: it must discover the global boundaries
+        # first.  Without a date filter, the DecisionAmountField JOIN would scan
+        # the entire table.  Every other explore_* endpoint applies a date filter
+        # BEFORE computing accurate amounts, so they remain fast and precise.
+        # This is the ONLY endpoint that uses the legacy field for this reason.
         date_stats = decisions_qs.aggregate(
-            earliest_date=models.Min("issue_date"),
-            latest_date=models.Max("issue_date"),
+            earliest_date=models.Min("issue_date_day"),
+            latest_date=models.Max("issue_date_day"),
             total_decisions=models.Count("id"),
+            total_amount=models.Sum("amount"),
         )
 
-        # Use financial service to get accurate total amounts across system
-        total_amount_accurate = financial_service.get_global_financial_summary(
-            decisions_queryset=decisions_qs
-        )["total_amount"]
+        total_amount = date_stats["total_amount"] or 0
 
         if not date_stats["earliest_date"]:
             return Response(
@@ -92,23 +81,20 @@ def explore_date_range_api_dev(request):
         latest = date_stats["latest_date"]
         span_days = (latest - earliest).days
 
-        # Choose granularity based on data span
+        # Choose granularity based on data span (week/quarter have no precomputed field)
         if span_days <= 31:  # Less than a month - daily
             granularity = "day"
-            trunc_func = TruncDay
-        elif span_days <= 365:  # Less than a year - weekly
-            granularity = "week"
-            trunc_func = TruncWeek
-        elif span_days <= 1825:  # Less than 5 years - monthly
+            period_column = "issue_date_day"
+        elif span_days <= 1825:  # Up to 5 years - monthly
             granularity = "month"
-            trunc_func = TruncMonth
-        else:  # More than 5 years - quarterly
-            granularity = "quarter"
-            trunc_func = TruncQuarter
+            period_column = "issue_date_month"
+        else:  # More than 5 years - yearly
+            granularity = "year"
+            period_column = "issue_date_year"
 
         # Get activity data for mini chart - fallback to old amount for aggregation performance
         activity_data = (
-            decisions_qs.annotate(period=trunc_func("issue_date"))
+            decisions_qs.annotate(period=models.F(period_column))
             .values("period")
             .annotate(
                 count=models.Count("id"),
@@ -122,9 +108,15 @@ def explore_date_range_api_dev(request):
         # Format activity chart data
         chart_data = []
         for item in activity_data:
+            period_val = item["period"]
+            period_str = (
+                str(period_val)
+                if granularity == "year"
+                else (period_val.isoformat() if period_val else None)
+            )
             chart_data.append(
                 {
-                    "period": item["period"].isoformat() if item["period"] else None,
+                    "period": period_str,
                     "count": item["count"],
                     "amount": float(item["total_amount"] or 0),
                 }
@@ -147,22 +139,19 @@ def explore_date_range_api_dev(request):
             {
                 "has_data": True,
                 "date_range": {
-                    "earliest": earliest.date().isoformat(),
-                    "latest": latest.date().isoformat(),
+                    "earliest": earliest,
+                    "latest": latest,
                     "span_days": span_days,
                     "recommended_granularity": granularity,
                 },
                 "summary": {
                     "total_decisions": date_stats["total_decisions"],
-                    "total_amount": float(total_amount_accurate),  # Use accurate amount
-                    "total_amount_legacy": float(
-                        decisions_qs.aggregate(total=models.Sum("amount"))["total"] or 0
-                    ),  # For comparison
+                    "total_amount": float(total_amount),
                     "avg_daily_decisions": round(
                         date_stats["total_decisions"] / max(span_days, 1), 2
                     ),
                     "avg_daily_amount": round(
-                        float(total_amount_accurate) / max(span_days, 1), 2
+                        float(total_amount) / max(span_days, 1), 2
                     ),
                 },
                 "activity_chart": {
@@ -202,205 +191,34 @@ def explore_date_range_api_dev(request):
         ),
     ],
 )
+@cached_view(
+    cache_prefix="explore_statistics",
+    cache_params=["start_date", "end_date"],
+    end_date_param="end_date",
+    defer_on_miss=True,
+)
 @api_view(["GET"])
 @permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
 @monitor_query_performance(operation="temporal_statistics_global")
 def explore_statistics_api_dev(request):
     """Get statistics for temporal exploration across all organizations"""
-    start_date_str = request.GET.get("start_date")
-    end_date_str = request.GET.get("end_date")
+    start_dt, end_dt, err = _parse_optional_date_range(request)
+    if err:
+        return err
 
-    # Default to last 12 months if no dates provided
-    if not end_date_str:
-        end_date = timezone.now()
-    else:
-        try:
-            end_date_parsed = parse_date(end_date_str)
-            if not end_date_parsed:
-                raise ValueError("Invalid date format")
-            end_date = timezone.make_aware(
-                datetime.combine(end_date_parsed, datetime.max.time())
-            )
-        except (ValueError, TypeError) as e:
-            return Response({"error": f"Invalid end_date format: {e}"}, status=400)
-
-    if not start_date_str:
-        start_date = end_date - timedelta(days=365)
-    else:
-        try:
-            start_date_parsed = parse_date(start_date_str)
-            if not start_date_parsed:
-                raise ValueError("Invalid date format")
-            start_date = timezone.make_aware(
-                datetime.combine(start_date_parsed, datetime.min.time())
-            )
-        except (ValueError, TypeError) as e:
-            return Response({"error": f"Invalid start_date format: {e}"}, status=400)
+    start_date_str = request.GET.get("start_date", "")
+    end_date_str = request.GET.get("end_date", "")
 
     try:
-        # Use financial service for accurate calculations
-        financial_service = FinancialCalculationService()
-
-        # Get all decisions (no entity filtering)
-        decisions_qs = Decision.objects.all()
-
-        # Apply date filters
-        filtered_qs = decisions_qs.filter(
-            issue_date__gte=start_date, issue_date__lte=end_date
-        )
-
-        # Calculate basic statistics using calculated amounts for accuracy
-        # We annotate with the sum of linked amounts per decision
-        stats_qs = filtered_qs.annotate(
-            calculated_amount=models.Sum(
-                "amount_fields__amount",
-                filter=models.Q(amount_fields__associated_relationship__isnull=False),
-            )
-        )
-
-        stats = stats_qs.aggregate(
-            total_decisions=models.Count("id"),
-            avg_amount=models.Avg("calculated_amount"),
-            max_amount=models.Max("calculated_amount"),
-            min_amount=models.Min("calculated_amount"),
-        )
-
-        # Get accurate financial summary using financial service
-        financial_summary = financial_service.get_global_financial_summary(filtered_qs)
-
-        # Enhanced calculate_financial_summary that uses both approaches
-        enhanced_financial_summary = calculate_financial_summary(filtered_qs)
-
-        # Count unique organizations with decisions in this period
-        organizations_count = filtered_qs.values("organization").distinct().count()
-
-        # Monthly breakdown for charts using legacy amounts for performance
-        try:
-            monthly_stats = (
-                filtered_qs.annotate(month=TruncMonth("issue_date"))
-                .values("month")
-                .annotate(
-                    count=models.Count("id"),
-                    amount=models.Sum("amount"),  # Legacy for chart performance
-                )
-                .order_by("month")
-            )
-        except Exception:
-            monthly_stats = []
-
-        # Top decision types with legacy amounts
-        top_types = (
-            filtered_qs.values("decision_type__label")
-            .annotate(
-                count=models.Count("id"),
-                total_amount=models.Sum("amount"),  # Legacy for aggregation
-            )
-            .order_by("-count")[:10]
-        )
-
-        # Top organizations by decision count with legacy amounts
-        top_organizations = (
-            filtered_qs.values("organization__label", "organization__uid")
-            .annotate(
-                count=models.Count("id"),
-                total_amount=models.Sum("amount"),  # Legacy for aggregation
-            )
-            .order_by("-count")[:10]
-        )
-
-        # Status breakdown
-        status_breakdown = (
-            filtered_qs.values("status")
-            .annotate(count=models.Count("id"))
-            .order_by("-count")
-        )
-
-        # Recent decisions
-        recent_decisions = filtered_qs.order_by("-issue_date")[:5].values(
-            "ada",
-            "subject",
-            "issue_date",
-            "amount",
-            "decision_type__label",
-            "organization__label",
-            "organization__uid",
-        )
+        from core.services.analytics_precalc_service import compute_explore_statistics
 
         return Response(
-            {
-                "period": {
-                    "start_date": start_date.isoformat(),
-                    "end_date": end_date.isoformat(),
-                    "days_count": (end_date - start_date).days + 1,
-                },
-                "summary": {
-                    "decisions": {
-                        "total_count": stats["total_decisions"] or 0,
-                        "avg_amount": float(stats["avg_amount"] or 0),
-                        "max_amount": float(stats["max_amount"] or 0),
-                        "min_amount": float(stats["min_amount"] or 0),
-                    },
-                    "financial": enhanced_financial_summary,
-                    "financial_accurate": {
-                        "total_amount": float(financial_summary["total_amount"]),
-                        "calculation_method": financial_summary["calculation_method"],
-                        "accuracy_improvement": float(
-                            financial_summary["accuracy_improvement"]
-                        ),
-                    },
-                    "organizations_count": organizations_count,
-                    "status_breakdown": {
-                        item["status"]: item["count"] for item in status_breakdown
-                    },
-                },
-                "charts": {
-                    "monthly_breakdown": [
-                        {
-                            "month": (
-                                item["month"].isoformat()
-                                if hasattr(item["month"], "isoformat")
-                                else str(item["month"])
-                            ),
-                            "count": item["count"],
-                            "amount": float(item["amount"] or 0),
-                        }
-                        for item in monthly_stats
-                    ],
-                    "top_decision_types": [
-                        {
-                            "type": item["decision_type__label"] or "Unknown",
-                            "count": item["count"],
-                            "total_amount": float(item["total_amount"] or 0),
-                        }
-                        for item in top_types
-                    ],
-                    "top_organizations": [
-                        {
-                            "name": item["organization__label"] or "Unknown",
-                            "uid": item["organization__uid"],
-                            "count": item["count"],
-                            "total_amount": float(item["total_amount"] or 0),
-                        }
-                        for item in top_organizations
-                    ],
-                },
-                "recent_decisions": [
-                    {
-                        "ada": item["ada"],
-                        "subject": item["subject"],
-                        "issue_date": (
-                            item["issue_date"].isoformat()
-                            if item["issue_date"]
-                            else None
-                        ),
-                        "amount": float(item["amount"]) if item["amount"] else None,
-                        "decision_type": item["decision_type__label"],
-                        "organization": item["organization__label"],
-                        "organization_id": item["organization__uid"],
-                    }
-                    for item in recent_decisions
-                ],
-            }
+            compute_explore_statistics(
+                start_dt=start_dt,
+                end_dt=end_dt,
+                start_date_str=start_date_str,
+                end_date_str=end_date_str,
+            )
         )
 
     except Exception as e:
@@ -488,8 +306,8 @@ def explore_statistics_api_dev(request):
 @monitor_query_performance(operation="temporal_decisions_search")
 def explore_decisions_api_dev(request):
     """Get paginated decisions for temporal exploration across all organizations"""
-    start_date_str = request.GET.get("start_date")
-    end_date_str = request.GET.get("end_date")
+    start_date_str = request.GET.get("start_date", "")
+    end_date_str = request.GET.get("end_date", "")
     page = int(request.GET.get("page", 1))
     page_size = int(request.GET.get("page_size", 20))
     search_query = request.GET.get("q", "")
@@ -527,6 +345,11 @@ def explore_decisions_api_dev(request):
     except ValueError:
         return Response({"error": "Invalid amount format"}, status=400)
 
+    # Parse date range via shared helper
+    start_dt, end_dt, err = _parse_optional_date_range(request)
+    if err:
+        return err
+
     # Start search analytics tracking
     search_tracking = None
     if search_query:
@@ -549,25 +372,8 @@ def explore_decisions_api_dev(request):
         )
 
     try:
-        # Get all decisions (no entity filtering)
-        decisions_qs = Decision.objects.all()
-
-        # Apply date filters if provided with timezone awareness
-        if start_date_str:
-            start_date_parsed = parse_date(start_date_str)
-            if start_date_parsed:
-                start_date = timezone.make_aware(
-                    datetime.combine(start_date_parsed, datetime.min.time())
-                )
-                decisions_qs = decisions_qs.filter(issue_date__gte=start_date)
-
-        if end_date_str:
-            end_date_parsed = parse_date(end_date_str)
-            if end_date_parsed:
-                end_date = timezone.make_aware(
-                    datetime.combine(end_date_parsed, datetime.max.time())
-                )
-                decisions_qs = decisions_qs.filter(issue_date__lte=end_date)
+        # Get all decisions with date-range filter applied via custom queryset
+        decisions_qs = Decision.objects.filter_by_date_range(start_dt, end_dt)
 
         # Apply search filter
         if search_query:
@@ -599,8 +405,11 @@ def explore_decisions_api_dev(request):
         if organization_ids:
             decisions_qs = decisions_qs.filter(organization__uid__in=organization_ids)
 
-        # Annotate with calculated amount from DecisionAmountField
-        # This sums up amounts that are linked to entity relationships
+        # Annotate with the sum of linked DecisionAmountField amounts.
+        # Because we've already filtered by date (and optionally org/type/status),
+        # this JOIN only touches the DecisionAmountField rows for the filtered
+        # decisions — not the entire table.  That's the key: filter first, then
+        # compute accurate amounts on the small subset.
         decisions_qs = decisions_qs.annotate(
             calculated_amount=models.Sum(
                 "amount_fields__amount",
@@ -615,33 +424,12 @@ def explore_decisions_api_dev(request):
         if max_amount is not None:
             decisions_qs = decisions_qs.filter(amount__lte=max_amount)
 
-        # Apply sorting
-        if sort_by == "amount_desc":
-            decisions_qs = decisions_qs.annotate(
-                amount_for_sorting=models.Case(
-                    models.When(
-                        calculated_amount__isnull=True, then=models.Value(-999999999)
-                    ),
-                    models.When(calculated_amount=0, then=models.Value(-999999998)),
-                    default=models.F("calculated_amount"),
-                    output_field=models.DecimalField(),
-                )
-            ).order_by("-amount_for_sorting", "-issue_date")
-
-        elif sort_by == "amount_asc":
-            decisions_qs = decisions_qs.annotate(
-                amount_for_sorting=models.Case(
-                    models.When(
-                        calculated_amount__isnull=True, then=models.Value(999999999)
-                    ),
-                    models.When(calculated_amount=0, then=models.Value(999999998)),
-                    default=models.F("calculated_amount"),
-                    output_field=models.DecimalField(),
-                )
-            ).order_by("amount_for_sorting", "-issue_date")
-
-        else:  # recent (default)
-            decisions_qs = decisions_qs.order_by("-issue_date")
+        # Apply sorting via shared utility
+        decisions_qs = apply_decision_sorting(
+            decisions_qs, sort_by,
+            amount_field="calculated_amount",
+            date_field="issue_date_day",
+        )
 
         # Add prefetch_related for optimization
         decisions_qs = decisions_qs.select_related(
@@ -658,10 +446,36 @@ def explore_decisions_api_dev(request):
                 search_tracking, paginator.count
             )
 
-        # Serialize results using the new function
+        # ── Batch-fetch entity relationships (eliminates N+1) ──────────────
+        from core.models.entities import DecisionEntityRelationship
+        from django.db.models import Sum
+
+        decision_ids = [d.id for d in page_obj]
+        entity_relationships_qs = (
+            DecisionEntityRelationship.objects.filter(decision_id__in=decision_ids)
+            .select_related("entity")
+            .annotate(total_amount=Sum("linked_amounts__amount"))
+        )
+
+        relationships_by_decision = {}
+        for rel in entity_relationships_qs:
+            if rel.decision_id not in relationships_by_decision:
+                relationships_by_decision[rel.decision_id] = []
+            relationships_by_decision[rel.decision_id].append({
+                "role": rel.role,
+                "entity": {
+                    "afm": rel.entity.afm,
+                    "name": rel.entity.name,
+                    "entity_type": rel.entity.entity_type,
+                },
+                "total_amount": float(rel.total_amount) if rel.total_amount else 0,
+            })
+
+        # Serialize results with entity data embedded
         results = []
         for decision in page_obj:
-            decision_data = serialize_decision_with_content_info(decision)
+            entity_rels = relationships_by_decision.get(decision.id, [])
+            decision_data = serialize_decision_with_entities(decision, entity_rels)
 
             # Use calculated amount if available
             if (
@@ -738,72 +552,25 @@ def explore_decisions_api_dev(request):
         ),
     ],
 )
+@cached_view(
+    cache_prefix="explore_decision_types",
+    cache_params=["start_date", "end_date"],
+    end_date_param="end_date",
+    defer_on_miss=True,
+)
 @api_view(["GET"])
 @permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
 @monitor_query_performance(operation="temporal_decision_types")
 def explore_decision_types_api_dev(request):
     """Get available decision types for temporal exploration"""
-    start_date_str = request.GET.get("start_date")
-    end_date_str = request.GET.get("end_date")
+    start_dt, end_dt, err = _parse_optional_date_range(request)
+    if err:
+        return err
 
     try:
-        # Get all decisions (no entity filtering)
-        decisions_qs = Decision.objects.all()
+        from core.services.analytics_precalc_service import compute_explore_decision_types
 
-        # Apply date filters if provided
-        if start_date_str:
-            start_date_parsed = parse_date(start_date_str)
-            if start_date_parsed:
-                start_date = timezone.make_aware(
-                    datetime.combine(start_date_parsed, datetime.min.time())
-                )
-                decisions_qs = decisions_qs.filter(issue_date__gte=start_date)
-
-        if end_date_str:
-            end_date_parsed = parse_date(end_date_str)
-            if end_date_parsed:
-                end_date = timezone.make_aware(
-                    datetime.combine(end_date_parsed, datetime.max.time())
-                )
-                decisions_qs = decisions_qs.filter(issue_date__lte=end_date)
-
-        # Get decision types with counts and financial data
-        decision_types = (
-            decisions_qs.values("decision_type__uid", "decision_type__label")
-            .annotate(
-                count=models.Count("id", distinct=True),
-                total_amount=models.Sum(
-                    "amount_fields__amount",
-                    filter=models.Q(
-                        amount_fields__associated_relationship__isnull=False
-                    ),
-                ),
-                # Use legacy amount for max as approximation since max of sum is hard
-                max_amount=models.Max("amount"),
-            )
-            .filter(decision_type__uid__isnull=False)  # Exclude decisions without types
-            .order_by("-count")
-        )
-
-        # Format response
-        formatted_types = []
-        for dt in decision_types:
-            count = dt["count"]
-            total = float(dt["total_amount"] or 0)
-            formatted_types.append(
-                {
-                    "uid": dt["decision_type__uid"],
-                    "label": dt["decision_type__label"],
-                    "count": count,
-                    "total_amount": total,
-                    "avg_amount": total / count if count > 0 else 0,
-                    "max_amount": float(dt["max_amount"] or 0),
-                }
-            )
-
-        return Response(
-            {"decision_types": formatted_types, "total_types": len(formatted_types)}
-        )
+        return Response(compute_explore_decision_types(start_dt=start_dt, end_dt=end_dt))
 
     except Exception as e:
         import traceback
@@ -838,12 +605,19 @@ def explore_decision_types_api_dev(request):
             description="Maximum number of organizations to return",
             type=openapi.TYPE_INTEGER,
         ),
+        openapi.Parameter(
+            "offset",
+            openapi.IN_QUERY,
+            description="Number of organizations to skip (for infinite-scroll pagination)",
+            type=openapi.TYPE_INTEGER,
+        ),
     ],
 )
 @cached_view(
     cache_prefix="explore_orgs",
-    cache_params=["start_date", "end_date", "limit"],
+    cache_params=["start_date", "end_date", "limit", "offset"],
     end_date_param="end_date",
+    defer_on_miss=True,
 )
 @api_view(["GET"])
 @permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
@@ -853,70 +627,12 @@ def explore_organizations_api_dev(request):
     start_date_str = request.GET.get("start_date")
     end_date_str = request.GET.get("end_date")
     limit = int(request.GET.get("limit", 50))
+    offset = int(request.GET.get("offset", 0))
 
     try:
-        # Get all decisions (no entity filtering)
-        decisions_qs = Decision.objects.all()
+        from core.services.analytics_precalc_service import compute_explore_orgs
 
-        # Apply date filters if provided
-        if start_date_str:
-            start_date_parsed = parse_date(start_date_str)
-            if start_date_parsed:
-                start_date = timezone.make_aware(
-                    datetime.combine(start_date_parsed, datetime.min.time())
-                )
-                decisions_qs = decisions_qs.filter(issue_date__gte=start_date)
-
-        if end_date_str:
-            end_date_parsed = parse_date(end_date_str)
-            if end_date_parsed:
-                end_date = timezone.make_aware(
-                    datetime.combine(end_date_parsed, datetime.max.time())
-                )
-                decisions_qs = decisions_qs.filter(issue_date__lte=end_date)
-
-        # Get organizations with decision activity
-        organizations = (
-            decisions_qs.values("organization__uid", "organization__label")
-            .annotate(
-                count=models.Count("id", distinct=True),
-                total_amount=models.Sum(
-                    "amount_fields__amount",
-                    filter=models.Q(
-                        amount_fields__associated_relationship__isnull=False
-                    ),
-                ),
-                # Use legacy amount for max as approximation
-                max_amount=models.Max("amount"),
-            )
-            .filter(
-                organization__uid__isnull=False  # Exclude decisions without organizations
-            )
-            .order_by("-count")[:limit]
-        )
-
-        # Format response
-        formatted_organizations = []
-        for org in organizations:
-            count = org["count"]
-            total = float(org["total_amount"] or 0)
-            formatted_organizations.append(
-                {
-                    "uid": org["organization__uid"],
-                    "label": org["organization__label"],
-                    "count": count,
-                    "total_amount": total,
-                    "avg_amount": total / count if count > 0 else 0,
-                    "max_amount": float(org["max_amount"] or 0),
-                }
-            )
-
-        return Response(
-            {
-                "organizations": formatted_organizations,
-                "total_organizations": len(formatted_organizations),
-            }
-        )
+        return Response(compute_explore_orgs(start_date_str, end_date_str, limit, offset))
 
     except Exception as e:
         import traceback

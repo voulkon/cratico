@@ -3,6 +3,12 @@ from django.db import models
 from django.utils import timezone
 
 
+def _generate_public_slug():
+    """Generate a short unique slug for public sharing."""
+    import uuid
+    return uuid.uuid4().hex[:12]
+
+
 class Subscription(models.Model):
     name = models.CharField(max_length=50)
     max_requests_per_day = models.PositiveIntegerField(default=1000)
@@ -107,6 +113,24 @@ class BookmarkFolder(models.Model):
         related_name="subfolders",
         help_text="Parent folder for nested organization",
     )
+    # Sharing
+    is_public = models.BooleanField(
+        default=False,
+        help_text="When enabled, this folder and its bookmarks are publicly accessible via a share link",
+    )
+    public_slug = models.CharField(
+        max_length=32,
+        unique=True,
+        null=True,
+        blank=True,
+        default=_generate_public_slug,
+        help_text="Unique slug for the public share URL",
+    )
+    public_created_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this folder was first made public",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -152,6 +176,25 @@ class Bookmark(models.Model):
     is_favorite = models.BooleanField(default=False)
     visit_count = models.PositiveIntegerField(default=0)
     last_visited = models.DateTimeField(null=True, blank=True)
+
+    # Sharing
+    is_public = models.BooleanField(
+        default=False,
+        help_text="When enabled, this bookmark is publicly accessible via a share link",
+    )
+    public_slug = models.CharField(
+        max_length=32,
+        unique=True,
+        null=True,
+        blank=True,
+        default=_generate_public_slug,
+        help_text="Unique slug for the public share URL",
+    )
+    public_created_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this bookmark was first made public",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { getFullSearchResults } from '../api/searchApi';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import SuperSearch from '../components/SuperSearch';
 import './SearchResults.css';
 
@@ -12,6 +13,7 @@ const SearchResults = () => {
   const [error, setError] = useState(null);
 
   const query = searchParams.get('q') || '';
+  useDocumentTitle(query ? `Search: ${query}` : 'Search');
 
   // Perform search when query changes
   useEffect(() => {

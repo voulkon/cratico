@@ -101,17 +101,15 @@ def build_queryset_for_job(job: ClassificationJob):
         decisions_qs = decisions_qs.filter(classification__isnull=True)
 
     elif job.processing_mode == "date_range":
-        if job.start_date:
-            decisions_qs = decisions_qs.filter(issue_date__gte=job.start_date)
-        if job.end_date:
-            decisions_qs = decisions_qs.filter(issue_date__lte=job.end_date)
+        decisions_qs = decisions_qs.filter_by_date_range(
+            job.start_date, job.end_date, field="issue_date"
+        )
 
     elif job.processing_mode == "reclassify":
         # Re-classify all decisions in date range
-        if job.start_date:
-            decisions_qs = decisions_qs.filter(issue_date__gte=job.start_date)
-        if job.end_date:
-            decisions_qs = decisions_qs.filter(issue_date__lte=job.end_date)
+        decisions_qs = decisions_qs.filter_by_date_range(
+            job.start_date, job.end_date, field="issue_date"
+        )
 
     elif job.processing_mode == "outdated":
         # Only decisions with outdated classifier version

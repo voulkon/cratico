@@ -1,6 +1,8 @@
 import traceback
-from datetime import datetime, timedelta
+from datetime import timedelta
 
+from api.utils.date_utils import _parse_optional_date_range
+from api.utils.sorting import apply_decision_sorting
 from core.models.organizations import Organization, Signer, Unit
 from core.services.feature_flag_service import feature_flags
 from core.services.financial_calculation_service import financial_service
@@ -9,15 +11,8 @@ from core.utils.performance_monitoring import monitor_query_performance
 from django.conf import settings
 from django.core.paginator import Paginator
 from django.db import models
-from django.db.models.functions import (
-    TruncDay,
-    TruncMonth,
-    TruncQuarter,
-    TruncWeek,
-    TruncYear,
-)
+
 from django.utils import timezone
-from django.utils.dateparse import parse_date
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import api_view, permission_classes
@@ -25,10 +20,9 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from .base import (
-    calculate_financial_summary,
     get_entity_decisions_queryset,
     get_entity_info,
-    serialize_decision_with_content_info,
+    serialize_decision_with_entities,
 )
 
 
@@ -47,6 +41,12 @@ from .base import (
             description="End date (YYYY-MM-DD)",
             type=openapi.TYPE_STRING,
         ),
+        openapi.Parameter(
+            "lite",
+            openapi.IN_QUERY,
+            description="Return only lightweight totals and period metadata",
+            type=openapi.TYPE_BOOLEAN,
+        ),
     ],
 )
 @api_view(["GET"])
@@ -54,37 +54,20 @@ from .base import (
 @monitor_query_performance(include_context=True)
 def entity_statistics_api_dev(request, entity_type, entity_id):
     """Get statistics for a specific entity using the enhanced financial service."""
-    start_date_str = request.GET.get("start_date")
-    end_date_str = request.GET.get("end_date")
+    start_dt, end_dt, err = _parse_optional_date_range(request)
+    if err:
+        return err
+
+    lite_mode = str(request.GET.get("lite", "")).lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
     # Default to last 12 months if no dates provided
-    if not end_date_str:
-        end_date = timezone.now()
-    else:
-        try:
-            # Parse date and make it timezone-aware
-            end_date_parsed = parse_date(end_date_str)
-            if not end_date_parsed:
-                raise ValueError("Invalid date format")
-            end_date = timezone.make_aware(
-                datetime.combine(end_date_parsed, datetime.max.time())
-            )
-        except (ValueError, TypeError) as e:
-            return Response({"error": f"Invalid end_date format: {e}"}, status=400)
-
-    if not start_date_str:
-        start_date = end_date - timedelta(days=365)
-    else:
-        try:
-            # Parse date and make it timezone-aware
-            start_date_parsed = parse_date(start_date_str)
-            if not start_date_parsed:
-                raise ValueError("Invalid date format")
-            start_date = timezone.make_aware(
-                datetime.combine(start_date_parsed, datetime.min.time())
-            )
-        except (ValueError, TypeError) as e:
-            return Response({"error": f"Invalid start_date format: {e}"}, status=400)
+    end_date = end_dt if end_dt else timezone.now()
+    start_date = start_dt if start_dt else end_date - timedelta(days=365)
 
     try:
         # Get entity info
@@ -96,6 +79,39 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
 
             try:
                 afm_entity = AFMEntity.objects.get(afm=entity_id)
+
+                # Lite mode: skip expensive financial_service calls, use legacy
+                # queryset for cheap Count + Sum aggregates only.
+                if lite_mode:
+                    decisions_qs = get_entity_decisions_queryset("afm", entity_id)
+                    filtered_qs = decisions_qs.filter_by_date_range(
+                        start_date, end_date
+                    )
+                    stats = filtered_qs.aggregate(
+                        total_decisions=models.Count("id"),
+                        total_amount=models.Sum("amount"),
+                    )
+                    return Response(
+                        {
+                            "entity": entity_info,
+                            "date_range": {
+                                "start_date": start_date.isoformat(),
+                                "end_date": end_date.isoformat(),
+                            },
+                            "statistics": {
+                                "total_decisions": stats["total_decisions"] or 0,
+                                "total_amount": float(stats["total_amount"] or 0),
+                                "avg_amount": 0.0,
+                                "unique_organizations": 0,
+                                "unique_roles": 0,
+                            },
+                            "financial_summary": {
+                                "top_organizations": [],
+                            },
+                            "timeline_data": [],
+                            "data_source": "financial_service_lite",
+                        }
+                    )
 
                 # Use financial service for comprehensive statistics
                 financial_summary = financial_service.get_entity_financial_summary(
@@ -118,16 +134,14 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
                             "end_date": end_date.isoformat(),
                         },
                         "statistics": {
-                            "total_decisions": financial_summary["decision_count"],
-                            "total_amount": float(financial_summary["total_received"]),
-                            "avg_amount": float(financial_summary["avg_amount"]),
-                            "unique_organizations": financial_summary[
-                                "unique_organizations"
-                            ],
-                            "unique_roles": len(financial_summary["role_breakdown"]),
+                            "total_decisions": financial_summary.decision_count,
+                            "total_amount": float(financial_summary.total_received),
+                            "avg_amount": float(financial_summary.avg_amount),
+                            "unique_organizations": financial_summary.unique_organizations,
+                            "unique_roles": len(financial_summary.role_breakdown),
                         },
-                        "financial_summary": financial_summary,
-                        "timeline_data": timeline_data,
+                        "financial_summary": financial_summary.model_dump(mode="json"),
+                        "timeline_data": [t.model_dump(mode="json") for t in timeline_data],
                         "data_source": "financial_service",
                     }
                 )
@@ -140,11 +154,53 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
         decisions_qs = get_entity_decisions_queryset(entity_type, entity_id)
 
         # Apply date filters
-        filtered_qs = decisions_qs.filter(
-            issue_date__gte=start_date, issue_date__lte=end_date
-        )
+        filtered_qs = decisions_qs.filter_by_date_range(start_date, end_date)
 
-        # Calculate basic statistics using legacy approach
+        # Lightweight mode: only Count + Sum, skips Avg/Max/Min and all expensive
+        # breakdown queries (financial summary, charts, recent decisions).
+        if lite_mode:
+            stats = filtered_qs.aggregate(
+                total_decisions=models.Count("id"),
+                total_amount=models.Sum("amount"),
+            )
+            return Response(
+                {
+                    "entity": entity_info,
+                    "period": {
+                        "start_date": start_date.isoformat(),
+                        "end_date": end_date.isoformat(),
+                        "days_count": (end_date - start_date).days + 1,
+                    },
+                    "summary": {
+                        "decisions": {
+                            "total_count": stats["total_decisions"] or 0,
+                            "avg_amount": 0.0,
+                            "max_amount": 0.0,
+                            "min_amount": 0.0,
+                        },
+                        "financial": {
+                            "primary_amount": float(stats["total_amount"] or 0),
+                            "kae_amount": 0.0,
+                            "legacy_amount": float(stats["total_amount"] or 0),
+                            "decisions_with_amounts": 0,
+                            "decisions_with_kae": 0,
+                            "total_decisions": stats["total_decisions"] or 0,
+                            "discrepancy_percentage": 0.0,
+                            "avg_amount": 0.0,
+                            "unique_organizations": 0,
+                            "has_discrepancy": False,
+                        },
+                        "status_breakdown": {},
+                    },
+                    "charts": {
+                        "monthly_breakdown": [],
+                        "top_decision_types": [],
+                    },
+                    "recent_decisions": [],
+                }
+            )
+
+        # Calculate basic statistics using full aggregate (non-lite path)
         stats = filtered_qs.aggregate(
             total_decisions=models.Count("id"),
             avg_amount=models.Avg("amount"),
@@ -153,15 +209,28 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
             total_amount=models.Sum("amount"),
         )
 
-        # Calculate financial summary using enhanced base function
-        financial_summary = calculate_financial_summary(
-            filtered_qs, entity_id, entity_type
-        )
+        # Calculate financial summary (legacy path for non-AFM entities)
+        decision_total = stats["total_amount"] or 0
+        financial_summary = {
+            "primary_amount": float(decision_total),
+            "kae_amount": 0,
+            "legacy_amount": float(decision_total),
+            "decisions_with_amounts": filtered_qs.filter(
+                amount__isnull=False
+            ).count(),
+            "decisions_with_kae": 0,
+            "total_decisions": stats["total_decisions"] or 0,
+            "discrepancy_percentage": 0,
+            "avg_amount": float(stats["avg_amount"] or 0),
+            "unique_organizations": filtered_qs.values("organization")
+            .distinct()
+            .count(),
+        }
 
         # Monthly breakdown for charts
         try:
             monthly_stats = (
-                filtered_qs.annotate(month=TruncMonth("issue_date"))
+                filtered_qs.annotate(month=models.F("issue_date_month"))
                 .values("month")
                 .annotate(count=models.Count("id"), amount=models.Sum("amount"))
                 .order_by("month")
@@ -185,8 +254,8 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
         )
 
         # Recent decisions
-        recent_decisions = filtered_qs.order_by("-issue_date")[:5].values(
-            "ada", "subject", "issue_date", "amount", "decision_type__label"
+        recent_decisions = filtered_qs.order_by("-issue_date_day")[:5].values(
+            "ada", "subject", "issue_date_day", "amount", "decision_type__label"
         )
 
         return Response(
@@ -236,9 +305,8 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
                         "ada": item["ada"],
                         "subject": item["subject"],
                         "issue_date": (
-                            item["issue_date"].isoformat()
-                            if item["issue_date"]
-                            else None
+                            item["issue_date_day"].isoformat()
+                            if item["issue_date_day"] else None
                         ),
                         "amount": float(item["amount"]) if item["amount"] else None,
                         "decision_type": item["decision_type__label"],
@@ -358,6 +426,11 @@ def entity_decisions_api_dev(request, entity_type, entity_id):
     except ValueError:
         return Response({"error": "Invalid amount format"}, status=400)
 
+    # Parse date range via shared helper
+    start_dt, end_dt, err = _parse_optional_date_range(request)
+    if err:
+        return err
+
     # Start search analytics tracking
     search_tracking = None
     if search_query:
@@ -382,22 +455,8 @@ def entity_decisions_api_dev(request, entity_type, entity_id):
         # Get decisions queryset
         decisions_qs = get_entity_decisions_queryset(entity_type, entity_id)
 
-        # Apply date filters if provided with timezone awareness
-        if start_date_str:
-            start_date_parsed = parse_date(start_date_str)
-            if start_date_parsed:
-                start_date = timezone.make_aware(
-                    datetime.combine(start_date_parsed, datetime.min.time())
-                )
-                decisions_qs = decisions_qs.filter(issue_date__gte=start_date)
-
-        if end_date_str:
-            end_date_parsed = parse_date(end_date_str)
-            if end_date_parsed:
-                end_date = timezone.make_aware(
-                    datetime.combine(end_date_parsed, datetime.max.time())
-                )
-                decisions_qs = decisions_qs.filter(issue_date__lte=end_date)
+        # Apply date filters via custom queryset method
+        decisions_qs = decisions_qs.filter_by_date_range(start_dt, end_dt)
 
         # Apply search filter
         if search_query:
@@ -432,29 +491,12 @@ def entity_decisions_api_dev(request, entity_type, entity_id):
         if max_amount is not None:
             decisions_qs = decisions_qs.filter(amount__lte=max_amount)
 
-        # Apply sorting
-        if sort_by == "amount_desc":
-            decisions_qs = decisions_qs.annotate(
-                amount_for_sorting=models.Case(
-                    models.When(amount__isnull=True, then=models.Value(-999999999)),
-                    models.When(amount=0, then=models.Value(-999999998)),
-                    default=models.F("amount"),
-                    output_field=models.DecimalField(),
-                )
-            ).order_by("-amount_for_sorting", "-issue_date")
-
-        elif sort_by == "amount_asc":
-            decisions_qs = decisions_qs.annotate(
-                amount_for_sorting=models.Case(
-                    models.When(amount__isnull=True, then=models.Value(999999999)),
-                    models.When(amount=0, then=models.Value(999999998)),
-                    default=models.F("amount"),
-                    output_field=models.DecimalField(),
-                )
-            ).order_by("amount_for_sorting", "-issue_date")
-
-        else:  # recent (default)
-            decisions_qs = decisions_qs.order_by("-issue_date")
+        # Apply sorting via shared utility
+        decisions_qs = apply_decision_sorting(
+            decisions_qs, sort_by,
+            amount_field="amount",
+            date_field="issue_date_day",
+        )
 
         # Add prefetch_related for optimization
         decisions_qs = decisions_qs.select_related(
@@ -471,10 +513,43 @@ def entity_decisions_api_dev(request, entity_type, entity_id):
                 search_tracking, paginator.count
             )
 
-        # Serialize results using the new function
+        # ── Batch-fetch entity relationships (eliminates N+1) ──────────────
+        from core.models.entities import DecisionEntityRelationship
+        from django.db.models import Sum
+
+        decision_ids = [d.id for d in page_obj]
+        entity_relationships_qs = (
+            DecisionEntityRelationship.objects.filter(decision_id__in=decision_ids)
+            .select_related("entity")
+            .annotate(total_amount=Sum("linked_amounts__amount"))
+        )
+
+        relationships_by_decision = {}
+        for rel in entity_relationships_qs:
+            if rel.decision_id not in relationships_by_decision:
+                relationships_by_decision[rel.decision_id] = []
+            relationships_by_decision[rel.decision_id].append({
+                "role": rel.role,
+                "entity": {
+                    "afm": rel.entity.afm,
+                    "name": rel.entity.name,
+                    "entity_type": rel.entity.entity_type,
+                },
+                "total_amount": float(rel.total_amount) if rel.total_amount else 0,
+            })
+
+        # Serialize results with entity data embedded
         results = []
         for decision in page_obj:
-            decision_data = serialize_decision_with_content_info(decision)
+            entity_rels = relationships_by_decision.get(decision.id, [])
+            decision_data = serialize_decision_with_entities(decision, entity_rels)
+
+            # Include organization object for entity pages
+            if decision.organization:
+                decision_data["organization"] = {
+                    "uid": decision.organization.uid,
+                    "label": decision.organization.label,
+                }
             results.append(decision_data)
 
         response_data = {
@@ -544,67 +619,43 @@ def entity_decisions_api_dev(request, entity_type, entity_id):
 @permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
 def entity_timeline_api_dev(request, entity_type, entity_id):
     """Get timeline data for a specific entity"""
-    start_date_str = request.GET.get("start_date")
-    end_date_str = request.GET.get("end_date")
     granularity = request.GET.get(
         "granularity", "month"
     )  # day, week, month, quarter, year
 
-    # Default to last 12 months if no dates provided
-    if not end_date_str:
-        end_date = timezone.now()
-    else:
-        try:
-            end_date_parsed = parse_date(end_date_str)
-            if not end_date_parsed:
-                raise ValueError("Invalid date format")
-            end_date = timezone.make_aware(
-                datetime.combine(end_date_parsed, datetime.max.time())
-            )
-        except (ValueError, TypeError) as e:
-            return Response({"error": f"Invalid end_date format: {e}"}, status=400)
+    start_dt, end_dt, err = _parse_optional_date_range(request)
+    if err:
+        return err
 
-    if not start_date_str:
-        start_date = end_date - timedelta(days=365)
-    else:
-        try:
-            start_date_parsed = parse_date(start_date_str)
-            if not start_date_parsed:
-                raise ValueError("Invalid date format")
-            start_date = timezone.make_aware(
-                datetime.combine(start_date_parsed, datetime.min.time())
-            )
-        except (ValueError, TypeError) as e:
-            return Response({"error": f"Invalid start_date format: {e}"}, status=400)
+    # Default to last 12 months if no dates provided
+    end_date = end_dt if end_dt else timezone.now()
+    start_date = start_dt if start_dt else end_date - timedelta(days=365)
 
     try:
         # Get decisions queryset for the entity
         decisions_qs = get_entity_decisions_queryset(entity_type, entity_id)
 
         # Apply date filters
-        decisions_qs = decisions_qs.filter(
-            issue_date__gte=start_date, issue_date__lte=end_date
-        )
+        decisions_qs = decisions_qs.filter_by_date_range(start_date, end_date)
 
-        # Choose appropriate truncation function based on granularity
-        if granularity == "day":
-            trunc_func = TruncDay
-        elif granularity == "week":
-            trunc_func = TruncWeek
-        elif granularity == "month":
-            trunc_func = TruncMonth
-        elif granularity == "quarter":
-            trunc_func = TruncQuarter
-        elif granularity == "year":
-            trunc_func = TruncYear
-        else:
+        # Use precomputed indexed fields; week/quarter have no precomputed equivalent
+        _PERIOD_FIELD = {
+            "day": "issue_date_day",
+            "month": "issue_date_month",
+            "year": "issue_date_year",
+        }
+        if granularity not in _PERIOD_FIELD:
             return Response(
-                {"error": f"Invalid granularity: {granularity}"}, status=400
+                {
+                    "error": f"Invalid granularity: {granularity}. Supported: day, month, year"
+                },
+                status=400,
             )
+        period_column = _PERIOD_FIELD[granularity]
 
         # Get timeline data
         timeline_data = (
-            decisions_qs.annotate(period=trunc_func("issue_date"))
+            decisions_qs.annotate(period=models.F(period_column))
             .values("period")
             .annotate(
                 count=models.Count("id"),
@@ -617,9 +668,15 @@ def entity_timeline_api_dev(request, entity_type, entity_id):
         # Format results
         formatted_timeline = []
         for item in timeline_data:
+            period_val = item["period"]
+            period_str = (
+                str(period_val)
+                if granularity == "year"
+                else (period_val.isoformat() if period_val else None)
+            )
             formatted_timeline.append(
                 {
-                    "period": item["period"].isoformat() if item["period"] else None,
+                    "period": period_str,
                     "count": item["count"],
                     "total_amount": float(item["total_amount"] or 0),
                     "avg_amount": float(item["avg_amount"] or 0),
@@ -682,29 +739,19 @@ def entity_timeline_api_dev(request, entity_type, entity_id):
 @permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
 def entity_decision_types_api_dev(request, entity_type, entity_id):
     """Get available decision types for a specific entity"""
-    start_date_str = request.GET.get("start_date")
-    end_date_str = request.GET.get("end_date")
+    start_dt, end_dt, err = _parse_optional_date_range(request)
+    if err:
+        return err
 
     try:
+        # Resolve entity metadata (name, type, etc.) — lightweight DB lookup
+        entity_info = get_entity_info(entity_type, entity_id)
+
         # Get decisions queryset
         decisions_qs = get_entity_decisions_queryset(entity_type, entity_id)
 
-        # Apply date filters if provided
-        if start_date_str:
-            start_date_parsed = parse_date(start_date_str)
-            if start_date_parsed:
-                start_date = timezone.make_aware(
-                    datetime.combine(start_date_parsed, datetime.min.time())
-                )
-                decisions_qs = decisions_qs.filter(issue_date__gte=start_date)
-
-        if end_date_str:
-            end_date_parsed = parse_date(end_date_str)
-            if end_date_parsed:
-                end_date = timezone.make_aware(
-                    datetime.combine(end_date_parsed, datetime.max.time())
-                )
-                decisions_qs = decisions_qs.filter(issue_date__lte=end_date)
+        # Apply date filters via custom queryset method
+        decisions_qs = decisions_qs.filter_by_date_range(start_dt, end_dt)
 
         # Get decision types with counts and financial data
         decision_types = (
@@ -735,7 +782,7 @@ def entity_decision_types_api_dev(request, entity_type, entity_id):
 
         return Response(
             {
-                "entity": {"type": entity_type, "id": entity_id},
+                "entity": entity_info,
                 "decision_types": formatted_types,
                 "total_types": len(formatted_types),
             }
@@ -775,13 +822,16 @@ def entity_decision_types_api_dev(request, entity_type, entity_id):
 def entity_date_range_api_dev(request, entity_type, entity_id):
     """Get the available date range and activity overview for an entity"""
     try:
+        # Resolve entity metadata (name, type, etc.) — lightweight DB lookup
+        entity_info = get_entity_info(entity_type, entity_id)
+
         # Get decisions queryset for the entity
         decisions_qs = get_entity_decisions_queryset(entity_type, entity_id)
 
         # Get date range
         date_stats = decisions_qs.aggregate(
-            earliest_date=models.Min("issue_date"),
-            latest_date=models.Max("issue_date"),
+            earliest_date=models.Min("issue_date_day"),
+            latest_date=models.Max("issue_date_day"),
             total_decisions=models.Count("id"),
             total_amount=models.Sum("amount"),
         )
@@ -789,7 +839,7 @@ def entity_date_range_api_dev(request, entity_type, entity_id):
         if not date_stats["earliest_date"]:
             return Response(
                 {
-                    "entity": {"type": entity_type, "id": entity_id},
+                    "entity": entity_info,
                     "has_data": False,
                     "message": "No decisions found for this entity. Contact the administrator if you expect data to be available.",
                     "date_range": None,
@@ -802,23 +852,20 @@ def entity_date_range_api_dev(request, entity_type, entity_id):
         latest = date_stats["latest_date"]
         span_days = (latest - earliest).days
 
-        # Choose granularity based on data span
+        # Choose granularity based on data span (week/quarter have no precomputed field)
         if span_days <= 31:  # Less than a month - daily
             granularity = "day"
-            trunc_func = TruncDay
-        elif span_days <= 365:  # Less than a year - weekly
-            granularity = "week"
-            trunc_func = TruncWeek
-        elif span_days <= 1825:  # Less than 5 years - monthly
+            period_column = "issue_date_day"
+        elif span_days <= 1825:  # Up to 5 years - monthly
             granularity = "month"
-            trunc_func = TruncMonth
-        else:  # More than 5 years - quarterly
-            granularity = "quarter"
-            trunc_func = TruncQuarter
+            period_column = "issue_date_month"
+        else:  # More than 5 years - yearly
+            granularity = "year"
+            period_column = "issue_date_year"
 
         # Get activity data for mini chart
         activity_data = (
-            decisions_qs.annotate(period=trunc_func("issue_date"))
+            decisions_qs.annotate(period=models.F(period_column))
             .values("period")
             .annotate(count=models.Count("id"), total_amount=models.Sum("amount"))
             .order_by("period")
@@ -827,9 +874,15 @@ def entity_date_range_api_dev(request, entity_type, entity_id):
         # Format activity chart data
         chart_data = []
         for item in activity_data:
+            period_val = item["period"]
+            period_str = (
+                str(period_val)
+                if granularity == "year"
+                else (period_val.isoformat() if period_val else None)
+            )
             chart_data.append(
                 {
-                    "period": item["period"].isoformat() if item["period"] else None,
+                    "period": period_str,
                     "count": item["count"],
                     "amount": float(item["total_amount"] or 0),
                 }
@@ -850,11 +903,11 @@ def entity_date_range_api_dev(request, entity_type, entity_id):
 
         return Response(
             {
-                "entity": {"type": entity_type, "id": entity_id},
+                "entity": entity_info,
                 "has_data": True,
                 "date_range": {
-                    "earliest": earliest.date().isoformat(),
-                    "latest": latest.date().isoformat(),
+                    "earliest": earliest,
+                    "latest": latest,
                     "span_days": span_days,
                     "recommended_granularity": granularity,
                 },
