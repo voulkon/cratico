@@ -1219,7 +1219,7 @@ def compute_explore_decision_types(
     decisions_qs = Decision.objects.filter_by_date_range(start_dt, end_dt)
 
     decision_types = (
-        decisions_qs.values("decision_type__uid", "decision_type__label")
+        decisions_qs.values("decision_type__uid")
         .annotate(
             count=models.Count("id", distinct=True),
             total_amount=models.Sum(
@@ -1229,6 +1229,7 @@ def compute_explore_decision_types(
                 ),
             ),
             max_amount=models.Max("amount"),
+            label=models.Max("decision_type__label"),
         )
         .filter(decision_type__uid__isnull=False)
         .order_by("-count")
@@ -1241,7 +1242,7 @@ def compute_explore_decision_types(
         formatted_types.append(
             {
                 "uid": dt["decision_type__uid"],
-                "label": dt["decision_type__label"],
+                "label": dt["label"],
                 "count": count,
                 "total_amount": total,
                 "avg_amount": total / count if count > 0 else 0,

@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import DualRangeSlider from './DualRangeSlider';
 import { useTranslation } from '../contexts/TranslationContext';
+import Chevron from './Chevron';
 import './TimeRangeSection.css';
 
 /**
@@ -67,17 +68,7 @@ const TimeRangeSection = ({
     >
       <summary className="section-summary">
         <span className="summary-title">{t('exploration.timeRange')}</span>
-        <svg
-          className={`chevron${isOpen ? ' open' : ''}`}
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M4 6l4 4 4-4" />
-        </svg>
+        <Chevron open={isOpen} className="time-range-chevron" />
       </summary>
 
       <div className="section-content">

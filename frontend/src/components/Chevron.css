@@ -1,0 +1,18 @@
+/* ── Shared Chevron ──────────────────────────────────────────────────────
+ * Base styles for the <Chevron> component.  These are the ONLY chevron
+ * styles that should exist in the codebase — parent CSS files should scope
+ * their positioning overrides under a parent selector.
+ *
+ * No positioning (position / top / right / margin) lives here.
+ */
+
+.crati-chevron {
+  display: block;
+  flex-shrink: 0;
+  color: var(--muted-text);
+  transition: transform 0.3s ease;
+}
+
+.crati-chevron--open {
+  transform: rotate(180deg);
+}

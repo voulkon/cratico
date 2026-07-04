@@ -83,20 +83,20 @@
   word-break: break-word;
 }
 
-/* ── Chevron — rotating SVG, pinned to the right of the summary ──────── */
+/* ── Chevron — absolutely positioned, pinned to the right ───────────────
+ * Uses the shared <Chevron> component's .crati-chevron class.
+ * The component handles the base rotation; we add translateY(-50%) for
+ * absolute centering.  Higher specificity (.time-range-chevron.crati-chevron--open
+ * beats .crati-chevron--open alone) ensures translateY is preserved. */
 
-.chevron {
+.time-range-container .time-range-chevron {
   position: absolute;
   right: var(--spacing-xl);
   top: 50%;
   transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
-  color: var(--muted-text);
-  transition: transform 0.3s ease;
 }
 
-.chevron.open {
+.time-range-container .time-range-chevron.crati-chevron--open {
   transform: translateY(-50%) rotate(180deg);
 }
 

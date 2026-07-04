@@ -98,6 +98,7 @@
     "directAssignmentsOnly" : "Μόνο απευθείας αναθέσεις"
   },
   "common": {
+    "showingResults" : "Εμφάνιση {start}–{end} από {total}",
     "loading": "Φόρτωση...",
     "error": "Σφάλμα",
     "retry": "Επανάληψη",
@@ -132,6 +133,12 @@
     "loadMore": "Φόρτωση Περισσότερων",
     "register" : "Εγγραφή",
     "notSignedIn": "Δεν έχετε συνδεθεί"
+  },
+  "decisionsToolbar": {
+    "filterLabel": "Φίλτρο:",
+    "allDecisions": "Όλες οι Αποφάσεις",
+    "viewedOnly": "Μόνο Προβεβλημένα",
+    "unviewedOnly": "Μόνο Μη Προβεβλημένα"
   },
   "errors": {
     "failedToLoad": "Αποτυχία φόρτωσης δεδομένων",
@@ -249,7 +256,9 @@
     "amountTo": "έως",
     "decisionTypes": "Τύποι Αποφάσεων",
     "loadingDecisionTypes": "Φόρτωση τύπων αποφάσεων...",
+    "noDecisionTypes": "Δεν υπάρχουν τύποι αποφάσεων σε αυτό το εύρος",
     "organizations": "Οργανισμοί",
+    "organizationFiltersComingSoon": "Φίλτρα οργανισμών έρχονται σύντομα",
     "searchResultsFor": "Αποτελέσματα αναζήτησης για:",
     "resultsFound": "({count} {count, plural, one {αποτέλεσμα} other {αποτελέσματα}} βρέθηκαν)",
     "activeFilters": "Ενεργά φίλτρα:",
@@ -599,6 +608,10 @@
     "notViewed": "Μη Προβεβλημένα",
     "viewed": "Προβεβλημένα",
     "noDecisionsInBatch": "Δεν βρέθηκαν αποφάσεις σε αυτή την παρτίδα",
+    "viewedOnly": "Μόνο Προβεβλημένα",
+    "unviewedOnly": "Μόνο Μη Προβεβλημένα",
+    "allDecisionsFilter": "Όλες οι Αποφάσεις",
+    "filterLabel": "Φίλτρο:",
     "subscriptionHistory": "Ιστορικό Κανόνα",
     "organizationPrefix": "Οργανισμός:",
     "entityPrefix": "Οντότητα:",

@@ -754,13 +754,15 @@ def entity_decision_types_api_dev(request, entity_type, entity_id):
         decisions_qs = decisions_qs.filter_by_date_range(start_dt, end_dt)
 
         # Get decision types with counts and financial data
+        # Group by uid only (not label) to avoid duplicates from label inconsistencies
         decision_types = (
-            decisions_qs.values("decision_type__uid", "decision_type__label")
+            decisions_qs.values("decision_type__uid")
             .annotate(
                 count=models.Count("id"),
                 total_amount=models.Sum("amount"),
                 avg_amount=models.Avg("amount"),
                 max_amount=models.Max("amount"),
+                label=models.Max("decision_type__label"),
             )
             .filter(decision_type__uid__isnull=False)  # Exclude decisions without types
             .order_by("-count")
@@ -772,7 +774,7 @@ def entity_decision_types_api_dev(request, entity_type, entity_id):
             formatted_types.append(
                 {
                     "uid": dt["decision_type__uid"],
-                    "label": dt["decision_type__label"],
+                    "label": dt["label"],
                     "count": dt["count"],
                     "total_amount": float(dt["total_amount"] or 0),
                     "avg_amount": float(dt["avg_amount"] or 0),

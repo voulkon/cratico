@@ -98,6 +98,7 @@
     "directAssignmentsOnly" : "Direct assignments only"
   },
   "common": {
+    "showingResults" : "Showing {start}–{end} of {total}",
     "loading": "Loading...",
     "error": "Error",
     "retry": "Retry",
@@ -132,6 +133,12 @@
     "loadMore": "Load More",
     "register" : "Register",
     "notSignedIn": "Not signed in"
+  },
+  "decisionsToolbar": {
+    "filterLabel": "Filter:",
+    "allDecisions": "All Decisions",
+    "viewedOnly": "Viewed Only",
+    "unviewedOnly": "Unviewed Only"
   },
   "errors": {
     "failedToLoad": "Failed to load data",
@@ -249,7 +256,9 @@
     "amountTo": "to",
     "decisionTypes": "Decision Types",
     "loadingDecisionTypes": "Loading decision types...",
+    "noDecisionTypes": "No decision types in this range",
     "organizations": "Organizations",
+    "organizationFiltersComingSoon": "Organization filters coming soon",
     "searchResultsFor": "Search results for:",
     "resultsFound": "({count} {count, plural, one {result} other {results}} found)",
     "activeFilters": "Active filters:",
@@ -599,6 +608,10 @@
     "notViewed": "Not Viewed",
     "viewed": "Viewed",
     "noDecisionsInBatch": "No decisions found in this batch",
+    "viewedOnly": "Viewed Only",
+    "unviewedOnly": "Unviewed Only",
+    "allDecisionsFilter": "All Decisions",
+    "filterLabel": "Filter:",
     "subscriptionHistory": "Subscription History",
     "organizationPrefix": "Organization:",
     "entityPrefix": "Entity:",

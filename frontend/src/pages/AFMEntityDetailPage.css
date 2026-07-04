@@ -191,11 +191,6 @@
   color: var(--palette-secondary);
 }
 
-.decisions-section {
-  margin-top: var(--spacing-xxxl);
-  margin-bottom: var(--spacing-xxxl);
-}
-
 .decisions-header {
   display: flex;
   justify-content: space-between;

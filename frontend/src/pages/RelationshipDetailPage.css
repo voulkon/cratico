@@ -119,127 +119,9 @@
 
 /* StatCard styles imported from StatCard.css */
 
-.decisions-section {
-  margin-top: var(--spacing-xxxl);
-  margin-bottom: var(--spacing-xxxl);
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 24px;
-}
-
-.decisions-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.decisions-title {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--text-color);
-  margin: 0;
-}
-
-.controls-container {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.filter-toggle-button {
-  padding: 10px 16px;
-  background: var(--secondary-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  color: var(--text-color);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.filter-toggle-button:hover {
-  background: var(--palette-primary);
-  color: var(--palette-primary-contrast);
-  border-color: var(--palette-primary);
-}
-
-.filters-panel {
-  background: var(--bg-color);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.filter-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.filter-group label {
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--text-color);
-}
-
-.search-input {
-  padding: 10px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--bg-color);
-  color: var(--text-color);
-  font-size: 0.95rem;
-}
-
-.checkbox-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-}
-
-.amount-inputs {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.amount-inputs input {
-  flex: 1;
-  padding: 10px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--bg-color);
-  color: var(--text-color);
-}
-
-.clear-filters-button {
-  padding: 10px 16px;
-  background: var(--error-color, #ef4444);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  align-self: flex-start;
-}
-
-.clear-filters-button:hover {
-  background: #dc2626;
-}
+/* Toolbar / filter / search / sort styles are now owned by
+ * DecisionsToolbar.css (scoped under .decisions-toolbar) and
+ * DecisionList.css (.no-decisions-message, .loading-more-*, .pagination-info). */
 
 .decisions-list {
   display: flex;
@@ -382,16 +264,6 @@
   .statistics-grid {
     grid-template-columns: 1fr;
   }
-
-  .decisions-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .controls-container {
-    flex-wrap: wrap;
-    width: 100%;
-  }
 }
 
 .back-button:hover {
@@ -406,16 +278,6 @@
 
   .relationship-connector {
     transform: rotate(90deg);
-  }
-
-  .decisions-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .controls-container {
-    width: 100%;
-    flex-direction: column;
   }
 
   .statistics-grid {

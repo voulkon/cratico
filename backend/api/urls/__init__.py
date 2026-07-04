@@ -45,6 +45,7 @@ from api.views.organization_entity_relationships import (
     entity_top_organizations_api,
     relationship_date_range_api,
     relationship_statistics_api,
+    relationship_decision_types_api,
 )
 
 # Import remaining views not extracted to modules
@@ -126,6 +127,11 @@ urlpatterns = [
         "relationship/entity/<str:afm>/org/<str:orgUid>/statistics/",
         relationship_statistics_api,
         name="relationship_statistics",
+    ),
+    path(
+        "relationship/entity/<str:afm>/org/<str:orgUid>/decision-types/",
+        relationship_decision_types_api,
+        name="relationship_decision_types",
     ),
     # Debug/tracing endpoints (TODO: move to debug module or remove in production)
     path(
