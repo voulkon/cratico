@@ -4,15 +4,10 @@
 
 .slider-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
+  gap: var(--spacing-sm);
   margin-bottom: var(--spacing-md);
-}
-
-.slider-label {
-  font-weight: var(--font-bold);
-  font-size: var(--font-md);
-  color: var(--text-color);
 }
 
 .slider-values {
@@ -24,32 +19,40 @@
 }
 
 .value-badge {
-  background-color: var(--bg-info);
-  color: var(--color-text-info);
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--radius-sm);
-  font-weight: var(--font-bold);
+  background-color: var(--palette-bg-subtle);
+  color: var(--palette-primary);
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-radius: var(--radius-full);
+  font-weight: var(--font-semibold);
+  font-size: var(--font-sm);
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .value-separator {
   color: var(--muted-text);
+  font-weight: var(--font-medium);
 }
+
 
 .slider-container {
   position: relative;
-  height: 50px;
-  padding: var(--spacing-sm) 0;
-  margin-bottom: var(--spacing-sm);
+  height: 44px;
+  padding: var(--spacing-xs) 0;
+  margin-bottom: var(--spacing-xs);
 }
 
-/* Zoom controls — discreet, under the bar */
+/* Zoom controls — discreet, tucked under the bar */
 .slider-zoom-controls {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 4px;
-  margin-top: 2px;
-  margin-bottom: var(--spacing-xs);
+  margin-top: 0;
+  margin-bottom: 0;
   opacity: 0.55;
   transition: opacity var(--transition-fast);
 }
@@ -254,33 +257,10 @@
   font-size: var(--font-xs);
 }
 
-/* Activity summary */
-.activity-summary {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  background-color: var(--hover-bg);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-color);
-  font-size: var(--font-xs);
-  color: var(--muted-text);
-  margin-top: var(--spacing-xs);
-}
-
-.summary-label {
-  font-weight: var(--font-medium);
-  color: var(--text-color);
-}
-
-.summary-periods {
-  color: var(--muted-text);
-}
-
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .slider-container {
-    height: 70px; /* More room for activity and larger handles on mobile */
+    height: 56px; /* More room for activity and larger handles on mobile */
     padding: var(--spacing-md) 0;
   }
 
@@ -308,12 +288,6 @@
     font-size: var(--font-xs);
     padding: var(--spacing-xs);
     min-width: 100px;
-  }
-
-  .activity-summary {
-    flex-direction: column;
-    gap: 2px;
-    text-align: center;
   }
 
   /* Slightly larger zoom buttons on mobile for easier tapping, still discreet */

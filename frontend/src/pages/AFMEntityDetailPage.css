@@ -192,6 +192,7 @@
 }
 
 .decisions-section {
+  margin-top: var(--spacing-xxxl);
   margin-bottom: var(--spacing-xxxl);
 }
 
@@ -231,11 +232,16 @@
 .sort-select {
   padding: var(--spacing-xs) var(--spacing-sm);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  background-color: var(--card-bg);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-color);
   color: var(--text-color);
   font-size: var(--font-sm);
   cursor: pointer;
+  max-width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sort-select:focus {

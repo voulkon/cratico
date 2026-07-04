@@ -4,7 +4,7 @@ import { useTranslation } from '../contexts/TranslationContext';
 import apiClient from '../api/client';
 import './DecisionCard.css';
 
-import {OrganizationIcon, PenIcon, CalendarIcon, EyeIcon, DownloadIcon, ExternalLinkIcon, BookOpenIcon, LoaderIcon} from './Icons.js';
+import {OrganizationIcon, PenIcon, CalendarIcon, EyeIcon, DownloadIcon, ExternalLinkIcon, BookOpenIcon, LoaderIcon, ChevronDown, ChevronUp} from './Icons.js';
 
 import EntityDisplay from './EntityDisplay';
 import { getMainRecipient, getTotalAmount, groupEntityRelationships, getCounterpartEntities } from '../utils/decisionUtils';
@@ -21,6 +21,7 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
   const [entityRelationships, setEntityRelationships] = useState(null);
   const [showEntities, setShowEntities] = useState(false);
   const [loadingEntities, setLoadingEntities] = useState(false);
+  const [showKae, setShowKae] = useState(false);
 
   // Check if entity data is already included in decision (from optimized endpoint)
   const hasPreloadedEntityData = decision.entity_amount !== undefined
@@ -133,7 +134,7 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
       {/* Date and Decision Type Display */}
       <div className="decision-header-info">
         <div className="decision-date-prominent" title={t('decisionCard.issueDate')}>
-          <CalendarIcon />
+          <CalendarIcon size={14} />
           <span className="date-value">
             {formatDate(decision.issue_date)}
           </span>
@@ -146,13 +147,32 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
         )}
       </div>
 
-      {/* Simple recipient and amount display */}
+      {/* Organization — above the amount */}
+      {decision.organization && (
+        <div className="decision-org-above" title={t('decisionCard.organization')}>
+          <OrganizationIcon size={14} />
+          <button
+            className="metadata-value clickable"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOrganizationClick(decision.organization.uid);
+            }}
+          >
+            {decision.organization.label}
+          </button>
+        </div>
+      )}
+
+      {/* Simple amount and recipient display */}
       <div className="decision-main-info">
         {loadingEntities ? (
-          <div className="loading-state"><LoaderIcon className="spinner" size={16} /> {t('common.loading')}</div>
+          <div className="loading-state"><LoaderIcon className="spinner" size={14} /> {t('common.loading')}</div>
         ) : (
           <>
             <div className="info-content">
+              <div className="amount-display">
+                {formatAmount(displayAmount)}
+              </div>
               {mainRecipient && (
                 <div className="recipient-display">
                   <span className="recipient-arrow">→</span>
@@ -165,13 +185,31 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
                   </button>
                 </div>
               )}
-              <div className="amount-display">
-                {formatAmount(displayAmount)}
-              </div>
             </div>
           </>
         )}
       </div>
+
+      {/* Signers — below the recipient */}
+      {decision.signers && decision.signers.length > 0 && (
+        <div className="decision-signers-below" title={decision.signers.length > 1 ? t('decisionCard.signers') : t('decisionCard.signer')}>
+          <PenIcon size={14} />
+          {decision.signers.map((signer, idx) => (
+            <React.Fragment key={signer.uid}>
+              {idx > 0 && <span className="separator">, </span>}
+              <button
+                className="metadata-value clickable"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSignerClick(signer.uid);
+                }}
+              >
+                {signer.first_name} {signer.last_name}
+              </button>
+            </React.Fragment>
+          ))}
+        </div>
+      )}
 
       {/* Counterpart entities (all non-org entities from this decision) */}
       {counterpartEntities && counterpartEntities.length > 0 && (
@@ -200,44 +238,6 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
         </div>
       )}
 
-      {/* Organization and Signers Metadata */}
-      <div className="decision-metadata">
-        {decision.organization && (
-          <div className="metadata-row metadata-org" title={t('decisionCard.organization')}>
-            <OrganizationIcon />
-            <button
-              className="metadata-value clickable"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleOrganizationClick(decision.organization.uid);
-              }}
-            >
-              {decision.organization.label}
-            </button>
-          </div>
-        )}
-
-        {decision.signers && decision.signers.length > 0 && (
-          <div className="metadata-row metadata-signer" title={decision.signers.length > 1 ? t('decisionCard.signers') : t('decisionCard.signer')}>
-            <PenIcon />
-            {decision.signers.map((signer, idx) => (
-              <React.Fragment key={signer.uid}>
-                {idx > 0 && <span className="separator">, </span>}
-                <button
-                  className="metadata-value clickable"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleSignerClick(signer.uid);
-                  }}
-                >
-                  {signer.first_name} {signer.last_name}
-                </button>
-              </React.Fragment>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* Document Actions Section - Compact */}
       <div className="document-actions">
         {decision.ada && (
@@ -248,7 +248,7 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
             className="document-link external"
             title={t('decisionCard.viewOnDiavgeia')}
           >
-            <ExternalLinkIcon size={16} /> {decision.ada}
+            <ExternalLinkIcon size={14} /> {decision.ada}
           </a>
         )}
 
@@ -260,7 +260,7 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
             className="document-link view"
             title={t('decisionCard.viewOriginalDocument')}
           >
-            <EyeIcon size={16} /> {t('decisionCard.viewDocument')}
+            <EyeIcon size={14} /> {t('decisionCard.viewDocument')}
           </a>
         )}
 
@@ -272,7 +272,7 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
             className="document-link download"
             title={t('decisionCard.downloadOriginalDocument')}
           >
-            <DownloadIcon size={16} /> {t('decisionCard.downloadDocument')}
+            <DownloadIcon size={14} /> {t('decisionCard.downloadDocument')}
           </a>
         )}
 
@@ -283,7 +283,7 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
             className="document-link content-button"
             title={showContent ? t('decisionCard.hideDocumentContent') : t('decisionCard.viewDocumentContent')}
           >
-            {isLoadingContent ? <LoaderIcon className="spinner" size={16} /> : <BookOpenIcon size={16} />} {showContent ? t('decisionCard.hideText') : t('decisionCard.showText')}
+            {isLoadingContent ? <LoaderIcon className="spinner" size={14} /> : <BookOpenIcon size={14} />} {showContent ? t('decisionCard.hideText') : t('decisionCard.showText')}
           </button>
         )}
       </div>
@@ -300,22 +300,29 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
       )}
 
       {decision.kae_amounts && decision.kae_amounts.length > 1 && (
-        <details className="kae-breakdown">
-          <summary className="kae-summary">
-            {t('decisionCard.viewKaeBreakdown', { count: decision.kae_amounts.length })}
-          </summary>
-          <div className="kae-content">
-            {decision.kae_amounts.map((kae, kaeIndex) => (
-              <div
-                key={kaeIndex}
-                className={`kae-item ${kaeIndex < decision.kae_amounts.length - 1 ? 'has-border' : ''}`}
-              >
-                <span className="kae-code">KAE: {kae.kae}</span>
-                <span className="kae-amount">{formatAmount(kae.amount)}</span>
-              </div>
-            ))}
-          </div>
-        </details>
+        <div className="kae-breakdown">
+          <button
+            className="kae-summary"
+            onClick={() => setShowKae(!showKae)}
+            aria-expanded={showKae}
+          >
+            <span>{t('decisionCard.viewKaeBreakdown', { count: decision.kae_amounts.length })}</span>
+            {showKae ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+          {showKae && (
+            <div className="kae-content">
+              {decision.kae_amounts.map((kae, kaeIndex) => (
+                <div
+                  key={kaeIndex}
+                  className={`kae-item ${kaeIndex < decision.kae_amounts.length - 1 ? 'has-border' : ''}`}
+                >
+                  <span className="kae-code">KAE: {kae.kae}</span>
+                  <span className="kae-amount">{formatAmount(kae.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
