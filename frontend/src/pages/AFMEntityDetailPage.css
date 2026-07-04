@@ -531,38 +531,7 @@
   max-width: 500px;
 }
 
-/* Collapsible sections — shared pattern */
-.collapsible-section .section-summary {
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  user-select: none;
-  font-weight: var(--font-bold);
-  color: var(--text-color);
-}
-
-.collapsible-section .summary-title {
-  font-size: var(--font-md);
-}
-
-.collapsible-section .summary-count {
-  font-size: var(--font-xs);
-  color: var(--muted-text);
-  background: var(--bg-selected);
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-}
-
-.collapsible-section .toggle-icon {
-  margin-left: auto;
-  font-size: 0.8rem;
-  color: var(--muted-text);
-}
-
-.collapsible-section .section-content {
-  margin-top: 1rem;
-}
+/* ── Collapsible sections — now provided by CollapsibleCard ────── */
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
@@ -603,9 +572,5 @@
 
   .entity-search-bar {
     max-width: 100%;
-  }
-
-  .collapsible-section .section-summary {
-    flex-wrap: wrap;
   }
 }

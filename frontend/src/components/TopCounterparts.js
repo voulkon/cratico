@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
 import useTopCounterparts from '../hooks/useTopCounterparts';
 import useTopOrganizations from '../hooks/useTopOrganizations';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import CounterpartStats from './CounterpartStats';
-import Chevron from './Chevron';
+import CollapsibleCard from './CollapsibleCard';
 import './TopCounterparts.css';
 
 /**
@@ -25,17 +25,6 @@ const TopCounterparts = ({
 }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-
-  // ── Collapsible state ─────────────────────────────────────────
-  const [localOpen, setLocalOpen] = useState(defaultOpen);
-  const isControlled = controlledOpen !== undefined;
-  const isOpen = isControlled ? !!controlledOpen : localOpen;
-
-  const handleToggle = (e) => {
-    const next = e.target.open;
-    if (isControlled) onToggle?.(next);
-    else setLocalOpen(next);
-  };
 
   const isOrg = type === 'organization';
 
@@ -101,18 +90,17 @@ const TopCounterparts = ({
   }
 
   // ── Normal render ──────────────────────────────────────────────
-  return (
-    <details className="top-counterparts-section" open={isOpen} onToggle={handleToggle}>
-      <summary className="top-counterparts-summary">
-        <span className="top-counterparts-summary-title">
-          {title}
-          {totalCount > 0 && (
-            <span className="top-counterparts-summary-count"> ({totalCount.toLocaleString()})</span>
-          )}
-        </span>
-        <Chevron open={isOpen} />
-      </summary>
+  const subtitle = totalCount > 0 ? <> ({totalCount.toLocaleString()})</> : null;
 
+  return (
+    <CollapsibleCard
+      title={title}
+      subtitle={subtitle}
+      open={controlledOpen}
+      onToggle={onToggle}
+      defaultOpen={defaultOpen}
+      className="top-counterparts-section"
+    >
       <div className="top-counterparts-content">
       {/* Search input (both entity and organization paths) */}
       <div className="counterparts-search">
@@ -199,7 +187,7 @@ const TopCounterparts = ({
         )}
       </div>
       </div>
-    </details>
+    </CollapsibleCard>
   );
 };
 

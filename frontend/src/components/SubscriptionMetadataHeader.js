@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import PropTypes from 'prop-types';
 import { CalendarIcon, ChartIcon, FileIcon } from './Icons';
 import { RefreshCw } from 'lucide-react';
 import { useTranslation } from '../contexts/TranslationContext';
-import Chevron from './Chevron';
+import CollapsibleCard from './CollapsibleCard';
 import './SubscriptionMetadataHeader.css';
 
 /**
@@ -25,17 +25,6 @@ const SubscriptionMetadataHeader = ({
   defaultOpen = true,
 }) => {
   const { t } = useTranslation();
-
-  // ── Collapsible state ─────────────────────────────────────────
-  const [localOpen, setLocalOpen] = useState(defaultOpen);
-  const isControlled = controlledOpen !== undefined;
-  const isOpen = isControlled ? !!controlledOpen : localOpen;
-
-  const handleToggle = (e) => {
-    const next = e.target.open;
-    if (isControlled) onToggle?.(next);
-    else setLocalOpen(next);
-  };
 
   if (!subscription) {
     return null;
@@ -72,26 +61,29 @@ const SubscriptionMetadataHeader = ({
 
   const displayTitle = title || t('notifications.subscriptionHistory');
 
-  return (
-    <details className="subscription-metadata-header" open={isOpen} onToggle={handleToggle}>
-      <summary className="subscription-metadata-summary">
-        <span className="subscription-metadata-summary-title">
-          {alias || displayTitle}
-          {organization_label && (
-            <span className="subscription-metadata-summary-target"> — {organization_label}</span>
-          )}
-          {!organization_label && entity_name && (
-            <span className="subscription-metadata-summary-target"> — {entity_name}</span>
-          )}
-        </span>
-        <span className="subscription-metadata-summary-right">
-          {check_frequency && (
-            <span className="subscription-metadata-summary-frequency">{check_frequency}</span>
-          )}
-          <Chevron open={isOpen} />
-        </span>
-      </summary>
+  // ── Build subtitle (organization / entity target) ──────────────
+  const subtitle = organization_label
+    ? <> — {organization_label}</>
+    : entity_name
+      ? <> — {entity_name}</>
+      : null;
 
+  // ── Build badge (frequency pill) ──────────────────────────────
+  const badge = check_frequency ? (
+    <span className="subscription-metadata-summary-frequency">{check_frequency}</span>
+  ) : null;
+
+  return (
+    <CollapsibleCard
+      title={alias || displayTitle}
+      subtitle={subtitle}
+      badge={badge}
+      open={controlledOpen}
+      onToggle={onToggle}
+      defaultOpen={defaultOpen}
+      accentBorder
+      className="subscription-metadata-header"
+    >
       <div className="subscription-metadata-content">
       {/* Subscription Name and Target */}
       <div className="subscription-primary-info">
@@ -219,7 +211,7 @@ const SubscriptionMetadataHeader = ({
         )}
       </div>
       </div>
-    </details>
+    </CollapsibleCard>
   );
 };
 

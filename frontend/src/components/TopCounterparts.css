@@ -1,50 +1,20 @@
-/* Top Counterparts Component Styles */
+/* Top Counterparts Component Styles
+ *
+ * Card chrome (shadow, border-radius, summary row, chevron, content
+ * divider) is now owned by CollapsibleCard.  This file only contains
+ * TopCounterparts-specific content styles.
+ */
 
 /* ── Collapsible card shell (<details>) ────────────────────────── */
 .top-counterparts-section {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
+  /* Override CollapsibleCard's default --spacing-xl margins */
   margin: 24px 0;
-  overflow: hidden;
 }
 
 /* When used inside data-grid, remove margin */
 .data-grid .top-counterparts-section {
   margin: 0;
   height: 100%;
-}
-
-/* ── Summary row (clickable header) ────────────────────────────── */
-.top-counterparts-summary {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 24px;
-  cursor: pointer;
-  user-select: none;
-  list-style: none;
-  transition: background-color 0.2s ease;
-}
-
-.top-counterparts-summary:hover {
-  background-color: var(--hover-bg);
-}
-
-.top-counterparts-summary::-webkit-details-marker {
-  display: none;
-}
-
-.top-counterparts-summary-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--text-color);
-}
-
-.top-counterparts-summary-count {
-  color: var(--muted-text);
-  font-weight: 500;
-  font-size: 0.95rem;
 }
 
 /* ── Collapsible content area ──────────────────────────────────── */

@@ -7,6 +7,7 @@ import TopCounterparts from '../components/TopCounterparts';
 import TopRelationshipPairs from '../components/TopRelationshipPairs';
 import DecisionList from '../components/DecisionList';
 import DecisionsToolbar from '../components/DecisionsToolbar';
+import CollapsibleCard from '../components/CollapsibleCard';
 import StatisticsGrid from '../components/StatisticsGrid';
 import useUrlFilters from '../hooks/useUrlFilters';
 import useDocumentContent from '../hooks/useDocumentContent';
@@ -485,23 +486,14 @@ const EntityDetailPage = () => {
 
         {/* Signer Organizations and Positions - Collapsible */}
         {entityType === 'signer' && entityData?.metadata?.organizations && (
-          <details
-            className="signer-organizations-section collapsible-section"
+          <CollapsibleCard
+            title={t('entityDetail.organizationsAndPositions')}
+            subtitle={<> ({entityData.metadata.total_organizations} {t('entityDetail.organizationsCountLabel')}, {entityData.metadata.total_positions} {t('entityDetail.positionsCountLabel')})</>}
             open={isOrganizationsExpanded}
-            onToggle={(e) => setIsOrganizationsExpanded(e.target.open)}
+            onToggle={setIsOrganizationsExpanded}
+            defaultOpen={true}
+            className="signer-organizations-section"
           >
-            <summary className="section-summary">
-              <span className="summary-title">
-                {t('entityDetail.organizationsAndPositions')}
-              </span>
-              <span className="summary-count">
-                ({entityData.metadata.total_organizations} {t('entityDetail.organizationsCountLabel')}, {entityData.metadata.total_positions} {t('entityDetail.positionsCountLabel')})
-              </span>
-              <span className="toggle-icon">
-                {isOrganizationsExpanded ? '▼' : '▶'}
-              </span>
-            </summary>
-
             <div className="section-content">
               <div className="organizations-grid">
                 {entityData.metadata.organizations.map((orgData, index) => (
@@ -556,7 +548,7 @@ const EntityDetailPage = () => {
                 ))}
               </div>
             </div>
-          </details>
+          </CollapsibleCard>
         )}
 
         {/* Enhanced time range - Collapsible */}

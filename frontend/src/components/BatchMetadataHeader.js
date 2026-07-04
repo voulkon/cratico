@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import PropTypes from 'prop-types';
 import { useTranslation } from '../contexts/TranslationContext';
-import Chevron from './Chevron';
+import CollapsibleCard from './CollapsibleCard';
 import './BatchMetadataHeader.css';
 
 /**
@@ -25,17 +25,6 @@ const BatchMetadataHeader = ({
 }) => {
   const { t } = useTranslation();
 
-  // ── Collapsible state ─────────────────────────────────────────
-  const [localOpen, setLocalOpen] = useState(defaultOpen);
-  const isControlled = controlledOpen !== undefined;
-  const isOpen = isControlled ? !!controlledOpen : localOpen;
-
-  const handleToggle = (e) => {
-    const next = e.target.open;
-    if (isControlled) onToggle?.(next);
-    else setLocalOpen(next);
-  };
-
   if (!batch) {
     return null;
   }
@@ -43,19 +32,19 @@ const BatchMetadataHeader = ({
   const { subscription, check_window_start, check_window_end, created_at, match_count, aggregate_stats } = batch;
 
   const displayTitle = title || t('notifications.notificationBatch');
+  const subtitle = match_count > 0
+    ? <> — {match_count} {t('notifications.totalMatches').toLowerCase()}</>
+    : null;
 
   return (
-    <details className="batch-metadata-header" open={isOpen} onToggle={handleToggle}>
-      <summary className="batch-metadata-summary">
-        <span className="batch-metadata-summary-title">
-          {displayTitle}
-          {match_count > 0 && (
-            <span className="batch-metadata-summary-count"> — {match_count} {t('notifications.totalMatches').toLowerCase()}</span>
-          )}
-        </span>
-        <Chevron open={isOpen} />
-      </summary>
-
+    <CollapsibleCard
+      title={displayTitle}
+      subtitle={subtitle}
+      open={controlledOpen}
+      onToggle={onToggle}
+      defaultOpen={defaultOpen}
+      className="batch-metadata-header"
+    >
       <div className="batch-metadata-content">
       {/* Subscription Info */}
       {showSubscriptionInfo && subscription && (
@@ -157,7 +146,7 @@ const BatchMetadataHeader = ({
         </div>
       )}
       </div>
-    </details>
+    </CollapsibleCard>
   );
 };
 

@@ -1,57 +1,21 @@
 /* Import centralized StatCard styles */
 @import './StatCard.css';
 
-/* ── Collapsible card shell (<details>) ────────────────────────── */
+/* ── SubscriptionMetadataHeader ──────────────────────────────────
+ *
+ * Card chrome (shadow, border-radius, summary row, chevron, content
+ * divider, accent border) is now owned by CollapsibleCard.  This
+ * file only contains SubscriptionMetadataHeader-specific content
+ * styles and the frequency badge (since CollapsibleCard positions
+ * it but this file owns its visual style).
+ */
+
 .subscription-metadata-header {
-  background: var(--card-bg);
-  color: var(--text-color);
-  border: 1px solid var(--border-color);
-  border-left: 4px solid var(--palette-primary);
-  border-radius: var(--radius-lg);
+  /* Override CollapsibleCard's default --spacing-xl margins */
   margin-bottom: var(--spacing-xxxl);
-  box-shadow: 0 2px 4px var(--shadow);
-  overflow: hidden;
 }
 
-/* ── Summary row (clickable header) ────────────────────────────── */
-.subscription-metadata-summary {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--spacing-xl) var(--spacing-xxxxl);
-  cursor: pointer;
-  user-select: none;
-  list-style: none;
-  transition: background-color 0.2s ease;
-}
-
-.subscription-metadata-summary:hover {
-  background-color: var(--hover-bg);
-}
-
-.subscription-metadata-summary::-webkit-details-marker {
-  display: none;
-}
-
-.subscription-metadata-summary-title {
-  font-size: var(--font-lg);
-  font-weight: var(--font-bold);
-  color: var(--text-color);
-  min-width: 0;
-}
-
-.subscription-metadata-summary-target {
-  color: var(--muted-text);
-  font-weight: var(--font-medium);
-}
-
-.subscription-metadata-summary-right {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-  flex-shrink: 0;
-}
-
+/* ── Frequency badge (rendered inside CollapsibleCard's badge slot) ─── */
 .subscription-metadata-summary-frequency {
   background: var(--palette-primary);
   color: white;

@@ -225,61 +225,7 @@
   font-weight: var(--font-medium);
 }
 
-/* Collapsible sections */
-.collapsible-section {
-  margin: var(--spacing-xl) 0;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background-color: var(--card-bg);
-  overflow: hidden;
-}
-
-.collapsible-section[open] {
-  background-color: var(--card-bg);
-}
-
-.section-summary {
-  padding: var(--spacing-md) var(--spacing-xl);
-  background-color: var(--hover-bg);
-  border-bottom: 1px solid var(--border-color);
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  user-select: none;
-  transition: background-color 0.2s ease;
-}
-
-.section-summary:hover {
-  background-color: var(--bg-selected);
-}
-
-.section-summary::-webkit-details-marker {
-  display: none;
-}
-
-.summary-title {
-  font-size: var(--font-md);
-  font-weight: var(--font-semibold);
-  color: var(--palette-primary);
-}
-
-.summary-count {
-  font-size: var(--font-xs);
-  color: var(--muted-text);
-  background-color: var(--bg-selected);
-  padding: var(--spacing-xxs) var(--spacing-sm);
-  border-radius: var(--radius-full);
-  font-weight: var(--font-medium);
-}
-
-.toggle-icon {
-  font-size: var(--font-xs);
-  color: var(--muted-text);
-  transition: transform 0.2s ease;
-  margin-left: var(--spacing-sm);
-}
-
+/* ── Section content (used inside CollapsibleCard for signer-org section) ── */
 .section-content {
   padding: var(--spacing-xl);
 }

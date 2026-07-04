@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useTranslation } from '../contexts/TranslationContext';
 import SortControl from './SortControl';
 import SearchInput from './SearchInput';
 import FilterPanel from './FilterPanel';
-import Chevron from './Chevron';
+import CollapsibleCard from './CollapsibleCard';
 import './DecisionsToolbar.css';
 
 /**
@@ -71,21 +71,6 @@ const DecisionsToolbar = ({
   defaultOpen = true,
 }) => {
   const { t } = useTranslation();
-  // Let the browser manage <details> natively (no `open` prop) to avoid
-  // React-vs-browser fights. We only track state for the chevron icon.
-  // In controlled mode the parent owns the state; otherwise local.
-  const [localOpen, setLocalOpen] = useState(defaultOpen);
-  const isControlled = controlledOpen !== undefined;
-  const isOpen = isControlled ? !!controlledOpen : localOpen;
-
-  const handleToggle = (e) => {
-    const nextOpen = e.target.open;
-    if (isControlled) {
-      onToggle?.(nextOpen);
-    } else {
-      setLocalOpen(nextOpen);
-    }
-  };
 
   const total = totalCount ?? pagination?.total_count ?? pagination?.total_items ?? 0;
 
@@ -115,25 +100,23 @@ const DecisionsToolbar = ({
       ? t('decisionsToolbar.unviewedOnly', 'Unviewed Only')
       : null;
 
-  return (
-    <details
-      className="decisions-toolbar collapsible-section"
-      open={isOpen}
-      onToggle={handleToggle}
-    >
-      <summary className="decisions-toolbar-summary section-summary">
-        <span className="summary-title">
-          {title}
-          {total > 0 && (
-            <span className="decisions-toolbar-count"> ({total.toLocaleString()})</span>
-          )}
-          {effectiveFilterCount > 0 && (
-            <span className="decisions-toolbar-filter-badge"> ({effectiveFilterCount})</span>
-          )}
-        </span>
-        <Chevron open={isOpen} />
-      </summary>
+  // ── Build subtitle (count + filter badge) ──────────────────────
+  const subtitle = (
+    <>
+      {total > 0 && <>({total.toLocaleString()})</>}
+      {effectiveFilterCount > 0 && <> ({effectiveFilterCount})</>}
+    </>
+  );
 
+  return (
+    <CollapsibleCard
+      title={title}
+      subtitle={subtitle}
+      open={controlledOpen}
+      onToggle={onToggle}
+      defaultOpen={defaultOpen}
+      className="decisions-toolbar"
+    >
       <div className="decisions-toolbar-content">
       <div className="decisions-toolbar-header">
         <div className="decisions-toolbar-controls">
@@ -333,7 +316,7 @@ const DecisionsToolbar = ({
       {/* Children (typically <DecisionList>) — inside the collapsible body */}
       {children}
       </div>
-    </details>
+    </CollapsibleCard>
   );
 };
 

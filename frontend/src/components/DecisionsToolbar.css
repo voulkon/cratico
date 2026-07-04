@@ -2,65 +2,20 @@
  * Unified toolbar for the decisions section across all detail pages.
  * All colors use theme variables — no hardcoded white/#fff/#333 etc.
  *
- * This stylesheet is the single source of truth for the toolbar's
- * filter-group / amount / decision-type / active-filters / search-results
- * rules. The corresponding page-level rules in EntityDetailPage.css,
- * RelationshipDetailPage.css, and AFMEntityDetailPage.css have been
- * removed in favor of these scoped (.decisions-toolbar ...) selectors.
+ * Card chrome (shadow, border-radius, summary row, chevron, content
+ * divider) is now owned by CollapsibleCard.  This file only contains
+ * DecisionsToolbar-specific content styles: filter-group, amount,
+ * decision-type, active-filters, search-results.
  */
 
 .decisions-toolbar {
+  /* Override CollapsibleCard's default 20px vertical margin to match
+     the original top spacing (30px) and bottom spacing (16px). */
+  margin-top: var(--spacing-xxxl);
   margin-bottom: var(--spacing-lg);
 }
 
-/* ── Collapsible wrapper ──────────────────────────────────────────────── */
-.decisions-toolbar.collapsible-section {
-  margin-top: var(--spacing-xxxl);
-  background-color: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: 0 2px 4px var(--shadow);
-  overflow: hidden;
-}
-
-.decisions-toolbar-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--spacing-md) var(--spacing-xl);
-  background-color: var(--bg-selected);
-  border-bottom: 1px solid var(--border-color);
-  cursor: pointer;
-  transition: var(--transition-fast);
-  list-style: none;
-  user-select: none;
-}
-
-.decisions-toolbar-summary:hover {
-  background-color: var(--hover-bg);
-}
-
-/* Hide default disclosure triangle */
-.decisions-toolbar-summary::-webkit-details-marker {
-  display: none;
-}
-
-.decisions-toolbar-summary .summary-title {
-  color: var(--palette-primary);
-  font-weight: var(--font-medium);
-  font-size: var(--font-md);
-}
-
-.decisions-toolbar-filter-badge {
-  color: var(--muted-text);
-  font-weight: var(--font-medium);
-  margin-left: var(--spacing-xs);
-}
-
-/* Chevron — the shared <Chevron> component handles rotation & base styles.
-   This rule is intentionally empty (flexbox align-items:center on the
-   summary does the centering).  Add positioning overrides here if needed. */
-
+/* ── Content area ─────────────────────────────────────────────────────── */
 .decisions-toolbar-content {
   padding: var(--spacing-xl);
 }
@@ -73,17 +28,6 @@
   margin-bottom: var(--spacing-xl);
   flex-wrap: wrap;
   gap: var(--spacing-lg);
-}
-
-.decisions-toolbar-title {
-  margin: 0;
-  color: var(--palette-primary);
-  font-size: var(--font-lg);
-}
-
-.decisions-toolbar-count {
-  color: var(--muted-text);
-  font-weight: var(--font-medium);
 }
 
 .decisions-toolbar-controls {
