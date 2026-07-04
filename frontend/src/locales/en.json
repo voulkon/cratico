@@ -224,7 +224,8 @@
     "representsAloneTitle": "Represents alone",
     "representsAloneBadge": "Alone",
     "representsInCommonTitle": "Represents jointly",
-    "representsInCommonBadge": "Jointly"
+    "representsInCommonBadge": "Jointly",
+    "searchOnGoogle": "Search on Google"
   },
   "entityDetail": {
     "loadingEntity": "Loading {entityType} details...",

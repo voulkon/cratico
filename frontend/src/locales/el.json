@@ -219,12 +219,13 @@
     "errorTitle": "Σφάλμα Φόρτωσης Προσώπου",
     "backButton": "Πίσω",
     "breadcrumbPerson": "Πρόσωπο",
-    "involvements": "{count} {count, plural, one {εμπλοκή} other {εμπλοκές}}",
+    "involvements": "{count} {count, plural, one {συμμετοχή} other {συμμετοχές}}",
     "roleDates": "Από {from} έως {to}",
     "representsAloneTitle": "Εκπροσωπεί μόνος",
     "representsAloneBadge": "Μόνος",
     "representsInCommonTitle": "Εκπροσωπεί από κοινού",
-    "representsInCommonBadge": "Από κοινού"
+    "representsInCommonBadge": "Από κοινού",
+    "searchOnGoogle": "Αναζήτηση στο Google"
   },
   "entityDetail": {
     "loadingEntity": "Φόρτωση λεπτομερειών {entityType}...",

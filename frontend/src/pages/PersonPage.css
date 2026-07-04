@@ -38,11 +38,31 @@
   color: var(--muted-text);
 }
 
+.person-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin: var(--spacing-md) 0 var(--spacing-sm) 0;
+}
+
 .person-title {
   font-size: var(--font-xxl);
   font-weight: var(--font-bold);
   color: var(--text-color);
-  margin: var(--spacing-md) 0 var(--spacing-sm) 0;
+  margin: 0;
+}
+
+.person-google-search {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted-text);
+  transition: var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.person-google-search:hover {
+  color: var(--palette-primary);
 }
 
 .person-subtitle {
