@@ -3,16 +3,16 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { NetworkIcon } from '../components/Icons';
 import apiClient from '../api/client';
 import TimeRangeSection from '../components/TimeRangeSection';
-import SortControl from '../components/SortControl';
 import TopCounterparts from '../components/TopCounterparts';
 import TopRelationshipPairs from '../components/TopRelationshipPairs';
-import SearchInput from '../components/SearchInput';
 import DecisionList from '../components/DecisionList';
-import FilterPanel from '../components/FilterPanel';
+import DecisionsToolbar from '../components/DecisionsToolbar';
+import CollapsibleCard from '../components/CollapsibleCard';
 import StatisticsGrid from '../components/StatisticsGrid';
 import useUrlFilters from '../hooks/useUrlFilters';
 import useDocumentContent from '../hooks/useDocumentContent';
 import useDecisionsList from '../hooks/useDecisionsList';
+import useDecisionTypes from '../hooks/useDecisionTypes';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { createDynamicDateRangeUtils, formatAmount, toLocalISODate } from '../utils/dateUtils';
 import { useTranslation } from '../contexts/TranslationContext';
@@ -53,9 +53,6 @@ const EntityDetailPage = () => {
     clearAllFilters
   } = useUrlFilters({ sortBy: 'amount_desc' });
 
-  // Debounced search query
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
-
   const [statistics, setStatistics] = useState(null);
   const [statisticsLoading, setStatisticsLoading] = useState(false);
   const [statisticsError, setStatisticsError] = useState(null);
@@ -68,9 +65,7 @@ const EntityDetailPage = () => {
   const [timeRange, setTimeRange] = useState(null);
   const [monthRange, setMonthRange] = useState(null);
 
-  // Decision type filtering state
-  const [availableDecisionTypes, setAvailableDecisionTypes] = useState([]);
-  const [decisionTypesLoading, setDecisionTypesLoading] = useState(false);
+  // Decision type filtering state (via shared hook)
   const [isOrganizationsExpanded, setIsOrganizationsExpanded] = useState(true);
   const [isTimeRangeExpanded, setIsTimeRangeExpanded] = useState(true);
   const [temporalSummary, setTemporalSummary] = useState(null);
@@ -131,6 +126,9 @@ const EntityDetailPage = () => {
 
     return { startDateStr, endDateStr, label };
   }, [explorationMode, date, startDate, endDate, year, month, week, t]);
+
+  // Debounced search query — declared before the effect that uses it.
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
 
   // Debounce search query
   useEffect(() => {
@@ -208,31 +206,13 @@ const EntityDetailPage = () => {
     }
   }, [explorationMode, entityType, entityId, parseTemporalDateRange, t]);
 
-  const fetchDecisionTypes = useCallback(async () => {
-    if (!timeRange) return;
+  // Decision-types endpoint for the current context (entity or temporal)
+  const decisionTypesEndpoint = explorationMode === 'temporal'
+    ? '/explore/decision-types/'
+    : `/entity/${entityType}/${entityId}/decision-types/`;
 
-    try {
-      setDecisionTypesLoading(true);
-      const params = new URLSearchParams({
-        start_date: timeRange.startDate,
-        end_date: timeRange.endDate
-      });
-
-      let endpoint;
-      if (explorationMode === 'temporal') {
-        endpoint = `/explore/decision-types/?${params.toString()}`;
-      } else {
-        endpoint = `/entity/${entityType}/${entityId}/decision-types/?${params.toString()}`;
-      }
-
-      const response = await apiClient.get(endpoint);
-      setAvailableDecisionTypes(response.data.decision_types);
-    } catch (err) {
-      console.error('Failed to fetch decision types:', err);
-    } finally {
-      setDecisionTypesLoading(false);
-    }
-  }, [explorationMode, entityType, entityId, timeRange]);
+  const { decisionTypes: availableDecisionTypes, loading: decisionTypesLoading } =
+    useDecisionTypes({ endpoint: decisionTypesEndpoint, dateRange: timeRange });
 
   const fetchStatistics = useCallback(async () => {
     if (!timeRange) return;
@@ -379,13 +359,8 @@ const EntityDetailPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [explorationMode, entityType, entityId]);
 
-  // Load decision types when time range is set (decisions are handled by useDecisionsList)
-  useEffect(() => {
-    if (timeRange) {
-      fetchDecisionTypes();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeRange]);
+  // Load decision types when time range changes (decisions are handled by useDecisionsList)
+  // The useDecisionTypes hook auto-fetches on timeRange change, so nothing to do here.
 
   useEffect(() => {
     if (!timeRange || !statsRequested) return;
@@ -409,18 +384,6 @@ const EntityDetailPage = () => {
     setTimeRange({
       startDate: dynamicDateUtils.indexToDateString(startIndex),
       endDate: dynamicDateUtils.indexToDateString(endIndex, true)
-    });
-  };
-
-  // Simplified handlers - the hook handles URL updates automatically
-  const handleDecisionTypeToggle = (typeUid, isChecked) => {
-    toggleType(typeUid);
-  };
-
-  const handleAmountFilterChange = (field, value) => {
-    setAmountFilters({
-      ...amountFilters,
-      [field]: value
     });
   };
 
@@ -523,23 +486,14 @@ const EntityDetailPage = () => {
 
         {/* Signer Organizations and Positions - Collapsible */}
         {entityType === 'signer' && entityData?.metadata?.organizations && (
-          <details
-            className="signer-organizations-section collapsible-section"
+          <CollapsibleCard
+            title={t('entityDetail.organizationsAndPositions')}
+            subtitle={<> ({entityData.metadata.total_organizations} {t('entityDetail.organizationsCountLabel')}, {entityData.metadata.total_positions} {t('entityDetail.positionsCountLabel')})</>}
             open={isOrganizationsExpanded}
-            onToggle={(e) => setIsOrganizationsExpanded(e.target.open)}
+            onToggle={setIsOrganizationsExpanded}
+            defaultOpen={true}
+            className="signer-organizations-section"
           >
-            <summary className="section-summary">
-              <span className="summary-title">
-                {t('entityDetail.organizationsAndPositions')}
-              </span>
-              <span className="summary-count">
-                ({entityData.metadata.total_organizations} {t('entityDetail.organizationsCountLabel')}, {entityData.metadata.total_positions} {t('entityDetail.positionsCountLabel')})
-              </span>
-              <span className="toggle-icon">
-                {isOrganizationsExpanded ? '▼' : '▶'}
-              </span>
-            </summary>
-
             <div className="section-content">
               <div className="organizations-grid">
                 {entityData.metadata.organizations.map((orgData, index) => (
@@ -594,7 +548,7 @@ const EntityDetailPage = () => {
                 ))}
               </div>
             </div>
-          </details>
+          </CollapsibleCard>
         )}
 
         {/* Enhanced time range - Collapsible */}
@@ -659,158 +613,50 @@ const EntityDetailPage = () => {
       )}
 
       {/* Enhanced Filters Section for both modes */}
-      <div className="decisions-section">
-        <div className="decisions-header">
-          <h3 className="decisions-title">
-            {explorationMode === 'temporal' ? t('entityDetail.allDecisions') : t('entityDetail.entityDecisions')}
-          </h3>
-
-          <div className="controls-container">
-            <SearchInput
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder={t('entityDetail.searchInDecisions')}
-              label={`${t('entityDetail.search')}:`}
-            />
-
-            <label className="checkbox-label" style={{ marginRight: '1rem' }}>
-              <input
-                type="checkbox"
-                checked={directAssignmentsOnly}
-                onChange={(e) => setDirectAssignmentsOnly(e.target.checked)}
-              />
-              <span>{t('filters.directAssignmentsOnly', 'Direct Assignments Only')}</span>
-            </label>
-
-            <SortControl sortBy={sortBy} onSortChange={setSortBy} options="simple" />
-          </div>
-        </div>
-
-        <FilterPanel
+        <DecisionsToolbar
+          title={explorationMode === 'temporal' ? t('entityDetail.allDecisions') : t('entityDetail.entityDecisions')}
+          totalCount={pagination?.total_count}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          directOnly={directAssignmentsOnly}
+          onDirectOnlyChange={setDirectAssignmentsOnly}
+          sortBy={sortBy}
+          onSortChange={setSortBy}
+          sortVariant="simple"
           activeFiltersCount={activeFiltersCount}
           onClearAll={clearAllFilters}
-          filterLabel={t('entityDetail.filters')}
-        >
-          {/* Amount Filters */}
-          <div className="filter-group">
-            <h4>{t('entityDetail.amountRange')}</h4>
-            <div className="amount-filters">
-              <input
-                type="number"
-                placeholder={t('entityDetail.minAmountPlaceholder')}
-                value={amountFilters.minAmount}
-                onChange={(e) => handleAmountFilterChange('minAmount', e.target.value)}
-                className="amount-input"
-              />
-              <span className="amount-separator">{t('entityDetail.amountTo')}</span>
-              <input
-                type="number"
-                placeholder={t('entityDetail.maxAmountPlaceholder')}
-                value={amountFilters.maxAmount}
-                onChange={(e) => handleAmountFilterChange('maxAmount', e.target.value)}
-                className="amount-input"
-              />
-            </div>
-          </div>
-
-          {/* Decision Type Filters */}
-          <div className="filter-group">
-            <h4>{t('entityDetail.decisionTypes')}</h4>
-            {decisionTypesLoading ? (
-              <div className="loading-text">{t('entityDetail.loadingDecisionTypes')}</div>
-            ) : (
-              <div className="decision-types-grid">
-                {availableDecisionTypes.map(type => (
-                  <label key={type.uid} className="decision-type-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={selectedDecisionTypes.includes(type.uid)}
-                      onChange={(e) => handleDecisionTypeToggle(type.uid, e.target.checked)}
-                    />
-                    <span className="checkbox-content">
-                      <span className="type-label">{type.label}</span>
-                      <span className="type-stats">
-                        {t('entityDetail.decisionTypesCount', {
-                          count: type.count,
-                          amount: type.total_amount.toLocaleString()
-                        })}
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Organization Filters - only for temporal mode */}
-          {explorationMode === 'temporal' && (
+          amountFilters={amountFilters}
+          onAmountChange={(field, value) => setAmountFilters({ ...amountFilters, [field]: value })}
+          decisionTypes={availableDecisionTypes}
+          selectedTypes={selectedDecisionTypes}
+          onTypeToggle={toggleType}
+          typesLoading={decisionTypesLoading}
+          pagination={pagination}
+          extraFilters={explorationMode === 'temporal' ? (
             <div className="filter-group">
               <h4>{t('entityDetail.organizations')}</h4>
-              {/* Add organization filter UI */}
+              {/* TODO: implement organization filter UI for temporal mode */}
+              <div className="loading-text">
+                {t('entityDetail.organizationFiltersComingSoon', 'Organization filters coming soon')}
+              </div>
             </div>
-          )}
-        </FilterPanel>
-
-        {/* Search Results Info */}
-        {searchQuery && (
-          <div className="search-results-info">
-            <span className="search-results-bold">
-              {t('entityDetail.searchResultsFor')} "{searchQuery}"
-            </span>
-            {pagination && (
-              <span className="search-results-count">
-                {t('entityDetail.resultsFound', { count: pagination.total_count })}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Active Filters Display */}
-        {activeFiltersCount > 0 && (
-          <div className="active-filters">
-            <span className="filters-label">{t('entityDetail.activeFilters')}</span>
-            {selectedDecisionTypes.map(typeUid => {
-              const type = availableDecisionTypes.find(t => t.uid === typeUid);
-              return (
-                <span key={typeUid} className="filter-tag">
-                  {type?.label || typeUid}
-                  <button onClick={() => handleDecisionTypeToggle(typeUid, false)}>×</button>
-                </span>
-              );
-            })}
-            {amountFilters.minAmount && (
-              <span className="filter-tag">
-                {t('entityDetail.minAmountFilter', { amount: amountFilters.minAmount })}
-                <button onClick={() => handleAmountFilterChange('minAmount', '')}>×</button>
-              </span>
-            )}
-            {amountFilters.maxAmount && (
-              <span className="filter-tag">
-                {t('entityDetail.maxAmountFilter', { amount: amountFilters.maxAmount })}
-                <button onClick={() => handleAmountFilterChange('maxAmount', '')}>×</button>
-              </span>
-            )}
-          </div>
-        )}
-
-
-
-        <DecisionList
-          decisions={decisions}
-          loading={loading}
-          loadingMore={loadingMore}
-          error={null}
-          pagination={pagination}
-          hasSearchQuery={!!(searchQuery || activeFiltersCount > 0)}
-          formatAmount={formatAmount}
-          onViewDocumentContent={handleViewDocumentContent}
-          onLoadMore={loadMore}
-          emptyMessage={t('entityDetail.noDecisionsFound')}
-          showPaginationInfo={true}
-          infiniteScroll={true}
-          getDecisionKey={(d) => d.ada}
-        />
-      </div>
+          ) : null}
+        >
+          <DecisionList
+            decisions={decisions}
+            loading={loading}
+            loadingMore={loadingMore}
+            error={null}
+            pagination={pagination}
+            hasSearchQuery={!!(searchQuery || activeFiltersCount > 0)}
+            formatAmount={formatAmount}
+            onViewDocumentContent={handleViewDocumentContent}
+            onLoadMore={loadMore}
+            emptyMessage={t('entityDetail.noDecisionsFound')}
+            infiniteScroll={true}
+            getDecisionKey={(d) => d.ada}
+          />
+        </DecisionsToolbar>
     </div>
   );
 };

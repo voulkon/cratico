@@ -1,66 +1,30 @@
-/* ── TimeRangeSection — editorial collapsible card ───────────────────── */
-
-/*
- * Card shell — borderless, shadow-raised, Apple-inspired.
- * The summary row floats directly on the card surface with no toolbar fill.
- * The divider (border-top) lives inside .section-content and only appears
- * when the card is open, so the card feels like it "unfolds" rather than
- * having a permanent control bar.
+/* ── TimeRangeSection — slider & metadata content ───────────────────────
+ *
+ * Card chrome (shadow, border-radius, summary row, chevron, content
+ * divider) is now owned by CollapsibleCard.  This file only contains
+ * TimeRangeSection-specific content styles.
  */
 
-.collapsible-section {
-  margin: var(--spacing-xl) 0;
-  border: none;
-  border-radius: 18px;
-  background-color: var(--card-bg);
-  box-shadow: var(--card-shadow);
-  overflow: hidden;
-  transition: box-shadow 0.25s ease, transform 0.25s ease;
+/* ── Date-span info ───────────────────────────────────────────────────── */
+
+.time-range-header {
+  margin-bottom: var(--spacing-md);
 }
 
-.collapsible-section:hover {
-  box-shadow: var(--card-shadow-hover);
-  transform: translateY(-2px);
-}
-
-/* ── Summary row — title centered, chevron pinned right ──────────────── */
-
-.section-summary {
-  position: relative;
-  padding: var(--spacing-lg) var(--spacing-xl);
-  cursor: pointer;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  user-select: none;
-  transition: background-color 0.2s ease;
-}
-
-.section-summary:hover {
+.date-span-info {
+  font-size: var(--font-xs);
+  color: var(--muted-text);
   background-color: var(--hover-bg);
-}
-
-.section-summary::-webkit-details-marker {
-  display: none;
-}
-
-/* ── Typography ───────────────────────────────────────────────────────── */
-
-/* Section label — follows the guide's .section-label pattern */
-.summary-title {
-  font-family: var(--font-sans);
-  font-size: var(--font-sm);
-  font-weight: 500;
-  color: var(--palette-primary);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
   min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
-/* Metadata badge — rounded box (matches .decision-type-badge), centered under the rail */
+/* ── Summary count badge (centered below the slider) ─────────────────── */
 .summary-count-row {
   display: flex;
   justify-content: center;
@@ -77,50 +41,6 @@
   border: none;
   border-radius: var(--radius-md);
   font-weight: var(--font-medium);
-  min-width: 0;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-/* ── Chevron — rotating SVG, pinned to the right of the summary ──────── */
-
-.chevron {
-  position: absolute;
-  right: var(--spacing-xl);
-  top: 50%;
-  transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
-  color: var(--muted-text);
-  transition: transform 0.3s ease;
-}
-
-.chevron.open {
-  transform: translateY(-50%) rotate(180deg);
-}
-
-/* ── Content area — divider emerges only when open ────────────────────── */
-
-.section-content {
-  padding: var(--spacing-xl);
-  padding-bottom: var(--spacing-xxl);
-  border-top: 1px solid var(--border-color);
-}
-
-/* ── Date-span info ───────────────────────────────────────────────────── */
-
-.time-range-header {
-  margin-bottom: var(--spacing-md);
-}
-
-.date-span-info {
-  font-size: var(--font-xs);
-  color: var(--muted-text);
-  background-color: var(--hover-bg);
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-color);
   min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;

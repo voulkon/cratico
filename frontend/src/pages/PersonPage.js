@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import apiClient from '../api/client';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { SearchIcon } from '../components/Icons';
 import './PersonPage.css';
 
 const PersonPage = () => {
@@ -57,7 +58,18 @@ const PersonPage = () => {
           <span className="breadcrumb-separator">•</span>
           <span>{t('personPage.breadcrumbPerson')}</span>
         </div>
-        <h1 className="person-title">{decodedName}</h1>
+        <div className="person-title-row">
+          <h1 className="person-title">{decodedName}</h1>
+          <a
+            href={`https://www.google.com/search?q=${encodeURIComponent(decodedName)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="person-google-search"
+            title={t('personPage.searchOnGoogle')}
+          >
+            <SearchIcon size={16} />
+          </a>
+        </div>
         <p className="person-subtitle">
           {t('personPage.involvements', { count: involvements.length })}
         </p>

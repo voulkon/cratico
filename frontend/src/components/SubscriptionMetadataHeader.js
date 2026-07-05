@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { CalendarIcon, ChartIcon, FileIcon } from './Icons';
 import { RefreshCw } from 'lucide-react';
 import { useTranslation } from '../contexts/TranslationContext';
+import CollapsibleCard from './CollapsibleCard';
 import './SubscriptionMetadataHeader.css';
 
 /**
@@ -18,7 +19,10 @@ const SubscriptionMetadataHeader = ({
   dateRange,
   formatDate,
   formatAmount,
-  title
+  title,
+  open: controlledOpen,
+  onToggle,
+  defaultOpen = true,
 }) => {
   const { t } = useTranslation();
 
@@ -55,11 +59,32 @@ const SubscriptionMetadataHeader = ({
   // Check if any filters are applied
   const hasFilters = keywords?.length > 0 || amount_min || amount_max || decision_types?.length > 0;
 
-  return (
-    <div className="subscription-metadata-header">
-      {/* Title */}
-      <h1 className="subscription-title">{title || t('notifications.subscriptionHistory')}</h1>
+  const displayTitle = title || t('notifications.subscriptionHistory');
 
+  // ── Build subtitle (organization / entity target) ──────────────
+  const subtitle = organization_label
+    ? <> — {organization_label}</>
+    : entity_name
+      ? <> — {entity_name}</>
+      : null;
+
+  // ── Build badge (frequency pill) ──────────────────────────────
+  const badge = check_frequency ? (
+    <span className="subscription-metadata-summary-frequency">{check_frequency}</span>
+  ) : null;
+
+  return (
+    <CollapsibleCard
+      title={alias || displayTitle}
+      subtitle={subtitle}
+      badge={badge}
+      open={controlledOpen}
+      onToggle={onToggle}
+      defaultOpen={defaultOpen}
+      accentBorder
+      className="subscription-metadata-header"
+    >
+      <div className="subscription-metadata-content">
       {/* Subscription Name and Target */}
       <div className="subscription-primary-info">
         <div className="subscription-name-section">
@@ -185,7 +210,8 @@ const SubscriptionMetadataHeader = ({
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </CollapsibleCard>
   );
 };
 

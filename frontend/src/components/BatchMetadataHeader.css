@@ -1,23 +1,24 @@
 /* Import centralized StatCard styles */
 @import './StatCard.css';
 
-/* Batch Metadata Header - Component Styles */
+/* ── BatchMetadataHeader ─────────────────────────────────────────
+ *
+ * Card chrome (shadow, border-radius, summary row, chevron, content
+ * divider) is now owned by CollapsibleCard.  This file only contains
+ * BatchMetadataHeader-specific content styles.
+ */
 
 .batch-metadata-header {
-  background: var(--card-bg);
-  border-radius: 8px;
-  padding: 2rem;
+  /* Override CollapsibleCard's default --spacing-xl margins */
   margin-bottom: 2rem;
-  box-shadow: 0 2px 8px var(--shadow);
 }
 
-/* Title */
-.batch-title {
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: var(--text-color);
-  margin: 0 0 1.5rem 0;
+/* ── Collapsible content area ──────────────────────────────────── */
+.batch-metadata-content {
+  padding: 0 2rem 2rem;
 }
+
+/* ── Legacy title (removed from summary, kept for compat) ──────── */
 
 /* Subscription Info */
 .subscription-info {
@@ -133,12 +134,16 @@
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  .batch-metadata-header {
-    padding: 1.5rem;
+  .batch-metadata-summary {
+    padding: 1rem 1.5rem;
   }
 
-  .batch-title {
-    font-size: 1.5rem;
+  .batch-metadata-summary-title {
+    font-size: 1.2rem;
+  }
+
+  .batch-metadata-content {
+    padding: 0 1.5rem 1.5rem;
   }
 
   .batch-metadata {
@@ -157,12 +162,16 @@
 }
 
 @media (max-width: 480px) {
-  .batch-metadata-header {
-    padding: 1rem;
+  .batch-metadata-summary {
+    padding: 0.75rem 1rem;
   }
 
-  .batch-title {
-    font-size: 1.3rem;
+  .batch-metadata-summary-title {
+    font-size: 1.1rem;
+  }
+
+  .batch-metadata-content {
+    padding: 0 1rem 1rem;
   }
 
   .stat-value {

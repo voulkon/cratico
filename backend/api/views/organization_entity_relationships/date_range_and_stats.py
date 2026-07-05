@@ -260,3 +260,93 @@ def relationship_statistics_api(request, afm, orgUid):
             },
             status=500,
         )
+
+
+@swagger_auto_schema(
+    method="get",
+    manual_parameters=[
+        openapi.Parameter(
+            "start_date",
+            openapi.IN_QUERY,
+            description="Start date (YYYY-MM-DD)",
+            type=openapi.TYPE_STRING,
+        ),
+        openapi.Parameter(
+            "end_date",
+            openapi.IN_QUERY,
+            description="End date (YYYY-MM-DD)",
+            type=openapi.TYPE_STRING,
+        ),
+    ],
+)
+@api_view(["GET"])
+@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+def relationship_decision_types_api(request, afm, orgUid):
+    """
+    Get unique decision types with counts and financial data for an
+    AFM↔Organization relationship, optionally filtered by date range.
+
+    Scans the entire relationship queryset — not just a paginated batch —
+    so users can discover and filter by every type that exists.
+    """
+    start_date_str = request.GET.get("start_date")
+    end_date_str = request.GET.get("end_date")
+
+    try:
+        decisions_qs = _get_relationship_decisions_qs(afm, orgUid)
+
+        # Apply date filter. Unlike relationship_statistics_api, partial ranges
+        # are supported: a lone start_date filters >= start, a lone end_date
+        # filters <= end. This matches the entity/explore decision-types
+        # endpoints and avoids silently dropping a filter the client sent.
+        if start_date_str or end_date_str:
+            start_dt = parse_date(start_date_str) if start_date_str else None
+            end_dt = parse_date(end_date_str) if end_date_str else None
+            if start_dt:
+                decisions_qs = decisions_qs.filter(issue_date_day__gte=start_dt)
+            if end_dt:
+                decisions_qs = decisions_qs.filter(issue_date_day__lte=end_dt)
+
+        decision_types = (
+            decisions_qs.values("decision_type__uid")
+            .annotate(
+                count=models.Count("id"),
+                total_amount=models.Sum("amount"),
+                avg_amount=models.Avg("amount"),
+                max_amount=models.Max("amount"),
+                label=models.Max("decision_type__label"),
+            )
+            .filter(decision_type__uid__isnull=False)
+            .order_by("-count")
+        )
+
+        formatted_types = []
+        for dt in decision_types:
+            formatted_types.append(
+                {
+                    "uid": dt["decision_type__uid"],
+                    "label": dt["label"],
+                    "count": dt["count"],
+                    "total_amount": float(dt["total_amount"] or 0),
+                    "avg_amount": float(dt["avg_amount"] or 0),
+                    "max_amount": float(dt["max_amount"] or 0),
+                }
+            )
+
+        return Response(
+            {
+                "decision_types": formatted_types,
+                "total_types": len(formatted_types),
+            }
+        )
+
+    except Exception as e:
+        logger.exception(
+            "Error in relationship_decision_types_api for afm={}, orgUid={}",
+            afm,
+            orgUid,
+        )
+        return Response(
+            {"error": f"Internal server error: {str(e)}"},
+            status=500,
+        )

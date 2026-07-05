@@ -9,7 +9,7 @@ import './NotificationBatchDetailPage.css';
 
 // Import shared components
 import DecisionList from '../components/DecisionList';
-import SortControl from '../components/SortControl';
+import DecisionsToolbar from '../components/DecisionsToolbar';
 import BatchMetadataHeader from '../components/BatchMetadataHeader';
 import { ChartIcon } from '../components/Icons';
 
@@ -198,54 +198,34 @@ const NotificationBatchDetailPage = () => {
         </div>
       )}
 
-      {/* Decisions Section Header + Controls */}
-      <div className="decisions-header">
-        <h3 className="decisions-title">
-          {t('notifications.decisions', 'Decisions')}{' '}
-          <span className="count-badge">{(pagination?.total_count || 0).toLocaleString()}</span>
-        </h3>
-        <div className="controls-container">
-          <div className="viewed-filter">
-            <label htmlFor="viewed-filter" className="sort-label">Filter:</label>
-            <select
-              id="viewed-filter"
-              className="sort-select"
-              value={isViewedFilter === null ? 'all' : isViewedFilter.toString()}
-              onChange={(e) => {
-                const value = e.target.value;
-                if (value === 'all') {
-                  setIsViewedFilter(null);
-                } else {
-                  setIsViewedFilter(value === 'true');
-                }
-              }}
-            >
-              <option value="all">All Decisions</option>
-              <option value="false">Unviewed Only</option>
-              <option value="true">Viewed Only</option>
-            </select>
-          </div>
-          <SortControl sortBy={sortBy} onSortChange={setSortBy} />
-        </div>
-      </div>
-
-      {/* Decision List */}
-      <DecisionList
-        decisions={decisions.map(bd => ({
-          ...bd.decision,
-          _batchDecisionId: bd.id,
-          _isViewed: bd.is_viewed,
-        }))}
-        loading={loading}
-        loadingMore={loadingMore}
+      {/* Decisions Section */}
+      <DecisionsToolbar
+        title={t('notifications.decisions', 'Decisions')}
+        totalCount={pagination?.total_count}
+        viewedFilter={isViewedFilter}
+        onViewedFilterChange={setIsViewedFilter}
+        sortBy={sortBy}
+        onSortChange={setSortBy}
+        sortVariant="simple"
         pagination={pagination}
-        formatAmount={formatAmount}
-        onViewDocumentContent={handleViewDocumentContent}
-        onLoadMore={handleLoadMore}
-        emptyMessage={t('notifications.noDecisionsInBatch')}
-        infiniteScroll={true}
-        getDecisionKey={(d) => `batch-${batchId}-${d._batchDecisionId || d.id}`}
-      />
+      >
+        <DecisionList
+          decisions={decisions.map(bd => ({
+            ...bd.decision,
+            _batchDecisionId: bd.id,
+            _isViewed: bd.is_viewed,
+          }))}
+          loading={loading}
+          loadingMore={loadingMore}
+          pagination={pagination}
+          formatAmount={formatAmount}
+          onViewDocumentContent={handleViewDocumentContent}
+          onLoadMore={handleLoadMore}
+          emptyMessage={t('notifications.noDecisionsInBatch')}
+          infiniteScroll={true}
+          getDecisionKey={(d) => `batch-${batchId}-${d._batchDecisionId || d.id}`}
+        />
+      </DecisionsToolbar>
     </div>
   );
 };

@@ -1,0 +1,255 @@
+/* ── DecisionsToolbar ────────────────────────────────────────────────────
+ * Unified toolbar for the decisions section across all detail pages.
+ * All colors use theme variables — no hardcoded white/#fff/#333 etc.
+ *
+ * Card chrome (shadow, border-radius, summary row, chevron, content
+ * divider) is now owned by CollapsibleCard.  This file only contains
+ * DecisionsToolbar-specific content styles: filter-group, amount,
+ * decision-type, active-filters, search-results.
+ */
+
+.decisions-toolbar {
+  /* Override CollapsibleCard's default 20px vertical margin to match
+     the original top spacing (30px) and bottom spacing (16px). */
+  margin-top: var(--spacing-xxxl);
+  margin-bottom: var(--spacing-lg);
+}
+
+/* ── Content area ─────────────────────────────────────────────────────── */
+.decisions-toolbar-content {
+  padding: var(--spacing-xl);
+}
+
+/* ── Header row: title + controls ─────────────────────────────────────── */
+.decisions-toolbar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-xl);
+  flex-wrap: wrap;
+  gap: var(--spacing-lg);
+}
+
+.decisions-toolbar-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.decisions-toolbar-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-sm);
+  color: var(--text-color);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.decisions-toolbar-checkbox input[type="checkbox"] {
+  cursor: pointer;
+}
+
+/* ── Viewed filter dropdown (notification pages) ──────────────────────── */
+.decisions-toolbar-viewed-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.decisions-toolbar-viewed-filter .sort-label {
+  font-size: var(--font-sm);
+  color: var(--text-color);
+}
+
+.decisions-toolbar-viewed-filter .sort-select {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-size: var(--font-sm);
+  cursor: pointer;
+}
+
+.decisions-toolbar-viewed-filter .sort-select:focus {
+  outline: none;
+  border-color: var(--palette-primary);
+  box-shadow: 0 0 0 2px var(--palette-bg-subtle);
+}
+
+/* ── Filter panel contents (self-contained) ───────────────────────────── */
+.decisions-toolbar .filter-group {
+  margin-bottom: var(--spacing-xl);
+}
+
+.decisions-toolbar .filter-group h4 {
+  margin: 0 0 var(--spacing-md) 0;
+  color: var(--text-color);
+  font-size: var(--font-md);
+}
+
+.decisions-toolbar .amount-filters {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.decisions-toolbar .amount-input {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background-color: var(--card-bg);
+  color: var(--text-color);
+  width: 150px;
+}
+
+.decisions-toolbar .amount-input:focus {
+  outline: none;
+  border-color: var(--focus-color);
+}
+
+.decisions-toolbar .amount-separator {
+  color: var(--muted-text);
+  font-weight: var(--font-medium);
+}
+
+.decisions-toolbar .decision-types-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--spacing-sm);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.decisions-toolbar .decision-type-checkbox {
+  display: flex;
+  align-items: flex-start;
+  padding: var(--spacing-sm);
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.decisions-toolbar .decision-type-checkbox:hover {
+  background-color: var(--hover-bg);
+  border-color: var(--palette-primary);
+}
+
+.decisions-toolbar .decision-type-checkbox input[type="checkbox"] {
+  margin-right: var(--spacing-sm);
+  margin-top: 2px;
+}
+
+.decisions-toolbar .checkbox-content {
+  flex: 1;
+}
+
+.decisions-toolbar .type-label {
+  display: block;
+  font-weight: var(--font-medium);
+  color: var(--text-color);
+  margin-bottom: var(--spacing-xs);
+}
+
+.decisions-toolbar .type-stats {
+  display: block;
+  font-size: var(--font-xs);
+  color: var(--muted-text);
+}
+
+.decisions-toolbar .loading-text {
+  color: var(--muted-text);
+  font-style: italic;
+  padding: var(--spacing-sm);
+}
+
+/* ── Active filter chips ──────────────────────────────────────────────── */
+.decisions-toolbar .active-filters {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin: var(--spacing-md) 0;
+  padding: var(--spacing-md);
+  background-color: var(--bg-info);
+  border-radius: var(--radius-sm);
+  flex-wrap: wrap;
+  border: 1px solid var(--border-color);
+}
+
+.decisions-toolbar .filters-label {
+  font-weight: var(--font-bold);
+  color: var(--color-text-info);
+  margin-right: var(--spacing-xs);
+}
+
+.decisions-toolbar .filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  background-color: var(--palette-primary);
+  color: var(--palette-primary-contrast);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-xs);
+}
+
+.decisions-toolbar .filter-tag button {
+  background: none;
+  border: none;
+  color: var(--palette-primary-contrast);
+  cursor: pointer;
+  padding: 0;
+  margin-left: var(--spacing-xs);
+  font-size: var(--font-sm);
+  line-height: 1;
+  border-radius: var(--radius-sm);
+  transition: var(--transition-fast);
+}
+
+.decisions-toolbar .filter-tag button:hover {
+  background-color: var(--bg-selected);
+}
+
+/* ── Search results info ──────────────────────────────────────────────── */
+.decisions-toolbar .search-results-info {
+  background-color: var(--bg-info);
+  color: var(--color-text-info);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--spacing-md);
+  border: 1px solid var(--border-color);
+}
+
+.decisions-toolbar .search-results-bold {
+  font-weight: var(--font-bold);
+}
+
+.decisions-toolbar .search-results-count {
+  margin-left: var(--spacing-sm);
+  opacity: 0.8;
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .decisions-toolbar-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .decisions-toolbar-controls {
+    justify-content: flex-start;
+  }
+
+  .decisions-toolbar .decision-types-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .decisions-toolbar .amount-input {
+    width: 100%;
+    max-width: 180px;
+  }
+}

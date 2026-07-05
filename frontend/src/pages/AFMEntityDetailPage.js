@@ -6,10 +6,11 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import useUrlFilters from '../hooks/useUrlFilters';
 import useDocumentContent from '../hooks/useDocumentContent';
 import useDecisionsList from '../hooks/useDecisionsList';
-import SortControl from '../components/SortControl';
+import useDecisionTypes from '../hooks/useDecisionTypes';
 import TopCounterparts from '../components/TopCounterparts';
 import GemiSection from '../components/GemiSection';
 import DecisionList from '../components/DecisionList';
+import DecisionsToolbar from '../components/DecisionsToolbar';
 import StatisticsGrid from '../components/StatisticsGrid';
 import TimeRangeSection from '../components/TimeRangeSection';
 import { createDynamicDateRangeUtils, formatAmount } from '../utils/dateUtils';
@@ -43,9 +44,16 @@ const AFMEntityDetailPage = () => {
   const {
     sortBy,
     searchQuery,
+    selectedTypes: selectedDecisionTypes,
+    amountFilters,
     directAssignmentsOnly,
+    activeFiltersCount,
     setSortBy,
+    setSearchQuery,
+    toggleType,
+    setAmountFilters,
     setDirectAssignmentsOnly,
+    clearAllFilters,
   } = useUrlFilters({ sortBy: 'amount_desc' });
 
   // Debounced search query
@@ -55,6 +63,13 @@ const AFMEntityDetailPage = () => {
     const timer = setTimeout(() => setDebouncedSearchQuery(searchQuery), 500);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // Decision types for this AFM (scans entire queryset, not just loaded batch)
+  const { decisionTypes: availableDecisionTypes, loading: decisionTypesLoading } =
+    useDecisionTypes({
+      endpoint: `/entity/afm/${afm}/decision-types/`,
+      dateRange: timeRange,
+    });
 
   // ── Unified decisions list hook ────────────────────────────────────────
   const {
@@ -71,6 +86,9 @@ const AFMEntityDetailPage = () => {
       end_date: timeRange?.endDate,
       ...(directAssignmentsOnly && { direct_assignments_only: 'true' }),
       ...(debouncedSearchQuery.trim() && { q: debouncedSearchQuery.trim() }),
+      ...(selectedDecisionTypes.length > 0 && { decision_types: selectedDecisionTypes.join(',') }),
+      ...(amountFilters.minAmount && { min_amount: amountFilters.minAmount }),
+      ...(amountFilters.maxAmount && { max_amount: amountFilters.maxAmount }),
     },
     enabled: !!timeRange,
   });
@@ -169,7 +187,7 @@ const AFMEntityDetailPage = () => {
     if (!timeRange || !statsRequested) return;
     fetchStatistics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeRange, sortBy, directAssignmentsOnly, debouncedSearchQuery, statsRequested]);
+  }, [timeRange, sortBy, directAssignmentsOnly, debouncedSearchQuery, selectedDecisionTypes, amountFilters, statsRequested]);
 
   useEffect(() => {
     let cancelled = false;
@@ -409,65 +427,42 @@ const AFMEntityDetailPage = () => {
       />
 
       {/* Decisions Section */}
-      <div className="decisions-section">
-        <div className="decisions-header">
-          <h3 className="decisions-title">
-            {t('afmEntityDetail.relatedDecisions')} ({pagination?.total_items?.toLocaleString() || decisions.length})
-          </h3>
-
-          <div className="controls-container">
-            <label className="checkbox-label" style={{ marginRight: '1rem' }}>
-              <input
-                type="checkbox"
-                checked={directAssignmentsOnly}
-                onChange={(e) => setDirectAssignmentsOnly(e.target.checked)}
-              />
-              <span>{t('filters.directAssignmentsOnly', 'Direct Assignments Only')}</span>
-            </label>
-            <SortControl sortBy={sortBy} onSortChange={setSortBy} options="simple" />
-          </div>
-        </div>
-
-        {/* Search Results Info */}
-        {searchQuery && (
-          <div className="search-results-info">
-            <span className="search-results-count">
-              {t('entityDetail.resultsFound', { count: pagination?.total_items || 0 })}
-            </span>
-          </div>
-        )}
-
-        {/* Results Info */}
-        <div className="search-results-info">
-          {pagination && (
-            <span className="search-results-count">
-              {t('common.showingResults', {
-                start: ((pagination.current_page - 1) * pagination.page_size) + 1,
-                end: Math.min(pagination.current_page * pagination.page_size, pagination.total_items),
-                total: pagination.total_items
-              })}
-            </span>
-          )}
-        </div>
-
-        {/* Decisions List */}
-        <DecisionList
-          decisions={decisions}
-          loading={loading}
-          loadingMore={loadingMore}
-          error={null}
+        <DecisionsToolbar
+          title={t('afmEntityDetail.relatedDecisions')}
+          totalCount={pagination?.total_items}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          directOnly={directAssignmentsOnly}
+          onDirectOnlyChange={setDirectAssignmentsOnly}
+          sortBy={sortBy}
+          onSortChange={setSortBy}
+          sortVariant="simple"
+          activeFiltersCount={activeFiltersCount}
+          onClearAll={clearAllFilters}
+          amountFilters={amountFilters}
+          onAmountChange={(field, value) => setAmountFilters({ ...amountFilters, [field]: value })}
+          decisionTypes={availableDecisionTypes}
+          selectedTypes={selectedDecisionTypes}
+          onTypeToggle={toggleType}
+          typesLoading={decisionTypesLoading}
           pagination={pagination}
-          hasSearchQuery={!!searchQuery}
-          formatAmount={formatAmount}
-          onViewDocumentContent={handleViewDocumentContent}
-          onLoadMore={loadMore}
-          emptyMessage={t('afmEntityDetail.noDecisions')}
-          emptyFilterMessage={t('afmEntityDetail.noDecisionsWithFilters')}
-          showPaginationInfo={true}
-          infiniteScroll={true}
-          getDecisionKey={(d) => d.id}
-        />
-      </div>
+        >
+          <DecisionList
+            decisions={decisions}
+            loading={loading}
+            loadingMore={loadingMore}
+            error={null}
+            pagination={pagination}
+            hasSearchQuery={!!(searchQuery || activeFiltersCount > 0)}
+            formatAmount={formatAmount}
+            onViewDocumentContent={handleViewDocumentContent}
+            onLoadMore={loadMore}
+            emptyMessage={t('afmEntityDetail.noDecisions')}
+            emptyFilterMessage={t('afmEntityDetail.noDecisionsWithFilters')}
+            infiniteScroll={true}
+            getDecisionKey={(d) => d.id}
+          />
+        </DecisionsToolbar>
     </div>
   );
 };
