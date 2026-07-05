@@ -70,7 +70,7 @@ const EntityDetailPage = () => {
   const [isTimeRangeExpanded, setIsTimeRangeExpanded] = useState(true);
   const [temporalSummary, setTemporalSummary] = useState(null);
 
-  const requiresManualStatistics = explorationMode === 'entity' && entityType === 'organization';
+  const requiresManualStatistics = explorationMode === 'temporal' || (explorationMode === 'entity' && entityType === 'organization');
   const [statsRequested, setStatsRequested] = useState(!requiresManualStatistics);
 
   useEffect(() => {
@@ -146,27 +146,22 @@ const EntityDetailPage = () => {
       setDateRangeLoading(true);
 
       if (explorationMode === 'temporal') {
-        // For temporal mode, get global date range
-        const response = await apiClient.get('/explore/date-range/');
-        setEntityDateRange(response.data);
-
-        if (response.data.has_data) {
-          const dateUtils = createDynamicDateRangeUtils(response.data);
-          setDynamicDateUtils(dateUtils);
-
-          // Set time range from URL parameters
-          const temporalRange = parseTemporalDateRange();
-          if (temporalRange) {
-            setTimeRange({
-              startDate: temporalRange.startDateStr,
-              endDate: temporalRange.endDateStr
-            });
-
-            // Convert to month range for slider
-            const startIndex = dateUtils.dateToIndex(new Date(temporalRange.startDateStr));
-            const endIndex = dateUtils.dateToIndex(new Date(temporalRange.endDateStr));
-            setMonthRange({ startIndex, endIndex });
-          }
+        // Temporal mode: derive time range directly from the URL.
+        // No global /explore/date-range/ call — the URL fully defines
+        // the range (day/week/month), and all other endpoints receive
+        // start_date/end_date query params scoped to that range.
+        const temporalRange = parseTemporalDateRange();
+        if (temporalRange) {
+          setTimeRange({
+            startDate: temporalRange.startDateStr,
+            endDate: temporalRange.endDateStr
+          });
+          // Minimal entityDateRange so the "no data" state doesn't
+          // block rendering.  Data availability is verified by the
+          // decisions endpoint itself (returns empty results if none).
+          setEntityDateRange({ has_data: true });
+        } else {
+          setEntityDateRange({ has_data: false, message: 'Invalid temporal URL' });
         }
       } else {
         // Existing entity mode logic
@@ -391,8 +386,14 @@ const EntityDetailPage = () => {
   if (dateRangeLoading || (loading && !entityData)) {
     return (
       <div style={{ padding: 'var(--spacing-xl)', textAlign: 'center' }}>
-        <h2>{t('entityDetail.loadingEntity', { entityType })}</h2>
-        <div>{t('entityDetail.loadingData', { entityId })}</div>
+        {explorationMode === 'temporal' ? (
+          <h2>{t('entityDetail.loadingTemporal')}</h2>
+        ) : (
+          <>
+            <h2>{t('entityDetail.loadingEntity', { entityType })}</h2>
+            <div>{t('entityDetail.loadingData', { entityId })}</div>
+          </>
+        )}
       </div>
     );
   }
@@ -411,7 +412,11 @@ const EntityDetailPage = () => {
         }}>
           <h2>{t('entityDetail.noDataAvailable')}</h2>
           <p>{entityDateRange.message}</p>
-          <p>{t('entityDetail.entityLabel', { entityType, entityId })}</p>
+          {explorationMode === 'temporal' ? (
+            <p>{t('entityDetail.noDataTemporal')}</p>
+          ) : (
+            <p>{t('entityDetail.entityLabel', { entityType, entityId })}</p>
+          )}
         </div>
       </div>
     );
@@ -609,6 +614,7 @@ const EntityDetailPage = () => {
             end_date: timeRange.endDate
           }}
           limit={10}
+          collapsible
         />
       )}
 

@@ -127,3 +127,51 @@ def _parse_and_validate_date_range(request, context_label: str = None):
         )
 
     return start_date, end_date, None
+
+
+# ── Temporal exploration date-range limit ─────────────────────────────
+# We restrict temporal exploration to single day, week, or month
+# to ensure all queries hit the issue_date_day / issue_date_month
+# indexes and stay fast even on large datasets.
+TEMPORAL_MAX_SPAN_DAYS = 32  # allows a full month (31 days) + 1 for inclusive
+
+
+def _validate_temporal_span(start_dt, end_dt, bucket=None):
+    """
+    Validate that the requested date span is within allowed bounds for
+    temporal exploration.
+
+    Returns ``None`` on success or a ``Response`` (status 400) on failure.
+
+    Bucket limits (optional — used only when the caller knows the URL
+    bucket type and wants stricter enforcement):
+      - day:   exactly 1 day
+      - week:  ≤ 7 days
+      - month: ≤ 31 days
+      - None:  ≤ TEMPORAL_MAX_SPAN_DAYS (32) — the default fallback used
+               by endpoints that don't receive an explicit bucket
+               parameter.  This permits day/week/month URLs while still
+               rejecting arbitrary multi-month ranges.
+    """
+    if start_dt is None or end_dt is None:
+        return None  # no validation needed when dates are missing
+
+    span = (end_dt.date() - start_dt.date()).days
+
+    limits = {"day": 1, "week": 7, "month": 31}
+    max_span = limits.get(bucket) if bucket else TEMPORAL_MAX_SPAN_DAYS
+
+    if span > max_span:
+        bucket_label = f"bucket={bucket}" if bucket else "temporal exploration"
+        return Response(
+            {
+                "error": (
+                    f"Date span too large for {bucket_label}. "
+                    f"Max {max_span} day(s) allowed, got {span} days. "
+                    f"Use /explore/temporal/<date>, /explore/week/<year>/<week>, "
+                    f"or /explore/month/<year>/<month> for larger windows."
+                )
+            },
+            status=400,
+        )
+    return None

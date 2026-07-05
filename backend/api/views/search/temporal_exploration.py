@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from api.utils.date_utils import _parse_optional_date_range
+from api.utils.date_utils import _parse_optional_date_range, _validate_temporal_span
 from api.utils.sorting import apply_decision_sorting
 from core.decorators.cache_decorator import cached_view
 from core.models.decisions import Decision
@@ -16,6 +16,7 @@ from django.db import models
 from django.utils import timezone
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
+from loguru import logger
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -39,6 +40,11 @@ from .base import serialize_decision_with_entities
             type=openapi.TYPE_STRING,
         ),
     ],
+)
+@cached_view(
+    cache_prefix="explore_date_range",
+    ttl=60 * 60,  # 1 hour — global date boundaries rarely change
+    log_cache_operations=True,
 )
 @api_view(["GET"])
 @permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
@@ -122,19 +128,6 @@ def explore_date_range_api_dev(request):
                 }
             )
 
-        # Calculate some useful stats for the chart
-        amounts = [item["amount"] for item in chart_data if item["amount"] > 0]
-        counts = [item["count"] for item in chart_data]
-
-        chart_stats = {
-            "max_amount": max(amounts) if amounts else 0,
-            "max_count": max(counts) if counts else 0,
-            "avg_amount": sum(amounts) / len(amounts) if amounts else 0,
-            "avg_count": sum(counts) / len(counts) if counts else 0,
-            "periods_with_activity": len([c for c in counts if c > 0]),
-            "total_periods": len(chart_data),
-        }
-
         return Response(
             {
                 "has_data": True,
@@ -157,7 +150,6 @@ def explore_date_range_api_dev(request):
                 "activity_chart": {
                     "data": chart_data,
                     "granularity": granularity,
-                    "stats": chart_stats,
                 },
             }
         )
@@ -205,6 +197,10 @@ def explore_statistics_api_dev(request):
     start_dt, end_dt, err = _parse_optional_date_range(request)
     if err:
         return err
+
+    span_err = _validate_temporal_span(start_dt, end_dt)
+    if span_err:
+        return span_err
 
     start_date_str = request.GET.get("start_date", "")
     end_date_str = request.GET.get("end_date", "")
@@ -349,6 +345,10 @@ def explore_decisions_api_dev(request):
     start_dt, end_dt, err = _parse_optional_date_range(request)
     if err:
         return err
+
+    span_err = _validate_temporal_span(start_dt, end_dt)
+    if span_err:
+        return span_err
 
     # Start search analytics tracking
     search_tracking = None
@@ -567,6 +567,10 @@ def explore_decision_types_api_dev(request):
     if err:
         return err
 
+    span_err = _validate_temporal_span(start_dt, end_dt)
+    if span_err:
+        return span_err
+
     try:
         from core.services.analytics_precalc_service import compute_explore_decision_types
 
@@ -628,6 +632,14 @@ def explore_organizations_api_dev(request):
     end_date_str = request.GET.get("end_date")
     limit = int(request.GET.get("limit", 50))
     offset = int(request.GET.get("offset", 0))
+
+    # Validate temporal span on the raw query params
+    start_dt, end_dt, err = _parse_optional_date_range(request)
+    if err:
+        return err
+    span_err = _validate_temporal_span(start_dt, end_dt)
+    if span_err:
+        return span_err
 
     try:
         from core.services.analytics_precalc_service import compute_explore_orgs

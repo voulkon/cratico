@@ -289,8 +289,8 @@ def warm_analytics_cache(reference_date_str: str | None = None):
 
         for view_name, warm_fn, kwargs in [
             ("explore_orgs", warm_explore_orgs_window, {"max_limit": 200, "page_size": 6}),
-            ("da_top_pairs", warm_da_top_pairs_window, {"max_limit": 50, "page_size": 6}),
-            ("explore_decisions", warm_explore_decisions_window, {"max_limit": 200, "page_size": 5}),
+            ("da_top_pairs", warm_da_top_pairs_window, {"max_limit": 50, "page_size": 10}),
+            ("explore_decisions", warm_explore_decisions_window, {"max_limit": 200, "page_size": 20}),
             ("da_top_entities", warm_da_top_entities_window, {"max_limit": 100, "page_size": 20}),
             ("da_top_orgs", warm_da_top_orgs_window, {"max_limit": 100, "page_size": 20}),
             ("explore_decision_types", warm_explore_decision_types_window, {"max_limit": 200, "page_size": 50}),

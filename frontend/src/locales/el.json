@@ -230,9 +230,11 @@
   "entityDetail": {
     "loadingEntity": "Φόρτωση λεπτομερειών {entityType}...",
     "loadingData": "Φόρτωση δεδομένων για ID: {entityId}",
+    "loadingTemporal": "Φόρτωση χρονικών δεδομένων...",
     "backToOrgChart": "← Επιστροφή στο Οργανόγραμμα",
     "backToDashboard": "← Επιστροφή στον Πίνακα Ελέγχου",
     "noDataAvailable": "Δεν Υπάρχουν Διαθέσιμα Δεδομένα",
+    "noDataTemporal": "Δεν υπάρχουν δεδομένα για αυτή τη χρονική περίοδο",
     "entityLabel": "Οντότητα: {entityType} (ID: {entityId})",
     "temporalExploration": "Χρονική Εξερεύνηση",
     "entityExploration": "Εξερεύνηση Οντότητας",

@@ -230,9 +230,11 @@
   "entityDetail": {
     "loadingEntity": "Loading {entityType} details...",
     "loadingData": "Loading data for ID: {entityId}",
+    "loadingTemporal": "Loading temporal data...",
     "backToOrgChart": "← Back to Organization Chart",
     "backToDashboard": "← Back to Dashboard",
     "noDataAvailable": "No Data Available",
+    "noDataTemporal": "No data for this time period",
     "entityLabel": "Entity: {entityType} (ID: {entityId})",
     "temporalExploration": "Temporal Exploration",
     "entityExploration": "Entity Exploration",
