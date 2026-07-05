@@ -13,14 +13,22 @@
 
 .entity-title-row {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--spacing-sm);
 }
 
 .entity-title {
-  margin: 0 0 var(--spacing-sm) 0;
-  color: var(--palette-primary);
+  flex: 1;
+  text-align: center;
   font-size: var(--font-xxl);
+  margin: var(--spacing-md) 0;
+  line-height: 1.3;
+  color: var(--palette-primary);
+}
+
+.entity-title-row .entity-title {
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 .entity-subtitle {

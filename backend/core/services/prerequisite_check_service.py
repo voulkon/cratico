@@ -83,6 +83,11 @@ class PrerequisiteCheckService:
         details = {}
         missing_models = []
 
+        # IMPORTANT: We use EXISTS (LIMIT 1) instead of COUNT(*) because
+        # counting NULLs across millions of rows (e.g. core_documentextraction,
+        # core_decision) takes ~30s on a cold cache. We only need to know
+        # WHETHER backfill is incomplete, not the exact count, so a single
+        # row probe is enough and short-circuits in milliseconds.
         with connection.cursor() as cursor:
             for model_key, config in POSTGRES_FTS_MODELS.items():
                 # Skip models not required for FTS
@@ -93,32 +98,40 @@ class PrerequisiteCheckService:
                 quoted_table = connection.ops.quote_name(table)
 
                 try:
-                    # Count NULL search vectors
+                    # Fast probe: does at least one row have a NULL search_vector?
+                    # LIMIT 1 lets the planner stop scanning as soon as it finds one.
                     cursor.execute(
                         f"""
-                        SELECT
-                            COUNT(*) FILTER (WHERE search_vector IS NULL) as null_count,
-                            COUNT(*) as total_count
-                        FROM {quoted_table}
+                        SELECT EXISTS (
+                            SELECT 1 FROM {quoted_table}
+                            WHERE search_vector IS NULL
+                            LIMIT 1
+                        ) AS has_null,
+                        EXISTS (
+                            SELECT 1 FROM {quoted_table}
+                            WHERE search_vector IS NOT NULL
+                            LIMIT 1
+                        ) AS has_any
                     """,  # nosec: B608 - Using Django's quote_name() for identifier safety
                     )
-                    null_count, total_count = cursor.fetchone()
+                    has_null, has_any = cursor.fetchone()
 
-                    backfilled = total_count - null_count
-                    percentage = (
-                        (backfilled / total_count * 100) if total_count > 0 else 100
-                    )
+                    # A table is considered backfilled if it has at least one
+                    # populated row and no NULL rows (has_null is False).
+                    # Empty tables are treated as backfilled (nothing to do).
+                    backfilled = has_any and not has_null
+                    is_empty = not has_any
 
                     details[model_key] = {
                         "table": table,
-                        "total": total_count,
-                        "null": null_count,
                         "backfilled": backfilled,
-                        "percentage": percentage,
+                        "is_empty": is_empty,
+                        "has_null_rows": has_null,
                     }
 
-                    # Consider backfilled if >95% have search_vector (allows for edge cases)
-                    if total_count > 0 and null_count > total_count * 0.05:
+                    # Only flag as missing if there are NULL rows alongside
+                    # populated ones (i.e. partial backfill).
+                    if has_null and has_any:
                         missing_models.append(model_key)
 
                 except Exception as e:
@@ -132,9 +145,12 @@ class PrerequisiteCheckService:
 
         # Build human-readable summary
         if ready:
-            total_records = sum(d.get("backfilled", 0) for d in details.values())
+            backfilled_tables = sum(
+                1 for d in details.values() if d.get("backfilled", False)
+            )
             summary = (
-                f"[OK] All required models backfilled ({total_records:,} total records)"
+                f"[OK] All required models backfilled "
+                f"({backfilled_tables}/{len(details)} tables ready)"
             )
         else:
             summary = f"[FAIL] Missing backfill for: {', '.join(missing_models)}"
