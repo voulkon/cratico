@@ -11,7 +11,7 @@ Key use cases:
 - Financial breakdowns by entity
 """
 
-from api.utils.date_utils import _parse_and_validate_date_range
+from api.utils.date_utils import _parse_and_validate_date_range, _validate_temporal_span
 from core.models.entities import AFMEntity
 from core.models.organizations import Organization
 from core.services.financial_calculation_service import financial_service
@@ -325,6 +325,11 @@ def temporal_top_relationship_pairs_api(request):
     )
     if error_response:
         return error_response
+
+    # Validate temporal span (no explicit bucket — uses TEMPORAL_MAX_SPAN_DAYS)
+    span_err = _validate_temporal_span(start_date, end_date)
+    if span_err:
+        return span_err
 
     # Get pagination parameters
     start_date_str = request.GET.get("start_date")

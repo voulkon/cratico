@@ -743,6 +743,25 @@ def warm_explore_decisions_window(
         response_cache.set(cache_key, page_data, end_date=end_date, timeout=response_cache.EXPIRE_HISTORICAL)
         cached += 1
 
+        # ── also cache under the "amount_desc" alias ───────────────
+        # The frontend (EntityDetailPage) sends sort_by=amount_desc while
+        # the warmup computes with entity_amount_desc.  Both produce
+        # identical results (compute_explore_decisions treats any unknown
+        # sort_by as entity_amount_desc), so we cache under both keys to
+        # avoid a defer_on_miss 202 loop on the frontend's alias.
+        alias_key = response_cache.build_key(
+            "explore_decisions",
+            start_date=start_date_str,
+            end_date=end_date_str,
+            page=str(page_num),
+            page_size=str(page_size),
+            sort_by="amount_desc",
+            organization_uid="",
+            entity_afm="",
+            direct_assignments_only="",
+        )
+        response_cache.set(alias_key, page_data, end_date=end_date, timeout=response_cache.EXPIRE_HISTORICAL)
+
     # ── always cache at least page 1 (even if empty) so subsequent
     #     requests get cache hits instead of triggering defer_on_miss ─
     if cached == 0:
@@ -770,6 +789,20 @@ def warm_explore_decisions_window(
             direct_assignments_only="",
         )
         response_cache.set(empty_key, empty_data, end_date=end_date, timeout=response_cache.EXPIRE_HISTORICAL)
+
+        # Also cache the empty result under the amount_desc alias.
+        empty_alias_key = response_cache.build_key(
+            "explore_decisions",
+            start_date=start_date_str,
+            end_date=end_date_str,
+            page="1",
+            page_size=str(page_size),
+            sort_by="amount_desc",
+            organization_uid="",
+            entity_afm="",
+            direct_assignments_only="",
+        )
+        response_cache.set(empty_alias_key, empty_data, end_date=end_date, timeout=response_cache.EXPIRE_HISTORICAL)
         cached += 1
 
     logger.info(
@@ -1304,9 +1337,8 @@ def compute_explore_statistics(
     """
     Run the explore statistics DB query and return the response dict.
 
-    This is the most complex view — multiple aggregations:
-    monthly breakdown, top types, top orgs, status breakdown, recent decisions,
-    and accurate financial totals via DecisionAmountField.
+    Only computes the fields actually consumed by the frontend StatisticsGrid:
+    total_count, primary_amount, avg_amount, organizations_count, period.
 
     Single source of truth shared by:
       - explore_statistics_api_dev       (view delegates here on cache miss)
@@ -1316,8 +1348,6 @@ def compute_explore_statistics(
         start_dt, end_dt: Timezone-aware datetimes (or None) for date filter.
         start_date_str, end_date_str: Original string form for response.
     """
-    from datetime import timedelta
-
     from core.models.decisions import Decision
     from core.models.entities import DecisionAmountField
 
@@ -1336,63 +1366,9 @@ def compute_explore_statistics(
     stats = filtered_qs.aggregate(
         total_decisions=models.Count("id"),
         avg_amount=models.Avg("amount"),
-        max_amount=models.Max("amount"),
-        min_amount=models.Min("amount"),
     )
 
     organizations_count = filtered_qs.values("organization").distinct().count()
-
-    # Monthly breakdown
-    try:
-        monthly_stats = (
-            filtered_qs.annotate(month=models.F("issue_date_month"))
-            .values("month")
-            .annotate(
-                count=models.Count("id"),
-                amount=models.Sum("amount"),
-            )
-            .order_by("month")
-        )
-    except Exception:
-        monthly_stats = []
-
-    # Top decision types
-    top_types = (
-        filtered_qs.values("decision_type__label")
-        .annotate(
-            count=models.Count("id"),
-            total_amount=models.Sum("amount"),
-        )
-        .order_by("-count")[:10]
-    )
-
-    # Top organizations
-    top_organizations = (
-        filtered_qs.values("organization__label", "organization__uid")
-        .annotate(
-            count=models.Count("id"),
-            total_amount=models.Sum("amount"),
-        )
-        .order_by("-count")[:10]
-    )
-
-    # Status breakdown
-    status_breakdown = (
-        filtered_qs.values("status")
-        .annotate(count=models.Count("id"))
-        .order_by("-count")
-    )
-
-    # Recent decisions
-    recent_decisions = filtered_qs.order_by("-issue_date_day")[:5].values(
-        "ada",
-        "subject",
-        "issue_date_day",
-        "amount",
-        "decision_type__label",
-        "organization__label",
-        "organization__uid",
-    )
 
     return {
         "period": {
@@ -1409,8 +1385,6 @@ def compute_explore_statistics(
                 "total_count": stats["total_decisions"] or 0,
                 "total_amount": float(accurate_total),
                 "avg_amount": float(stats["avg_amount"] or 0),
-                "max_amount": float(stats["max_amount"] or 0),
-                "min_amount": float(stats["min_amount"] or 0),
             },
             "financial": {
                 "primary_amount": float(accurate_total),
@@ -1418,57 +1392,8 @@ def compute_explore_statistics(
                 "discrepancy_percentage": 0,
             },
             "organizations_count": organizations_count,
-            "status_breakdown": {
-                item["status"]: item["count"] for item in status_breakdown
-            },
+            "status_breakdown": {},
         },
-        "charts": {
-            "monthly_breakdown": [
-                {
-                    "month": (
-                        item["month"].isoformat()
-                        if hasattr(item["month"], "isoformat")
-                        else str(item["month"])
-                    ),
-                    "count": item["count"],
-                    "amount": float(item["amount"] or 0),
-                }
-                for item in monthly_stats
-            ],
-            "top_decision_types": [
-                {
-                    "type": item["decision_type__label"] or "Unknown",
-                    "count": item["count"],
-                    "total_amount": float(item["total_amount"] or 0),
-                }
-                for item in top_types
-            ],
-            "top_organizations": [
-                {
-                    "name": item["organization__label"] or "Unknown",
-                    "uid": item["organization__uid"],
-                    "count": item["count"],
-                    "total_amount": float(item["total_amount"] or 0),
-                }
-                for item in top_organizations
-            ],
-        },
-        "recent_decisions": [
-            {
-                "ada": item["ada"],
-                "subject": item["subject"],
-                "issue_date": (
-                    item["issue_date_day"].isoformat()
-                    if item["issue_date_day"]
-                    else None
-                ),
-                "amount": float(item["amount"]) if item["amount"] else None,
-                "decision_type": item["decision_type__label"],
-                "organization": item["organization__label"],
-                "organization_id": item["organization__uid"],
-            }
-            for item in recent_decisions
-        ],
     }
 
 
