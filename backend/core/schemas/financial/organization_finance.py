@@ -20,6 +20,18 @@ class CounterpartPage(BaseModel):
     total_count: int
     has_more: bool
 
+class OrganizationCounterpartResult(BaseModel):
+    """An organization as a counterpart (inverse of CounterpartResult)."""
+    organization_uid: str
+    organization_label: Optional[str] = None
+    total_amount: Decimal
+    decision_count: int
+
+class OrganizationCounterpartPage(BaseModel):
+    results: list[OrganizationCounterpartResult]
+    total_count: int
+    has_more: bool
+
 class RelationshipPairResult(BaseModel):
     organization_uid: str
     organization_label: Optional[str] = None
