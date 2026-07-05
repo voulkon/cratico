@@ -181,10 +181,10 @@ auto_import_hour, auto_import_minute = get_auto_import_time()
 
 
 app.conf.beat_schedule = {
-    # "persist-analytics-daily": {
-    #     "task": "api.tasks.persist_analytics_task",
-    #     "schedule": crontab(hour=0, minute=5),  # Run at 00:05 every day
-    # },
+    "persist-analytics-daily": {
+        "task": "api.tasks.persist_analytics_task",
+        "schedule": crontab(minute=5, hour="*/4"),  # Run at 5 minutes past every 4th hour
+    },
     # 'import-ministry-decisions-daily': {
     #     'task': 'core.tasks.import_ministry_decisions_task',
     #     'schedule': crontab(hour=3, minute=0),  # Run at 3am daily
