@@ -6,6 +6,8 @@ from .organization_finance import (
     CounterpartResult, CounterpartPage, 
     RelationshipPairResult, RelationshipPairPage,
     OrganizationAmountSummary,
+    OrganizationCounterpartResult,
+    OrganizationCounterpartPage
     )
 from .decision_finance import (
     AmountConsistency,

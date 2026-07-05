@@ -230,72 +230,13 @@ def entity_top_organizations_api(request, afm):
             return Response({"error": f"Entity with AFM '{afm}' not found"}, status=404)
 
         # Get top organizations using financial service
-
-        # Use existing method but aggregate by organization instead of entity
-        from core.models.entities import DecisionEntityRelationship
-        from django.db.models import Count, Sum
-
-        roles = financial_service.MONEY_RECEIVED_ROLES
-
-        # Build base queryset
-        qs = DecisionEntityRelationship.objects.filter(
+        result = financial_service.get_top_organizations_for_entity(
             entity=entity,
-            decision__issue_date_day__gte=start_date,
-            decision__issue_date_day__lte=end_date,
-            role__in=roles,
-        )
-
-        # Apply search filter on organization name using the tiered search infrastructure
-        if search_query:
-            from core.services.search_service import SearchService
-
-            matching_orgs = SearchService().search_organizations(
-                search_query, limit=10000  # High limit for filtering, not display
-            )
-            matching_uids = list(matching_orgs.values_list("uid", flat=True))
-            if matching_uids:
-                qs = qs.filter(decision__organization__uid__in=matching_uids)
-            else:
-                # No matching organizations found — return empty result early
-                return Response(
-                    {
-                        "entity": {
-                            "afm": entity.afm,
-                            "name": entity.name,
-                            "entity_type": entity.entity_type,
-                        },
-                        "date_range": {
-                            "start": start_date_str,
-                            "end": end_date_str,
-                        },
-                        "results": [],
-                        "pagination": {
-                            "limit": limit,
-                            "offset": offset,
-                            "total_count": 0,
-                            "has_more": False,
-                        },
-                    }
-                )
-
-        # Query top organizations for this entity
-        results = list(
-            qs
-            .values("decision__organization__uid", "decision__organization__label")
-            .annotate(
-                total_amount=Sum("linked_amounts__amount"),
-                decision_count=Count("decision", distinct=True),
-            )
-            .filter(total_amount__gt=0)
-            .order_by("-total_amount")[offset : offset + limit]
-        )
-
-        # Get total count for pagination
-        total_count = (
-            qs
-            .values("decision__organization")
-            .distinct()
-            .count()
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+            offset=offset,
+            search_query=search_query,
         )
 
         return Response(
@@ -309,12 +250,12 @@ def entity_top_organizations_api(request, afm):
                     "start": start_date_str,
                     "end": end_date_str,
                 },
-                "results": results,
+                "results": [r.model_dump() for r in result.results],
                 "pagination": {
                     "limit": limit,
                     "offset": offset,
-                    "total_count": total_count,
-                    "has_more": offset + limit < total_count,
+                    "total_count": result.total_count,
+                    "has_more": result.has_more,
                 },
             }
         )

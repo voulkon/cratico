@@ -28,6 +28,8 @@ from core.schemas.financial import (
     GlobalFinancialSummary,
     OrgBreakdown,
     OrganizationAmountSummary,
+    OrganizationCounterpartPage,
+    OrganizationCounterpartResult,
     RelationshipPairPage,
     RelationshipPairResult,
     RoleBreakdown,
@@ -446,24 +448,36 @@ class FinancialCalculationService:
         if direct_assignments_only:
             base_filter["decision__classification__is_direct_assignment"] = True
 
-        # Apply search filter on entity name using the tiered search infrastructure
-        # This respects the ENTITY_SEARCH_METHOD feature flag
-        # (POSTGRES_FTS with Greek-aware full-text search + prefix matching when available,
-        #  falling back to simple ILIKE when prerequisites aren't met)
+        # Apply search filter on counterpart entity names.
+        # Scope FTS to only the entities already appearing as counterparts
+        # (organization + date range), avoiding an unconstrained search across ALL entities.
         qs = DecisionEntityRelationship.objects.filter(**base_filter)
         if search_query:
             from core.services.search_service import SearchService
+            from django.db.models import Q
 
-            matching_entities = SearchService().search_afm_entities(
-                search_query, limit=10000  # High limit for filtering, not display
-            )
-            matching_afms = list(
-                matching_entities.values_list("afm", flat=True)
-            )
+            counterpart_afms = qs.values_list("entity__afm", flat=True).distinct()
+
+            # Short queries fall back to icontains (FTS needs ≥3 chars for lexemes)
+            if SearchService._is_query_too_short_for_fts(search_query):
+                matching_afms = AFMEntity.objects.filter(
+                    afm__in=counterpart_afms,
+                ).filter(
+                    Q(name__icontains=search_query)
+                    | Q(afm__icontains=search_query)
+                ).values_list("afm", flat=True)
+            else:
+                from django.contrib.postgres.search import SearchQuery
+
+                fts_query = SearchService._build_prefix_search_query(search_query)
+                matching_afms = AFMEntity.objects.filter(
+                    afm__in=counterpart_afms,
+                    search_vector=fts_query,
+                ).values_list("afm", flat=True)
+
             if matching_afms:
                 qs = qs.filter(entity__afm__in=matching_afms)
             else:
-                # No matching entities found — return empty result early
                 return CounterpartPage(results=[], total_count=0, has_more=False)
 
         # Query with pagination
@@ -499,6 +513,120 @@ class FinancialCalculationService:
                     avg_amount=row.get("avg_amount"),
                     max_amount=row.get("max_amount"),
                     min_amount=row.get("min_amount"),
+                )
+                for row in results
+            ],
+            total_count=total_count,
+            has_more=offset + limit < total_count,
+        )
+
+    @monitor_query_performance(operation="top_organizations_for_entity")
+    def get_top_organizations_for_entity(
+        self,
+        entity: AFMEntity,
+        start_date: datetime,
+        end_date: datetime,
+        limit: int = 5,
+        offset: int = 0,
+        roles: Optional[List[str]] = None,
+        direct_assignments_only: bool = False,
+        search_query: Optional[str] = None,
+    ) -> OrganizationCounterpartPage:
+        """
+        Get top organizations by total amount for an entity in a date range.
+
+        This is the inverse of get_top_counterparts_for_organization: instead of
+        finding which entities received money from an organization, this finds
+        which organizations paid money to a specific entity.
+
+        Args:
+            entity: AFMEntity to analyze
+            start_date: Start of date range
+            end_date: End of date range
+            limit: Number of results to return
+            offset: Pagination offset
+            roles: Optional list of roles to filter by (defaults to MONEY_RECEIVED_ROLES)
+            direct_assignments_only: If True, filters to direct-assignment decisions only
+            search_query: Optional organization name search filter
+
+        Returns:
+            OrganizationCounterpartPage with 'results', 'total_count', and 'has_more'
+        """
+        if roles is None:
+            roles = self.MONEY_RECEIVED_ROLES
+
+        # Build base filter
+        base_filter = dict(
+            entity=entity,
+            decision__issue_date_day__gte=start_date,
+            decision__issue_date_day__lte=end_date,
+            role__in=roles,
+        )
+        if direct_assignments_only:
+            base_filter["decision__classification__is_direct_assignment"] = True
+
+        qs = DecisionEntityRelationship.objects.filter(**base_filter)
+
+        # Apply search filter on counterpart organization names.
+        # Scope FTS to only the organizations already appearing as counterparts
+        # (entity + date range), avoiding an unconstrained search across ALL orgs.
+        if search_query:
+            from core.services.search_service import SearchService
+
+            counterpart_uids = qs.values_list(
+                "decision__organization__uid", flat=True
+            ).distinct()
+
+            # Short queries fall back to icontains (FTS needs ≥3 chars for lexemes)
+            if SearchService._is_query_too_short_for_fts(search_query):
+                matching_uids = Organization.objects.filter(
+                    uid__in=counterpart_uids,
+                ).filter(
+                    Q(label__icontains=search_query)
+                    | Q(latin_name__icontains=search_query)
+                ).values_list("uid", flat=True)
+            else:
+                from django.contrib.postgres.search import SearchQuery
+
+                fts_query = SearchService._build_prefix_search_query(search_query)
+                matching_uids = Organization.objects.filter(
+                    uid__in=counterpart_uids,
+                    search_vector=fts_query,
+                ).values_list("uid", flat=True)
+
+            if matching_uids:
+                qs = qs.filter(decision__organization__uid__in=matching_uids)
+            else:
+                return OrganizationCounterpartPage(
+                    results=[], total_count=0, has_more=False
+                )
+
+        # Query with pagination
+        results = list(
+            qs
+            .values("decision__organization__uid", "decision__organization__label")
+            .annotate(
+                total_amount=Sum("linked_amounts__amount"),
+                decision_count=Count("decision", distinct=True),
+            )
+            .filter(total_amount__gt=0)
+            .order_by("-total_amount")[offset : offset + limit]
+        )
+
+        # Get total count for pagination UI
+        total_count = (
+            qs.values("decision__organization")
+            .distinct()
+            .count()
+        )
+
+        return OrganizationCounterpartPage(
+            results=[
+                OrganizationCounterpartResult(
+                    organization_uid=row["decision__organization__uid"],
+                    organization_label=row["decision__organization__label"],
+                    total_amount=row["total_amount"] or Decimal("0.00"),
+                    decision_count=row["decision_count"],
                 )
                 for row in results
             ],

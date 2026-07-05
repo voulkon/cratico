@@ -62,7 +62,7 @@ const TopCounterparts = ({
       return;
     }
     if (type === 'entity') {
-      const orgUid = counterpart.decision__organization__uid;
+      const orgUid = counterpart.organization_uid;
       navigate(`/relationship/entity/${id}/org/${orgUid}?start_date=${dateRange.start_date}&end_date=${dateRange.end_date}`);
     } else if (type === 'organization') {
       const afm = counterpart.entity_afm;
@@ -135,10 +135,10 @@ const TopCounterparts = ({
         <div className="counterparts-grid">
           {results.map((counterpart, index) => {
             const name = type === 'entity'
-              ? counterpart.decision__organization__label
+              ? counterpart.organization_label
               : counterpart.entity_name;
             const identifier = type === 'entity'
-              ? counterpart.decision__organization__uid
+              ? counterpart.organization_uid
               : counterpart.entity_afm;
             const entityType = type === 'organization' ? counterpart.entity_type : null;
 
