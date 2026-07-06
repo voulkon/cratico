@@ -19,5 +19,6 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "api.middleware.rate_limit.RateLimitMiddleware",
     "api.middleware.security.SecurityMonitoringMiddleware",
+    "api.middleware.security_monitoring.SecurityMonitoringResponseMiddleware",  # Response-side threat detection + forensic logging
     "csp.middleware.CSPMiddleware",
 ]

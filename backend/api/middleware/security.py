@@ -111,4 +111,30 @@ class SecurityMonitoringMiddleware:
                     ip=get_client_ip(request),
                     severity="WARNING",
                 )
+
+                # ── Feed the strike counter for auto-ban evaluation ──
+                # Only active when SECURITY_MONITORING_ENABLED is on.
+                from core.services.feature_flag_service import feature_flags
+
+                if feature_flags.is_enabled("SECURITY_MONITORING_ENABLED"):
+                    from api.services.security_service import security_service
+
+                    ip = get_client_ip(request)
+                    if ip:
+                        strike_count = security_service.record_strike(
+                            ip, event_type=f"pattern_{i}:{key}"
+                        )
+                        # Evaluate immediately — a single SQLi attempt might
+                        # not cross the threshold, but we check so a burst does.
+                        if (
+                            strike_count >= feature_flags.get_value("SECURITY_STRIKE_THRESHOLD", 5)
+                            and feature_flags.is_enabled("SECURITY_AUTO_BAN_ENABLED")
+                        ):
+                            security_service.ban_ip(
+                                ip, "strikes", strike_count=strike_count
+                            )
+                            # Signal to the response middleware that this IP
+                            # was already banned — prevents a duplicate ban_ip
+                            # call in the same request cycle.
+                            request._security_already_banned = True
                 break
