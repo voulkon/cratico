@@ -14,14 +14,14 @@ from api.redis_keys import (
     get_method_key,
     get_user_ratelimit_key,
 )
-from diavgeia_project.security_tracing import get_client_ip, security_tracer
+from api.utils.ip import get_client_ip
+from diavgeia_project.security_tracing import security_tracer
 from django.conf import settings
 from django.core.cache import cache
 from django.http import JsonResponse
 from django_redis import get_redis_connection
 
 from ..redis_utils import safe_incr
-from ..utils import get_client_ip
 
 
 class RateLimitMiddleware:
