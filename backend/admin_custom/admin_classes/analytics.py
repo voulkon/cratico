@@ -56,6 +56,103 @@ class EndpointStatsAdmin(admin.ModelAdmin):
     search_fields = ("endpoint",)
 
 
+class EndpointAccessLogAdmin(admin.ModelAdmin):
+    """Admin interface for forensic endpoint access logs."""
+
+    list_display = (
+        "timestamp",
+        "ip_address",
+        "method",
+        "endpoint",
+        "status_code",
+        "response_time_ms",
+        "is_flagged",
+        "flag_reason",
+        "user",
+    )
+    list_filter = (
+        "is_flagged",
+        "flag_reason",
+        "method",
+        "status_code",
+        "timestamp",
+    )
+    search_fields = ("ip_address", "endpoint", "user_agent")
+    date_hierarchy = "timestamp"
+    ordering = ("-timestamp",)
+    list_per_page = 50
+    readonly_fields = ("timestamp",)
+    list_display_links = ("timestamp", "ip_address")
+
+    def get_queryset(self, request):
+        # Default: show only flagged entries (the interesting ones).
+        # If the user explicitly sets an is_flagged filter, respect it;
+        # otherwise apply the default is_flagged=True.
+        qs = super().get_queryset(request)
+        if "is_flagged__exact" not in request.GET:
+            qs = qs.filter(is_flagged=True)
+        return qs
+
+
+class FlaggedIPAdmin(admin.ModelAdmin):
+    """Admin interface for flagged/banned IPs."""
+
+    list_display = (
+        "ip_address",
+        "reason",
+        "is_active",
+        "strike_count",
+        "flagged_at",
+        "last_seen",
+        "ban_expires_at",
+    )
+    list_filter = ("is_active", "reason")
+    search_fields = ("ip_address", "notes")
+    ordering = ("-last_seen",)
+    readonly_fields = ("flagged_at", "last_seen")
+    actions = ["unban_selected", "ban_selected_permanent"]
+
+    def get_queryset(self, request):
+        return super().get_queryset(request)
+
+    @admin.action(description="Unban selected IPs (deactivate)")
+    def unban_selected(self, request, queryset):
+        from api.services.security_service import security_service
+
+        updated = 0
+        for flagged_ip in queryset.filter(is_active=True):
+            security_service.unban_ip(flagged_ip.ip_address)
+            updated += 1
+        self.message_user(
+            request,
+            f"Unbanned {updated} IP(s).",
+            messages.SUCCESS,
+        )
+
+    @admin.action(description="Ban selected IPs permanently")
+    def ban_selected_permanent(self, request, queryset):
+        from api.services.security_service import security_service
+
+        count = 0
+        for flagged_ip in queryset:
+            # Preserve the original flag reason (e.g. "velocity", "strikes")
+            # so the audit trail is not lost when upgrading to permanent.
+            reason = flagged_ip.reason if flagged_ip.reason else "manual"
+            # duration_hours=0 is falsy → ban_ip treats it as permanent
+            # (expiry_ts=float("inf")).  None would use the feature-flag default.
+            security_service.ban_ip(
+                flagged_ip.ip_address,
+                reason=reason,
+                duration_hours=0,
+            )
+            count += 1
+        self.message_user(
+            request,
+            f"Permanently banned {count} IP(s).",
+            messages.WARNING,
+        )
+
+
 class DailyTrafficAdmin(admin.ModelAdmin):
     """Admin interface for Daily Traffic"""
 

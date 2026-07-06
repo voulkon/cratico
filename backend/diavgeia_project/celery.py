@@ -185,6 +185,10 @@ app.conf.beat_schedule = {
         "task": "api.tasks.analytics.persist_analytics_task",
         "schedule": crontab(minute=5, hour="*/4"),  # Run at 5 minutes past every 4th hour
     },
+    "persist-endpoint-access-log-daily": {
+        "task": "api.tasks.security.persist_endpoint_access_log",
+        "schedule": crontab(minute=5, hour="*/4"),  # Run at 5 minutes past every 4th hour
+    },
     # 'import-ministry-decisions-daily': {
     #     'task': 'core.tasks.import_ministry_decisions_task',
     #     'schedule': crontab(hour=3, minute=0),  # Run at 3am daily
