@@ -39,20 +39,35 @@ User = get_user_model()
 @pytest.fixture(autouse=True)
 def clear_rate_limit_cache(db):
     """
-    Clear rate limit cache before each test to prevent rate limit errors.
+    Clear rate limit and security keys before each test to prevent
+    cross-test contamination.
+
     This runs automatically for all tests that use the database.
     """
     try:
         from django.core.cache import cache
         from django_redis import get_redis_connection
 
-        # Clear all rate limit keys from cache
-        cache.delete_pattern("ratelimit:*")
-
-        # Also clear from Redis directly
         redis = get_redis_connection("default")
+
+        # Clear all rate limit keys
+        cache.delete_pattern("ratelimit:*")
         for key in redis.scan_iter("ratelimit:*"):
             redis.delete(key)
+
+        # Clear all security-related keys (velocity, strikes, errors,
+        # scan detection, banned set, flagged set) so tests that use
+        # the real SecurityService don't leak state into other tests.
+        for pattern in (
+            "security:velocity:*",
+            "security:strikes:*",
+            "security:errors:*",
+            "security:scan:*",
+        ):
+            for key in redis.scan_iter(pattern):
+                redis.delete(key)
+        # Full-key deletes for the aggregation sets
+        redis.delete("security:banned", "security:flagged")
     except Exception:
         # If Redis is not available or there's any error, just skip
         # This ensures tests can run even without Redis

@@ -314,6 +314,25 @@ class CustomAdminSite(admin.AdminSite):
         }
         app_list.append(analytics_app)
 
+        # Add Security & Threat Detection section
+        security_app = {
+            "name": "Security & Threat Detection",
+            "app_label": "security",
+            "models": [
+                {
+                    "name": "Flagged IPs",
+                    "object_name": "FlaggedIP",
+                    "admin_url": "/api/admin/api/flaggedip/",
+                },
+                {
+                    "name": "Endpoint Access Logs (Forensic)",
+                    "object_name": "EndpointAccessLog",
+                    "admin_url": "/api/admin/api/endpointaccesslog/?is_flagged__exact=1",
+                },
+            ],
+        }
+        app_list.append(security_app)
+
         # Add custom Decision Management section
         decision_mgmt_app = {
             "name": "Decision Management",
@@ -521,9 +540,11 @@ def register_all_models():
         DocumentAnalysisAdmin,
         DocumentEmbeddingAdmin,
         DocumentExtractionAdmin,
+        EndpointAccessLogAdmin,
         EndpointStatsAdmin,
         FeatureFlagAdmin,
         FeatureFlagAuditLogAdmin,
+        FlaggedIPAdmin,
         ImportJobAdmin,
         ImportThresholdAdmin,
         LegalDocumentAdmin,
@@ -544,6 +565,7 @@ def register_all_models():
         AFMScoringJobAdmin,
     )
     from api.models import APIAnalytics, DailyTraffic, EndpointStats
+    from api.models import EndpointAccessLog, FlaggedIP
     from core.models.ai_pricing import (
         AIJobDefinition,
         AIJobExecution,
@@ -597,6 +619,8 @@ def register_all_models():
     # Register Analytics models
     admin_site.register(APIAnalytics, APIAnalyticsAdmin)
     admin_site.register(EndpointStats, EndpointStatsAdmin)
+    admin_site.register(EndpointAccessLog, EndpointAccessLogAdmin)
+    admin_site.register(FlaggedIP, FlaggedIPAdmin)
     admin_site.register(DailyTraffic, DailyTrafficAdmin)
     admin_site.register(ImportJob, ImportJobAdmin)
     admin_site.register(DateCoverage)

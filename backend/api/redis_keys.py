@@ -90,6 +90,46 @@ BROWSE_NS = "browse"
 BROWSE_AVAILABLE_LETTERS_PREFIX = f"{BROWSE_NS}:available_letters:"  # browse:available_letters:<entity_type>
 BROWSE_CACHE_TIMEOUT = 300  # 5 minutes
 
+# ── Security / Threat Detection ──────────────────────────────────────
+SECURITY_NS = "security"
+# Per-IP velocity counters (sliding 60s window via TTL)
+SECURITY_VELOCITY_PREFIX = f"{SECURITY_NS}:velocity:"  # security:velocity:<ip>
+SECURITY_VELOCITY_WINDOW = 60  # seconds — rolling window for velocity check
+# Per-IP security-event strike counter (rolling 1h window)
+SECURITY_STRIKES_PREFIX = f"{SECURITY_NS}:strikes:"  # security:strikes:<ip>
+SECURITY_STRIKES_WINDOW = 60 * 60  # 1 hour
+# Per-IP 4xx/5xx error counters (rolling 5min window)
+SECURITY_ERRORS_PREFIX = f"{SECURITY_NS}:errors:"  # security:errors:<ip>
+SECURITY_ERRORS_WINDOW = 60 * 5  # 5 minutes
+# Banned IPs (Redis set with TTL per member via ZADD with score=ban_expiry_ts)
+SECURITY_BANNED_SET = f"{SECURITY_NS}:banned"  # sorted set: score = expiry timestamp
+# Flagged IPs under forensic observation (sorted set: score = expiry timestamp)
+SECURITY_FLAGGED_SET = f"{SECURITY_NS}:flagged"  # ZSET, score = expiry ts
+SECURITY_FLAGGED_WINDOW = 60 * 60  # 1 hour forensic capture window
+# Per-IP distinct-endpoint counter (rolling 5min window) for scan detection
+SECURITY_SCAN_PREFIX = f"{SECURITY_NS}:scan:"  # security:scan:<ip> (set of endpoints)
+SECURITY_SCAN_WINDOW = 60 * 5  # 5 minutes
+
+
+def get_velocity_key(ip: str) -> str:
+    """Redis key for per-IP request velocity (rolling window)."""
+    return f"{SECURITY_VELOCITY_PREFIX}{ip}"
+
+
+def get_strikes_key(ip: str) -> str:
+    """Redis key for per-IP security-event strike counter."""
+    return f"{SECURITY_STRIKES_PREFIX}{ip}"
+
+
+def get_errors_key(ip: str) -> str:
+    """Redis key for per-IP 4xx/5xx error counter."""
+    return f"{SECURITY_ERRORS_PREFIX}{ip}"
+
+
+def get_scan_key(ip: str) -> str:
+    """Redis key for per-IP distinct-endpoint set (scan detection)."""
+    return f"{SECURITY_SCAN_PREFIX}{ip}"
+
 def get_endpoint_key(endpoint):
     """Get the Redis key for endpoint stats"""
     return f"{ENDPOINT_PREFIX}{endpoint}"
