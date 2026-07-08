@@ -42,7 +42,7 @@ def persist_endpoint_access_log(
             pass
 
     try:
-        EndpointAccessLog.objects.create(
+        log_entry = EndpointAccessLog.objects.create(
             ip_address=ip_address,
             endpoint=endpoint,
             method=method,
@@ -58,5 +58,7 @@ def persist_endpoint_access_log(
             # SUCCESS in Flower but no row would be written).
             flag_reason=flag_reason or "",
         )
+        return {"id": log_entry.id, "ip": ip_address, "endpoint": endpoint, "flagged": is_flagged}
     except Exception:
         logger.exception("Failed to persist EndpointAccessLog (async)")
+        return {"error": True, "ip": ip_address, "endpoint": endpoint}
