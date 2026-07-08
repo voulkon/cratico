@@ -84,7 +84,7 @@ class SecurityMonitoringResponseMiddleware:
             from core.services.feature_flag_service import feature_flags
 
             auto_ban = feature_flags.is_enabled("SECURITY_AUTO_BAN_ENABLED")
-            threat_reason = security_service.evaluate_threats(ip)
+            threat_reason = security_service.evaluate_threats(ip) or ""
 
             if threat_reason and auto_ban:
                 from api.redis_keys import get_strikes_key
