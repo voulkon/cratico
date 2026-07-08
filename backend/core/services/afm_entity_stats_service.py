@@ -28,16 +28,31 @@ class AFMEntityStatsService:
     in a handful of SQL statements regardless of how many entities exist.
     """
 
-    def compute_all(self, batch_size: int = 5000) -> Dict[str, int]:
+    def compute_all(
+        self,
+        batch_size: int = 5000,
+        decision_type_uid: str | None = None,
+    ) -> Dict[str, int]:
         """
         Compute stats for every AFM entity and upsert them in bulk.
 
+        Args:
+            batch_size: Number of entities to upsert per transaction.
+            decision_type_uid: If provided, only consider decisions whose
+                act type has this UID (e.g. "B.2").
+
         Returns a dict with counts: created, updated, total.
         """
-        logger.info("Computing AFMEntityStats for all entities...")
+        if decision_type_uid:
+            logger.info(
+                "Computing AFMEntityStats for act type uid=%s...",
+                decision_type_uid,
+            )
+        else:
+            logger.info("Computing AFMEntityStats for all entities...")
 
         # 1. Gather raw metrics for every entity (bulk aggregations)
-        raw = self._gather_all_metrics()
+        raw = self._gather_all_metrics(decision_type_uid=decision_type_uid)
 
         # 2. Upsert in batches
         entity_ids = list(raw.keys())
@@ -80,9 +95,16 @@ class AFMEntityStatsService:
     # Bulk metric gathering
     # ------------------------------------------------------------------
 
-    def _gather_all_metrics(self) -> Dict[int, dict]:
+    def _gather_all_metrics(
+        self,
+        decision_type_uid: str | None = None,
+    ) -> Dict[int, dict]:
         """
         Gather every raw metric in a single pass using bulk queries.
+
+        Args:
+            decision_type_uid: If provided, only consider decisions whose
+                act type has this UID (e.g. "B.2").
 
         Returns: {entity_id: {metric_name: value}}
         """
@@ -101,14 +123,11 @@ class AFMEntityStatsService:
         )
 
         # ---- (A) decision count + distinct_roles + distinct_organizations ----
-        # One query groups by entity, counting decisions (distinct) and roles.
-        rel_qs = (
-            DecisionEntityRelationship.objects.values("entity_id")
-            .annotate(
-                total_decisions=Count("decision_id", distinct=True),
-                distinct_roles=Count("role", distinct=True),
-                distinct_organizations=Count("decision__organization_id", distinct=True),
-            )
+        # Always across ALL decisions (never filtered by act type).
+        rel_qs = DecisionEntityRelationship.objects.values("entity_id").annotate(
+            total_decisions=Count("decision_id", distinct=True),
+            distinct_roles=Count("role", distinct=True),
+            distinct_organizations=Count("decision__organization_id", distinct=True),
         )
         for row in rel_qs:
             eid = row["entity_id"]
@@ -117,15 +136,17 @@ class AFMEntityStatsService:
             metrics[eid]["distinct_organizations"] = row["distinct_organizations"]
 
         # ---- (B) amounts: sum, avg, max ----
-        amount_qs = (
-            DecisionAmountField.objects
-            .filter(amount__isnull=False, associated_relationship__isnull=False)
-            .values("associated_relationship__entity_id")
-            .annotate(
-                total=Sum("amount"),
-                avg=Sum("amount") / Count("id"),  # rough avg per amount-row (fine)
-                amax=Max("amount"),
+        amount_qs = DecisionAmountField.objects.filter(
+            amount__isnull=False, associated_relationship__isnull=False
+        )
+        if decision_type_uid:
+            amount_qs = amount_qs.filter(
+                associated_relationship__decision__decision_type__uid=decision_type_uid
             )
+        amount_qs = amount_qs.values("associated_relationship__entity_id").annotate(
+            total=Sum("amount"),
+            avg=Sum("amount") / Count("id"),  # rough avg per amount-row (fine)
+            amax=Max("amount"),
         )
         for row in amount_qs:
             eid = row["associated_relationship__entity_id"]
@@ -136,12 +157,16 @@ class AFMEntityStatsService:
 
         # ---- (C) proper per-decision amounts for avg ----
         # Sum amounts per (entity, decision), then average across decisions
-        per_decision_amounts = (
-            DecisionAmountField.objects
-            .filter(amount__isnull=False, associated_relationship__isnull=False)
-            .values("associated_relationship__entity_id", "decision_id")
-            .annotate(decision_total=Sum("amount"))
+        per_decision_amounts = DecisionAmountField.objects.filter(
+            amount__isnull=False, associated_relationship__isnull=False
         )
+        if decision_type_uid:
+            per_decision_amounts = per_decision_amounts.filter(
+                associated_relationship__decision__decision_type__uid=decision_type_uid
+            )
+        per_decision_amounts = per_decision_amounts.values(
+            "associated_relationship__entity_id", "decision_id"
+        ).annotate(decision_total=Sum("amount"))
 
         entity_amounts_by_decision: Dict[int, list] = defaultdict(list)
         for row in per_decision_amounts:
@@ -155,6 +180,7 @@ class AFMEntityStatsService:
                 ).quantize(Decimal("0.01"))
 
         # ---- (D) direct-assignment count ----
+        # Always across ALL decisions (never filtered by act type).
         direct_qs = (
             DecisionEntityRelationship.objects
             .filter(decision__classification__is_direct_assignment=True)
@@ -167,16 +193,32 @@ class AFMEntityStatsService:
 
         # ---- (E) distinct counterpart entities ----
         # For each entity, find other entities that appear in the same decisions.
-        # We do this in two steps:
-        #   Step 1: per entity, collect the set of decision_ids
-        #   Step 2: for each decision_id, count distinct entity_ids → subtract self
-        #
         # Since we're optimizing for bulk, we use a self-join approach.
         from django.db import connection
 
-        with connection.cursor() as cursor:
-            cursor.execute(
+        if decision_type_uid:
+            # Filter decisions to only those with the given act type UID.
+            sql = """
+                WITH entity_decisions AS (
+                    SELECT der.entity_id, der.decision_id
+                    FROM core_decisionentityrelationship der
+                    JOIN core_decision d ON d.id = der.decision_id
+                    JOIN core_acttype at ON at.uid = d.decision_type_id
+                    WHERE at.uid = %s
+                    GROUP BY der.entity_id, der.decision_id
+                )
+                SELECT ed1.entity_id,
+                       COUNT(DISTINCT ed2.entity_id) FILTER (WHERE ed2.entity_id != ed1.entity_id) AS counterpart_count
+                FROM entity_decisions ed1
+                JOIN entity_decisions ed2 ON ed2.decision_id = ed1.decision_id
+                GROUP BY ed1.entity_id
                 """
+            with connection.cursor() as cursor:
+                cursor.execute(sql, [decision_type_uid])
+                for entity_id, cc in cursor.fetchall():
+                    metrics[entity_id]["distinct_counterpart_entities"] = cc
+        else:
+            sql = """
                 WITH entity_decisions AS (
                     SELECT entity_id, decision_id
                     FROM core_decisionentityrelationship
@@ -188,9 +230,10 @@ class AFMEntityStatsService:
                 JOIN entity_decisions ed2 ON ed2.decision_id = ed1.decision_id
                 GROUP BY ed1.entity_id
                 """
-            )
-            for entity_id, cc in cursor.fetchall():
-                metrics[entity_id]["distinct_counterpart_entities"] = cc
+            with connection.cursor() as cursor:
+                cursor.execute(sql)
+                for entity_id, cc in cursor.fetchall():
+                    metrics[entity_id]["distinct_counterpart_entities"] = cc
 
         # ---- (F) percentages ----
         for eid, m in metrics.items():
@@ -205,9 +248,19 @@ class AFMEntityStatsService:
     # Convenience: compute a single entity
     # ------------------------------------------------------------------
 
-    def compute_single(self, entity_id: int) -> AFMEntityStats:
-        """Refresh stats for a single entity and return the saved object."""
-        raw = self._gather_all_metrics()
+    def compute_single(
+        self,
+        entity_id: int,
+        decision_type_uid: str | None = None,
+    ) -> AFMEntityStats:
+        """Refresh stats for a single entity and return the saved object.
+
+        Args:
+            entity_id: The AFMEntity id.
+            decision_type_uid: If provided, only consider decisions whose
+                act type has this UID (e.g. "B.2").
+        """
+        raw = self._gather_all_metrics(decision_type_uid=decision_type_uid)
         m = raw.get(entity_id)
         if m is None:
             # Entity has no relationships → fill with zeros
