@@ -2,8 +2,8 @@
 {% load i18n %}
 
 {% block content %}
-  {# --- Visible entity-type filter bar --- #}
-  <form method="get"
+  {# --- Visible filter bar with entity type + act type for amounts --- #}
+  <form method="get" id="filter-form"
         style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;
                padding: 10px 15px; background: var(--body-bg);
                border: 1px solid var(--border-color); border-radius: 4px;">
@@ -13,7 +13,7 @@
     </label>
     {# Preserve other existing GET params (e.g. search) when switching filters #}
     {% for key, value in request.GET.items %}
-      {% if key != 'entity_type' %}
+      {% if key != 'entity_type' and key != 'amount_act_type_uid' %}
         <input type="hidden" name="{{ key }}" value="{{ value }}">
       {% endif %}
     {% endfor %}
@@ -34,9 +34,25 @@
         {% trans "Unknown" %}
       </option>
     </select>
-    <noscript>
-      <button type="submit" style="padding: 5px 10px;">{% trans "Apply" %}</button>
-    </noscript>
+
+    <span style="color: var(--border-color);">|</span>
+
+    <label for="amount-act-type-filter"
+           style="font-weight: bold; white-space: nowrap;">
+      {% trans "Amounts from Act Type:" %}
+    </label>
+    <select name="amount_act_type_uid" id="amount-act-type-filter"
+            style="padding: 5px 8px; border-radius: 4px; border: 1px solid var(--border-color);">
+      <option value="">{% trans "All types" %}</option>
+      {% for at in act_types %}
+        <option value="{{ at.uid }}"
+                {% if request.GET.amount_act_type_uid == at.uid %}selected{% endif %}>
+          {{ at.uid }} – {{ at.label }}
+        </option>
+      {% endfor %}
+    </select>
+
+    <button type="submit" style="padding: 5px 10px;">{% trans "Apply" %}</button>
   </form>
 
   {{ block.super }}
@@ -45,16 +61,32 @@
 {% block object-tools-items %}
   <li>
     <form action="{% url 'admin:afm_entity_stats_recompute' %}" method="post"
-          style="display: inline;">
+          id="recompute-form" style="display: inline;">
       {% csrf_token %}
+      <input type="hidden" name="decision_type_uid" id="recompute-act-type-uid" value="">
       <button type="submit"
               style="background: var(--primary); color: white; padding: 8px 15px;
                      border: none; border-radius: 4px; font-weight: bold;
                      cursor: pointer;"
-              onclick="return confirm('Recompute stats for ALL entities in the background?')">
+              onclick="return onRecomputeClick()">
         ⟳ Recompute All Stats
       </button>
     </form>
   </li>
   {{ block.super }}
+{% endblock %}
+
+{% block extrajs %}
+  {{ block.super }}
+  <script>
+    function onRecomputeClick() {
+      var sel = document.getElementById('amount-act-type-filter');
+      var uid = sel ? sel.value : '';
+      document.getElementById('recompute-act-type-uid').value = uid;
+      var msg = uid
+        ? 'Recompute stats for ALL entities (amounts from act type ' + uid + ' only)?'
+        : 'Recompute stats for ALL entities in the background?';
+      return confirm(msg);
+    }
+  </script>
 {% endblock %}

@@ -6,6 +6,7 @@ Displays raw totals in a clean, sortable list view.
 
 from core.models.afm_entity_stats import AFMEntityStats
 from core.models.entities import EntityType
+from core.models.types import ActType
 from core.tasks.afm_entity_stats_tasks import recompute_all_entity_stats
 from django.contrib import admin, messages
 from django.http import JsonResponse
@@ -190,6 +191,13 @@ class AFMEntityStatsAdmin(admin.ModelAdmin):
     # ------------------------------------------------------------------
 
     def changelist_view(self, request, extra_context=None):
+        if extra_context is None:
+            extra_context = {}
+        # Load act types for the amount-filter dropdown in the template.
+        extra_context.setdefault(
+            "act_types",
+            ActType.objects.filter(allowed_in_decisions=True).order_by("uid"),
+        )
         if "entity_type" not in request.GET:
             # Only default to Company on the very first visit in this session,
             # so the user can click "All" to undo the filter without being redirected back.
@@ -221,13 +229,22 @@ class AFMEntityStatsAdmin(admin.ModelAdmin):
         return custom_urls + urls
 
     def recompute_view(self, request):
-        """Dispatch a background Celery task to recompute all entity stats."""
+        """Dispatch a background Celery task to recompute all entity stats.
+
+        Reads decision_type_uid from POST body (set by the template dropdown).
+        When provided, only amounts & counterpart entities are filtered;
+        decision counts, roles, orgs, and direct-assignment stats remain global.
+        """
         if request.method == "POST":
             try:
-                result = recompute_all_entity_stats.delay()
+                decision_type_uid = request.POST.get("decision_type_uid") or None
+                result = recompute_all_entity_stats.delay(
+                    decision_type_uid=decision_type_uid,
+                )
+                uid_suffix = f" (amounts from {decision_type_uid})" if decision_type_uid else ""
                 messages.success(
                     request,
-                    f"Stats recomputation queued! "
+                    f"Stats recomputation queued{uid_suffix}! "
                     f"Task ID: {result.id}. "
                     "Check the Celery worker logs for progress.",
                 )
