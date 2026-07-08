@@ -52,7 +52,11 @@ def persist_endpoint_access_log(
             response_time_ms=response_time_ms,
             user=user_obj,
             is_flagged=is_flagged,
-            flag_reason=flag_reason,
+            # flag_reason is a non-nullable CharField (default=""). Coerce None
+            # → "" so the row doesn't fail a NOT NULL constraint and get
+            # silently swallowed by the except below (task would report
+            # SUCCESS in Flower but no row would be written).
+            flag_reason=flag_reason or "",
         )
     except Exception:
         logger.exception("Failed to persist EndpointAccessLog (async)")
