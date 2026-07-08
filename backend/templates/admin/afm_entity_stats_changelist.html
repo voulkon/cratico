@@ -74,10 +74,6 @@
     </form>
   </li>
   {{ block.super }}
-{% endblock %}
-
-{% block extrajs %}
-  {{ block.super }}
   <script>
     function onRecomputeClick() {
       var sel = document.getElementById('amount-act-type-filter');
@@ -89,4 +85,8 @@
       return confirm(msg);
     }
   </script>
+{% endblock %}
+
+{% block extrajs %}
+  {{ block.super }}
 {% endblock %}

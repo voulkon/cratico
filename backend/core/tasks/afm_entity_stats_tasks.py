@@ -31,7 +31,7 @@ def recompute_all_entity_stats(
         Dict with created, updated, total counts.
     """
     logger.info(
-        "AFMEntityStats recompute task started (celery task id=%s, uid=%s)",
+        "AFMEntityStats recompute task started (celery task id={}, uid={})",
         self.request.id,
         decision_type_uid,
     )
@@ -39,12 +39,12 @@ def recompute_all_entity_stats(
         service = AFMEntityStatsService()
         result = service.compute_all(decision_type_uid=decision_type_uid)
         logger.info(
-            "AFMEntityStats recompute task completed: created=%d updated=%d total=%d",
+            "AFMEntityStats recompute task completed: created={} updated={} total={}",
             result["created"],
             result["updated"],
             result["total"],
         )
         return {"success": True, **result}
     except Exception as e:
-        logger.exception("AFMEntityStats recompute task failed: %s", e)
+        logger.exception("AFMEntityStats recompute task failed: {}", e)
         return {"success": False, "error": str(e)}

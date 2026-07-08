@@ -45,16 +45,19 @@ class AFMEntityStatsService:
         """
         if decision_type_uid:
             logger.info(
-                "Computing AFMEntityStats for act type uid=%s...",
+                "Computing AFMEntityStats for act type uid={}...",
                 decision_type_uid,
             )
         else:
             logger.info("Computing AFMEntityStats for all entities...")
 
         # 1. Gather raw metrics for every entity (bulk aggregations)
+        logger.info("Step 1: gathering raw metrics...")
         raw = self._gather_all_metrics(decision_type_uid=decision_type_uid)
+        logger.info("Step 1 complete: {} entities with data", len(raw))
 
         # 2. Upsert in batches
+        logger.info("Step 2: upserting {} entities in batches...", len(raw))
         entity_ids = list(raw.keys())
         created = 0
         updated = 0
@@ -88,7 +91,7 @@ class AFMEntityStatsService:
             "updated": updated,
             "total": created + updated,
         }
-        logger.info(f"AFMEntityStats computation complete: {result}")
+        logger.info("AFMEntityStats computation complete: {}", result)
         return result
 
     # ------------------------------------------------------------------
@@ -124,6 +127,7 @@ class AFMEntityStatsService:
 
         # ---- (A) decision count + distinct_roles + distinct_organizations ----
         # Always across ALL decisions (never filtered by act type).
+        logger.info("  (A) counting decisions, roles, organizations...")
         rel_qs = DecisionEntityRelationship.objects.values("entity_id").annotate(
             total_decisions=Count("decision_id", distinct=True),
             distinct_roles=Count("role", distinct=True),
@@ -134,8 +138,10 @@ class AFMEntityStatsService:
             metrics[eid]["total_decisions"] = row["total_decisions"]
             metrics[eid]["distinct_roles"] = row["distinct_roles"]
             metrics[eid]["distinct_organizations"] = row["distinct_organizations"]
+        logger.info("  (A) done: {} entities", len(metrics))
 
         # ---- (B) amounts: sum, avg, max ----
+        logger.info("  (B) aggregating amounts...")
         amount_qs = DecisionAmountField.objects.filter(
             amount__isnull=False, associated_relationship__isnull=False
         )
@@ -154,9 +160,11 @@ class AFMEntityStatsService:
             metrics[eid]["max_amount"] = row["amax"] or Decimal("0")
             # Average: total / number_of_decisions_with_amounts
             # We'll compute a proper avg in step (C) below.
+        logger.info("  (B) done")
 
         # ---- (C) proper per-decision amounts for avg ----
         # Sum amounts per (entity, decision), then average across decisions
+        logger.info("  (C) computing per-decision averages...")
         per_decision_amounts = DecisionAmountField.objects.filter(
             amount__isnull=False, associated_relationship__isnull=False
         )
@@ -178,9 +186,11 @@ class AFMEntityStatsService:
                 metrics[eid]["avg_amount"] = (
                     Decimal(sum(amounts)) / len(amounts)
                 ).quantize(Decimal("0.01"))
+        logger.info("  (C) done")
 
         # ---- (D) direct-assignment count ----
         # Always across ALL decisions (never filtered by act type).
+        logger.info("  (D) counting direct assignments...")
         direct_qs = (
             DecisionEntityRelationship.objects
             .filter(decision__classification__is_direct_assignment=True)
@@ -190,10 +200,12 @@ class AFMEntityStatsService:
         for row in direct_qs:
             eid = row["entity_id"]
             metrics[eid]["direct_assignment_count"] = row["count"]
+        logger.info("  (D) done")
 
         # ---- (E) distinct counterpart entities ----
         # For each entity, find other entities that appear in the same decisions.
         # Since we're optimizing for bulk, we use a self-join approach.
+        logger.info("  (E) computing counterpart entities (raw SQL)...")
         from django.db import connection
 
         if decision_type_uid:
@@ -234,6 +246,7 @@ class AFMEntityStatsService:
                 cursor.execute(sql)
                 for entity_id, cc in cursor.fetchall():
                     metrics[entity_id]["distinct_counterpart_entities"] = cc
+        logger.info("  (E) done")
 
         # ---- (F) percentages ----
         for eid, m in metrics.items():
@@ -241,6 +254,7 @@ class AFMEntityStatsService:
                 m["direct_assignment_percentage"] = round(
                     m["direct_assignment_count"] / m["total_decisions"] * 100, 1
                 )
+        logger.info("  (F) done")
 
         return dict(metrics)
 
