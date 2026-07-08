@@ -85,13 +85,9 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
     list_display_links = ("timestamp", "ip_address")
 
     def get_queryset(self, request):
-        # Default: show only flagged entries (the interesting ones).
-        # If the user explicitly sets an is_flagged filter, respect it;
-        # otherwise apply the default is_flagged=True.
-        qs = super().get_queryset(request)
-        if "is_flagged__exact" not in request.GET:
-            qs = qs.filter(is_flagged=True)
-        return qs
+        # Default: show all entries. The is_flagged filter in the sidebar lets
+        # the user drill down to only flagged entries when investigating.
+        return super().get_queryset(request)
 
 
 class FlaggedIPAdmin(admin.ModelAdmin):

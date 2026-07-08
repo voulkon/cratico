@@ -138,6 +138,19 @@ class SecurityMonitoringResponseMiddleware:
 
         forensic_all = feature_flags.is_enabled("SECURITY_FORENSIC_LOGGING_ENABLED")
 
+        # Skip logging for endpoints that produce noise without forensic value.
+        # These are admin internals, auth checks, and static assets that every
+        # pageload triggers — they inflate the log table without helping identify
+        # attackers.
+        _NOISY_ENDPOINT_PREFIXES = (
+            "/api/admin/jsi18n/",
+            "/api/auth/me/",
+            "/api/system/legal/",
+            "/api/system/config/",
+        )
+        if request.path.startswith(_NOISY_ENDPOINT_PREFIXES):
+            return
+
         is_flagged = bool(flag_reason)  # truly suspicious, regardless of forensic mode
 
         if not (forced or forensic_all):

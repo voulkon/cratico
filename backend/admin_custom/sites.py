@@ -287,6 +287,16 @@ class CustomAdminSite(admin.AdminSite):
     def get_app_list(self, request, app_label=None):
         app_list = super().get_app_list(request, app_label)
 
+        # Remove EndpointAccessLog and FlaggedIP from the default "Api" section
+        # — they appear under "Security & Threat Detection" instead.
+        for app in app_list:
+            if app.get("app_label") == "api":
+                app["models"] = [
+                    m
+                    for m in app["models"]
+                    if m["object_name"] not in ("EndpointAccessLog", "FlaggedIP")
+                ]
+
         # Add custom Analytics section
         analytics_app = {
             "name": "Analytics & Monitoring",
@@ -327,7 +337,7 @@ class CustomAdminSite(admin.AdminSite):
                 {
                     "name": "Endpoint Access Logs (Forensic)",
                     "object_name": "EndpointAccessLog",
-                    "admin_url": "/api/admin/api/endpointaccesslog/?is_flagged__exact=1",
+                    "admin_url": "/api/admin/api/endpointaccesslog/",
                 },
             ],
         }
