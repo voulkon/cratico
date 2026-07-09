@@ -67,7 +67,8 @@ const AFMEntityDetailPage = () => {
   // Decision types for this AFM (scans entire queryset, not just loaded batch)
   const { decisionTypes: availableDecisionTypes, loading: decisionTypesLoading } =
     useDecisionTypes({
-      endpoint: `/entity/afm/${afm}/decision-types/`,
+      endpoint: '/decisions/unified/',
+      extraParams: { source: 'afm', afm, view: 'decision_types' },
       dateRange: timeRange,
     });
 
@@ -79,9 +80,12 @@ const AFMEntityDetailPage = () => {
     loadingMore,
     loadMore,
   } = useDecisionsList({
-    endpoint: `/entity/afm/${afm}/decisions/`,
+    endpoint: '/decisions/unified/',
     params: {
-      sort: sortBy,
+      source: 'afm',
+      view: 'decisions',
+      afm,
+      sort_by: sortBy,
       start_date: timeRange?.startDate,
       end_date: timeRange?.endDate,
       ...(directAssignmentsOnly && { direct_assignments_only: 'true' }),
@@ -108,7 +112,9 @@ const AFMEntityDetailPage = () => {
   const fetchDateRange = useCallback(async () => {
     setDateRangeLoading(true);
     try {
-      const res = await apiClient.get(`/entity/afm/${afm}/date-range/`);
+      const res = await apiClient.get(
+        `/decisions/unified/?source=afm&afm=${afm}&view=date_range`
+      );
       setEntityDateRange(res.data);
 
       if (res.data.has_data) {
@@ -136,25 +142,21 @@ const AFMEntityDetailPage = () => {
     setStatisticsLoading(true);
     setStatisticsError(null);
     try {
-      const params = new URLSearchParams({
-        start_date: timeRange.startDate,
-        end_date: timeRange.endDate
-      });
-      const res = await apiClient.get(`/entity/afm/${afm}/statistics/?${params}`, { timeout: 60000 });
-      // Map the nested response to the flat shape expected by statCards
+      const res = await apiClient.get(
+        `/decisions/unified/?source=afm&afm=${afm}&view=statistics&start_date=${timeRange.startDate}&end_date=${timeRange.endDate}`,
+        { timeout: 60000 }
+      );
+      // compute_statistics shape: { period, summary: { decisions, financial, organizations_count, ... }, entity }
       const data = res.data;
-      const stats = data.statistics || {};
-      const topOrg = data.financial_summary?.top_organizations?.[0];
+      const summary = data.summary || {};
+      const decSummary = summary.decisions || {};
       setStatistics({
-        total_decisions: stats.total_decisions,
-        unique_roles: stats.unique_roles,
-        total_amount: stats.total_amount,
-        unique_organizations: stats.unique_organizations,
-        decisions_with_amounts: stats.total_decisions, // financial_service counts only decisions with amounts
-        most_frequent_organization: topOrg ? {
-          uid: topOrg.decision__organization__uid,
-          label: topOrg.decision__organization__label,
-        } : null,
+        total_decisions: decSummary.total_count,
+        unique_roles: data.unique_roles ?? '-',           // not available in compute_statistics
+        total_amount: decSummary.total_amount,
+        unique_organizations: summary.organizations_count,
+        decisions_with_amounts: decSummary.total_count,    // approximate
+        most_frequent_organization: null,                  // not available in compute_statistics
       });
     } catch (err) {
       setStatisticsError(err.message);

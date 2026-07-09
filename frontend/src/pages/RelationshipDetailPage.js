@@ -158,10 +158,12 @@ const RelationshipDetailPage = () => {
     loadingMore,
     loadMore,
   } = useDecisionsList({
-    endpoint: '/explore/decisions-optimized/',
+    endpoint: '/decisions/unified/',
     params: {
-      entity_afm: afm,
-      organization_uid: orgUid,
+      source: 'relationship',
+      view: 'decisions',
+      afm,
+      org_uid: orgUid,
       start_date: timeRange?.startDate,
       end_date: timeRange?.endDate,
       sort_by: sortBy,
