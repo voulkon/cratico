@@ -305,6 +305,115 @@ def afm_entity_decisions(request, afm):
         return Response({"error": "AFM entity not found"}, status=404)
 
 
+# ---------------------------------------------------------------------------
+# AFM decision-types / statistics / date-range wrappers
+#
+# These thin wrappers build a Decision queryset from the AFM entity's
+# relationships and delegate to the shared projection layer.  They fill the
+# gap where only /entity/afm/<afm>/decisions/ existed before.
+# ---------------------------------------------------------------------------
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+def afm_entity_decision_types(request, afm):
+    """
+    Get available decision types for an AFM entity.
+
+    Delegates to the shared ``aggregate_decision_types`` projection.
+    """
+    from api.utils.date_utils import _parse_optional_date_range
+    from core.models.decisions import Decision
+    from core.services.decision_projections import aggregate_decision_types
+
+    try:
+        AFMEntity.objects.get(afm=afm)
+    except AFMEntity.DoesNotExist:
+        return Response({"error": "AFM entity not found"}, status=404)
+
+    start_dt, end_dt, err = _parse_optional_date_range(request)
+    if err:
+        return err
+
+    decisions_qs = Decision.objects.filter(
+        entity_relationships__entity__afm=afm,
+    ).distinct()
+
+    if hasattr(decisions_qs, "filter_by_date_range"):
+        decisions_qs = decisions_qs.filter_by_date_range(start_dt, end_dt)
+
+    return Response(aggregate_decision_types(decisions_qs))
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+def afm_entity_statistics(request, afm):
+    """
+    Get summary statistics for an AFM entity.
+
+    Delegates to the shared ``compute_statistics`` projection.
+    """
+    from api.utils.date_utils import _parse_optional_date_range
+    from core.models.decisions import Decision
+    from core.services.decision_projections import compute_statistics
+
+    try:
+        entity = AFMEntity.objects.get(afm=afm)
+    except AFMEntity.DoesNotExist:
+        return Response({"error": "AFM entity not found"}, status=404)
+
+    start_dt, end_dt, err = _parse_optional_date_range(request)
+    if err:
+        return err
+
+    decisions_qs = Decision.objects.filter(
+        entity_relationships__entity__afm=afm,
+    ).distinct()
+
+    if hasattr(decisions_qs, "filter_by_date_range"):
+        decisions_qs = decisions_qs.filter_by_date_range(start_dt, end_dt)
+
+    start_str = request.GET.get("start_date", "")
+    end_str = request.GET.get("end_date", "")
+
+    result = compute_statistics(decisions_qs, start_str, end_str)
+    result["entity"] = {
+        "id": afm,
+        "name": entity.name or afm,
+        "type": "afm",
+    }
+    return Response(result)
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+def afm_entity_date_range(request, afm):
+    """
+    Get date range and activity overview for an AFM entity.
+
+    Delegates to the shared ``compute_date_range`` projection.
+    """
+    from core.models.decisions import Decision
+    from core.services.decision_projections import compute_date_range
+
+    try:
+        entity = AFMEntity.objects.get(afm=afm)
+    except AFMEntity.DoesNotExist:
+        return Response({"error": "AFM entity not found"}, status=404)
+
+    decisions_qs = Decision.objects.filter(
+        entity_relationships__entity__afm=afm,
+    ).distinct()
+
+    result = compute_date_range(decisions_qs)
+    result["entity"] = {
+        "id": afm,
+        "name": entity.name or afm,
+        "type": "afm",
+    }
+    return Response(result)
+
+
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def request_afm_fetch(request, afm):
