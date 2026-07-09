@@ -706,6 +706,7 @@ def check_user_subscriptions(user_id, subscription_ids, lookback_days=1):
     batches_created = 0
     total_decisions = 0
     errors = 0
+    batch_ids = []
 
     for criteria_hash, group_subs in criteria_groups.items():
         try:
@@ -742,6 +743,7 @@ def check_user_subscriptions(user_id, subscription_ids, lookback_days=1):
                 if batch_result.get("batch_id"):
                     batches_created += 1
                     total_decisions += batch_result.get("decisions_added", 0)
+                    batch_ids.append(batch_result["batch_id"])
 
                 # Update last_checked
                 sub.last_checked = timezone.now()
@@ -772,20 +774,23 @@ def check_user_subscriptions(user_id, subscription_ids, lookback_days=1):
         "batches_created": batches_created,
         "total_decisions": total_decisions,
         "errors": errors,
+        "batch_ids": batch_ids,
     }
 
 
 @shared_task
 def send_consolidated_email_for_user(*args, user_id=None):
     """
-    Send a single consolidated email to a user summarizing all their new batches.
+    Send a single consolidated email to a user summarizing their new batches
+    from the current check run only.
 
     Called as the callback of a per-user chord after check_user_subscriptions
-    completes.  Finds all un-emailed NotificationBatch records for this user
-    and sends one email listing all of them.
+    completes.  Only emails the batches created by the just-finished header
+    task — not any stale un-emailed batches from previous runs.
 
     Args:
-        *args: Results from the chord header task (ignored).
+        *args: Results from the chord header task (check_user_subscriptions).
+               Expected to contain a dict with 'batch_ids' (list of ints).
         user_id: The user ID to send the email to (passed via .s(user_id=...)).
 
     Returns:
@@ -800,12 +805,43 @@ def send_consolidated_email_for_user(*args, user_id=None):
 
     User = get_user_model()
 
-    # Find all un-emailed batches for this user
-    unemailed_batches = (
-        NotificationBatch.objects.filter(email_sent=False, user_id=user_id)
-        .select_related("subscription__organization", "subscription__entity")
-        .order_by("-created_at")
-    )
+    # Extract batch IDs from the chord header results.
+    # If we have them (even an empty list), only act on those batches.
+    # Fall back to the old behaviour (all un-emailed) only when the
+    # callback is invoked without chord header results.
+    batch_ids_from_run = None
+    if args and isinstance(args[0], dict) and "batch_ids" in args[0]:
+        batch_ids_from_run = args[0]["batch_ids"]
+
+    if batch_ids_from_run is not None:
+        if not batch_ids_from_run:
+            # No batches were created in this run — nothing to email
+            logger.info(
+                f"User {user_id}: no new batches created in this run, "
+                f"skipping email"
+            )
+            return {"user_id": user_id, "batches_emailed": 0, "success": True}
+
+        # Only email the batches created in this run
+        unemailed_batches = (
+            NotificationBatch.objects.filter(
+                email_sent=False, user_id=user_id, id__in=batch_ids_from_run
+            )
+            .select_related("subscription__organization", "subscription__entity")
+            .order_by("-created_at")
+        )
+    else:
+        # Fallback: no batch IDs from header — query all un-emailed
+        # (preserves behaviour for any callers that don't use the chord)
+        logger.warning(
+            f"User {user_id}: no batch_ids from chord header, "
+            f"falling back to all un-emailed batches"
+        )
+        unemailed_batches = (
+            NotificationBatch.objects.filter(email_sent=False, user_id=user_id)
+            .select_related("subscription__organization", "subscription__entity")
+            .order_by("-created_at")
+        )
 
     if not unemailed_batches.exists():
         logger.info(f"User {user_id}: no un-emailed batches, skipping email")
