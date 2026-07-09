@@ -87,22 +87,30 @@ class SecurityMonitoringResponseMiddleware:
             threat_reason = security_service.evaluate_threats(ip) or ""
 
             if threat_reason and auto_ban:
-                from api.redis_keys import get_strikes_key
+                # Re-check ban state — a concurrent request may have already
+                # banned this IP between our is_banned() check above and now.
+                # Without this guard, ban_ip() is called multiple times for
+                # the same IP, producing spurious "Recurring offender" notes
+                # and redundant DB writes.
+                if security_service.is_banned(ip):
+                    threat_reason = ""  # skip ban — already handled
+                else:
+                    from api.redis_keys import get_strikes_key
 
-                strikes = int(security_service.redis.get(get_strikes_key(ip)) or 0)
-                security_service.ban_ip(ip, threat_reason, strike_count=strikes)
-                # Overwrite response with 403 if this is the request that
-                # triggered the ban (only if the original response wasn't
-                # already an error)
-                if status_code < 400:
-                    response = JsonResponse(
-                        {
-                            "error": "Access denied",
-                            "detail": "IP flagged for suspicious activity.",
-                        },
-                        status=403,
-                    )
-                    status_code = 403
+                    strikes = int(security_service.redis.get(get_strikes_key(ip)) or 0)
+                    security_service.ban_ip(ip, threat_reason, strike_count=strikes)
+                    # Overwrite response with 403 if this is the request that
+                    # triggered the ban (only if the original response wasn't
+                    # already an error)
+                    if status_code < 400:
+                        response = JsonResponse(
+                            {
+                                "error": "Access denied",
+                                "detail": "IP flagged for suspicious activity.",
+                            },
+                            status=403,
+                        )
+                        status_code = 403
 
         # ── Forensic logging (runs for banned IPs too) ────────────────
         self._maybe_log_forensic(

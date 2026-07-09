@@ -88,6 +88,30 @@ class SecurityService:
         if not ip:
             return
 
+        # ── Deduplication guard ──────────────────────────────────────
+        # Use a short-lived Redis lock so that concurrent calls (e.g. from
+        # multiple middleware requests hitting evaluate_threats at the same
+        # time) don't all execute the DB update_or_create, which would
+        # produce spurious "Recurring offender" notes and redundant writes.
+        lock_key = f"{SECURITY_BANNED_SET}:lock:{ip}"
+        acquired = self.redis.set(lock_key, "1", nx=True, ex=10)
+        if not acquired:
+            logger.debug(f"Ban lock held for {ip} — skipping duplicate ban_ip call")
+            return
+
+        try:
+            self._ban_ip_impl(ip, reason, strike_count, duration_hours)
+        finally:
+            self.redis.delete(lock_key)
+
+    def _ban_ip_impl(
+        self,
+        ip: str,
+        reason: str,
+        strike_count: int,
+        duration_hours: Optional[int],
+    ) -> None:
+        """Internal implementation — callers must hold the ban lock."""
         from api.models import FlaggedIP
 
         # Resolve duration from feature flag if not specified
