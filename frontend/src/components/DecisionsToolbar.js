@@ -58,6 +58,8 @@ const DecisionsToolbar = ({
   decisionTypes,
   selectedTypes,
   onTypeToggle,
+  onApplyFilters,   // batch setter — called by FilterPanel "Apply" with
+                    // { amountFilters?: {minAmount,maxAmount}, selectedTypes?: string[] }
   typesLoading,
   // Results info
   pagination,
@@ -87,7 +89,7 @@ const DecisionsToolbar = ({
   const showSearch = typeof onSearchChange === 'function';
   const showDirectOnly = typeof onDirectOnlyChange === 'function';
   const showAmountFilters = typeof onAmountChange === 'function';
-  const showDecisionTypes = typeof onTypeToggle === 'function' && decisionTypes != null;
+  const showDecisionTypes = typeof onApplyFilters === 'function' && decisionTypes != null;
   const hasFilterPanel = showAmountFilters || showDecisionTypes || extraFilters;
   const hasSearchQuery = !!(searchQuery && searchQuery.trim());
   const effectiveFilterCount =
@@ -175,64 +177,12 @@ const DecisionsToolbar = ({
           activeFiltersCount={activeFiltersCount}
           onClearAll={onClearAll}
           filterLabel={filterLabel || t('entityDetail.filters')}
+          amountFilters={amountFilters}
+          decisionTypes={decisionTypes}
+          selectedTypes={selectedTypes}
+          onApply={onApplyFilters}
+          typesLoading={typesLoading}
         >
-          {/* Amount Filters */}
-          {showAmountFilters && (
-            <div className="filter-group">
-              <h4>{t('entityDetail.amountRange')}</h4>
-              <div className="amount-filters">
-                <input
-                  type="number"
-                  placeholder={t('entityDetail.minAmountPlaceholder')}
-                  value={amountFilters.minAmount}
-                  onChange={(e) => onAmountChange('minAmount', e.target.value)}
-                  className="amount-input"
-                />
-                <span className="amount-separator">{t('entityDetail.amountTo')}</span>
-                <input
-                  type="number"
-                  placeholder={t('entityDetail.maxAmountPlaceholder')}
-                  value={amountFilters.maxAmount}
-                  onChange={(e) => onAmountChange('maxAmount', e.target.value)}
-                  className="amount-input"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Decision Type Filters */}
-          {showDecisionTypes && (
-            <div className="filter-group">
-              <h4>{t('entityDetail.decisionTypes')}</h4>
-              {typesLoading ? (
-                <div className="loading-text">{t('entityDetail.loadingDecisionTypes')}</div>
-              ) : decisionTypes.length === 0 ? (
-                <div className="loading-text">{t('entityDetail.noDecisionTypes', 'No decision types in this range')}</div>
-              ) : (
-                <div className="decision-types-grid">
-                  {decisionTypes.map(type => (
-                    <label key={type.uid} className="decision-type-checkbox">
-                      <input
-                        type="checkbox"
-                        checked={selectedTypes.includes(type.uid)}
-                        onChange={(e) => onTypeToggle(type.uid, e.target.checked)}
-                      />
-                      <span className="checkbox-content">
-                        <span className="type-label">{type.label}</span>
-                        <span className="type-stats">
-                          {t('entityDetail.decisionTypesCount', {
-                            count: type.count,
-                            amount: (type.total_amount || 0).toLocaleString()
-                          })}
-                        </span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Page-specific extra filters (e.g. organization filters in temporal mode) */}
           {extraFilters}
         </FilterPanel>

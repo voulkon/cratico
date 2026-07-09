@@ -50,7 +50,8 @@ const EntityDetailPage = () => {
     toggleType,
     setAmountFilters,
     setDirectAssignmentsOnly,
-    clearAllFilters
+    clearAllFilters,
+    updateUrl
   } = useUrlFilters({ sortBy: 'amount_desc' });
 
   const [statistics, setStatistics] = useState(null);
@@ -644,6 +645,7 @@ const EntityDetailPage = () => {
           onClearAll={clearAllFilters}
           amountFilters={amountFilters}
           onAmountChange={(field, value) => setAmountFilters({ ...amountFilters, [field]: value })}
+          onApplyFilters={(updates) => updateUrl(updates)}
           decisionTypes={availableDecisionTypes}
           selectedTypes={selectedDecisionTypes}
           onTypeToggle={toggleType}

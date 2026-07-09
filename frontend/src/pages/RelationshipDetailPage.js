@@ -58,7 +58,8 @@ const RelationshipDetailPage = () => {
     toggleType,
     setAmountFilters,
     setDirectAssignmentsOnly,
-    clearAllFilters
+    clearAllFilters,
+    updateUrl
   } = useUrlFilters({ sortBy: 'entity_amount_desc' });
 
   // Decision types are now owned by the useDecisionTypes hook below.
@@ -369,6 +370,7 @@ const RelationshipDetailPage = () => {
           onClearAll={clearAllFilters}
           amountFilters={amountFilters}
           onAmountChange={(field, value) => setAmountFilters({ ...amountFilters, [field]: value })}
+          onApplyFilters={(updates) => updateUrl(updates)}
           decisionTypes={availableDecisionTypes}
           selectedTypes={selectedTypes}
           onTypeToggle={toggleType}

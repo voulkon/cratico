@@ -54,6 +54,7 @@ const AFMEntityDetailPage = () => {
     setAmountFilters,
     setDirectAssignmentsOnly,
     clearAllFilters,
+    updateUrl
   } = useUrlFilters({ sortBy: 'amount_desc' });
 
   // Debounced search query
@@ -443,6 +444,7 @@ const AFMEntityDetailPage = () => {
           onClearAll={clearAllFilters}
           amountFilters={amountFilters}
           onAmountChange={(field, value) => setAmountFilters({ ...amountFilters, [field]: value })}
+          onApplyFilters={(updates) => updateUrl(updates)}
           decisionTypes={availableDecisionTypes}
           selectedTypes={selectedDecisionTypes}
           onTypeToggle={toggleType}

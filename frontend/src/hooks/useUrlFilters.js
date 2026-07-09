@@ -169,6 +169,12 @@ const useUrlFilters = (defaultValues = {}) => {
       setDirectAssignmentsOnly(value);
       updateUrl({ directAssignmentsOnly: value });
     },
+    // Batch setter for decision types — avoids N URL updates when applying
+    // multiple type selections at once (e.g. from FilterPanel "Apply").
+    setSelectedTypes: (value) => {
+      setSelectedTypes(value);
+      updateUrl({ selectedTypes: value });
+    },
 
     // Togglers
     toggleType,
