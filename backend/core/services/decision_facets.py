@@ -158,9 +158,14 @@ def apply_amount_range(
     qs: QuerySet,
     min_amount: Optional[float],
     max_amount: Optional[float],
-    amount_field: str = "amount",
+    amount_field: str = "calculated_amount",
 ) -> QuerySet:
-    """Filter decisions by inclusive amount range."""
+    """Filter decisions by inclusive amount range.
+
+    Defaults to filtering on ``calculated_amount`` (the sum of all
+    linked ``DecisionAmountField.amount`` rows) rather than the
+    denormalised ``Decision.amount`` field which may be NULL.
+    """
     if min_amount is not None:
         qs = qs.filter(**{f"{amount_field}__gte": min_amount})
     if max_amount is not None:
@@ -272,16 +277,19 @@ def parse_viewed(request) -> Optional[str]:
 # Sort facet
 # ---------------------------------------------------------------------------
 
-def apply_sort(qs: QuerySet, sort_by: str, amount_field: str = "amount", date_field: str = "issue_date_day") -> QuerySet:
+def apply_sort(qs: QuerySet, sort_by: str, amount_field: str = "calculated_amount", date_field: str = "issue_date_day") -> QuerySet:
     """
     Apply sorting via the shared ``apply_decision_sorting`` utility.
 
-    When sorting by ``amount_desc`` or ``amount_asc``, annotates the
-    queryset with ``calculated_amount`` — the sum of linked
-    ``DecisionAmountField.amount`` values (same subquery as the legacy
-    explore endpoint).  ``paginate_decisions`` automatically picks this
-    up and uses it in the response, giving more accurate amounts than
-    the denormalised ``amount`` field.
+    When sorting by amount, uses ``calculated_amount`` — the sum of all
+    linked ``DecisionAmountField.amount`` rows — for both the sort
+    order and the response (``paginate_decisions`` automatically picks
+    this up).  This is more accurate than the denormalised ``amount``
+    field which may be NULL.
+
+    If ``calculated_amount`` has not yet been annotated on the queryset
+    (e.g. when called outside of ``apply_decision_facets``), it is
+    annotated here.
 
     Wraps ``api.utils.sorting.apply_decision_sorting`` with reasonable
     defaults for the date field so callers don't need to remember which
@@ -289,17 +297,14 @@ def apply_sort(qs: QuerySet, sort_by: str, amount_field: str = "amount", date_fi
     """
     from api.utils.sorting import apply_decision_sorting
 
-    # When sorting by amount, annotate with the accurate subquery sum
-    # so both the sort order and the response use calculated_amount.
+    # When sorting by amount, ensure calculated_amount is annotated.
+    # apply_decision_facets already does this before amount filtering;
+    # this is a fallback for direct callers.
     if sort_by in ("amount_desc", "amount_asc"):
-        qs = qs.annotate(
-            calculated_amount=models.Sum(
-                "amount_fields__amount",
-                filter=models.Q(
-                    amount_fields__associated_relationship__isnull=False
-                ),
+        if "calculated_amount" not in qs.query.annotations:
+            qs = qs.annotate(
+                calculated_amount=models.Sum("amount_fields__amount")
             )
-        )
         amount_field = "calculated_amount"
 
     return apply_decision_sorting(
@@ -353,7 +358,7 @@ def apply_decision_facets(
     viewed: Optional[str] = None,
     sort_by: str = "recent",
     status_filter: str = "",
-    amount_field: str = "amount",
+    amount_field: str = "calculated_amount",
     date_field: str = "issue_date_day",
 ) -> QuerySet:
     """
@@ -361,6 +366,12 @@ def apply_decision_facets(
 
     Can be called with explicit keyword arguments OR by passing *request*
     (in which case all params are parsed from request.GET).
+
+    Always annotates ``calculated_amount`` (the sum of all linked
+    ``DecisionAmountField.amount`` rows) so that filtering, sorting and
+    display all use the same accurate value.  The denormalised
+    ``Decision.amount`` field is deliberately NOT used — it may be NULL
+    even when linked amount fields contain real data.
 
     Returns the filtered + sorted queryset.
     """
@@ -403,6 +414,18 @@ def apply_decision_facets(
 
     # 5. Organization IDs
     qs = apply_organization_filter(qs, organization_ids)
+
+    # ── Annotate calculated_amount *before* amount-range filtering ──
+    # Always annotate calculated_amount (sum of ALL linked
+    # DecisionAmountField.amount rows) so that filtering, sorting and
+    # display all use the same accurate value.  The denormalised
+    # Decision.amount field is deliberately ignored — it may be NULL
+    # even when linked amount fields contain real data.
+    if "calculated_amount" not in qs.query.annotations:
+        qs = qs.annotate(
+            calculated_amount=models.Sum("amount_fields__amount")
+        )
+    amount_field = "calculated_amount"
 
     # 6. Amount range
     qs = apply_amount_range(qs, min_amount, max_amount, amount_field=amount_field)

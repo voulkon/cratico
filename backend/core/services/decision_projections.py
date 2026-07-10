@@ -157,9 +157,8 @@ def aggregate_decision_types(qs: QuerySet) -> Dict[str, Any]:
         qs.values("decision_type__uid")
         .annotate(
             count=models.Count("id"),
-            total_amount=models.Sum("amount"),
-            avg_amount=models.Avg("amount"),
-            max_amount=models.Max("amount"),
+            total_amount=models.Sum("amount_fields__amount"),
+            max_amount=models.Max("amount_fields__amount"),
             label=models.Max("decision_type__label"),
         )
         .filter(decision_type__uid__isnull=False)
@@ -168,14 +167,17 @@ def aggregate_decision_types(qs: QuerySet) -> Dict[str, Any]:
 
     formatted_types = []
     for dt in decision_types:
+        count_val = dt["count"]
+        total = float(dt["total_amount"] or 0)
+        max_val = float(dt["max_amount"] or 0)
         formatted_types.append(
             {
                 "uid": dt["decision_type__uid"],
                 "label": dt["label"],
-                "count": dt["count"],
-                "total_amount": float(dt["total_amount"] or 0),
-                "avg_amount": float(dt["avg_amount"] or 0),
-                "max_amount": float(dt["max_amount"] or 0),
+                "count": count_val,
+                "total_amount": total,
+                "avg_amount": round(total / count_val, 2) if count_val else 0,
+                "max_amount": max_val,
             }
         )
 
@@ -206,8 +208,7 @@ def compute_statistics(
     """
     stats = qs.aggregate(
         total_decisions=models.Count("id"),
-        total_amount=models.Sum("amount"),
-        avg_amount=models.Avg("amount"),
+        total_amount=models.Sum("amount_fields__amount"),
     )
 
     organizations_count = qs.values("organization").distinct().count()
@@ -225,7 +226,7 @@ def compute_statistics(
             "decisions": {
                 "total_count": total_decisions,
                 "total_amount": total_amount,
-                "avg_amount": float(stats["avg_amount"] or 0),
+                "avg_amount": round(total_amount / total_decisions, 2) if total_decisions else 0,
             },
             "financial": {
                 "primary_amount": total_amount,
@@ -256,7 +257,7 @@ def compute_date_range(qs: QuerySet) -> Dict[str, Any]:
         earliest_date=dj_models.Min("issue_date_day"),
         latest_date=dj_models.Max("issue_date_day"),
         total_decisions=dj_models.Count("id"),
-        total_amount=dj_models.Sum("amount"),
+        total_amount=dj_models.Sum("amount_fields__amount"),
     )
 
     total_amount = float(date_stats["total_amount"] or 0)
@@ -290,7 +291,7 @@ def compute_date_range(qs: QuerySet) -> Dict[str, Any]:
         .values("period")
         .annotate(
             count=dj_models.Count("id"),
-            total_amount=dj_models.Sum("amount"),
+            total_amount=dj_models.Sum("amount_fields__amount"),
         )
         .order_by("period")
     )

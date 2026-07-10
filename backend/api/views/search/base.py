@@ -199,8 +199,14 @@ def serialize_decision_with_content_info(decision):
         ]
         kae_total = sum(kae.amount for kae in decision.kae_amounts.all())
 
-    # Calculate amount discrepancy
-    primary_amount = float(decision.amount) if decision.amount else 0
+    # Prefer calculated_amount (sum of amount_fields) over the
+    # denormalised Decision.amount which may be NULL.
+    raw_amount = (
+        decision.calculated_amount
+        if hasattr(decision, "calculated_amount") and decision.calculated_amount is not None
+        else decision.amount
+    )
+    primary_amount = float(raw_amount) if raw_amount else 0
     has_discrepancy = False
     discrepancy_percentage = 0
 
@@ -235,7 +241,7 @@ def serialize_decision_with_content_info(decision):
         "ada": decision.ada,
         "subject": decision.subject,
         "issue_date": decision.issue_date_day if decision.issue_date_day else None,
-        "amount": float(decision.amount) if decision.amount else None,
+        "amount": float(raw_amount) if raw_amount else None,
         "decision_type": {
             "uid": decision.decision_type.uid if decision.decision_type else None,
             "label": decision.decision_type.label if decision.decision_type else None,

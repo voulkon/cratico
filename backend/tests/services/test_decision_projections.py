@@ -25,14 +25,16 @@ class TestAggregateDecisionTypes:
 
     def test_basic_aggregation(self, decision_type):
         """Two decisions of the same type → one row with count=2."""
-        from conftest import DecisionFactory
+        from conftest import DecisionFactory, DecisionAmountFieldFactory
 
         dt = decision_type
         dt.uid = "Δ001"
         dt.label = "Ανάθεση"
         dt.save()
-        DecisionFactory(decision_type=dt, amount=100)
-        DecisionFactory(decision_type=dt, amount=200)
+        d1 = DecisionFactory(decision_type=dt)
+        d2 = DecisionFactory(decision_type=dt)
+        DecisionAmountFieldFactory(decision=d1, amount=100)
+        DecisionAmountFieldFactory(decision=d2, amount=200)
 
         qs = Decision.objects.all()
         result = aggregate_decision_types(qs)
@@ -47,12 +49,14 @@ class TestAggregateDecisionTypes:
         Even if two DecisionType rows share the same UID but have
         different labels, we should get exactly ONE row (using Max(label)).
         """
-        from conftest import DecisionFactory, DecisionTypeFactory
+        from conftest import DecisionFactory, DecisionTypeFactory, DecisionAmountFieldFactory
 
         dt1 = DecisionTypeFactory(uid="Δ001", label="Label A")
         dt2 = DecisionTypeFactory(uid="Δ001", label="Label B")
-        DecisionFactory(decision_type=dt1, amount=50)
-        DecisionFactory(decision_type=dt2, amount=150)
+        d1 = DecisionFactory(decision_type=dt1)
+        d2 = DecisionFactory(decision_type=dt2)
+        DecisionAmountFieldFactory(decision=d1, amount=50)
+        DecisionAmountFieldFactory(decision=d2, amount=150)
 
         qs = Decision.objects.all()
         result = aggregate_decision_types(qs)
@@ -172,11 +176,14 @@ class TestComputeStatistics:
     """Tests for ``compute_statistics``."""
 
     def test_basic_stats(self, decision_type):
-        from conftest import DecisionFactory
+        from conftest import DecisionFactory, DecisionAmountFieldFactory
 
-        DecisionFactory(ada="A1", amount=100, decision_type=decision_type)
-        DecisionFactory(ada="A2", amount=200, decision_type=decision_type)
-        DecisionFactory(ada="A3", amount=300, decision_type=decision_type)
+        d1 = DecisionFactory(ada="A1", decision_type=decision_type)
+        d2 = DecisionFactory(ada="A2", decision_type=decision_type)
+        d3 = DecisionFactory(ada="A3", decision_type=decision_type)
+        DecisionAmountFieldFactory(decision=d1, amount=100)
+        DecisionAmountFieldFactory(decision=d2, amount=200)
+        DecisionAmountFieldFactory(decision=d3, amount=300)
 
         qs = Decision.objects.all()
         result = compute_statistics(qs)

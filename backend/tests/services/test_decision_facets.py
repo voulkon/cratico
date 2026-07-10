@@ -253,11 +253,14 @@ class TestApplyDecisionFacets:
 
     def test_amount_range(self, decision_type):
         """Filter by min and max amount."""
-        from conftest import DecisionFactory
+        from conftest import DecisionFactory, DecisionAmountFieldFactory
 
-        d_low = DecisionFactory(ada="LOW", amount=50, decision_type=decision_type)
-        d_mid = DecisionFactory(ada="MID", amount=500, decision_type=decision_type)
-        d_high = DecisionFactory(ada="HIGH", amount=5000, decision_type=decision_type)
+        d_low = DecisionFactory(ada="LOW", decision_type=decision_type)
+        d_mid = DecisionFactory(ada="MID", decision_type=decision_type)
+        d_high = DecisionFactory(ada="HIGH", decision_type=decision_type)
+        DecisionAmountFieldFactory(decision=d_low, amount=50)
+        DecisionAmountFieldFactory(decision=d_mid, amount=500)
+        DecisionAmountFieldFactory(decision=d_high, amount=5000)
         qs = Decision.objects.all()
         result = apply_decision_facets(qs, min_amount=100, max_amount=1000)
         ids = set(result.values_list("id", flat=True))
