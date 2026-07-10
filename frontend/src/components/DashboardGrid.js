@@ -1,5 +1,6 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useDateRange } from '../contexts/DateRangeContext';
+import CollapsibleCard from './CollapsibleCard';
 import './DashboardGrid.css';
 
 /**
@@ -25,72 +26,44 @@ const DashboardGridFeatured = ({ children }) => children;
  *
  * Wrap a child in <DashboardGrid.Featured> to make it span all columns.
  *
- * @param {boolean}   collapsible     - If true, shows a collapse toggle in the top-right corner.
- * @param {boolean}   defaultCollapsed - Initial collapsed state (only when collapsible).
- * @param {ReactNode} header          - Optional header content rendered at the top (e.g. DateRangeSelector).
+ * @param {ReactNode} header - Optional header content rendered at the top (e.g. DateRangeSelector).
  */
 const DashboardGrid = ({
   children,
   columns = 3,
   className = '',
-  collapsible = false,
-  defaultCollapsed = false,
   header,
 }) => {
-  const [gridCollapsed, setGridCollapsed] = useState(defaultCollapsed);
-
-  const toggleGrid = useCallback(() => {
-    setGridCollapsed((prev) => !prev);
-  }, []);
-
   return (
     <div
       className={
         'dashboard-grid' +
         ` dashboard-grid--cols-${columns}` +
-        (className ? ` ${className}` : '') +
-        (collapsible ? ' dashboard-grid--collapsible' : '') +
-        (gridCollapsed ? ' dashboard-grid--collapsed' : '')
+        (className ? ` ${className}` : '')
       }
     >
-      {collapsible && (
-        <button
-          className="dashboard-grid-collapse-toggle"
-          onClick={toggleGrid}
-          aria-expanded={!gridCollapsed}
-          title={gridCollapsed ? 'Expand dashboard' : 'Collapse dashboard'}
-        >
-          <span
-            className={`dashboard-collapse-chevron${gridCollapsed ? ' dashboard-collapse-chevron--collapsed' : ''}`}
-            aria-hidden="true"
-          />
-        </button>
-      )}
-
       {header && (
         <div className="dashboard-grid-header">
           {header}
         </div>
       )}
 
-      {!gridCollapsed && (
-        <div className="dashboard-grid-content">
-          {React.Children.map(children, (child) => {
-            if (!child) return null;
-            const isFeatured = child.type === DashboardGridFeatured;
-            return (
-              <div
-                className={
-                  'dashboard-grid-section' +
-                  (isFeatured ? ' dashboard-grid-section--featured' : '')
-                }
-              >
-                {child}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <div className="dashboard-grid-content">
+        {React.Children.map(children, (child) => {
+          if (!child) return null;
+          const isFeatured = child.type === DashboardGridFeatured;
+          return (
+            <div
+              className={
+                'dashboard-grid-section' +
+                (isFeatured ? ' dashboard-grid-section--featured' : '')
+              }
+            >
+              {child}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };
@@ -101,41 +74,21 @@ DashboardGrid.Featured = DashboardGridFeatured;
 /**
  * A standard section header with title and optional "See All" link.
  * Use this inside your section components for consistent headers.
- *
- * @param {boolean}  collapsible - If true, shows a collapse toggle button.
- * @param {boolean}  collapsed  - Current collapsed state (controlled).
- * @param {function} onToggle   - Callback when toggle is clicked.
  */
 export const DashboardSectionHeader = ({
   title,
   onSeeAll,
   seeAllLabel = 'See All →',
-  collapsible = false,
-  collapsed = false,
-  onToggle,
   children, // extra controls (toggles, filters, etc.)
 }) => {
   return (
     <div className="dashboard-section-header">
       <div className="dashboard-section-header-left">
-        {collapsible && (
-          <button
-            className="dashboard-section-collapse-toggle"
-            onClick={onToggle}
-            aria-expanded={!collapsed}
-            title={collapsed ? 'Expand section' : 'Collapse section'}
-          >
-            <span
-              className={`dashboard-collapse-chevron${collapsed ? ' dashboard-collapse-chevron--collapsed' : ''}`}
-              aria-hidden="true"
-            />
-          </button>
-        )}
         <h2 className="dashboard-section-title">{title}</h2>
       </div>
       <div className="dashboard-section-header-right">
         {children}
-        {onSeeAll && !collapsed && (
+        {onSeeAll && (
           <button className="dashboard-see-all-button" onClick={onSeeAll}>
             {seeAllLabel}
           </button>
@@ -146,10 +99,12 @@ export const DashboardSectionHeader = ({
 };
 
 /**
- * CollapsibleSection — Wraps a data-section with a DashboardSectionHeader
- * and manages its own collapse state. When collapsed, only the header is shown.
+ * CollapsibleSection — Wraps a data-section with either a simple
+ * DashboardSectionHeader (non-collapsible) or a CollapsibleCard
+ * (collapsible).  Delegates collapse behaviour to CollapsibleCard, the
+ * canonical collapsible container used everywhere else in the app.
  *
- *   <CollapsibleSection title="Most Active Organizations" onSeeAll={...}>
+ *   <CollapsibleSection title="Most Active Organizations" onSeeAll={...} collapsible>
  *     <div>... content ...</div>
  *   </CollapsibleSection>
  */
@@ -163,30 +118,48 @@ export const CollapsibleSection = ({
   children,
   headerChildren,
 }) => {
-  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const sectionClass = `data-section${className ? ` ${className}` : ''}`;
 
-  const handleToggle = useCallback(() => {
-    setCollapsed((prev) => !prev);
-  }, []);
+  // Hooks must be called unconditionally (rules-of-hooks), even when
+  // collapsible is false — we just ignore the state in that branch.
+  const [open, setOpen] = useState(!defaultCollapsed);
 
-  return (
-    <section className={`data-section${className ? ` ${className}` : ''}`}>
-      <DashboardSectionHeader
-        title={title}
-        onSeeAll={collapsed ? undefined : onSeeAll}
-        seeAllLabel={seeAllLabel}
-        collapsible={collapsible}
-        collapsed={collapsed}
-        onToggle={handleToggle}
-      >
-        {headerChildren}
-      </DashboardSectionHeader>
-      {!collapsed && (
+  if (!collapsible) {
+    return (
+      <section className={sectionClass}>
+        <DashboardSectionHeader
+          title={title}
+          onSeeAll={onSeeAll}
+          seeAllLabel={seeAllLabel}
+        >
+          {headerChildren}
+        </DashboardSectionHeader>
         <div className="dashboard-section-collapse-body">
           {children}
         </div>
-      )}
-    </section>
+      </section>
+    );
+  }
+
+  return (
+    <CollapsibleCard
+      title={title}
+      badge={
+        open && onSeeAll ? (
+          <button className="dashboard-see-all-button" onClick={onSeeAll}>
+            {seeAllLabel || 'See All →'}
+          </button>
+        ) : undefined
+      }
+      open={open}
+      onToggle={setOpen}
+      className={sectionClass}
+    >
+      {headerChildren}
+      <div className="dashboard-section-collapse-body">
+        {children}
+      </div>
+    </CollapsibleCard>
   );
 };
 

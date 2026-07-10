@@ -31,7 +31,7 @@ const DashboardData = () => {
   const { dateRange } = useDateRange();
 
   return (
-    <DashboardGrid columns={2} collapsible header={<DateRangeSelector />}>
+    <DashboardGrid columns={2} header={<DateRangeSelector />}>
       {/* Featured — Top Org×Entity Relationship Pairs (spans full width) */}
       <DashboardGrid.Featured>
         <TopRelationshipPairs
