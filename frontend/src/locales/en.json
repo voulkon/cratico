@@ -705,5 +705,9 @@
     "columnStockType": "Stock Type",
     "columnAmount": "Number",
     "columnNominalValue": "Nominal Value"
+  },
+  "filterPanel":{
+    "apply": "Apply Filters",
+    "reset": "Clear Filters"
   }
 }

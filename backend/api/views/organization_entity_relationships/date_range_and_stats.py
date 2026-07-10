@@ -53,95 +53,20 @@ def relationship_date_range_api(request, afm, orgUid):
     try:
         decisions_qs = _get_relationship_decisions_qs(afm, orgUid)
 
-        date_stats = decisions_qs.aggregate(
-            earliest_date=models.Min("issue_date_day"),
-            latest_date=models.Max("issue_date_day"),
-            total_decisions=models.Count("id"),
-        )
+        # Delegate to shared projection (single source of truth for date-range
+        # metadata, activity chart, and granularity logic)
+        from core.services.decision_projections import compute_date_range
 
-        if not date_stats["earliest_date"]:
-            return Response(
-                {
-                    "has_data": False,
-                    "message": "No decisions found for this entity-organization pair.",
-                    "date_range": None,
-                    "activity_chart": [],
-                }
+        result = compute_date_range(decisions_qs)
+
+        if not result["has_data"]:
+            result["message"] = (
+                "No decisions found for this entity-organization pair."
             )
+            return Response(result)
 
-        earliest = date_stats["earliest_date"]
-        latest = date_stats["latest_date"]
-        span_days = (latest - earliest).days
-
-        # Choose granularity based on data span
-        if span_days <= 31:
-            granularity = "day"
-            period_column = "issue_date_day"
-        elif span_days <= 1825:
-            granularity = "month"
-            period_column = "issue_date_month"
-        else:
-            granularity = "year"
-            period_column = "issue_date_year"
-
-        # Activity data
-        activity_data = (
-            decisions_qs.annotate(period=models.F(period_column))
-            .values("period")
-            .annotate(count=models.Count("id"), total_amount=models.Sum("amount"))
-            .order_by("period")
-        )
-
-        chart_data = []
-        for item in activity_data:
-            period_val = item["period"]
-            period_str = (
-                str(period_val)
-                if granularity == "year"
-                else (period_val.isoformat() if period_val else None)
-            )
-            chart_data.append(
-                {
-                    "period": period_str,
-                    "count": item["count"],
-                    "amount": float(item["total_amount"] or 0),
-                }
-            )
-
-        amounts = [item["amount"] for item in chart_data if item["amount"] > 0]
-        counts = [item["count"] for item in chart_data]
-
-        chart_stats = {
-            "max_amount": max(amounts) if amounts else 0,
-            "max_count": max(counts) if counts else 0,
-            "avg_amount": sum(amounts) / len(amounts) if amounts else 0,
-            "avg_count": sum(counts) / len(counts) if counts else 0,
-            "periods_with_activity": len([c for c in counts if c > 0]),
-            "total_periods": len(chart_data),
-        }
-
-        return Response(
-            {
-                "has_data": True,
-                "date_range": {
-                    "earliest": earliest.isoformat(),
-                    "latest": latest.isoformat(),
-                    "span_days": span_days,
-                    "recommended_granularity": granularity,
-                },
-                "summary": {
-                    "total_decisions": date_stats["total_decisions"],
-                    "avg_daily_decisions": round(
-                        date_stats["total_decisions"] / max(span_days, 1), 2
-                    ),
-                },
-                "activity_chart": {
-                    "data": chart_data,
-                    "granularity": granularity,
-                    "stats": chart_stats,
-                },
-            }
-        )
+        # stats are now computed inside compute_date_range — no enrichment needed
+        return Response(result)
 
     except Exception as e:
         logger.exception(
@@ -189,34 +114,24 @@ def relationship_statistics_api(request, afm, orgUid):
         - total_amount: sum of all decision amounts
         - avg_amount: average decision amount
         - decisions_with_amounts: count of decisions with non-zero amounts
-    """
-    start_date_str = request.GET.get("start_date")
-    end_date_str = request.GET.get("end_date")
 
-    if not start_date_str or not end_date_str:
-        return Response(
-            {"error": "start_date and end_date are required"}, status=400
-        )
+    Supports partial date ranges: a lone ``start_date`` filters >= start,
+    a lone ``end_date`` filters <= end.  Both can be omitted.
+    """
+    from core.services.decision_facets import (
+        apply_date_range,
+        parse_date_range_from_request,
+    )
+
+    start_dt, end_dt, err = parse_date_range_from_request(request)
+    if err:
+        return err
 
     try:
-        start_date = parse_date(start_date_str)
-        end_date = parse_date(end_date_str)
-
-        if not start_date or not end_date:
-            return Response(
-                {"error": "Invalid date format. Expected YYYY-MM-DD."}, status=400
-            )
-
-        if start_date > end_date:
-            return Response(
-                {"error": "start_date must be before or equal to end_date"},
-                status=400,
-            )
-
         decisions_qs = _get_relationship_decisions_qs(afm, orgUid)
 
-        # Filter by date range
-        decisions_qs = decisions_qs.filter_by_date_range(start_date, end_date)
+        # Apply date filter via shared facet (supports partial ranges)
+        decisions_qs = apply_date_range(decisions_qs, start_dt=start_dt, end_dt=end_dt)
 
         # Use financial service for accurate calculations
         try:
@@ -307,42 +222,121 @@ def relationship_decision_types_api(request, afm, orgUid):
             if end_dt:
                 decisions_qs = decisions_qs.filter(issue_date_day__lte=end_dt)
 
-        decision_types = (
-            decisions_qs.values("decision_type__uid")
-            .annotate(
-                count=models.Count("id"),
-                total_amount=models.Sum("amount"),
-                avg_amount=models.Avg("amount"),
-                max_amount=models.Max("amount"),
-                label=models.Max("decision_type__label"),
-            )
-            .filter(decision_type__uid__isnull=False)
-            .order_by("-count")
-        )
+        # Use shared projection (single source of truth for the uid-grouped aggregation)
+        from core.services.decision_projections import aggregate_decision_types
 
-        formatted_types = []
-        for dt in decision_types:
-            formatted_types.append(
-                {
-                    "uid": dt["decision_type__uid"],
-                    "label": dt["label"],
-                    "count": dt["count"],
-                    "total_amount": float(dt["total_amount"] or 0),
-                    "avg_amount": float(dt["avg_amount"] or 0),
-                    "max_amount": float(dt["max_amount"] or 0),
-                }
-            )
-
-        return Response(
-            {
-                "decision_types": formatted_types,
-                "total_types": len(formatted_types),
-            }
-        )
+        return Response(aggregate_decision_types(decisions_qs))
 
     except Exception as e:
         logger.exception(
             "Error in relationship_decision_types_api for afm={}, orgUid={}",
+            afm,
+            orgUid,
+        )
+        return Response(
+            {"error": f"Internal server error: {str(e)}"},
+            status=500,
+        )
+
+
+@swagger_auto_schema(
+    method="get",
+    manual_parameters=[
+        openapi.Parameter(
+            "start_date",
+            openapi.IN_QUERY,
+            description="Start date (YYYY-MM-DD)",
+            type=openapi.TYPE_STRING,
+        ),
+        openapi.Parameter(
+            "end_date",
+            openapi.IN_QUERY,
+            description="End date (YYYY-MM-DD)",
+            type=openapi.TYPE_STRING,
+        ),
+        openapi.Parameter(
+            "page",
+            openapi.IN_QUERY,
+            description="Page number",
+            type=openapi.TYPE_INTEGER,
+        ),
+        openapi.Parameter(
+            "page_size",
+            openapi.IN_QUERY,
+            description="Page size",
+            type=openapi.TYPE_INTEGER,
+        ),
+        openapi.Parameter(
+            "sort_by",
+            openapi.IN_QUERY,
+            description="Sort: recent, oldest, amount_desc, amount_asc",
+            type=openapi.TYPE_STRING,
+        ),
+        openapi.Parameter(
+            "q",
+            openapi.IN_QUERY,
+            description="Search query",
+            type=openapi.TYPE_STRING,
+        ),
+        openapi.Parameter(
+            "decision_types",
+            openapi.IN_QUERY,
+            description="Comma-separated decision type UIDs",
+            type=openapi.TYPE_STRING,
+        ),
+        openapi.Parameter(
+            "min_amount",
+            openapi.IN_QUERY,
+            description="Minimum amount filter",
+            type=openapi.TYPE_NUMBER,
+        ),
+        openapi.Parameter(
+            "max_amount",
+            openapi.IN_QUERY,
+            description="Maximum amount filter",
+            type=openapi.TYPE_NUMBER,
+        ),
+    ],
+)
+@api_view(["GET"])
+@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+def relationship_decisions_api(request, afm, orgUid):
+    """
+    Get paginated decisions for an AFM↔Organization relationship.
+
+    Uses the shared facet layer (date range, search, sort, decision types,
+    amount range) and the shared paginated-decisions projection.
+    """
+    from core.services.decision_facets import (
+        apply_decision_facets,
+        parse_date_range_from_request,
+        parse_sort_by,
+    )
+    from core.services.decision_projections import paginate_decisions
+
+    start_dt, end_dt, err = parse_date_range_from_request(request)
+    if err:
+        return err
+
+    page = int(request.GET.get("page", 1))
+    page_size = int(request.GET.get("page_size", 20))
+
+    try:
+        decisions_qs = _get_relationship_decisions_qs(afm, orgUid)
+
+        # Apply shared facets
+        qs = apply_decision_facets(
+            decisions_qs,
+            start_dt=start_dt,
+            end_dt=end_dt,
+            request=request,
+        )
+
+        return Response(paginate_decisions(qs, page=page, page_size=page_size))
+
+    except Exception as e:
+        logger.exception(
+            "Error in relationship_decisions_api for afm={}, orgUid={}",
             afm,
             orgUid,
         )

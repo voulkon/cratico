@@ -702,5 +702,9 @@
     "columnStockType": "Τύπος Μετοχών",
     "columnAmount": "Αριθμός",
     "columnNominalValue": "Ονομαστική Αξία"
+  },
+  "filterPanel":{
+    "apply": "Εφαρμογή Φίλτρων",
+    "reset": "Καθαρισμός Φίλτρων"
   }
 }

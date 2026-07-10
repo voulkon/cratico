@@ -8,9 +8,17 @@ from django.urls import path
 PREFIX = "decisions/"
 
 from api.views import decisions as decisions_views
+from api.views import decisions_unified
 from api.views import search
 
 urlpatterns = [
+    # ── Unified decisions endpoint ──────────────────────────────────
+    # GET /api/decisions/unified/?source=temporal&view=statistics
+    path(
+        "unified/",
+        decisions_unified.decisions_unified_api,
+        name="decisions_unified",
+    ),
     # Decision detail endpoints (using integer ID)
     path("<int:decision_id>/", decisions_views.decision_detail, name="decision_detail"),
     path(

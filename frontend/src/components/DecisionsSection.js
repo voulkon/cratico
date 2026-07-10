@@ -13,8 +13,8 @@ const PAGE_SIZE = 5;
  * DecisionsSection — Infinite-scroll list of notable recent decisions.
  *
  * Uses useDecisionsList hook which handles page-based pagination
- * against /explore/decisions-optimized/.  The sentinel triggers
- * loadMore() when scrolled into view.
+ * against /api/decisions/unified/ (source=temporal).  The sentinel
+ * triggers loadMore() when scrolled into view.
  */
 const DecisionsSection = ({
   onSeeAll,
@@ -28,9 +28,11 @@ const DecisionsSection = ({
   // Build stable params for useDecisionsList — useMemo avoids
   // referential changes that would trigger re-fetches.
   const params = useMemo(() => ({
+    source: 'temporal',
+    view: 'decisions',
     start_date: dateRange?.start_date || '',
     end_date: dateRange?.end_date || '',
-    sort_by: 'entity_amount_desc',
+    sort_by: 'amount_desc',
   }), [dateRange?.start_date, dateRange?.end_date]);
 
   const {
@@ -41,7 +43,7 @@ const DecisionsSection = ({
     error,
     loadMore,
   } = useDecisionsList({
-    endpoint: '/explore/decisions-optimized/',
+    endpoint: '/decisions/unified/',
     params,
     enabled: !!dateRange,
     pageSize: PAGE_SIZE,

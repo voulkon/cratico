@@ -106,6 +106,16 @@ def _build_warmup_sentinel_keys(
             direct_assignments_only="",
         )]
 
+    if view_name == "unified":
+        # The unified endpoint caches 3 views for source=temporal.
+        # We set a sentinel on the date_range key as the canonical
+        # representative — all 3 are warmed by the same warm_fn call.
+        return [response_cache.build_key(
+            "unified",
+            source="temporal", view="date_range",
+            start_date=start_str, end_date=end_str,
+        )]
+
     if view_name in ("da_top_entities", "da_top_orgs"):
         return [
             response_cache.build_key(
@@ -266,6 +276,7 @@ def warm_analytics_cache(reference_date_str: str | None = None):
         warm_explore_decision_types_window,
         warm_explore_orgs_window,
         warm_explore_statistics_window,
+        warm_unified_window,
     )
 
     ref = (
@@ -295,6 +306,7 @@ def warm_analytics_cache(reference_date_str: str | None = None):
             ("da_top_orgs", warm_da_top_orgs_window, {"max_limit": 100, "page_size": 20}),
             ("explore_decision_types", warm_explore_decision_types_window, {"max_limit": 200, "page_size": 50}),
             ("explore_statistics", warm_explore_statistics_window, {"max_limit": 1, "page_size": 1}),
+            ("unified", warm_unified_window, {}),
         ]:
             # ── Build sentinel warmup keys so L2 (defer_on_miss) can
             #     detect that L3 is already working on this view ──────
