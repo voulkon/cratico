@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { NetworkIcon } from '../components/Icons';
+import TopBarSlot from '../components/TopBarSlot';
 import apiClient from '../api/client';
 import TimeRangeSection from '../components/TimeRangeSection';
 import TopCounterparts from '../components/TopCounterparts';
@@ -483,22 +484,28 @@ const EntityDetailPage = () => {
 
   return (
     <div className="entity-detail-page">
-      <div className="entity-header">
-        <div className="page-breadcrumb">{pageInfo.breadcrumb}</div>
-
-        <div className="entity-title-row">
-          <h1 className="entity-title">{pageInfo.title}</h1>
+      {/* Breadcrumb + entity title rendered into the fixed top bar */}
+      <TopBarSlot>
+        <div className="entity-header-topbar">
+          <span className="entity-title-topbar">{pageInfo.title}</span>
+          {explorationMode === 'temporal' && pageInfo.subtitle && (
+            <span className="entity-subtitle-topbar">{pageInfo.subtitle}</span>
+          )}
           {entityType === 'organization' && explorationMode !== 'temporal' && (
             <button
               onClick={handleViewOrganizationChart}
-              className="org-chart-button-icon"
+              className="org-chart-button-icon org-chart-button-topbar"
               title={t('entityDetail.viewOrganizationChart')}
               aria-label={t('entityDetail.viewOrganizationChart')}
             >
-              <NetworkIcon />
+              <NetworkIcon size={14} />
             </button>
           )}
         </div>
+      </TopBarSlot>
+
+      <div className="entity-header">
+        {/* Breadcrumb and title are now in the top bar; keep subtitle + metadata below */}
         <div className="entity-subtitle">{pageInfo.subtitle}</div>
 
         {/* Signer Organizations and Positions - Collapsible */}

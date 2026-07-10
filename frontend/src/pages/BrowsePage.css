@@ -3,20 +3,39 @@
 .browse-page {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  /* Fill the viewport below the fixed top band */
+  height: calc(100vh - var(--top-band-height));
   overflow: hidden;
   background: var(--bg-color);
 }
 
-/* ── Top bar ────────────────────────────────────────────────────── */
-.browse-top-bar {
+/* ── Top bar (rendered inside the fixed header via TopBarSlot) ── */
+.browse-top-bar-inline {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 12px;
-  padding: 0 var(--spacing-md);
-  border-bottom: 1px solid var(--border-color);
-  background: var(--card-bg);
+  width: 100%;
+  min-height: var(--top-controls-height);
+}
+
+.browse-top-bar-inline .category-tabs {
+  border-bottom: none;
+  padding: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.browse-top-bar-inline .browse-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
+}
+
+/* ── Top bar (original in-flow, kept for reference, no longer used) ── */
+.browse-top-bar {
+  display: none;
 }
 
 .browse-top-bar .category-tabs {

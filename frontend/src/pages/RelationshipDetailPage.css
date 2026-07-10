@@ -29,14 +29,110 @@
 }
 
 .relationship-header {
-  margin-bottom: 32px;
+  /* relationship-title removed; entity cards moved to top bar.
+     Keep margin for the breadcrumb + time-range section spacing. */
+  margin-bottom: 0;
 }
 
 .relationship-title {
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--text-color);
-  margin-bottom: 24px;
+  display: none; /* removed — entity cards are now in the top bar */
+}
+
+/* ── Top-bar entity cards (rendered via TopBarSlot portal) ── */
+
+/* Override the default slot truncation: these cards need to breathe
+   but must stay within the top bar bounds (no bleeding into logo/page). */
+.relationship-entities-topbar {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: var(--top-controls-height);
+  padding: 0 4px;
+  background: none;
+  border: none;
+  overflow: hidden;
+  white-space: normal !important;
+  text-overflow: clip !important;
+  max-width: none !important;
+}
+
+.entity-card-topbar {
+  flex: 1 1 0;
+  min-width: 40px;         /* never shrink below 40px */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 1px 4px;
+  background: var(--hover-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+  /* Fit within 44px top-bar height: tiny font, tight line-height */
+  font-size: 10px;
+  line-height: 1.15;
+}
+
+.entity-card-topbar:hover {
+  border-color: var(--palette-primary);
+}
+
+.entity-card-topbar .entity-name {
+  font-size: 11px;
+  font-weight: var(--font-semibold, 600);
+  white-space: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Allow up to 2 lines in the 44px bar */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  text-align: center;
+  max-width: 100%;
+  word-break: break-word;
+}
+
+.entity-card-topbar .entity-id {
+  font-family: monospace;
+  font-size: 8px;
+  color: var(--muted-text);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.connector-icon-topbar {
+  flex-shrink: 0;
+  font-size: 0.9rem;
+  color: var(--muted-text);
+  line-height: 1;
+}
+
+/* ── Tiny screens: cards get priority, connector shrinks, IDs hide ── */
+@media (max-width: 400px) {
+  .entity-card-topbar {
+    min-width: 36px;
+    padding: 1px 2px;
+    font-size: 9px;
+  }
+
+  .entity-card-topbar .entity-name {
+    font-size: 9px;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+
+  .entity-card-topbar .entity-id {
+    display: none;            /* hide AFM/UID on tiny screens */
+  }
+
+  .connector-icon-topbar {
+    font-size: 0.7rem;
+  }
 }
 
 .relationship-entities {

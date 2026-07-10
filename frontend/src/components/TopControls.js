@@ -39,14 +39,17 @@ const TopControls = ({
 
   return (
     <>
-      {/* Left side: Logo (conditionally rendered) — stays fixed at top-left */}
-      {!hideLogo && (
-        <div className={`left-controls ${isLibraryOpen ? 'shifted' : ''}`}>
+      {/* Left side: Logo + page-header slot — stays fixed at top-left.
+          The container is always rendered so the portal target (#top-bar-slot)
+          is available even when the logo is hidden (e.g. homepage). */}
+      <div className={`left-controls ${isLibraryOpen ? 'shifted' : ''}`}>
+        {!hideLogo && (
           <div className="logo-container">
             <Logo size="small" />
           </div>
-        </div>
-      )}
+        )}
+        <div id="top-bar-slot" />
+      </div>
 
       {/* Right side: Collapsible controls — lives inside the grid's .controls-area */}
       <div className={`top-controls-wrapper ${layout} ${isCollapsed ? 'collapsed' : 'expanded'}`}>

@@ -4,6 +4,7 @@ import apiClient from '../api/client';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { SearchIcon } from '../components/Icons';
+import TopBarSlot from '../components/TopBarSlot';
 import './PersonPage.css';
 
 const PersonPage = () => {
@@ -52,6 +53,13 @@ const PersonPage = () => {
 
   return (
     <div className="person-page">
+      {/* Person name rendered into the fixed top bar */}
+      <TopBarSlot>
+        <div className="person-header-topbar">
+          <span className="person-title-topbar">{decodedName}</span>
+        </div>
+      </TopBarSlot>
+
       <div className="person-page-header">
         <div className="breadcrumb">
           <button onClick={() => navigate(-1)} className="breadcrumb-link">← {t('personPage.backButton')}</button>
@@ -59,7 +67,6 @@ const PersonPage = () => {
           <span>{t('personPage.breadcrumbPerson')}</span>
         </div>
         <div className="person-title-row">
-          <h1 className="person-title">{decodedName}</h1>
           <a
             href={`https://www.google.com/search?q=${encodeURIComponent(decodedName)}`}
             target="_blank"
@@ -68,6 +75,7 @@ const PersonPage = () => {
             title={t('personPage.searchOnGoogle')}
           >
             <SearchIcon size={16} />
+            <span className="google-search-label">{t('personPage.searchOnGoogle')}</span>
           </a>
         </div>
         <p className="person-subtitle">

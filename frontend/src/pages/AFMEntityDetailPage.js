@@ -8,6 +8,7 @@ import useDocumentContent from '../hooks/useDocumentContent';
 import useDecisionsList from '../hooks/useDecisionsList';
 import useDecisionTypes from '../hooks/useDecisionTypes';
 import TopCounterparts from '../components/TopCounterparts';
+import TopBarSlot from '../components/TopBarSlot';
 import GemiSection from '../components/GemiSection';
 import DecisionList from '../components/DecisionList';
 import DecisionsToolbar from '../components/DecisionsToolbar';
@@ -330,6 +331,15 @@ const AFMEntityDetailPage = () => {
 
   return (
     <div className="afm-entity-detail-page">
+      {/* Entity name rendered into the fixed top bar */}
+      <TopBarSlot>
+        <div className="entity-header-topbar">
+          <span className="entity-title-topbar">
+            {entity.name || t('afmEntityDetail.unknownEntity')}
+          </span>
+        </div>
+      </TopBarSlot>
+
       {/* Header Section */}
       <div className="entity-header">
         <div className="breadcrumb">
@@ -339,10 +349,6 @@ const AFMEntityDetailPage = () => {
           <span className="breadcrumb-separator">•</span>
           <span>{t('afmEntityDetail.entityDetails')}</span>
         </div>
-
-        <h1 className="entity-title">
-          {entity.name || t('afmEntityDetail.unknownEntity')}
-        </h1>
 
         <div className="entity-metadata">
           <span className="afm-badge">AFM: {entity.afm}</span>
