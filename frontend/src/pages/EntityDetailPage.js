@@ -50,7 +50,8 @@ const EntityDetailPage = () => {
     toggleType,
     setAmountFilters,
     setDirectAssignmentsOnly,
-    clearAllFilters
+    clearAllFilters,
+    updateUrl
   } = useUrlFilters({ sortBy: 'amount_desc' });
 
   const [statistics, setStatistics] = useState(null);
@@ -164,9 +165,9 @@ const EntityDetailPage = () => {
           setEntityDateRange({ has_data: false, message: 'Invalid temporal URL' });
         }
       } else {
-        // Existing entity mode logic
+        // Entity mode: fetch date-range via unified endpoint
         const response = await apiClient.get(
-          `/entity/${entityType}/${entityId}/date-range/`
+          `/decisions/unified/?source=entity&entity_type=${entityType}&entity_id=${entityId}&view=date_range`
         );
 
         setEntityDateRange(response.data);
@@ -203,11 +204,15 @@ const EntityDetailPage = () => {
 
   // Decision-types endpoint for the current context (entity or temporal)
   const decisionTypesEndpoint = explorationMode === 'temporal'
-    ? '/explore/decision-types/'
-    : `/entity/${entityType}/${entityId}/decision-types/`;
+    ? '/decisions/unified/'
+    : '/decisions/unified/';
+
+  const decisionTypesExtraParams = explorationMode === 'temporal'
+    ? { source: 'temporal', view: 'decision_types' }
+    : { source: 'entity', entity_type: entityType, entity_id: entityId, view: 'decision_types' };
 
   const { decisionTypes: availableDecisionTypes, loading: decisionTypesLoading } =
-    useDecisionTypes({ endpoint: decisionTypesEndpoint, dateRange: timeRange });
+    useDecisionTypes({ endpoint: decisionTypesEndpoint, dateRange: timeRange, extraParams: decisionTypesExtraParams });
 
   const fetchStatistics = useCallback(async () => {
     if (!timeRange) return;
@@ -223,8 +228,14 @@ const EntityDetailPage = () => {
 
       let endpoint;
       if (explorationMode === 'temporal') {
-        endpoint = `/explore/statistics/?${params.toString()}`;
+        params.append('source', 'temporal');
+        params.append('view', 'statistics');
+        endpoint = `/decisions/unified/?${params.toString()}`;
       } else {
+        // Entity mode: keep hitting the old statistics endpoint.
+        // entity_statistics_api_dev uses financial_service for AFM entities
+        // and returns a richer shape (timeline data, top_organizations, etc.)
+        // that compute_statistics does not provide.
         if (requiresManualStatistics) {
           params.append('lite', 'true');
         }
@@ -248,11 +259,12 @@ const EntityDetailPage = () => {
   }, [explorationMode, entityType, entityId, timeRange, t, requiresManualStatistics]);
 
   // ── Unified decisions list hook ────────────────────────────────────────
-  const decisionsEndpoint = explorationMode === 'temporal'
-    ? '/explore/decisions-optimized/'
-    : `/entity/${entityType}/${entityId}/decisions/`;
+  const decisionsEndpoint = '/decisions/unified/';
 
   const decisionsParams = {
+    source: explorationMode === 'temporal' ? 'temporal' : 'entity',
+    view: 'decisions',
+    ...(explorationMode === 'entity' && { entity_type: entityType, entity_id: entityId }),
     sort_by: sortBy,
     start_date: timeRange?.startDate,
     end_date: timeRange?.endDate,
@@ -633,6 +645,7 @@ const EntityDetailPage = () => {
           onClearAll={clearAllFilters}
           amountFilters={amountFilters}
           onAmountChange={(field, value) => setAmountFilters({ ...amountFilters, [field]: value })}
+          onApplyFilters={(updates) => updateUrl(updates)}
           decisionTypes={availableDecisionTypes}
           selectedTypes={selectedDecisionTypes}
           onTypeToggle={toggleType}

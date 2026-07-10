@@ -44,8 +44,9 @@ from api.views.direct_assignments import entity_direct_assignment_top_organizati
 from api.views.organization_entity_relationships import (
     entity_top_organizations_api,
     relationship_date_range_api,
-    relationship_statistics_api,
+    relationship_decisions_api,
     relationship_decision_types_api,
+    relationship_statistics_api,
 )
 
 # Import remaining views not extracted to modules
@@ -97,6 +98,21 @@ urlpatterns = [
         name="afm_entity_decisions",
     ),
     path(
+        "entity/afm/<str:afm>/decision-types/",
+        entities_views.afm_entity_decision_types,
+        name="afm_entity_decision_types",
+    ),
+    path(
+        "entity/afm/<str:afm>/statistics/",
+        entities_views.afm_entity_statistics,
+        name="afm_entity_statistics",
+    ),
+    path(
+        "entity/afm/<str:afm>/date-range/",
+        entities_views.afm_entity_date_range,
+        name="afm_entity_date_range",
+    ),
+    path(
         "entity/afm/<str:afm>/request-fetch/",
         entities_views.request_afm_fetch,
         name="afm_entity_request_fetch",
@@ -132,6 +148,11 @@ urlpatterns = [
         "relationship/entity/<str:afm>/org/<str:orgUid>/decision-types/",
         relationship_decision_types_api,
         name="relationship_decision_types",
+    ),
+    path(
+        "relationship/entity/<str:afm>/org/<str:orgUid>/decisions/",
+        relationship_decisions_api,
+        name="relationship_decisions",
     ),
     # Debug/tracing endpoints (TODO: move to debug module or remove in production)
     path(
