@@ -11,6 +11,7 @@ import './NotificationBatchDetailPage.css';
 import DecisionList from '../components/DecisionList';
 import DecisionsToolbar from '../components/DecisionsToolbar';
 import BatchMetadataHeader from '../components/BatchMetadataHeader';
+import TopBarSlot from '../components/TopBarSlot';
 import { ChartIcon } from '../components/Icons';
 
 /**
@@ -163,6 +164,23 @@ const NotificationBatchDetailPage = () => {
 
   return (
     <div className="notification-batch-detail-page">
+      {/* Compact batch info rendered into the fixed top bar */}
+      <TopBarSlot>
+        <div className="batch-header-topbar">
+          <span className="batch-title-topbar">
+            {t('notifications.batch')} #{batchId}
+          </span>
+          {batch.subscription && (
+            <>
+              <span className="batch-topbar-sep">·</span>
+              <span className="batch-subscription-topbar">
+                {batch.subscription.alias || batch.subscription.organization_label || `#${batch.subscription.id}`}
+              </span>
+            </>
+          )}
+        </div>
+      </TopBarSlot>
+
       {/* Breadcrumb */}
       <nav className="breadcrumb">
         <button onClick={() => navigate('/notifications')} className="breadcrumb-link">

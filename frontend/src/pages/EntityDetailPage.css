@@ -7,6 +7,64 @@
   min-height: 100vh;
 }
 
+/* ── Top-bar entity header (rendered via TopBarSlot portal) ── */
+.entity-header-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: center;
+  justify-content: center;
+  gap: 0 var(--spacing-sm);
+  width: 100%;
+  min-width: 0;
+  /* Override #top-bar-slot > * defaults for multi-line support */
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+}
+
+.entity-breadcrumb-topbar {
+  font-size: var(--font-xs);
+  color: var(--muted-text);
+  flex-shrink: 0;
+  display: none; /* hidden by default, shown on wider screens */
+}
+
+.entity-title-topbar {
+  font-size: 1rem;
+  font-weight: var(--font-bold);
+  color: var(--palette-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+/* Temporal-explore date-range label — full-width second line */
+.entity-subtitle-topbar {
+  font-size: 0.68rem;
+  color: var(--muted-text);
+  flex-basis: 100%;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  line-height: 1.1;
+}
+
+.org-chart-button-topbar {
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+
+@media (min-width: 600px) {
+  .entity-breadcrumb-topbar {
+    display: inline;
+  }
+}
+
 .entity-header {
   margin-bottom: var(--spacing-xxxl);
 }

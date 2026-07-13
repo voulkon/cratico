@@ -6,6 +6,7 @@ import useUrlFilters from '../hooks/useUrlFilters';
 import useDecisionsList from '../hooks/useDecisionsList';
 import useDecisionTypes from '../hooks/useDecisionTypes';
 import DecisionList from '../components/DecisionList';
+import TopBarSlot from '../components/TopBarSlot';
 import DecisionsToolbar from '../components/DecisionsToolbar';
 import TimeRangeSection from '../components/TimeRangeSection';
 import StatisticsGrid from '../components/StatisticsGrid';
@@ -263,6 +264,29 @@ const RelationshipDetailPage = () => {
 
   return (
     <div className="relationship-detail-page">
+      {/* Relationship entity cards rendered into the fixed top bar */}
+      <TopBarSlot>
+        <div className="relationship-entities relationship-entities-topbar">
+          <button
+            className="entity-card entity-card-topbar clickable"
+            onClick={() => navigate(`/entity/afm/${afm}`)}
+          >
+            <span className="entity-name">{entity.name}</span>
+            <span className="entity-id">AFM: {afm}</span>
+          </button>
+
+          <span className="connector-icon connector-icon-topbar">⇄</span>
+
+          <button
+            className="entity-card entity-card-topbar clickable"
+            onClick={() => navigate(`/entity/organization/${orgUid}`)}
+          >
+            <span className="entity-name">{organization.label}</span>
+            <span className="entity-id">UID: {orgUid}</span>
+          </button>
+        </div>
+      </TopBarSlot>
+
       {/* Breadcrumb */}
       <div className="breadcrumb">
         <button onClick={() => navigate(-1)} className="breadcrumb-link">
@@ -270,37 +294,6 @@ const RelationshipDetailPage = () => {
         </button>
         <span className="breadcrumb-separator">•</span>
         <span>{t('relationship.title')}</span>
-      </div>
-
-      {/* Header Section */}
-      <div className="relationship-header">
-        <h1 className="relationship-title">{t('relationship.pageTitle')}</h1>
-
-        <div className="relationship-entities">
-          <button
-            className="entity-card clickable"
-            onClick={() => navigate(`/entity/afm/${afm}`)}
-          >
-            <span className="entity-label">{t('relationship.entity')}</span>
-            <span className="entity-name">{entity.name}</span>
-            <span className="entity-id">AFM: {afm}</span>
-          </button>
-
-          <div className="relationship-connector">
-            <div className="connector-line"></div>
-            <span className="connector-icon">⇄</span>
-            <div className="connector-line"></div>
-          </div>
-
-          <button
-            className="entity-card clickable"
-            onClick={() => navigate(`/entity/organization/${orgUid}`)}
-          >
-            <span className="entity-label">{t('relationship.organization')}</span>
-            <span className="entity-name">{organization.label}</span>
-            <span className="entity-id">UID: {orgUid}</span>
-          </button>
-        </div>
       </div>
 
       {/* Time Range Slider */}

@@ -48,6 +48,27 @@
   color: var(--palette-primary);
 }
 
+/* ── Top-bar entity header (rendered via TopBarSlot portal) ── */
+.entity-header-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  min-height: var(--top-controls-height);
+  min-width: 0;
+}
+
+.entity-title-topbar {
+  font-size: 1rem;
+  font-weight: var(--font-bold);
+  color: var(--palette-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
 .entity-metadata {
   display: flex;
   flex-wrap: wrap;

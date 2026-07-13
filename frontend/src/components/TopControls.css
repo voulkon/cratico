@@ -14,18 +14,23 @@
   pointer-events: none;
 }
 
-/* Left controls container - Logo.
-   Stays fixed at top-left so it's always visible regardless of scroll. */
+/* Left controls container - Logo + page-header slot.
+   Fixed at top-left so it's always visible regardless of scroll.
+   Logo is absolutely positioned on the left; #top-bar-slot fills the
+   full width so its centered content aligns with the page body below. */
 .left-controls {
   position: fixed;
   top: var(--spacing-md);
   left: var(--spacing-md);
+  /* Leave room for the right-side controls column so slot content
+     never overlaps the collapse toggle or action buttons. */
+  right: calc(var(--controls-expanded-width) + var(--spacing-md));
   z-index: 1003; /* Above unified overlay (1002) - keeps logo visible */
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   gap: var(--spacing-sm);
   transition: left var(--transition-normal);
-  align-items: flex-start;
   /* Immune to font scaling */
   font-size: 16px;
   --font-xs: 12px;
@@ -37,13 +42,44 @@
   --font-xxxl: 40px;
 }
 
+/* Portal target — pages render their contextual header here.
+   Fills the full width of .left-controls (logo is absolute, not in flow).
+   Content is centered so it aligns with the page body's center
+   (which also accounts for the right controls strip). */
+#top-bar-slot {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: center;
+  justify-content: center;
+  gap: var(--spacing-xs) var(--spacing-sm);
+  min-height: var(--top-controls-height);
+}
+
+/* Default single-line truncation for slot children.
+   Pages that want multi-line layouts override these on their own containers. */
+#top-bar-slot > * {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
 /* Shift right when sidebar is open */
 .left-controls.shifted {
   left: 420px; /* sidebar width (400px) + spacing */
 }
 
+/* Logo is taken out of flow so #top-bar-slot spans the full width
+   and its centered content aligns with the page body below. */
 .logo-container {
-  /* Ensure logo aligns with right controls */
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
   height: var(--top-controls-height);
@@ -184,6 +220,7 @@
   .left-controls {
     top: var(--spacing-sm);
     left: var(--spacing-sm);
+    right: calc(var(--controls-expanded-width) + var(--spacing-sm));
   }
 
   .left-controls.shifted {
@@ -207,5 +244,11 @@
     gap: var(--spacing-xs);
     top: var(--spacing-xs);
     right: var(--spacing-xs);
+  }
+
+  .left-controls {
+    top: var(--spacing-xs);
+    left: var(--spacing-xs);
+    right: calc(var(--controls-expanded-width) + var(--spacing-xs));
   }
 }

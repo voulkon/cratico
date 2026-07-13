@@ -8,6 +8,52 @@
   min-height: 100vh;
 }
 
+/* ── Top-bar batch header (rendered via TopBarSlot portal) ── */
+.batch-header-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: center;
+  justify-content: center;
+  gap: 0 var(--spacing-xs);
+  width: 100%;
+  min-width: 0;
+  /* Override #top-bar-slot > * defaults for multi-line support */
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+}
+
+.batch-title-topbar {
+  font-size: 1rem;
+  font-weight: var(--font-bold);
+  color: var(--palette-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.batch-topbar-sep {
+  color: var(--muted-text);
+  flex-shrink: 0;
+  font-size: 0.85rem;
+}
+
+/* Subscription alias — full-width second line on narrow screens */
+.batch-subscription-topbar {
+  font-size: 0.7rem;
+  color: var(--muted-text);
+  flex-basis: 100%;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  line-height: 1.1;
+}
+
 /* Breadcrumb Navigation */
 .breadcrumb {
   display: flex;
