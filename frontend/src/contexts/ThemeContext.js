@@ -16,7 +16,7 @@ export const ThemeProvider = ({ children }) => {
   });
 
   const [palette, setPalette] = useState(() => {
-    return localStorage.getItem('palette') || 'blue';
+    return localStorage.getItem('palette') || 'orange';
   });
 
   const themes = [
@@ -27,10 +27,10 @@ export const ThemeProvider = ({ children }) => {
   ];
 
   const palettes = [
+    { id: 'orange', name: 'Orange', color: '#f59e0b', darkColor: '#fbbf24' },
     { id: 'blue', name: 'Blue', color: '#4299E1', darkColor: '#63B3ED' },
     { id: 'purple', name: 'Purple', color: '#8b5cf6', darkColor: '#a78bfa' },
     { id: 'green', name: 'Green', color: '#10b981', darkColor: '#34d399' },
-    { id: 'orange', name: 'Orange', color: '#f59e0b', darkColor: '#fbbf24' },
     { id: 'red', name: 'Red', color: '#ef4444', darkColor: '#f87171' },
     { id: 'pink', name: 'Pink', color: '#ec4899', darkColor: '#f472b6' }
   ];
@@ -73,7 +73,7 @@ export const ThemeProvider = ({ children }) => {
     getCurrentPaletteColor,
     isDark: theme === 'dark' || theme === 'solarized-dark',
     currentThemeName: themes.find(t => t.id === theme)?.name || 'Light',
-    currentPaletteName: palettes.find(p => p.id === palette)?.name || 'Blue'
+    currentPaletteName: palettes.find(p => p.id === palette)?.name || 'Orange'
   };
 
   return (
