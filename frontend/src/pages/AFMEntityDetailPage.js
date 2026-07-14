@@ -427,7 +427,7 @@ const AFMEntityDetailPage = () => {
           }}
           limit={5}
           onCounterpartClick={(counterpart) => {
-            const orgUid = counterpart.decision__organization__uid;
+            const orgUid = counterpart.organization_uid;
             const sd = timeRange?.startDate || entity.first_seen;
             const ed = timeRange?.endDate || entity.last_seen;
             navigate(`/relationship/entity/${entity.afm}/org/${orgUid}?start_date=${sd}&end_date=${ed}`);
