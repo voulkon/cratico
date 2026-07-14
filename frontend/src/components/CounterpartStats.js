@@ -13,16 +13,12 @@ const CounterpartStats = ({ totalAmount, decisionCount }) => {
 
   return (
     <div className="counterpart-stats">
-      <div className="stat-item">
-        <span className="stat-label">{t('counterparts.totalAmount')}</span>
-        <span className="stat-value amount">
-          {formatAmount(totalAmount, { emptyText: t('common.noAmount') })}
-        </span>
-      </div>
-      <div className="stat-item">
-        <span className="stat-label">{t('counterparts.decisions')}</span>
-        <span className="stat-value count">{decisionCount}</span>
-      </div>
+      <span className="stat-value amount">
+        {formatAmount(totalAmount, { emptyText: t('common.noAmount') })}
+      </span>
+      <span className="stat-subtitle">
+        {t('counterparts.decisionsCount', { count: decisionCount })}
+      </span>
     </div>
   );
 };

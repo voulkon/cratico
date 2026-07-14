@@ -486,6 +486,7 @@
     "of": "από",
     "totalAmount": "Συνολικό Ποσό",
     "decisions": "Αποφάσεις",
+    "decisionsCount": "{count} αποφάσεις",
     "seeAll": "Δείτε Όλα",
     "searchPlaceholder": "Αναζήτηση οντοτήτων...",
     "allLoaded": "Εμφανίζονται όλες οι {count} οντότητες"
