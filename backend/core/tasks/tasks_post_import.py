@@ -253,13 +253,16 @@ def warm_analytics_cache(reference_date_str: str | None = None):
     cache keys match exactly.
 
     Views warmed:
-      - explore_orgs           (explore/organizations/)
-      - da_top_pairs           (direct-assignments/top-pairs/)
-      - da_top_entities        (direct-assignments/top-entities/)
-      - da_top_orgs            (direct-assignments/top-organizations/)
-      - explore_decisions      (explore/decisions/)
-      - explore_decision_types (explore/decision-types/)
-      - explore_statistics     (explore/statistics/)
+      - explore_orgs           (explore/organizations/)   page_size=6
+      - da_top_pairs           (direct-assignments/top-pairs/)  page_size=6
+      - unified                (decisions/unified/?source=temporal)  3 views
+
+    Views NOT warmed (frontend no longer calls these directly):
+      - explore_decisions      frontend uses unified?view=decisions (not cached)
+      - da_top_entities        frontend uses /entities/{afm}/top-organizations/
+      - da_top_orgs            same as above
+      - explore_decision_types frontend uses unified?view=decision_types
+      - explore_statistics     frontend uses unified?view=statistics
 
     Args:
         reference_date_str: ISO-format date string. Defaults to today.
@@ -270,12 +273,7 @@ def warm_analytics_cache(reference_date_str: str | None = None):
 
     from core.services.analytics_precalc_service import (
         warm_da_top_pairs_window,
-        warm_da_top_entities_window,
-        warm_da_top_orgs_window,
-        warm_explore_decisions_window,
-        warm_explore_decision_types_window,
         warm_explore_orgs_window,
-        warm_explore_statistics_window,
         warm_unified_window,
     )
 
@@ -298,14 +296,26 @@ def warm_analytics_cache(reference_date_str: str | None = None):
         start_str = start.isoformat()
         end_str = end.isoformat()
 
+        # ── page_size values MUST match what the frontend actually sends, ─
+        #    because the cache key includes limit/page_size.  A mismatch
+        #    means the warmed key never matches the request → defer_on_miss
+        #    → 202 polling loop on the first request after every import.
+        #
+        #    Frontend reference:
+        #      explore_orgs  → OrganizationsSection  PAGE_SIZE=6
+        #      da_top_pairs  → HomePage             limit={6}
+        #      unified       → DecisionsSection      PAGE_SIZE=5 (view=decisions,
+        #                       statistics, decision_types, date_range)
+        #
+        #    Removed (frontend no longer calls these directly):
+        #      explore_decisions  → frontend uses unified?view=decisions (not cached)
+        #      da_top_entities    → frontend uses /entities/{afm}/top-organizations/
+        #      da_top_orgs        → same as above
+        #      explore_decision_types → frontend uses unified?view=decision_types
+        #      explore_statistics    → frontend uses unified?view=statistics
         for view_name, warm_fn, kwargs in [
             ("explore_orgs", warm_explore_orgs_window, {"max_limit": 200, "page_size": 6}),
-            ("da_top_pairs", warm_da_top_pairs_window, {"max_limit": 50, "page_size": 10}),
-            ("explore_decisions", warm_explore_decisions_window, {"max_limit": 200, "page_size": 20}),
-            ("da_top_entities", warm_da_top_entities_window, {"max_limit": 100, "page_size": 20}),
-            ("da_top_orgs", warm_da_top_orgs_window, {"max_limit": 100, "page_size": 20}),
-            ("explore_decision_types", warm_explore_decision_types_window, {"max_limit": 200, "page_size": 50}),
-            ("explore_statistics", warm_explore_statistics_window, {"max_limit": 1, "page_size": 1}),
+            ("da_top_pairs", warm_da_top_pairs_window, {"max_limit": 50, "page_size": 6}),
             ("unified", warm_unified_window, {}),
         ]:
             # ── Build sentinel warmup keys so L2 (defer_on_miss) can

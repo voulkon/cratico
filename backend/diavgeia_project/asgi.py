@@ -12,5 +12,9 @@ import os
 from django.core.asgi import get_asgi_application
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "diavgeia_project.settings")
+# Configure Loguru to match the Django logging format (JSON when
+# USE_JSON_LOGGING=true).  See wsgi.py for the full rationale.
+from diavgeia_project.logging.loguru_config import configure_loguru
 
+configure_loguru()
 application = get_asgi_application()
