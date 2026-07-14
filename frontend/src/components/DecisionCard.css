@@ -12,8 +12,10 @@
   border-radius: 18px;
   margin-bottom: var(--spacing-lg);
   background-color: var(--card-bg);
-  /* Two-layer soft shadow: tight contact + diffuse ambient */
-  box-shadow: var(--card-shadow);
+  /* Soft ambient shadow + neobrutalist hard-offset shadow for 3D levitating feel */
+  box-shadow:
+    var(--card-shadow),
+    0 3px 0 var(--border-color);
   transition: box-shadow 0.25s ease, transform 0.25s ease;
   position: relative;
   /* Containment: nothing should ever escape the card */
@@ -23,8 +25,10 @@
 }
 
 .decision-card:hover {
-  box-shadow: var(--card-shadow-hover);
-  transform: translateY(-2px);
+  box-shadow:
+    var(--card-shadow-hover),
+    0 4px 0 var(--border-color);
+  transform: translateY(-3px);
 }
 
 .decision-card.last-item {
