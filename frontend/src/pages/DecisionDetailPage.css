@@ -111,7 +111,7 @@
 }
 
 .amount-display {
-  font-size: var(--font-xxxl, 2.5em);
+  font-size: var(--font-xl, 2.5em);
   font-weight: var(--font-bold);
   color: var(--palette-secondary);
   margin-bottom: var(--spacing-sm);

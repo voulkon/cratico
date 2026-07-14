@@ -331,7 +331,7 @@
   opacity: 0.25;
 }
 
-/* Hero amount pill — matches DecisionCard .amount-display exactly */
+/* Hero amount pill — matches DecisionCard .amount-display */
 .stat-value.amount {
   display: inline-flex;
   align-items: center;
@@ -339,9 +339,9 @@
   padding: var(--spacing-xs) var(--spacing-md);
   background-color: var(--palette-bg-subtle);
   border-radius: 999px;
-  font-size: var(--font-xl);
+  font-size: var(--font-xl, 2.5em);
   font-weight: var(--font-bold);
-  color: var(--palette-primary);
+  color: var(--palette-secondary);
   letter-spacing: -0.01em;
   white-space: nowrap;
   max-width: 100%;
