@@ -14,6 +14,9 @@ from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent
 
+# Centralized repository URL – single source of truth for all markdown files.
+REPO_URL = "https://github.com/voulkon/crati"
+
 # Registry of default document types: slug → {en_title, el_title}
 _DEFAULT_DOCS = {
     "tos": {"en": "Terms of Service", "el": "Όροι Χρήσης"},
@@ -28,12 +31,17 @@ _CONTENT_CACHE: dict[tuple[str, str], str] = {}
 
 
 def _load_content(doc_type: str, language: str) -> str:
-    """Read the markdown content for *doc_type*/*language* from disk."""
+    """Read the markdown content for *doc_type*/*language* from disk.
+
+    The placeholder ``{repo_url}`` is replaced with the centralized
+    :data:`REPO_URL` so every reference stays in sync.
+    """
     key = (doc_type, language)
     if key not in _CONTENT_CACHE:
         md_path = _HERE / doc_type / f"{language}.md"
         try:
-            _CONTENT_CACHE[key] = md_path.read_text(encoding="utf-8")
+            raw = md_path.read_text(encoding="utf-8")
+            _CONTENT_CACHE[key] = raw.replace("{repo_url}", REPO_URL)
         except FileNotFoundError:
             _CONTENT_CACHE[key] = (
                 f"# {doc_type.title()}\n\nContent coming soon."

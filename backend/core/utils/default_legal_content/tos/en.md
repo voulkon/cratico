@@ -84,7 +84,7 @@ Decisions and documents from Diavgeia are public documents and are not subject t
 
 ### Crati Software
 
-Crati software is released under an open source license. See the LICENSE file in the project repository.
+Crati software is released under an open source license. See the LICENSE file in the [project repository]({repo_url}).
 
 ## Limitation of Liability
 
@@ -100,4 +100,4 @@ We reserve the right to modify these terms at any time. Changes will be announce
 
 ## Contact
 
-For questions regarding the terms of use, you can contact us through the project's GitHub repository.
+For questions regarding the terms of use, you can contact us through the project's [GitHub repository]({repo_url}).
