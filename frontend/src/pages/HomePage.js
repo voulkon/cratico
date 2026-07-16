@@ -45,13 +45,11 @@ const DashboardData = () => {
 
       {/* Column 1 — Most Active Organizations (infinite scroll) */}
       <OrganizationsSection
-        onSeeAll={() => navigate(`/explore/temporal/${dateRange.start_date}/${dateRange.end_date}`)}
         collapsible
       />
 
       {/* Column 2 — Notable Recent Decisions (infinite scroll) */}
       <DecisionsSection
-        onSeeAll={() => navigate(`/explore/temporal/${dateRange.start_date}/${dateRange.end_date}?sort_by=amount_desc`)}
         collapsible
       />
     </DashboardGrid>
