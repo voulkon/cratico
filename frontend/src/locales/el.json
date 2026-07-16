@@ -282,7 +282,6 @@
     "lastActivity": "Τελευταία Δραστηριότητα",
     "organizationsAndPositions" : "Οργανισμοί και Θέσεις",
     "organizationsCountLabel": "οργανισμοί",
-    "gemiCompanyInformation": "Πληροφορίες Εταιρείας από το Μητρώο Επιχειρήσεων (ΓΕΜΗ)",
     "positionsCountLabel": "θέσεις",
     "loadStatistics" : "Φόρτωση Στατιστικών"
   },
@@ -380,6 +379,7 @@
     },
     "relatedDecisions": "Σχετικές Αποφάσεις",
     "filterByRole": "Φιλτράρισμα ανά Ρόλο",
+    "gemiCompanyInformation": "Πληροφορίες Εταιρείας από το Μητρώο Επιχειρήσεων (ΓΕΜΗ)",
     "noDecisionsWithFilters": "Δεν βρέθηκαν αποφάσεις με τα τρέχοντα φίλτρα",
     "noDecisions": "Δεν βρέθηκαν αποφάσεις για αυτή την οντότητα",
     "requestGemiFetch": "Αίτηση στοιχείων εταιρείας",
@@ -486,6 +486,7 @@
     "of": "από",
     "totalAmount": "Συνολικό Ποσό",
     "decisions": "Αποφάσεις",
+    "decisionsCount": "{count} αποφάσεις",
     "seeAll": "Δείτε Όλα",
     "searchPlaceholder": "Αναζήτηση οντοτήτων...",
     "allLoaded": "Εμφανίζονται όλες οι {count} οντότητες"

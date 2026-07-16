@@ -118,13 +118,12 @@ export const CollapsibleSection = ({
   children,
   headerChildren,
 }) => {
-  const sectionClass = `data-section${className ? ` ${className}` : ''}`;
-
   // Hooks must be called unconditionally (rules-of-hooks), even when
   // collapsible is false — we just ignore the state in that branch.
   const [open, setOpen] = useState(!defaultCollapsed);
 
   if (!collapsible) {
+    const sectionClass = `data-section${className ? ` ${className}` : ''}`;
     return (
       <section className={sectionClass}>
         <DashboardSectionHeader
@@ -141,6 +140,12 @@ export const CollapsibleSection = ({
     );
   }
 
+  // Collapsible path: CollapsibleCard owns all visual styling.
+  // Do NOT append "data-section" — it conflicts with the card's own chrome.
+  // Use tag="div" instead of "details" so the card properly constrains
+  // its children inside a flex/grid layout (<details> has browser bugs here).
+  const cardClass = className || '';
+
   return (
     <CollapsibleCard
       title={title}
@@ -153,7 +158,8 @@ export const CollapsibleSection = ({
       }
       open={open}
       onToggle={setOpen}
-      className={sectionClass}
+      className={cardClass}
+      tag="div"
     >
       {headerChildren}
       <div className="dashboard-section-collapse-body">

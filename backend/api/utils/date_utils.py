@@ -156,7 +156,9 @@ def _validate_temporal_span(start_dt, end_dt, bucket=None):
     if start_dt is None or end_dt is None:
         return None  # no validation needed when dates are missing
 
-    span = (end_dt.date() - start_dt.date()).days
+    # Accept both datetime and date objects (callers may pass either).
+    _to_date = lambda dt: dt.date() if hasattr(dt, 'date') else dt
+    span = (_to_date(end_dt) - _to_date(start_dt)).days
 
     limits = {"day": 1, "week": 7, "month": 31}
     max_span = limits.get(bucket) if bucket else TEMPORAL_MAX_SPAN_DAYS

@@ -42,4 +42,4 @@ You have the right to:
 
 ## Contact
 
-For privacy matters, contact us through the project's GitHub repository.
+For privacy matters, contact us through the project's [GitHub repository]({repo_url}).
