@@ -206,3 +206,27 @@
   font-size: var(--font-xs);
   letter-spacing: 0.04em;
 }
+
+/* ── Section divider (between progressive search phases) ───────── */
+.entity-list-section-divider {
+  padding: 8px 16px;
+  background: var(--surface-secondary);
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  font-size: var(--font-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── "Searching more broadly…" indicator ───────────────────────── */
+.entity-list-broadening {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  color: var(--muted-text);
+  font-size: var(--font-sm);
+}

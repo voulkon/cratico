@@ -17,6 +17,16 @@
   gap: 12px;
   width: 100%;
   min-height: var(--top-controls-height);
+  /* Never grow taller than the top band — prevents overlap with the
+     main area below even if inner content tries to wrap. */
+  max-height: var(--top-controls-height);
+  overflow: hidden;
+  /* Single horizontal line: tabs scroll internally instead of wrapping
+     into a square that would overflow the band. */
+  flex-wrap: nowrap;
+  /* Reserve space on the left for the absolutely-positioned logo
+     so centered tabs never overlap it (~100px logo + gap). */
+  padding-left: 110px;
 }
 
 .browse-top-bar-inline .category-tabs {
@@ -31,6 +41,23 @@
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+}
+
+/* ── Desktop / mobile visibility swaps ──────────────────────────── */
+.browse-tabs-desktop {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.browse-search-desktop {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.browse-tabs-mobile,
+.browse-search-mobile {
+  display: none;
 }
 
 /* ── Top bar (original in-flow, kept for reference, no longer used) ── */
@@ -107,6 +134,25 @@
 .browse-search-clear:hover {
   background: var(--hover-bg);
   color: var(--text-color);
+}
+
+/* ── Search loading spinner ─────────────────────────────────────── */
+.browse-search-spinner {
+  position: absolute;
+  right: 28px;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--palette-primary, #3b82f6);
+  border-radius: 50%;
+  animation: browse-search-spin 0.6s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes browse-search-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ── Sort toggle button ─────────────────────────────────────────── */
@@ -220,6 +266,102 @@
   }
 }
 
+/* ── Intermediate widths: drop tab labels, keep icons only ───────
+   Between the 700px mobile breakpoint and ~1000px there isn't enough
+   room for all tabs with labels. Show icons only so the ribbon stays
+   compact; tabs still scroll horizontally if needed.
+   The selector covers BOTH the desktop top-bar instance and the mobile
+   stacked instance, so labels stay hidden consistently when squished. */
+@media (min-width: 701px) and (max-width: 1000px) {
+  .browse-top-bar-inline .category-tab-label,
+  .browse-tabs-mobile .category-tab-label {
+    display: none;
+  }
+
+  /* Tighten icon-only tabs so more fit without scrolling. */
+  .browse-top-bar-inline .category-tab,
+  .browse-tabs-mobile .category-tab {
+    padding: 6px 8px;
+  }
+}
+
+/* ── Narrow screens: move tabs & search into the content area ──── */
+@media (max-width: 700px) {
+  /* Top ribbon: remove the left padding that reserved space for
+     desktop tabs — only the logo remains on the left now. */
+  .browse-top-bar-inline {
+    padding-left: 0;
+  }
+
+  /* Hide desktop tabs and search from the top ribbon… */
+  .browse-tabs-desktop,
+  .browse-search-desktop {
+    display: none;
+  }
+
+  /* …and show them stacked in the content area: tabs → search. */
+  .browse-tabs-mobile {
+    display: flex;
+    justify-content: center;
+    padding: var(--spacing-xs) var(--spacing-md);
+    border-bottom: 1px solid var(--border-color);
+    background: var(--card-bg);
+  }
+
+  .browse-tabs-mobile .category-tabs {
+    border-bottom: none;
+    padding: 0;
+  }
+
+  /* On phones the tab strip almost always overflows, so drop labels
+     and keep icons only — the ‹ › arrows handle navigation. */
+  .browse-tabs-mobile .category-tab-label {
+    display: none;
+  }
+
+  .browse-tabs-mobile .category-tab {
+    padding: 6px 8px;
+  }
+
+  .browse-search-mobile {
+    display: flex;
+    justify-content: center;
+    padding: var(--spacing-xs) var(--spacing-md);
+    border-bottom: 1px solid var(--border-color);
+    background: var(--card-bg);
+  }
+
+  .browse-search-mobile .browse-search-input {
+    width: 180px;
+  }
+
+  /* Keep the letter index vertical (like an agenda tab strip),
+     overriding LetterIndex.css's horizontal mobile rule. */
+  .browse-layout .letter-index {
+    width: 36px;
+    height: auto;
+    position: sticky;
+    top: 0;
+    border-right: 1px solid var(--border-color);
+    border-bottom: none;
+    padding: var(--spacing-xs) 0;
+  }
+
+  .browse-layout .letter-index-list {
+    flex-direction: column;
+    overflow-x: visible;
+    overflow-y: auto;
+    gap: 0;
+    padding: 0;
+  }
+
+  .browse-layout .letter-index-btn {
+    width: 28px;
+    height: 24px;
+    font-size: 11px;
+  }
+}
+
 /* ── Responsive ─────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .browse-top-bar {
@@ -242,10 +384,8 @@
     width: 140px;
   }
 
-  .browse-layout {
-    flex-direction: column;
-  }
-
+  /* Keep sidebar + content side-by-side even on narrow screens;
+     the letter index stays vertical (overridden further above). */
   .browse-content {
     overflow-y: auto;
   }
