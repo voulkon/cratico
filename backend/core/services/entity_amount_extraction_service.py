@@ -411,7 +411,12 @@ class EntityAmountExtractionService:
         """Save extracted entities to database."""
         relationships = []
 
-        for extraction in extractions:
+        # Sort by AFM to ensure all workers lock AFMEntity rows in the same
+        # order, preventing deadlocks when concurrent decisions reference the
+        # same entities in different JSON orderings.
+        sorted_extractions = sorted(extractions, key=lambda e: e["afm"])
+
+        for extraction in sorted_extractions:
             afm = extraction["afm"]
             role = extraction["role"]
 
