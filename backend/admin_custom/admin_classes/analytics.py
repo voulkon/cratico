@@ -63,7 +63,7 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
         "timestamp",
         "ip_address",
         "method",
-        "endpoint",
+        "full_request_display",
         "status_code",
         "response_time_ms",
         "is_flagged",
@@ -71,6 +71,7 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
         "user",
     )
     list_filter = (
+        "ip_address",
         "is_flagged",
         "flag_reason",
         "method",
@@ -81,13 +82,137 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
     date_hierarchy = "timestamp"
     ordering = ("-timestamp",)
     list_per_page = 50
-    readonly_fields = ("timestamp",)
+    readonly_fields = ("timestamp", "full_request_display")
     list_display_links = ("timestamp", "ip_address")
+    change_list_template = "admin/endpoint_access_log_changelist.html"
+
+    @admin.display(description="Full Request URL")
+    def full_request_display(self, obj):
+        """Reconstruct the full request URL including query parameters.
+
+        Shows: GET /api/endpoint?param1=val1&param2=val2
+        Truncates long URLs for display but shows full URL on hover.
+        """
+        full_path = self._build_full_url(obj)
+        # Truncate for display but show full on hover
+        if len(full_path) > 120:
+            display = full_path[:117] + "..."
+            return format_html(
+                '<span title="{}" style="font-family: monospace; font-size: 12px; '
+                'word-break: break-all;">{}</span>',
+                full_path,
+                display,
+            )
+        return format_html(
+            '<span style="font-family: monospace; font-size: 12px; '
+            'word-break: break-all;">{}</span>',
+            full_path,
+        )
 
     def get_queryset(self, request):
         # Default: show all entries. The is_flagged filter in the sidebar lets
         # the user drill down to only flagged entries when investigating.
         return super().get_queryset(request)
+
+    def get_urls(self):
+        """Add custom URLs for IP summary view."""
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                "ip-summary/",
+                self.admin_site.admin_view(self.ip_summary_view),
+                name="endpointaccesslog_ip_summary",
+            ),
+        ]
+        return custom_urls + urls
+
+    def ip_summary_view(self, request):
+        """Show IP-level summary: one row per unique IP with stats."""
+        from django.db.models import Count, Max, Min
+        from django.db.models.functions import Trunc
+
+        # Get summary per IP
+        ip_stats = (
+            self.model.objects.values("ip_address")
+            .annotate(
+                request_count=Count("id"),
+                first_seen=Min("timestamp"),
+                last_seen=Max("timestamp"),
+                flagged_count=Count("id", filter=Q(is_flagged=True)),
+                unique_endpoints=Count("endpoint", distinct=True),
+                # Distinct status codes for quick overview
+            )
+            .order_by("-last_seen")
+        )
+
+        # Annotate with status code variety, common status codes, and sample requests
+        for stat in ip_stats:
+            status_codes = (
+                self.model.objects.filter(ip_address=stat["ip_address"])
+                .values("status_code")
+                .annotate(cnt=Count("id"))
+                .order_by("-cnt")[:5]
+            )
+            stat["top_status_codes"] = [
+                f"{s['status_code']} ({s['cnt']})" for s in status_codes
+            ]
+
+            # Fetch a few sample requests to show the "journey"
+            sample_logs = (
+                self.model.objects.filter(ip_address=stat["ip_address"])
+                .order_by("-timestamp")[:5]
+            )
+            stat["sample_requests"] = []
+            for log in sample_logs:
+                stat["sample_requests"].append(
+                    {
+                        "method": log.method,
+                        "full_url": self._build_full_url(log),
+                        "status_code": log.status_code,
+                        "timestamp": log.timestamp.isoformat(),
+                    }
+                )
+
+            # Check if IP is currently banned/flagged
+            from api.models import FlaggedIP
+
+            try:
+                flagged = FlaggedIP.objects.get(ip_address=stat["ip_address"])
+                stat["ban_status"] = "banned" if flagged.is_active else "flagged"
+                stat["flag_reason"] = flagged.reason
+            except FlaggedIP.DoesNotExist:
+                stat["ban_status"] = "none"
+                stat["flag_reason"] = ""
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "IP Address Summary",
+            "ip_stats": list(ip_stats),
+            "opts": self.model._meta,
+            "cl": {"model_admin": self},
+        }
+
+        return render(request, "admin/endpoint_access_log_ip_summary.html", context)
+
+    def _build_full_url(self, obj):
+        """Build the full request URL string from an EndpointAccessLog instance."""
+        query_string = ""
+        if obj.query_params:
+            try:
+                params = obj.query_params
+                if isinstance(params, dict):
+                    parts = []
+                    for key, values in params.items():
+                        if isinstance(values, list):
+                            for v in values:
+                                parts.append(f"{key}={v}")
+                        else:
+                            parts.append(f"{key}={values}")
+                    if parts:
+                        query_string = "?" + "&".join(parts)
+            except Exception:
+                pass
+        return f"{obj.method} {obj.endpoint}{query_string}"
 
 
 class FlaggedIPAdmin(admin.ModelAdmin):
