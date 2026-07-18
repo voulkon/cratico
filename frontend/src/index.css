@@ -33,6 +33,9 @@
   --radius-lg: 12px;
   --radius-full: 50%;
 
+  /* Content width — single knob for all page-level max-widths */
+  --content-max-width: 1100px;
+
   /* Font scale — runtime zoom knob; scales ALL text via html font-size.
      All font-size variables below use rem so they inherit automatically. */
   --font-scale: 1;

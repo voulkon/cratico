@@ -75,6 +75,31 @@ class AFMEntityStats(models.Model):
         default=0.0,
         help_text="Percentage of total decisions that are direct assignments (0-100)",
     )
+    direct_assignment_30k_38k = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of direct-assignment decisions with total amount €30k-€38k"
+        " (the maximum threshold for direct awards)",
+    )
+    payment_30k_38k = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of decisions where the entity received €30k-€38k"
+        " (money-receiving roles only)",
+    )
+
+    # ---- Amounts by act type (always computed, never filtered) ----
+    total_received_amount = models.DecimalField(
+        max_digits=18, decimal_places=2, default=0.00,
+        help_text="Total amount from 'Β.2.2' (expenditure/payment) decisions (EUR)."
+        " Always computed regardless of the act-type filter dropdown.",
+    )
+
+    # ---- Combined ranking ----
+    combined_rank = models.PositiveIntegerField(
+        default=0,
+        help_text="Rank of the sum of individual ranks across "
+        "total_received_amount, direct_assignment_30k_38k, and payment_30k_38k. "
+        "1 = best. Computed during stats recalculation.",
+    )
 
     # ---- Metadata ----
     computed_at = models.DateTimeField(

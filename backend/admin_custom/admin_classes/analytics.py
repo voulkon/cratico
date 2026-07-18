@@ -59,6 +59,24 @@ class EndpointStatsAdmin(admin.ModelAdmin):
 class EndpointAccessLogAdmin(admin.ModelAdmin):
     """Admin interface for forensic endpoint access logs."""
 
+    # ── Suspicious endpoint patterns for automatic classification ──────
+    _SUSPICIOUS_ENDPOINT_PATTERNS = (
+        "/.env",
+        "/.git/",
+        "/wp-admin",
+        "/wp-login",
+        "/phpmyadmin",
+        "/adminer",
+        "/actuator",
+        "/api/test",
+        "/api/[[...slug]]",
+        "/api/endpoint",
+        "/cgi-bin/",
+        "/.aws/",
+        "/config",
+        "/backup",
+    )
+
     list_display = (
         "timestamp",
         "ip_address",
@@ -88,25 +106,35 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
 
     @admin.display(description="Full Request URL")
     def full_request_display(self, obj):
-        """Reconstruct the full request URL including query parameters.
+        """Clickable full request URL that filters by endpoint.
 
         Shows: GET /api/endpoint?param1=val1&param2=val2
-        Truncates long URLs for display but shows full URL on hover.
+        Clicking filters the changelist to show only requests to that endpoint.
+        Truncates long URLs; full text shown on hover.
         """
-        full_path = self._build_full_url(obj)
-        # Truncate for display but show full on hover
-        if len(full_path) > 120:
-            display = full_path[:117] + "..."
-            return format_html(
-                '<span title="{}" style="font-family: monospace; font-size: 12px; '
-                'word-break: break-all;">{}</span>',
-                full_path,
-                display,
-            )
+        query_string = self._format_query_params(obj.query_params)
+        endpoint_with_qs = obj.endpoint
+        if query_string:
+            endpoint_with_qs = f"{obj.endpoint}?{query_string}"
+
+        full_display = f"{obj.method} {endpoint_with_qs}"
+
+        # Build filter URL for this endpoint
+        filter_url = reverse("admin:api_endpointaccesslog_changelist")
+        filter_url += "?" + urlencode({"endpoint": obj.endpoint})
+
+        # Truncate for display
+        if len(full_display) > 120:
+            display = full_display[:117] + "..."
+        else:
+            display = full_display
+
         return format_html(
-            '<span style="font-family: monospace; font-size: 12px; '
-            'word-break: break-all;">{}</span>',
-            full_path,
+            '<a href="{}" title="{}" style="font-family: monospace; font-size: 12px; '
+            'word-break: break-all;">{}</a>',
+            filter_url,
+            full_display,
+            display,
         )
 
     def get_queryset(self, request):
@@ -115,7 +143,7 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
         return super().get_queryset(request)
 
     def get_urls(self):
-        """Add custom URLs for IP summary view."""
+        """Add custom URLs for IP summary and endpoint summary views."""
         urls = super().get_urls()
         custom_urls = [
             path(
@@ -123,15 +151,20 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.ip_summary_view),
                 name="endpointaccesslog_ip_summary",
             ),
+            path(
+                "endpoint-summary/",
+                self.admin_site.admin_view(self.endpoint_summary_view),
+                name="endpointaccesslog_endpoint_summary",
+            ),
         ]
         return custom_urls + urls
 
-    def ip_summary_view(self, request):
-        """Show IP-level summary: one row per unique IP with stats."""
-        from django.db.models import Count, Max, Min
-        from django.db.models.functions import Trunc
+    # ── IP Summary View ───────────────────────────────────────────────
 
-        # Get summary per IP
+    def ip_summary_view(self, request):
+        """Show IP-level summary: one row per unique IP with attack classification."""
+        from django.db.models import Count, Max, Min
+
         ip_stats = (
             self.model.objects.values("ip_address")
             .annotate(
@@ -140,15 +173,21 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
                 last_seen=Max("timestamp"),
                 flagged_count=Count("id", filter=Q(is_flagged=True)),
                 unique_endpoints=Count("endpoint", distinct=True),
-                # Distinct status codes for quick overview
+                error_count=Count(
+                    "id",
+                    filter=Q(status_code__gte=400) | Q(status_code__isnull=True),
+                ),
+                notfound_count=Count("id", filter=Q(status_code=404)),
             )
             .order_by("-last_seen")
         )
 
-        # Annotate with status code variety, common status codes, and sample requests
         for stat in ip_stats:
+            ip = stat["ip_address"]
+
+            # Status code distribution
             status_codes = (
-                self.model.objects.filter(ip_address=stat["ip_address"])
+                self.model.objects.filter(ip_address=ip)
                 .values("status_code")
                 .annotate(cnt=Count("id"))
                 .order_by("-cnt")[:5]
@@ -157,27 +196,70 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
                 f"{s['status_code']} ({s['cnt']})" for s in status_codes
             ]
 
-            # Fetch a few sample requests to show the "journey"
-            sample_logs = (
-                self.model.objects.filter(ip_address=stat["ip_address"])
-                .order_by("-timestamp")[:5]
+            # Error & 404 rates
+            total = stat["request_count"]
+            stat["error_rate"] = (
+                round(stat["error_count"] / total * 100, 1) if total else 0
             )
+            stat["notfound_rate"] = (
+                round(stat["notfound_count"] / total * 100, 1) if total else 0
+            )
+
+            # Count suspicious endpoint hits
+            suspicious_q = Q()
+            for pat in self._SUSPICIOUS_ENDPOINT_PATTERNS:
+                suspicious_q |= Q(endpoint__icontains=pat)
+            stat["suspicious_hits"] = self.model.objects.filter(
+                ip_address=ip
+            ).filter(suspicious_q).count()
+
+            # Count unique suspicious endpoints
+            stat["suspicious_endpoints"] = (
+                self.model.objects.filter(ip_address=ip)
+                .filter(suspicious_q)
+                .values("endpoint")
+                .distinct()
+                .count()
+            )
+
+            # Attack classification
+            stat["classification"] = self._classify_ip(stat)
+
+            # Sample requests (prioritize suspicious ones)
+            sample_logs = list(
+                self.model.objects.filter(ip_address=ip)
+                .filter(suspicious_q)
+                .order_by("-timestamp")[:3]
+            )
+            # If fewer than 3 suspicious, add normal ones
+            if len(sample_logs) < 5:
+                normal_logs = self.model.objects.filter(ip_address=ip).exclude(
+                    suspicious_q
+                ).order_by("-timestamp")[: 5 - len(sample_logs)]
+                sample_logs.extend(normal_logs)
+
             stat["sample_requests"] = []
             for log in sample_logs:
+                qs = self._format_query_params(log.query_params)
                 stat["sample_requests"].append(
                     {
                         "method": log.method,
-                        "full_url": self._build_full_url(log),
+                        "endpoint": log.endpoint,
+                        "query_string": qs,
                         "status_code": log.status_code,
                         "timestamp": log.timestamp.isoformat(),
                     }
                 )
 
-            # Check if IP is currently banned/flagged
+            # IPv6: truncate for display, extract /64 prefix
+            stat["ip_display"] = self._format_ip(ip)
+            stat["is_ipv6"] = ":" in ip
+
+            # FlaggedIP status
             from api.models import FlaggedIP
 
             try:
-                flagged = FlaggedIP.objects.get(ip_address=stat["ip_address"])
+                flagged = FlaggedIP.objects.get(ip_address=ip)
                 stat["ban_status"] = "banned" if flagged.is_active else "flagged"
                 stat["flag_reason"] = flagged.reason
             except FlaggedIP.DoesNotExist:
@@ -194,25 +276,156 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
 
         return render(request, "admin/endpoint_access_log_ip_summary.html", context)
 
-    def _build_full_url(self, obj):
-        """Build the full request URL string from an EndpointAccessLog instance."""
-        query_string = ""
-        if obj.query_params:
-            try:
-                params = obj.query_params
-                if isinstance(params, dict):
-                    parts = []
-                    for key, values in params.items():
-                        if isinstance(values, list):
-                            for v in values:
-                                parts.append(f"{key}={v}")
-                        else:
-                            parts.append(f"{key}={values}")
-                    if parts:
-                        query_string = "?" + "&".join(parts)
-            except Exception:
-                pass
-        return f"{obj.method} {obj.endpoint}{query_string}"
+    # ── Endpoint Summary View ─────────────────────────────────────────
+
+    def endpoint_summary_view(self, request):
+        """Show endpoint-level summary: which endpoints are hit most, by whom."""
+        from django.db.models import Count, Max, Min
+
+        endpoint_stats = (
+            self.model.objects.values("endpoint", "method")
+            .annotate(
+                request_count=Count("id"),
+                unique_ips=Count("ip_address", distinct=True),
+                first_seen=Min("timestamp"),
+                last_seen=Max("timestamp"),
+                error_count=Count(
+                    "id",
+                    filter=Q(status_code__gte=400) | Q(status_code__isnull=True),
+                ),
+                flagged_count=Count("id", filter=Q(is_flagged=True)),
+            )
+            .order_by("-request_count")
+        )
+
+        for stat in endpoint_stats:
+            endpoint = stat["endpoint"]
+            total = stat["request_count"]
+            stat["error_rate"] = (
+                round(stat["error_count"] / total * 100, 1) if total else 0
+            )
+
+            # Is this a suspicious endpoint?
+            stat["is_suspicious"] = any(
+                pat in endpoint for pat in self._SUSPICIOUS_ENDPOINT_PATTERNS
+            )
+
+            # Top IPs hitting this endpoint
+            top_ips = (
+                self.model.objects.filter(
+                    endpoint=endpoint, method=stat["method"]
+                )
+                .values("ip_address")
+                .annotate(cnt=Count("id"))
+                .order_by("-cnt")[:5]
+            )
+            stat["top_ips"] = [
+                {"ip": ip["ip_address"], "count": ip["cnt"]} for ip in top_ips
+            ]
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Endpoint Summary",
+            "endpoint_stats": list(endpoint_stats),
+            "opts": self.model._meta,
+            "cl": {"model_admin": self},
+        }
+
+        return render(
+            request, "admin/endpoint_access_log_endpoint_summary.html", context
+        )
+
+    # ── Helpers ───────────────────────────────────────────────────────
+
+    @staticmethod
+    def _classify_ip(stat):
+        """Classify an IP's behavior based on its stats.
+
+        Returns one of: attacker, scanner, suspicious, normal
+        """
+        suspicious = stat.get("suspicious_hits", 0)
+        unique = stat.get("unique_endpoints", 0)
+        total = stat.get("request_count", 0)
+        error_rate = stat.get("error_rate", 0)
+        notfound_rate = stat.get("notfound_rate", 0)
+
+        # Hits known attack endpoints (.env, /wp-admin, etc.) → attacker
+        if suspicious >= 3:
+            return "attacker"
+        if suspicious >= 1 and unique >= 5:
+            return "attacker"
+
+        # High-volume scanning (many unique endpoints, mostly 404s)
+        if unique >= 20 and notfound_rate >= 70:
+            return "scanner"
+        if unique >= 10 and notfound_rate >= 80:
+            return "scanner"
+
+        # Suspicious: moderate scanning or high error rate
+        if unique >= 10 and notfound_rate >= 50:
+            return "suspicious"
+        if error_rate >= 50 and total >= 10:
+            return "suspicious"
+        if suspicious >= 1:
+            return "suspicious"
+
+        return "normal"
+
+    @staticmethod
+    def _format_ip(ip):
+        """Format an IP address for display: truncate IPv6, leave IPv4 as-is."""
+        if ":" in ip:
+            # IPv6: show first 4 groups + truncated remainder
+            groups = ip.split(":")
+            if len(groups) > 4:
+                return ":".join(groups[:4]) + ":…"
+        return ip
+
+    @staticmethod
+    def _format_query_params(query_params):
+        """Format query_params dict into a clean query string.
+
+        Handles the stored format: {"GET": {"param": ["val1", "val2"]}, "POST": {...}}
+        Returns a clean query string like: param1=val1&param2=val2
+        Long values (>80 chars) are truncated with '…'.
+        """
+        if not query_params or not isinstance(query_params, dict):
+            return ""
+
+        parts = []
+        # Look for GET params first (the common case)
+        get_params = query_params.get("GET", None)
+        if isinstance(get_params, dict):
+            for key, values in get_params.items():
+                if isinstance(values, list):
+                    for v in values:
+                        v_str = str(v)
+                        if len(v_str) > 80:
+                            v_str = v_str[:77] + "…"
+                        parts.append(f"{key}={v_str}")
+                else:
+                    v_str = str(values)
+                    if len(v_str) > 80:
+                        v_str = v_str[:77] + "…"
+                    parts.append(f"{key}={v_str}")
+        else:
+            # Flat params (no GET/POST wrapper)
+            for key, values in query_params.items():
+                if key in ("GET", "POST"):
+                    continue
+                if isinstance(values, list):
+                    for v in values:
+                        v_str = str(v)
+                        if len(v_str) > 80:
+                            v_str = v_str[:77] + "…"
+                        parts.append(f"{key}={v_str}")
+                else:
+                    v_str = str(values)
+                    if len(v_str) > 80:
+                        v_str = v_str[:77] + "…"
+                    parts.append(f"{key}={v_str}")
+
+        return "&".join(parts)
 
 
 class FlaggedIPAdmin(admin.ModelAdmin):
@@ -389,6 +602,7 @@ class ImportJobAdmin(admin.ModelAdmin):
         "retry_failed_chunks",
         "retry_missing_chunks",
         "diagnose_stuck_job",
+        "cancel_selected_imports",
     )
 
     def get_queryset(self, request):
@@ -1045,6 +1259,82 @@ class ImportJobAdmin(admin.ModelAdmin):
     diagnose_stuck_job.short_description = "Download diagnostic report (JSON)"
 
     # ========================================================================
+    # Cancel / Purge Imports
+    # ========================================================================
+
+    @admin.action(description="Cancel selected imports (revoke tasks, clean Redis)")
+    def cancel_selected_imports(self, request, queryset):
+        """Cancel selected ImportJobs: revoke Celery tasks + clean Redis chunks."""
+        cancelled = 0
+        skipped = 0
+
+        for job in queryset:
+            result = job.cancel(revoke_task=True, clean_redis=True)
+            if result.get("status") == "cancelled":
+                cancelled += 1
+            else:
+                skipped += 1
+
+        if cancelled > 0:
+            self.message_user(
+                request,
+                f"[OK] Cancelled {cancelled} import job(s). Tasks revoked, Redis chunks cleaned.",
+                messages.SUCCESS,
+            )
+        if skipped > 0:
+            self.message_user(
+                request,
+                f"{skipped} job(s) were already in terminal state, skipped.",
+                messages.WARNING,
+            )
+
+    def cancel_all_imports_view(self, request):
+        """View to cancel ALL in-progress imports with optional RabbitMQ purge."""
+        from core.services.import_job_queue import ImportJobQueue
+
+        if request.method == "POST":
+            purge_rabbitmq = request.POST.get("purge_rabbitmq") == "1"
+            clean_redis = request.POST.get("clean_redis", "1") == "1"
+
+            queue = ImportJobQueue()
+            result = queue.cancel_all_in_progress_imports(
+                purge_rabbitmq=purge_rabbitmq,
+                clean_redis=clean_redis,
+            )
+
+            msg_parts = [f"Cancelled {result['jobs_cancelled']} job(s)."]
+            if result.get("redis_keys_deleted"):
+                msg_parts.append(f"Redis DB 2 flushed.")
+            if result.get("rabbitmq_purged"):
+                msg_parts.append(f"RabbitMQ queue purged.")
+
+            self.message_user(request, " ".join(msg_parts), messages.SUCCESS)
+            return JsonResponse({"success": True, **result})
+
+        # GET: Show confirmation page
+        from core.models.import_jobs import ImportJob, ImportJobStatus
+
+        cancelable = ImportJob.objects.filter(
+            status__in=[
+                ImportJobStatus.PENDING,
+                ImportJobStatus.RUNNING,
+                ImportJobStatus.FETCHING,
+                ImportJobStatus.SPLITTING,
+                ImportJobStatus.PROCESSING,
+            ]
+        )
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Cancel All In-Progress Imports",
+            "cancelable_jobs": cancelable,
+            "cancelable_count": cancelable.count(),
+            "opts": self.model._meta,
+        }
+
+        return render(request, "admin/cancel_all_imports_confirm.html", context)
+
+    # ========================================================================
     # Queue Monitoring Features
     # ========================================================================
 
@@ -1076,6 +1366,11 @@ class ImportJobAdmin(admin.ModelAdmin):
                 "dispatch-next/",
                 self.admin_site.admin_view(self.dispatch_next_action),
                 name="import_job_dispatch_next",
+            ),
+            path(
+                "cancel-all/",
+                self.admin_site.admin_view(self.cancel_all_imports_view),
+                name="import_job_cancel_all",
             ),
         ]
         return custom_urls + urls

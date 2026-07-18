@@ -9,6 +9,8 @@ from core.models.entities import EntityType
 from core.models.types import ActType
 from core.tasks.afm_entity_stats_tasks import recompute_all_entity_stats
 from django.contrib import admin, messages
+from django.db.models import F, Window
+from django.db.models.functions import Rank
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import path, reverse
@@ -37,6 +39,13 @@ class AFMEntityStatsAdmin(admin.ModelAdmin):
     change_list_template = "admin/afm_entity_stats_changelist.html"
 
     list_display = [
+        "combined_rank_display",
+        "total_received_amount_display",
+        "received_rank_display",
+        "direct_assignment_30k_38k_display",
+        "da_30k_38k_rank_display",
+        "payment_30k_38k_display",
+        "pay_30k_38k_rank_display",
         "entity_link",
         "entity_type_badge",
         "decisions_badge",
@@ -63,15 +72,101 @@ class AFMEntityStatsAdmin(admin.ModelAdmin):
         "distinct_counterpart_entities",
         "direct_assignment_count",
         "direct_assignment_percentage",
+        "direct_assignment_30k_38k",
+        "payment_30k_38k",
+        "total_received_amount",
         "computed_at",
     ]
 
-    # Default ordering: highest total amount first
-    ordering = ["-total_amount"]
+    # Default ordering: sorted by combined_rank ASC (1 = best).
+    # We apply it in get_queryset rather than the ordering attribute so it
+    # always works regardless of how Django resolves annotations.
+
+    # ------------------------------------------------------------------
+    # Queryset – annotate individual metric ranks on-the-fly.
+    # combined_rank is a precomputed model field (updated during
+    # stats recalculation), so no ORM gymnastics needed here.
+    # ------------------------------------------------------------------
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request).select_related("entity")
+        return qs.annotate(
+            received_rank=Window(
+                expression=Rank(),
+                order_by=F("total_received_amount").desc(),
+            ),
+            da_30k_38k_rank=Window(
+                expression=Rank(),
+                order_by=F("direct_assignment_30k_38k").desc(),
+            ),
+            pay_30k_38k_rank=Window(
+                expression=Rank(),
+                order_by=F("payment_30k_38k").desc(),
+            ),
+        ).order_by("combined_rank")
 
     # ------------------------------------------------------------------
     # List display helpers
     # ------------------------------------------------------------------
+
+    def combined_rank_display(self, obj):
+        rank = obj.combined_rank  # precomputed model field
+        if not rank:
+            return "–"
+        if rank <= 10:
+            color = "#d32f2f"
+        elif rank <= 50:
+            color = "#f57c00"
+        elif rank <= 200:
+            color = "#1976d2"
+        else:
+            color = "#757575"
+        return format_html(
+            '<span style="color:{};font-weight:bold;font-size:14px;">#{}</span>',
+            color,
+            rank,
+        )
+
+    combined_rank_display.short_description = "Rank"
+    combined_rank_display.admin_order_field = "combined_rank"
+
+    # -- Individual rank badges -------------------------------------------
+
+    def _rank_badge(self, rank_val):
+        """Small coloured badge for an individual metric rank."""
+        if rank_val is None:
+            return "–"
+        if rank_val <= 3:
+            color = "#d32f2f"
+        elif rank_val <= 10:
+            color = "#f57c00"
+        elif rank_val <= 50:
+            color = "#1976d2"
+        else:
+            color = "#999"
+        return format_html(
+            '<span style="color:{};font-size:11px;">#{}</span>',
+            color,
+            rank_val,
+        )
+
+    def received_rank_display(self, obj):
+        return self._rank_badge(getattr(obj, "received_rank", None))
+
+    received_rank_display.short_description = "R.Rank"
+    received_rank_display.admin_order_field = "received_rank"
+
+    def da_30k_38k_rank_display(self, obj):
+        return self._rank_badge(getattr(obj, "da_30k_38k_rank", None))
+
+    da_30k_38k_rank_display.short_description = "DA Rank"
+    da_30k_38k_rank_display.admin_order_field = "da_30k_38k_rank"
+
+    def pay_30k_38k_rank_display(self, obj):
+        return self._rank_badge(getattr(obj, "pay_30k_38k_rank", None))
+
+    pay_30k_38k_rank_display.short_description = "Pay Rank"
+    pay_30k_38k_rank_display.admin_order_field = "pay_30k_38k_rank"
 
     def entity_link(self, obj):
         return format_html(
@@ -175,6 +270,57 @@ class AFMEntityStatsAdmin(admin.ModelAdmin):
 
     direct_assignment_display.short_description = "Direct Assignments"
     direct_assignment_display.admin_order_field = "direct_assignment_count"
+
+    def direct_assignment_30k_38k_display(self, obj):
+        if obj.direct_assignment_30k_38k >= 10:
+            color = "#d32f2f"
+        elif obj.direct_assignment_30k_38k >= 3:
+            color = "#f57c00"
+        else:
+            color = "#757575"
+
+        return format_html(
+            '<span style="color:{};font-weight:bold;">{}</span>',
+            color,
+            f"{obj.direct_assignment_30k_38k:,}",
+        )
+
+    direct_assignment_30k_38k_display.short_description = "DA €30k-€38k"
+    direct_assignment_30k_38k_display.admin_order_field = "direct_assignment_30k_38k"
+
+    def payment_30k_38k_display(self, obj):
+        if obj.payment_30k_38k >= 10:
+            color = "#d32f2f"
+        elif obj.payment_30k_38k >= 3:
+            color = "#f57c00"
+        else:
+            color = "#757575"
+
+        return format_html(
+            '<span style="color:{};font-weight:bold;">{}</span>',
+            color,
+            f"{obj.payment_30k_38k:,}",
+        )
+
+    payment_30k_38k_display.short_description = "Pay €30k-€38k"
+    payment_30k_38k_display.admin_order_field = "payment_30k_38k"
+
+    def total_received_amount_display(self, obj):
+        formatted = f"{float(obj.total_received_amount):,.0f}"
+        if obj.total_received_amount >= 1_000_000:
+            return format_html(
+                '<span style="font-weight:bold;color:#d32f2f;">€{}</span>',
+                formatted,
+            )
+        if obj.total_received_amount >= 100_000:
+            return format_html(
+                '<span style="font-weight:bold;color:#f57c00;">€{}</span>',
+                formatted,
+            )
+        return format_html("€{}", formatted)
+
+    total_received_amount_display.short_description = "Received (Β.2.2)"
+    total_received_amount_display.admin_order_field = "total_received_amount"
 
     # ------------------------------------------------------------------
     # Permissions

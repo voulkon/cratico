@@ -4,8 +4,9 @@ import apiClient from '../api/client';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import './DecisionDetailPage.css';
+import '../components/StatCard.css';
 import EntityDisplay from '../components/EntityDisplay';
-import { formatAmount } from '../utils/dateUtils';
+import { formatAmount, formatDate } from '../utils/dateUtils';
 import {
   FinancialIcon,
   CalendarIcon,
@@ -20,7 +21,8 @@ import {
   GlobeIcon,
   PaperclipIcon,
   SearchIcon,
-  WrenchIcon
+  EyeIcon,
+  DownloadIcon
 } from '../components/Icons';
 
 const DecisionDetailPage = () => {
@@ -64,7 +66,8 @@ const DecisionDetailPage = () => {
     try {
       const response = await apiClient.get(`/decision/${id}/content/`);
 
-      if (response.data.content) {
+      if (response.data.content || response.data.raw_text) {
+        const body = response.data.content || response.data.raw_text;
         const newWindow = window.open('', '_blank');
         newWindow.document.write(`
           <html>
@@ -73,7 +76,7 @@ const DecisionDetailPage = () => {
               <h1>${t('decisionDetail.decisionLabel')} ${decision.ada}</h1>
               <h2>${decision.subject}</h2>
               <div style="white-space: pre-wrap; line-height: 1.6;">
-                ${response.data.content}
+                ${body}
               </div>
             </body>
           </html>
@@ -85,6 +88,11 @@ const DecisionDetailPage = () => {
       console.error('Error fetching document content:', error);
       alert(t('decisionDetail.documentContentError', { error: error.message }));
     }
+  };
+
+  const handleRequestContent = () => {
+    // TODO: wire to an extraction-request queue endpoint once the workers exist.
+    alert(t('decisionDetail.requestContentComingSoon'));
   };
 
   if (loading) {
@@ -120,9 +128,11 @@ const DecisionDetailPage = () => {
     );
   }
 
+  const hasTimeline = decision.publish_timestamp || decision.submission_timestamp;
+
   return (
     <div className="decision-detail-page">
-      {/* Header Section */}
+      {/* Header Section — centered */}
       <div className="decision-header">
         <div className="breadcrumb">
           <button onClick={() => navigate(-1)} className="breadcrumb-link">
@@ -134,152 +144,184 @@ const DecisionDetailPage = () => {
 
         <h1 className="decision-title">{decision.subject}</h1>
 
+        {/* Metadata demoted to hover tooltips on compact chips */}
         <div className="decision-metadata">
-          <span className="ada-badge">ADA: {decision.ada}</span>
-          <span className="id-badge">ID: {decision.id}</span>
-          <span className={`status-badge status-${decision.status.toLowerCase()}`}>
+          {decision.ada && (
+            <span
+              className="meta-chip meta-chip--ada"
+              title={`${t('decisionDetail.versionId')}: ${decision.version_id || '—'}`}
+            >
+              ADA: {decision.ada}
+            </span>
+          )}
+          <span
+            className={`meta-chip status-badge status-${(decision.status || '').toLowerCase()}`}
+            title={t('decisionDetail.statusLabel')}
+          >
             {decision.status}
           </span>
           {decision.protocol_number && (
-            <span className="protocol-badge">
+            <span
+              className="meta-chip protocol-badge"
+              title={t('decisionDetail.protocol')}
+            >
               {t('decisionDetail.protocol')}: {decision.protocol_number}
             </span>
           )}
         </div>
       </div>
 
-      {/* Core Information Grid */}
-      <div className="decision-info-grid">
-        <div className="info-card">
-          <h3><FinancialIcon size={20} /> {t('decisionDetail.financialInformation')}</h3>
-          {decision.amount && (
-            <div className="amount-display">
-              {formatAmount(decision.amount)}
-            </div>
-          )}
-          {decision.currency && decision.currency !== 'EUR' && (
-            <div className="currency-info">
-              {t('decisionDetail.currency')}: {decision.currency}
-            </div>
-          )}
-          {decision.financial_year && (
-            <div className="financial-year">
-              {t('decisionDetail.financialYear')}: {decision.financial_year}
-            </div>
-          )}
-        </div>
-
-        <div className="info-card">
-          <h3><CalendarIcon size={20} /> {t('decisionDetail.timeline')}</h3>
-          <div className="timeline-item">
-            <strong>{t('decisionDetail.issueDate')}:</strong> {new Date(decision.issue_date).toLocaleDateString('en-GB', {
-              day: '2-digit',
-              month: '2-digit',
-              year: 'numeric'
-            })}
+      {/* Hero amount */}
+      {decision.amount != null && (
+        <div className="amount-hero">
+          <div className="amount-hero-value">{formatAmount(decision.amount)}</div>
+          <div className="amount-hero-meta">
+            {decision.currency && decision.currency !== 'EUR' && (
+              <span>{decision.currency}</span>
+            )}
+            {decision.financial_year && (
+              <span>{t('decisionDetail.financialYear')} {decision.financial_year}</span>
+            )}
           </div>
-          {decision.publish_timestamp && (
-            <div className="timeline-item">
-              <strong>{t('decisionDetail.published')}:</strong> {new Date(decision.publish_timestamp).toLocaleDateString('en-GB', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-              })}
-            </div>
-          )}
-          {decision.submission_timestamp && (
-            <div className="timeline-item">
-              <strong>{t('decisionDetail.submitted')}:</strong> {new Date(decision.submission_timestamp).toLocaleDateString('en-GB', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-              })}
+        </div>
+      )}
+
+      {/* Core Information — stat cards (StatisticsGrid outline) */}
+      <div className="statistics-grid decision-stats-grid">
+        <div className="stat-card">
+          <h3 className="stat-title">
+            <CalendarIcon size={16} /> {t('decisionDetail.timeline')}
+          </h3>
+          <div className="stat-value date-range">
+            {formatDate(decision.issue_date)}
+          </div>
+          {hasTimeline && (
+            <div className="stat-context timeline-lines">
+              {decision.publish_timestamp && (
+                <div>
+                  <strong>{t('decisionDetail.published')}:</strong>{' '}
+                  {formatDate(decision.publish_timestamp)}
+                </div>
+              )}
+              {decision.submission_timestamp && (
+                <div>
+                  <strong>{t('decisionDetail.submitted')}:</strong>{' '}
+                  {formatDate(decision.submission_timestamp)}
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        <div className="info-card">
-          <h3><DocumentTypeIcon size={20} /> {t('decisionDetail.decisionType')}</h3>
+        <div className="stat-card">
+          <h3 className="stat-title">
+            <DocumentTypeIcon size={16} /> {t('decisionDetail.decisionType')}
+          </h3>
           {decision.decision_type ? (
-            <button
-              className="clickable-entity decision-type-button"
-              onClick={() => navigate(`/explore/type/${decision.decision_type.uid}`)}
-              title={t('decisionDetail.exploreDecisionsOfType')}
-            >
+            <div className="stat-context decision-type-text">
               {decision.decision_type.label}
-            </button>
+            </div>
           ) : (
-            <span className="no-data">{t('decisionDetail.typeNotSpecified')}</span>
+            <div className="stat-context no-data">
+              {t('decisionDetail.typeNotSpecified')}
+            </div>
           )}
+        </div>
+
+        <div className="stat-card">
+          <h3 className="stat-title">
+            <FinancialIcon size={16} /> {t('decisionDetail.financialInformation')}
+          </h3>
+          <div className="stat-value">{formatAmount(decision.amount)}</div>
+          <div className="stat-context">
+            {decision.financial_year && (
+              <span>{t('decisionDetail.financialYear')} {decision.financial_year}</span>
+            )}
+            {decision.currency && decision.currency !== 'EUR' && (
+              <span> · {decision.currency}</span>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Organizational Context */}
-      <div className="organizational-section">
-        <h3><OrganizationIcon size={20} /> {t('decisionDetail.organizationalContext')}</h3>
-
-        {decision.organization && (
-          <div className="org-info">
-            <h4>{t('decisionDetail.issuingOrganization')}</h4>
-            <button
-              className="clickable-entity org-link"
-              onClick={() => navigate(`/entity/organization/${decision.organization.uid}`)}
-              title={t('decisionDetail.viewOrganizationDetails')}
-            >
-              <OrganizationIcon size={16} /> {decision.organization.label}
-            </button>
-
-            <button
-              className="org-chart-quick-link"
-              onClick={() => navigate(`/organizations?uid=${decision.organization.uid}`)}
-              title={t('decisionDetail.viewOrganizationChart')}
-            >
-              <ChartIcon size={16} /> {t('decisionDetail.viewOrgChart')}
-            </button>
-          </div>
-        )}
-
-        {decision.signers && decision.signers.length > 0 && (
-          <div className="signers-section">
-            <h4><UsersIcon size={18} /> {t('decisionDetail.signers', { count: decision.signers.length })}</h4>
-            <div className="signers-grid">
-              {decision.signers.map(signer => (
+      {/* Organizational Context — stat cards (Organization / Signers / Units) */}
+      <div className="section-block">
+        <h3 className="section-heading">
+          <OrganizationIcon size={20} /> {t('decisionDetail.organizationalContext')}
+        </h3>
+        <div className="statistics-grid decision-org-grid">
+          {decision.organization && (
+            <div className="stat-card">
+              <h3 className="stat-title">
+                <OrganizationIcon size={16} /> {t('decisionDetail.organizationLabel')}
+              </h3>
+              <div className="org-card-values">
                 <button
-                  key={signer.uid}
-                  className="clickable-entity signer-card"
-                  onClick={() => navigate(`/entity/signer/${signer.uid}`)}
-                  title={t('decisionDetail.viewSignerDetails')}
+                  className="org-card-link"
+                  onClick={() => navigate(`/entity/organization/${decision.organization.uid}`)}
+                  title={t('decisionDetail.viewOrganizationDetails')}
                 >
-                  <UserIcon size={16} /> {signer.first_name} {signer.last_name}
+                  {decision.organization.label}
                 </button>
-              ))}
+              </div>
+              <button
+                className="org-chart-link"
+                onClick={() => navigate(`/organizations?uid=${decision.organization.uid}`)}
+                title={t('decisionDetail.viewOrganizationChart')}
+              >
+                <ChartIcon size={14} /> {t('decisionDetail.viewOrgChart')}
+              </button>
             </div>
-          </div>
-        )}
+          )}
 
-        {decision.units && decision.units.length > 0 && (
-          <div className="units-section">
-            <h4><OrganizationIcon size={18} /> {t('decisionDetail.organizationalUnits', { count: decision.units.length })}</h4>
-            <div className="units-list">
-              {decision.units.map(unit => (
-                <button
-                  key={unit.uid}
-                  className="clickable-entity unit-tag"
-                  onClick={() => navigate(`/entity/unit/${unit.uid}`)}
-                  title={t('decisionDetail.viewUnitDetails')}
-                >
-                  <OrganizationIcon size={16} /> {unit.label}
-                </button>
-              ))}
+          {decision.signers && decision.signers.length > 0 && (
+            <div className="stat-card">
+              <h3 className="stat-title">
+                <UsersIcon size={16} /> {t('decisionDetail.signersLabel')}
+              </h3>
+              <div className="org-card-values">
+                {decision.signers.map(signer => (
+                  <button
+                    key={signer.uid}
+                    className="org-card-link"
+                    onClick={() => navigate(`/entity/signer/${signer.uid}`)}
+                    title={t('decisionDetail.viewSignerDetails')}
+                  >
+                    <UserIcon size={14} /> {signer.first_name} {signer.last_name}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+
+          {decision.units && decision.units.length > 0 && (
+            <div className="stat-card">
+              <h3 className="stat-title">
+                <OrganizationIcon size={16} /> {t('decisionDetail.unitsLabel')}
+              </h3>
+              <div className="org-card-values">
+                {decision.units.map(unit => (
+                  <button
+                    key={unit.uid}
+                    className="org-card-link"
+                    onClick={() => navigate(`/entity/unit/${unit.uid}`)}
+                    title={t('decisionDetail.viewUnitDetails')}
+                  >
+                    {unit.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Entity Relationships */}
       {entityRelationships && entityRelationships.length > 0 && (
-        <div className="entities-section">
-          <h3><LinkIcon size={20} /> {t('decisionDetail.relatedEntities')}</h3>
+        <div className="section-block entities-section">
+          <h3 className="section-heading">
+            <LinkIcon size={20} /> {t('decisionDetail.relatedEntities')}
+          </h3>
           <p className="section-description">
             {t('decisionDetail.relatedEntitiesDescription')}
           </p>
@@ -290,71 +332,100 @@ const DecisionDetailPage = () => {
             showCompanies={false}
           />
         </div>
-    )}
+      )}
 
-      {/* Document Section */}
-      <div className="document-section">
-        <h3><FileIcon size={20} /> {t('decisionDetail.documents')}</h3>
+      {/* Documents — uniform action pills */}
+      <div className="section-block document-section">
+        <h3 className="section-heading">
+          <FileIcon size={20} /> {t('decisionDetail.documents')}
+        </h3>
 
         <div className="document-actions">
-          {decision.document_url && (
+          {decision.diavgeia_doc_url && (
             <button
-              className="document-link primary-doc"
-              onClick={() => window.open(decision.document_url, '_blank')}
+              className="document-link"
+              onClick={() => window.open(decision.diavgeia_doc_url, '_blank')}
               title={t('decisionDetail.viewOriginalDocumentTooltip')}
             >
-              <FileIcon size={16} /> {t('decisionDetail.viewOriginalDocument')}
+              <EyeIcon size={15} /> {t('decisionDetail.viewDocument')}
             </button>
           )}
 
-          <button
-            className="document-link extracted-content"
-            onClick={handleViewDocumentContent}
-            title={t('decisionDetail.viewExtractedContentTooltip')}
-          >
-            <BookOpenIcon size={16} /> {t('decisionDetail.viewExtractedContent')}
-          </button>
-
-          {decision.url && (
+          {decision.document_url && (
             <button
-              className="document-link diavgeia-link"
-              onClick={() => window.open(decision.url, '_blank')}
+              className="document-link"
+              onClick={() => window.open(decision.document_url, '_blank')}
+              title={t('decisionDetail.downloadDocumentTooltip')}
+            >
+              <DownloadIcon size={15} /> {t('decisionDetail.downloadDocument')}
+            </button>
+          )}
+
+          {decision.diavgeia_page_url && (
+            <button
+              className="document-link"
+              onClick={() => window.open(decision.diavgeia_page_url, '_blank')}
               title={t('decisionDetail.viewOnDiavgeiaTooltip')}
             >
-              <GlobeIcon size={16} /> {t('decisionDetail.viewOnDiavgeia')}
+              <GlobeIcon size={15} /> {t('decisionDetail.viewOnDiavgeia')}
+            </button>
+          )}
+
+          {decision.has_document_content ? (
+            <button
+              className="document-link"
+              onClick={handleViewDocumentContent}
+              title={t('decisionDetail.viewExtractedContentTooltip')}
+            >
+              <BookOpenIcon size={15} /> {t('decisionDetail.viewExtractedContent')}
+            </button>
+          ) : (
+            <button
+              className="document-link document-link--request"
+              onClick={handleRequestContent}
+              title={t('decisionDetail.requestContentTooltip')}
+            >
+              <BookOpenIcon size={15} /> {t('decisionDetail.requestContent')}
             </button>
           )}
         </div>
 
         {decision.attachments && decision.attachments.length > 0 && (
           <div className="attachments-list">
-            <h4><PaperclipIcon size={18} /> {t('decisionDetail.attachments', { count: decision.attachments.length })}</h4>
+            <h4><PaperclipIcon size={16} /> {t('decisionDetail.attachments', { count: decision.attachments.length })}</h4>
             {decision.attachments.map((attachment, index) => (
               <div key={index} className="attachment-item">
                 <span className="attachment-icon"><PaperclipIcon size={14} /></span>
                 <span className="attachment-name">{attachment.filename}</span>
                 <span className="attachment-type">({attachment.mime_type})</span>
-                {attachment.checksum && (
-                  <span className="attachment-checksum" title={t('decisionDetail.fileChecksum')}>
-                    {attachment.checksum.substring(0, 8)}...
-                  </span>
-                )}
               </div>
             ))}
           </div>
         )}
 
-        {decision.document_checksum && (
-          <div className="document-checksum">
-            <small>{t('decisionDetail.documentChecksum')}: {decision.document_checksum}</small>
-          </div>
+        {(decision.document_checksum || (decision.attachments || []).some(a => a.checksum)) && (
+          <details className="document-debug-details">
+            <summary>{t('decisionDetail.technicalDetails')}</summary>
+            <div className="document-debug-body">
+              {decision.document_checksum && (
+                <p><strong>{t('decisionDetail.documentChecksum')}:</strong> <code>{decision.document_checksum}</code></p>
+              )}
+              {(decision.attachments || []).filter(a => a.checksum).map((a, i) => (
+                <p key={i}>
+                  <strong>{a.filename}:</strong> <code>{a.checksum}</code>
+                </p>
+              ))}
+            </div>
+          </details>
         )}
       </div>
 
       {/* Related Decisions */}
       {relatedDecisions && relatedDecisions.length > 0 && (
-        <div className="related-decisions">
-          <h3><SearchIcon size={20} /> {t('decisionDetail.relatedDecisions')}</h3>
+        <div className="section-block related-decisions">
+          <h3 className="section-heading">
+            <SearchIcon size={20} /> {t('decisionDetail.relatedDecisions')}
+          </h3>
           <p className="section-description">
             {t('decisionDetail.relatedDecisionsDescription')}
           </p>
@@ -381,7 +452,7 @@ const DecisionDetailPage = () => {
                   }
                 </div>
                 <div className="related-meta">
-                  {new Date(related.issue_date).toLocaleDateString('en-GB')}
+                  {formatDate(related.issue_date)}
                   {related.decision_type && (
                     <span> • {related.decision_type.label}</span>
                   )}
@@ -389,37 +460,6 @@ const DecisionDetailPage = () => {
               </button>
             ))}
           </div>
-
-          {relatedDecisions.length > 6 && (
-            <div className="related-more">
-              <button
-                className="view-more-related"
-                onClick={() => navigate(`/entity/organization/${decision.organization.uid}`)}
-              >
-                {t('decisionDetail.viewAllFromOrganization')} →
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Debug Info (only in development) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="debug-section">
-          <details>
-            <summary><WrenchIcon size={16} /> {t('decisionDetail.debugInformation')}</summary>
-            <div className="debug-content">
-              <p><strong>{t('decisionDetail.decisionId')}:</strong> {decision.id}</p>
-              <p><strong>ADA:</strong> {decision.ada}</p>
-              <p><strong>{t('decisionDetail.versionId')}:</strong> {decision.version_id}</p>
-              {decision.corrected_version_id && (
-                <p><strong>{t('decisionDetail.correctedVersion')}:</strong> {decision.corrected_version_id}</p>
-              )}
-              {decision.warnings && (
-                <p><strong>{t('decisionDetail.warnings')}:</strong> {decision.warnings}</p>
-              )}
-            </div>
-          </details>
         </div>
       )}
     </div>
