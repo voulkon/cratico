@@ -97,6 +97,26 @@
         color: #fff;
     }
 
+    .badge-scanner {
+        background: #e83e8c;
+        color: #fff;
+    }
+
+    .badge-attacker {
+        background: #dc3545;
+        color: #fff;
+    }
+
+    .badge-suspicious {
+        background: #fd7e14;
+        color: #fff;
+    }
+
+    .badge-normal {
+        background: #d4edda;
+        color: #155724;
+    }
+
     .stat-number {
         font-weight: 600;
         font-size: 14px;
@@ -105,6 +125,19 @@
     .stat-muted {
         color: var(--body-quiet-color);
         font-size: 11px;
+    }
+
+    .stat-highlight {
+        font-weight: 700;
+        font-size: 14px;
+    }
+
+    .stat-highlight.danger {
+        color: #dc3545;
+    }
+
+    .stat-highlight.warning {
+        color: #fd7e14;
     }
 
     .status-codes {
@@ -191,6 +224,15 @@
         color: var(--body-fg);
     }
 
+    .req-url a {
+        color: var(--link-fg);
+        text-decoration: none;
+    }
+
+    .req-url a:hover {
+        text-decoration: underline;
+    }
+
     .req-status {
         font-family: monospace;
         font-size: 10px;
@@ -235,13 +277,14 @@
         <thead>
             <tr>
                 <th>IP Address</th>
-                <th>Status</th>
+                <th>Classification</th>
                 <th>Requests</th>
-                <th>Flagged</th>
-                <th>Unique Endpoints</th>
+                <th>404 Rate</th>
+                <th>Err Rate</th>
+                <th>Unique<br>Endpoints</th>
+                <th>Suspicious<br>Hits</th>
                 <th>First Seen</th>
                 <th>Last Seen</th>
-                <th>Top Status Codes</th>
                 <th>Sample Requests (recent)</th>
             </tr>
         </thead>
@@ -250,54 +293,68 @@
             <tr>
                 <td class="ip-cell">
                     <a href="{% url 'admin:api_endpointaccesslog_changelist' %}?ip_address={{ stat.ip_address|urlencode }}"
-                       title="View all requests from this IP">
-                        {{ stat.ip_address }}
+                       title="Full IP: {{ stat.ip_address }}">
+                        {{ stat.ip_display }}
                     </a>
+                    {% if stat.is_ipv6 %}
+                    <br><small class="stat-muted" style="font-size:9px;" title="IPv6 /64 prefix">/64: {{ stat.ip_address|slice:":19" }}</small>
+                    {% endif %}
                 </td>
                 <td>
                     {% if stat.ban_status == "banned" %}
                         <span class="badge badge-banned">BANNED</span>
                     {% elif stat.ban_status == "flagged" %}
                         <span class="badge badge-flagged" title="{{ stat.flag_reason }}">FLAGGED</span>
+                    {% elif stat.classification == "attacker" %}
+                        <span class="badge badge-attacker" title="Hits known attack endpoints (.env, /wp-admin, etc.)">ATTACKER</span>
+                    {% elif stat.classification == "scanner" %}
+                        <span class="badge badge-scanner" title="High-volume endpoint scanning">SCANNER</span>
+                    {% elif stat.classification == "suspicious" %}
+                        <span class="badge badge-suspicious" title="Unusual traffic pattern">SUSPICIOUS</span>
                     {% else %}
-                        {% if stat.flagged_count > 0 %}
-                            <span class="badge badge-scan">SUSPICIOUS ({{ stat.flagged_count }})</span>
-                        {% else %}
-                            <span class="badge badge-clean">-</span>
-                        {% endif %}
+                        <span class="badge badge-normal">normal</span>
                     {% endif %}
                 </td>
                 <td class="stat-number">{{ stat.request_count }}</td>
                 <td>
-                    {% if stat.flagged_count > 0 %}
-                        <strong style="color: #dc3545;">{{ stat.flagged_count }}</strong>
+                    {% if stat.notfound_rate >= 70 %}
+                        <span class="stat-highlight danger">{{ stat.notfound_rate }}%</span>
+                    {% elif stat.notfound_rate >= 40 %}
+                        <span class="stat-highlight warning">{{ stat.notfound_rate }}%</span>
+                    {% else %}
+                        {{ stat.notfound_rate }}%
+                    {% endif %}
+                </td>
+                <td>
+                    {% if stat.error_rate >= 50 %}
+                        <span class="stat-highlight danger">{{ stat.error_rate }}%</span>
+                    {% elif stat.error_rate >= 25 %}
+                        <span class="stat-highlight warning">{{ stat.error_rate }}%</span>
+                    {% else %}
+                        {{ stat.error_rate }}%
+                    {% endif %}
+                </td>
+                <td>{{ stat.unique_endpoints }}</td>
+                <td>
+                    {% if stat.suspicious_hits > 0 %}
+                        <span class="stat-highlight danger">{{ stat.suspicious_hits }}</span>
+                        <br><small class="stat-muted">{{ stat.suspicious_endpoints }} uniq</small>
                     {% else %}
                         0
                     {% endif %}
                 </td>
-                <td>{{ stat.unique_endpoints }}</td>
-                <td class="stat-muted">{{ stat.first_seen|date:"Y-m-d H:i:s" }}</td>
-                <td class="stat-muted">{{ stat.last_seen|date:"Y-m-d H:i:s" }}</td>
-                <td>
-                    <div class="status-codes">
-                        {% for code in stat.top_status_codes %}
-                            {% with code|slice:":3" as code_num %}
-                            <span class="status-code-chip
-                                {% if code_num == '404' or code_num == '403' or code_num == '500' %}error
-                                {% elif code_num == '302' or code_num == '301' or code_num == '429' %}warn
-                                {% elif code_num == '200' or code_num == '201' %}success
-                                {% endif %}
-                            ">{{ code }}</span>
-                            {% endwith %}
-                        {% endfor %}
-                    </div>
-                </td>
+                <td class="stat-muted">{{ stat.first_seen|date:"m-d H:i" }}</td>
+                <td class="stat-muted">{{ stat.last_seen|date:"m-d H:i" }}</td>
                 <td>
                     <div class="sample-requests">
                         {% for req in stat.sample_requests %}
                             <div class="sample-req" title="{{ req.timestamp }}">
                                 <span class="req-method">{{ req.method }}</span>
-                                <code class="req-url">{{ req.full_url }}</code>
+                                <code class="req-url">
+                                    <a href="{% url 'admin:api_endpointaccesslog_changelist' %}?endpoint={{ req.endpoint|urlencode }}&ip_address={{ stat.ip_address|urlencode }}">
+                                        {{ req.endpoint }}{% if req.query_string %}?{{ req.query_string }}{% endif %}
+                                    </a>
+                                </code>
                                 <span class="req-status
                                     {% if req.status_code >= 400 %}error
                                     {% elif req.status_code >= 300 %}warn

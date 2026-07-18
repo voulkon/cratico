@@ -7,5 +7,11 @@
         View by IP
     </a>
 </li>
+<li>
+    <a href="{% url 'admin:endpointaccesslog_endpoint_summary' %}"
+       style="display: inline-flex; align-items: center; gap: 4px;">
+        View by Endpoint
+    </a>
+</li>
 {{ block.super }}
 {% endblock %}
