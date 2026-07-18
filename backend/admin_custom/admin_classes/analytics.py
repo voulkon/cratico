@@ -602,6 +602,7 @@ class ImportJobAdmin(admin.ModelAdmin):
         "retry_failed_chunks",
         "retry_missing_chunks",
         "diagnose_stuck_job",
+        "cancel_selected_imports",
     )
 
     def get_queryset(self, request):
@@ -1258,6 +1259,82 @@ class ImportJobAdmin(admin.ModelAdmin):
     diagnose_stuck_job.short_description = "Download diagnostic report (JSON)"
 
     # ========================================================================
+    # Cancel / Purge Imports
+    # ========================================================================
+
+    @admin.action(description="Cancel selected imports (revoke tasks, clean Redis)")
+    def cancel_selected_imports(self, request, queryset):
+        """Cancel selected ImportJobs: revoke Celery tasks + clean Redis chunks."""
+        cancelled = 0
+        skipped = 0
+
+        for job in queryset:
+            result = job.cancel(revoke_task=True, clean_redis=True)
+            if result.get("status") == "cancelled":
+                cancelled += 1
+            else:
+                skipped += 1
+
+        if cancelled > 0:
+            self.message_user(
+                request,
+                f"[OK] Cancelled {cancelled} import job(s). Tasks revoked, Redis chunks cleaned.",
+                messages.SUCCESS,
+            )
+        if skipped > 0:
+            self.message_user(
+                request,
+                f"{skipped} job(s) were already in terminal state, skipped.",
+                messages.WARNING,
+            )
+
+    def cancel_all_imports_view(self, request):
+        """View to cancel ALL in-progress imports with optional RabbitMQ purge."""
+        from core.services.import_job_queue import ImportJobQueue
+
+        if request.method == "POST":
+            purge_rabbitmq = request.POST.get("purge_rabbitmq") == "1"
+            clean_redis = request.POST.get("clean_redis", "1") == "1"
+
+            queue = ImportJobQueue()
+            result = queue.cancel_all_in_progress_imports(
+                purge_rabbitmq=purge_rabbitmq,
+                clean_redis=clean_redis,
+            )
+
+            msg_parts = [f"Cancelled {result['jobs_cancelled']} job(s)."]
+            if result.get("redis_keys_deleted"):
+                msg_parts.append(f"Redis DB 2 flushed.")
+            if result.get("rabbitmq_purged"):
+                msg_parts.append(f"RabbitMQ queue purged.")
+
+            self.message_user(request, " ".join(msg_parts), messages.SUCCESS)
+            return JsonResponse({"success": True, **result})
+
+        # GET: Show confirmation page
+        from core.models.import_jobs import ImportJob, ImportJobStatus
+
+        cancelable = ImportJob.objects.filter(
+            status__in=[
+                ImportJobStatus.PENDING,
+                ImportJobStatus.RUNNING,
+                ImportJobStatus.FETCHING,
+                ImportJobStatus.SPLITTING,
+                ImportJobStatus.PROCESSING,
+            ]
+        )
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Cancel All In-Progress Imports",
+            "cancelable_jobs": cancelable,
+            "cancelable_count": cancelable.count(),
+            "opts": self.model._meta,
+        }
+
+        return render(request, "admin/cancel_all_imports_confirm.html", context)
+
+    # ========================================================================
     # Queue Monitoring Features
     # ========================================================================
 
@@ -1289,6 +1366,11 @@ class ImportJobAdmin(admin.ModelAdmin):
                 "dispatch-next/",
                 self.admin_site.admin_view(self.dispatch_next_action),
                 name="import_job_dispatch_next",
+            ),
+            path(
+                "cancel-all/",
+                self.admin_site.admin_view(self.cancel_all_imports_view),
+                name="import_job_cancel_all",
             ),
         ]
         return custom_urls + urls
