@@ -93,6 +93,14 @@ class AFMEntityStats(models.Model):
         " Always computed regardless of the act-type filter dropdown.",
     )
 
+    # ---- Combined ranking ----
+    combined_rank = models.PositiveIntegerField(
+        default=0,
+        help_text="Rank of the sum of individual ranks across "
+        "total_received_amount, direct_assignment_30k_38k, and payment_30k_38k. "
+        "1 = best. Computed during stats recalculation.",
+    )
+
     # ---- Metadata ----
     computed_at = models.DateTimeField(
         auto_now=True,

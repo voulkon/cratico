@@ -17,7 +17,8 @@ from core.models.entities import (
 )
 from core.services.financial_calculation_service import FinancialCalculationService
 from django.db import transaction
-from django.db.models import Count, Max, Min, Q, Sum
+from django.db.models import Count, F, Max, Min, Q, Sum, Window
+from django.db.models.functions import Rank
 from loguru import logger
 
 
@@ -89,6 +90,11 @@ class AFMEntityStatsService:
                         created += 1
                     else:
                         updated += 1
+
+        # 3. Compute combined_rank across all entities (global ranking)
+        logger.info("Step 3: computing combined ranks...")
+        self._compute_combined_ranks()
+        logger.info("Step 3 complete")
 
         result = {
             "created": created,
@@ -323,6 +329,59 @@ class AFMEntityStatsService:
         logger.info("  (I) done")
 
         return dict(metrics)
+
+    # ------------------------------------------------------------------
+    # Combined ranking
+    # ------------------------------------------------------------------
+
+    def _compute_combined_ranks(self) -> None:
+        """Compute combined_rank for every AFMEntityStats row.
+
+        The rank is derived from the sum of three individual RANK()s:
+        received_rank  = RANK() OVER total_received_amount DESC
+        da_30k_38k_rank = RANK() OVER direct_assignment_30k_38k DESC
+        pay_30k_38k_rank = RANK() OVER payment_30k_38k DESC
+        raw_score = received_rank + da_30k_38k_rank + pay_30k_38k_rank
+        combined_rank = RANK() OVER raw_score ASC  (1 = best)
+
+        We compute raw_score via the ORM then do the final ranking in
+        Python to avoid nested-window-function SQL limitations.
+        """
+        ranked = AFMEntityStats.objects.annotate(
+            received_rank=Window(
+                expression=Rank(),
+                order_by=F("total_received_amount").desc(),
+            ),
+            da_30k_38k_rank=Window(
+                expression=Rank(),
+                order_by=F("direct_assignment_30k_38k").desc(),
+            ),
+            pay_30k_38k_rank=Window(
+                expression=Rank(),
+                order_by=F("payment_30k_38k").desc(),
+            ),
+            raw_score=F("received_rank")
+            + F("da_30k_38k_rank")
+            + F("pay_30k_38k_rank"),
+        )
+
+        # Sort by raw_score ascending (lowest = best) and assign ranks.
+        pairs = list(ranked.values_list("entity_id", "raw_score"))
+        pairs.sort(key=lambda x: x[1])
+
+        updates = []
+        rank = 0
+        prev_score = None
+        for pos, (entity_id, raw_score) in enumerate(pairs, start=1):
+            if raw_score != prev_score:
+                rank = pos
+                prev_score = raw_score
+            updates.append(
+                AFMEntityStats(entity_id=entity_id, combined_rank=rank)
+            )
+
+        AFMEntityStats.objects.bulk_update(updates, ["combined_rank"])
+        logger.info("  combined_rank updated for {} entities", len(updates))
 
     # ------------------------------------------------------------------
     # Convenience: compute a single entity
