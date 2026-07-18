@@ -33,6 +33,9 @@
   --radius-lg: 12px;
   --radius-full: 50%;
 
+  /* Content width — single knob for all page-level max-widths */
+  --content-max-width: 1100px;
+
   /* Font scale — runtime zoom knob; scales ALL text via html font-size.
      All font-size variables below use rem so they inherit automatically. */
   --font-scale: 1;
@@ -56,17 +59,6 @@
   --transition-fast: 0.2s ease;
   --transition-normal: 0.3s ease;
   --transition-slow: 0.5s ease;
-
-  /* Neobrutalist knobs — tweak these to dial the brutalism up/down.
-     Theme-independent layout values; shared across all themes. */
-  --neo-shadow-offset: 4px;        /* shadow X/Y offset */
-  --neo-shadow-offset-hover: 4px;  /* shadow X/Y offset on hover */
-  --neo-border-width: 2px;         /* card border thickness */
-  --neo-radius: var(--radius-sm);  /* card corner rounding */
-  --neo-lift-x: -2px;              /* horizontal nudge on hover */
-  --neo-lift-y: -4px;              /* vertical lift on hover */
-  --neo-divider-width: 2px;        /* content divider thickness */
-  --neo-accent-width: 5px;         /* left accent stripe width */
 
   /* Typography — Warm Swiss Modernism.
      Serif for structural hierarchy (H1/H2/section labels), sans for body.
@@ -135,6 +127,15 @@ html {
     0 2px 4px rgba(28,25,23,0.05),
     0 14px 36px rgba(28,25,23,0.09);
 
+  /* Neobrutalist knobs — tweak these to dial the brutalism up/down */
+  --neo-shadow-offset: 4px;        /* shadow X/Y offset */
+  --neo-shadow-offset-hover: 4px;  /* shadow X/Y offset on hover */
+  --neo-border-width: 2px;         /* card border thickness */
+  --neo-radius: var(--radius-sm);  /* card corner rounding */
+  --neo-lift-x: -2px;              /* horizontal nudge on hover */
+  --neo-lift-y: -4px;              /* vertical lift on hover */
+  --neo-divider-width: 2px;        /* content divider thickness */
+  --neo-accent-width: 5px;         /* left accent stripe width */
 }
 
 /* ===========================================
