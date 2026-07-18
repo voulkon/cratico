@@ -46,6 +46,8 @@ class AFMEntityStatsAdmin(admin.ModelAdmin):
         "orgs_display",
         "counterparts_display",
         "direct_assignment_display",
+        "direct_assignment_30k_38k_display",
+        "payment_30k_38k_display",
         "computed_at",
     ]
     list_filter = [
@@ -63,6 +65,8 @@ class AFMEntityStatsAdmin(admin.ModelAdmin):
         "distinct_counterpart_entities",
         "direct_assignment_count",
         "direct_assignment_percentage",
+        "direct_assignment_30k_38k",
+        "payment_30k_38k",
         "computed_at",
     ]
 
@@ -175,6 +179,40 @@ class AFMEntityStatsAdmin(admin.ModelAdmin):
 
     direct_assignment_display.short_description = "Direct Assignments"
     direct_assignment_display.admin_order_field = "direct_assignment_count"
+
+    def direct_assignment_30k_38k_display(self, obj):
+        if obj.direct_assignment_30k_38k >= 10:
+            color = "#d32f2f"
+        elif obj.direct_assignment_30k_38k >= 3:
+            color = "#f57c00"
+        else:
+            color = "#757575"
+
+        return format_html(
+            '<span style="color:{};font-weight:bold;">{}</span>',
+            color,
+            f"{obj.direct_assignment_30k_38k:,}",
+        )
+
+    direct_assignment_30k_38k_display.short_description = "DA €30k-€38k"
+    direct_assignment_30k_38k_display.admin_order_field = "direct_assignment_30k_38k"
+
+    def payment_30k_38k_display(self, obj):
+        if obj.payment_30k_38k >= 10:
+            color = "#d32f2f"
+        elif obj.payment_30k_38k >= 3:
+            color = "#f57c00"
+        else:
+            color = "#757575"
+
+        return format_html(
+            '<span style="color:{};font-weight:bold;">{}</span>',
+            color,
+            f"{obj.payment_30k_38k:,}",
+        )
+
+    payment_30k_38k_display.short_description = "Pay €30k-€38k"
+    payment_30k_38k_display.admin_order_field = "payment_30k_38k"
 
     # ------------------------------------------------------------------
     # Permissions

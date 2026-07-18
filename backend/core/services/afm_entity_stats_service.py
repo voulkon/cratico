@@ -15,6 +15,7 @@ from core.models.entities import (
     DecisionAmountField,
     DecisionEntityRelationship,
 )
+from core.services.financial_calculation_service import FinancialCalculationService
 from django.db import transaction
 from django.db.models import Count, Max, Min, Q, Sum
 from loguru import logger
@@ -79,6 +80,8 @@ class AFMEntityStatsService:
                             "distinct_counterpart_entities": m["distinct_counterpart_entities"],
                             "direct_assignment_count": m["direct_assignment_count"],
                             "direct_assignment_percentage": m["direct_assignment_percentage"],
+                            "direct_assignment_30k_38k": m["direct_assignment_30k_38k"],
+                            "payment_30k_38k": m["payment_30k_38k"],
                         },
                     )
                     if was_created:
@@ -122,6 +125,8 @@ class AFMEntityStatsService:
                 "distinct_counterpart_entities": 0,
                 "direct_assignment_count": 0,
                 "direct_assignment_percentage": 0.0,
+                "direct_assignment_30k_38k": 0,
+                "payment_30k_38k": 0,
             }
         )
 
@@ -256,6 +261,47 @@ class AFMEntityStatsService:
                 )
         logger.info("  (F) done")
 
+        # ---- (G) direct-assignment decisions with amounts €30k-€38k ----
+        # Always across ALL decisions (never filtered by act type).
+        logger.info("  (G) counting direct assignments €30k-€38k...")
+        direct_30k_qs = (
+            DecisionAmountField.objects
+            .filter(
+                amount__isnull=False,
+                associated_relationship__isnull=False,
+                associated_relationship__decision__classification__is_direct_assignment=True,
+            )
+            .values("associated_relationship__entity_id", "decision_id")
+            .annotate(decision_total=Sum("amount"))
+        )
+        for row in direct_30k_qs:
+            total = row["decision_total"]
+            if total and Decimal("30000.00") <= total <= Decimal("38000.00"):
+                eid = row["associated_relationship__entity_id"]
+                metrics[eid]["direct_assignment_30k_38k"] += 1
+        logger.info("  (G) done")
+
+        # ---- (H) payment (money-received) decisions with amounts €30k-€38k ----
+        # Always across ALL decisions (never filtered by act type).
+        logger.info("  (H) counting payments €30k-€38k...")
+        money_received_roles = FinancialCalculationService.MONEY_RECEIVED_ROLES
+        payment_30k_qs = (
+            DecisionAmountField.objects
+            .filter(
+                amount__isnull=False,
+                associated_relationship__isnull=False,
+                associated_relationship__role__in=money_received_roles,
+            )
+            .values("associated_relationship__entity_id", "decision_id")
+            .annotate(decision_total=Sum("amount"))
+        )
+        for row in payment_30k_qs:
+            total = row["decision_total"]
+            if total and Decimal("30000.00") <= total <= Decimal("38000.00"):
+                eid = row["associated_relationship__entity_id"]
+                metrics[eid]["payment_30k_38k"] += 1
+        logger.info("  (H) done")
+
         return dict(metrics)
 
     # ------------------------------------------------------------------
@@ -288,6 +334,8 @@ class AFMEntityStatsService:
                 "distinct_counterpart_entities": 0,
                 "direct_assignment_count": 0,
                 "direct_assignment_percentage": 0.0,
+                "direct_assignment_30k_38k": 0,
+                "payment_30k_38k": 0,
             }
 
         stats, _created = AFMEntityStats.objects.update_or_create(
@@ -302,6 +350,8 @@ class AFMEntityStatsService:
                 "distinct_counterpart_entities": m["distinct_counterpart_entities"],
                 "direct_assignment_count": m["direct_assignment_count"],
                 "direct_assignment_percentage": m["direct_assignment_percentage"],
+                "direct_assignment_30k_38k": m["direct_assignment_30k_38k"],
+                "payment_30k_38k": m["payment_30k_38k"],
             },
         )
         return stats
