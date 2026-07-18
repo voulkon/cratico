@@ -86,6 +86,13 @@ class AFMEntityStats(models.Model):
         " (money-receiving roles only)",
     )
 
+    # ---- Amounts by act type (always computed, never filtered) ----
+    total_received_amount = models.DecimalField(
+        max_digits=18, decimal_places=2, default=0.00,
+        help_text="Total amount from 'Β.2.2' (expenditure/payment) decisions (EUR)."
+        " Always computed regardless of the act-type filter dropdown.",
+    )
+
     # ---- Metadata ----
     computed_at = models.DateTimeField(
         auto_now=True,

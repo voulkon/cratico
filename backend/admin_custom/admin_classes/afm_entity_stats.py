@@ -41,6 +41,7 @@ class AFMEntityStatsAdmin(admin.ModelAdmin):
         "entity_type_badge",
         "decisions_badge",
         "total_amount_display",
+        "total_received_amount_display",
         "avg_amount_display",
         "max_amount_display",
         "orgs_display",
@@ -67,6 +68,7 @@ class AFMEntityStatsAdmin(admin.ModelAdmin):
         "direct_assignment_percentage",
         "direct_assignment_30k_38k",
         "payment_30k_38k",
+        "total_received_amount",
         "computed_at",
     ]
 
@@ -213,6 +215,23 @@ class AFMEntityStatsAdmin(admin.ModelAdmin):
 
     payment_30k_38k_display.short_description = "Pay €30k-€38k"
     payment_30k_38k_display.admin_order_field = "payment_30k_38k"
+
+    def total_received_amount_display(self, obj):
+        formatted = f"{float(obj.total_received_amount):,.0f}"
+        if obj.total_received_amount >= 1_000_000:
+            return format_html(
+                '<span style="font-weight:bold;color:#d32f2f;">€{}</span>',
+                formatted,
+            )
+        if obj.total_received_amount >= 100_000:
+            return format_html(
+                '<span style="font-weight:bold;color:#f57c00;">€{}</span>',
+                formatted,
+            )
+        return format_html("€{}", formatted)
+
+    total_received_amount_display.short_description = "Received (Β.2.2)"
+    total_received_amount_display.admin_order_field = "total_received_amount"
 
     # ------------------------------------------------------------------
     # Permissions

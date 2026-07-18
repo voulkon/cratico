@@ -82,6 +82,7 @@ class AFMEntityStatsService:
                             "direct_assignment_percentage": m["direct_assignment_percentage"],
                             "direct_assignment_30k_38k": m["direct_assignment_30k_38k"],
                             "payment_30k_38k": m["payment_30k_38k"],
+                            "total_received_amount": m["total_received_amount"],
                         },
                     )
                     if was_created:
@@ -127,6 +128,7 @@ class AFMEntityStatsService:
                 "direct_assignment_percentage": 0.0,
                 "direct_assignment_30k_38k": 0,
                 "payment_30k_38k": 0,
+                "total_received_amount": Decimal("0.00"),
             }
         )
 
@@ -302,6 +304,24 @@ class AFMEntityStatsService:
                 metrics[eid]["payment_30k_38k"] += 1
         logger.info("  (H) done")
 
+        # ---- (I) total amount from "Β.2.2" (expenditure/payment) decisions ----
+        # Always computed regardless of decision_type_uid filter.
+        logger.info("  (I) aggregating 'Β.2.2' received amounts...")
+        received_qs = (
+            DecisionAmountField.objects
+            .filter(
+                amount__isnull=False,
+                associated_relationship__isnull=False,
+                associated_relationship__decision__decision_type__uid="Β.2.2",
+            )
+            .values("associated_relationship__entity_id")
+            .annotate(total=Sum("amount"))
+        )
+        for row in received_qs:
+            eid = row["associated_relationship__entity_id"]
+            metrics[eid]["total_received_amount"] = row["total"] or Decimal("0")
+        logger.info("  (I) done")
+
         return dict(metrics)
 
     # ------------------------------------------------------------------
@@ -336,6 +356,7 @@ class AFMEntityStatsService:
                 "direct_assignment_percentage": 0.0,
                 "direct_assignment_30k_38k": 0,
                 "payment_30k_38k": 0,
+                "total_received_amount": Decimal("0.00"),
             }
 
         stats, _created = AFMEntityStats.objects.update_or_create(
@@ -352,6 +373,7 @@ class AFMEntityStatsService:
                 "direct_assignment_percentage": m["direct_assignment_percentage"],
                 "direct_assignment_30k_38k": m["direct_assignment_30k_38k"],
                 "payment_30k_38k": m["payment_30k_38k"],
+                "total_received_amount": m["total_received_amount"],
             },
         )
         return stats
