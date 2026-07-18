@@ -1,0 +1,321 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}IP Address Summary{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+    .ip-summary-container {
+        padding: 20px;
+        max-width: 1500px;
+    }
+
+    .ip-summary-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .ip-summary-header h1 {
+        margin: 0;
+        font-size: 22px;
+    }
+
+    .ip-summary-header .toolbar {
+        display: flex;
+        gap: 10px;
+    }
+
+    .ip-summary-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--body-bg);
+        border: 1px solid var(--border-color, #ccc);
+        border-radius: 4px;
+    }
+
+    .ip-summary-table th {
+        background: var(--darkened-bg);
+        padding: 10px 12px;
+        text-align: left;
+        font-size: 12px;
+        text-transform: uppercase;
+        color: var(--body-quiet-color);
+        border-bottom: 2px solid var(--border-color, #ccc);
+        white-space: nowrap;
+    }
+
+    .ip-summary-table td {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--hairline-color, #eee);
+        font-size: 13px;
+        vertical-align: top;
+    }
+
+    .ip-summary-table tr:hover {
+        background: var(--selected-row);
+    }
+
+    .ip-summary-table .ip-cell {
+        font-family: monospace;
+        font-size: 13px;
+    }
+
+    .ip-summary-table .ip-cell a {
+        font-weight: 600;
+        color: var(--link-fg);
+    }
+
+    .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1.4;
+    }
+
+    .badge-banned {
+        background: #dc3545;
+        color: #fff;
+    }
+
+    .badge-flagged {
+        background: #ffc107;
+        color: #333;
+    }
+
+    .badge-clean {
+        background: #e9ecef;
+        color: #666;
+    }
+
+    .badge-scan {
+        background: #fd7e14;
+        color: #fff;
+    }
+
+    .stat-number {
+        font-weight: 600;
+        font-size: 14px;
+    }
+
+    .stat-muted {
+        color: var(--body-quiet-color);
+        font-size: 11px;
+    }
+
+    .status-codes {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        max-width: 250px;
+    }
+
+    .status-code-chip {
+        display: inline-block;
+        padding: 1px 6px;
+        border-radius: 3px;
+        font-size: 11px;
+        font-family: monospace;
+        background: var(--darkened-bg);
+    }
+
+    .status-code-chip.error {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .status-code-chip.warn {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .status-code-chip.success {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--body-quiet-color);
+    }
+
+    .empty-state p {
+        font-size: 14px;
+    }
+
+    .back-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    /* Sample requests */
+    .sample-requests {
+        max-width: 450px;
+    }
+
+    .sample-req {
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+        padding: 3px 0;
+        font-size: 11px;
+        border-bottom: 1px solid var(--hairline-color, #f0f0f0);
+        line-height: 1.4;
+    }
+
+    .sample-req:last-child {
+        border-bottom: none;
+    }
+
+    .req-method {
+        font-family: monospace;
+        font-weight: 700;
+        font-size: 10px;
+        color: var(--body-quiet-color);
+        min-width: 28px;
+        text-transform: uppercase;
+        flex-shrink: 0;
+    }
+
+    .req-url {
+        font-family: monospace;
+        font-size: 11px;
+        word-break: break-all;
+        flex: 1;
+        color: var(--body-fg);
+    }
+
+    .req-status {
+        font-family: monospace;
+        font-size: 10px;
+        font-weight: 600;
+        min-width: 24px;
+        text-align: center;
+        flex-shrink: 0;
+        padding: 0 3px;
+        border-radius: 3px;
+    }
+
+    .req-status.error {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .req-status.warn {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .req-status.success {
+        background: #d4edda;
+        color: #155724;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ip-summary-container">
+    <div class="ip-summary-header">
+        <h1>🔍 IP Address Summary</h1>
+        <div class="toolbar">
+            <a href="{% url 'admin:api_endpointaccesslog_changelist' %}" class="button back-link">
+                ← Back to Request Log
+            </a>
+        </div>
+    </div>
+
+    {% if ip_stats %}
+    <table class="ip-summary-table">
+        <thead>
+            <tr>
+                <th>IP Address</th>
+                <th>Status</th>
+                <th>Requests</th>
+                <th>Flagged</th>
+                <th>Unique Endpoints</th>
+                <th>First Seen</th>
+                <th>Last Seen</th>
+                <th>Top Status Codes</th>
+                <th>Sample Requests (recent)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for stat in ip_stats %}
+            <tr>
+                <td class="ip-cell">
+                    <a href="{% url 'admin:api_endpointaccesslog_changelist' %}?ip_address={{ stat.ip_address|urlencode }}"
+                       title="View all requests from this IP">
+                        {{ stat.ip_address }}
+                    </a>
+                </td>
+                <td>
+                    {% if stat.ban_status == "banned" %}
+                        <span class="badge badge-banned">BANNED</span>
+                    {% elif stat.ban_status == "flagged" %}
+                        <span class="badge badge-flagged" title="{{ stat.flag_reason }}">FLAGGED</span>
+                    {% else %}
+                        {% if stat.flagged_count > 0 %}
+                            <span class="badge badge-scan">SUSPICIOUS ({{ stat.flagged_count }})</span>
+                        {% else %}
+                            <span class="badge badge-clean">-</span>
+                        {% endif %}
+                    {% endif %}
+                </td>
+                <td class="stat-number">{{ stat.request_count }}</td>
+                <td>
+                    {% if stat.flagged_count > 0 %}
+                        <strong style="color: #dc3545;">{{ stat.flagged_count }}</strong>
+                    {% else %}
+                        0
+                    {% endif %}
+                </td>
+                <td>{{ stat.unique_endpoints }}</td>
+                <td class="stat-muted">{{ stat.first_seen|date:"Y-m-d H:i:s" }}</td>
+                <td class="stat-muted">{{ stat.last_seen|date:"Y-m-d H:i:s" }}</td>
+                <td>
+                    <div class="status-codes">
+                        {% for code in stat.top_status_codes %}
+                            {% with code|slice:":3" as code_num %}
+                            <span class="status-code-chip
+                                {% if code_num == '404' or code_num == '403' or code_num == '500' %}error
+                                {% elif code_num == '302' or code_num == '301' or code_num == '429' %}warn
+                                {% elif code_num == '200' or code_num == '201' %}success
+                                {% endif %}
+                            ">{{ code }}</span>
+                            {% endwith %}
+                        {% endfor %}
+                    </div>
+                </td>
+                <td>
+                    <div class="sample-requests">
+                        {% for req in stat.sample_requests %}
+                            <div class="sample-req" title="{{ req.timestamp }}">
+                                <span class="req-method">{{ req.method }}</span>
+                                <code class="req-url">{{ req.full_url }}</code>
+                                <span class="req-status
+                                    {% if req.status_code >= 400 %}error
+                                    {% elif req.status_code >= 300 %}warn
+                                    {% else %}success
+                                    {% endif %}
+                                ">{{ req.status_code }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <p>No access logs recorded yet.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

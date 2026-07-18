@@ -87,7 +87,7 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 5s
+      interval: 30s
       timeout: 15s
       retries: 5
 
@@ -105,7 +105,7 @@ services:
       - redis_data:/data
     healthcheck:
       test: ["CMD", "sh", "-c", "redis-cli $${REDIS_PASSWORD:+-a \"$$REDIS_PASSWORD\"} ping"]
-      interval: 5s
+      interval: 30s
       timeout: 3s
       retries: 5
 
