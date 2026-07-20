@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <!-- Magnifying glass handle -->
+  <line x1="78" y1="78" x2="103" y2="103" stroke="#1a1a2e" stroke-width="8" stroke-linecap="round"/>
+  <!-- "C" lens ring -->
+  <path d="M 76 19 A 40 40 0 1 0 76 81" fill="none" stroke="#1a1a2e" stroke-width="9" stroke-linecap="round"/>
+  <!-- Abacus (column top slab) -->
+  <rect x="30" y="34" width="36" height="6" rx="1" fill="#1a1a2e"/>
+  <!-- Echinus (cushion transition) -->
+  <path d="M 30 40 L 66 40 L 60 49 L 38 49 Z" fill="#1a1a2e"/>
+  <!-- Column shaft outline -->
+  <rect x="38" y="49" width="24" height="19" fill="none" stroke="#1a1a2e" stroke-width="2"/>
+  <!-- Fluting -->
+  <line x1="44" y1="50" x2="44" y2="67" stroke="#1a1a2e" stroke-width="1.2"/>
+  <line x1="50" y1="50" x2="50" y2="67" stroke="#1a1a2e" stroke-width="1.2"/>
+  <line x1="56" y1="50" x2="56" y2="67" stroke="#1a1a2e" stroke-width="1.2"/>
+</svg>
