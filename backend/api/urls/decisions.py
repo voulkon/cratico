@@ -9,6 +9,7 @@ PREFIX = "decisions/"
 
 from api.views import decisions as decisions_views
 from api.views import decisions_unified
+from api.views import decision_lists
 from api.views import search
 
 urlpatterns = [
@@ -18,6 +19,17 @@ urlpatterns = [
         "unified/",
         decisions_unified.decisions_unified_api,
         name="decisions_unified",
+    ),
+    # ── Top-N decision list endpoints (cached + pre-warmed) ─────────
+    path(
+        "top-payments/",
+        decision_lists.top_payments_api,
+        name="top_payments",
+    ),
+    path(
+        "top-direct-assignments/",
+        decision_lists.top_direct_assignments_api,
+        name="top_direct_assignments",
     ),
     # Decision detail endpoints (using integer ID)
     path("<int:decision_id>/", decisions_views.decision_detail, name="decision_detail"),

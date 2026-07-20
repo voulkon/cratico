@@ -12,15 +12,18 @@ import DateRangeSelector from '../components/DateRangeSelector';
 import DashboardGrid from '../components/DashboardGrid';
 import OrganizationsSection from '../components/OrganizationsSection';
 import DecisionsSection from '../components/DecisionsSection';
+import TopPaymentsSection from '../components/TopPaymentsSection';
+import TopDirectAssignmentsSection from '../components/TopDirectAssignmentsSection';
 import './HomePage.css';
 
 /**
  * Home Page Data Component — uses DateRangeContext.
  *
- * Renders a unified DashboardGrid with three columns:
- *   1. Top Org×Entity Relationship Pairs (loads independently)
- *   2. Most Active Organizations
- *   3. Notable Recent Decisions
+ * Renders a unified DashboardGrid with two columns:
+ *
+ *   [Featured: TopRelationshipPairs (full width)]
+ *   [Most Active Organizations]    [Notable Recent Decisions]
+ *   [Highest Payments]             [Highest Direct Assignments]
  *
  * Each column has uniform appearance: card background, scrollable list,
  * section header with "See All" link.
@@ -50,6 +53,16 @@ const DashboardData = () => {
 
       {/* Column 2 — Notable Recent Decisions (infinite scroll) */}
       <DecisionsSection
+        collapsible
+      />
+
+      {/* Row 2, Column 1 — Highest Payment Decisions */}
+      <TopPaymentsSection
+        collapsible
+      />
+
+      {/* Row 2, Column 2 — Highest Direct-Assignment Decisions */}
+      <TopDirectAssignmentsSection
         collapsible
       />
     </DashboardGrid>

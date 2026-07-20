@@ -11,8 +11,15 @@ To add new post-import work:
   3. Add a feature flag key to KNOWN_FLAGS in feature_flag_service.py
 
 Execution order (via Celery chain):
-  compute_entity_rankings  →  warm_analytics_cache  →  check_all_subscriptions
+  compute_entity_rankings  →  warm_analytics_cache  →  invalidate_browse_cache
+  →  trigger_check_all_subscriptions
   (Track 2: DB snapshots)     (Track 1: Redis cache)     (Notifications)
+
+Views warmed (all DashboardGrid sections):
+  explore_orgs               → OrganizationsSection
+  da_top_pairs               → TopRelationshipPairs (featured)
+  top_payments               → TopPaymentsSection
+  top_direct_assignments     → TopDirectAssignmentsSection
 """
 
 from datetime import date, timedelta
@@ -96,41 +103,22 @@ def _build_warmup_sentinel_keys(
             limit=page_size, offset="0",
         )]
 
-    if view_name == "explore_decisions":
+    if view_name == "top_payments":
         return [response_cache.build_key(
-            "explore_decisions",
+            "top_payments",
             start_date=start_str, end_date=end_str,
-            page="1", page_size=page_size,
-            sort_by="entity_amount_desc",
-            organization_uid="", entity_afm="",
-            direct_assignments_only="",
+            limit=page_size, offset="0",
         )]
 
-    if view_name == "unified":
-        # The unified endpoint caches 3 views for source=temporal.
-        # We set a sentinel on the date_range key as the canonical
-        # representative — all 3 are warmed by the same warm_fn call.
+    if view_name == "top_direct_assignments":
         return [response_cache.build_key(
-            "unified",
-            source="temporal", view="date_range",
+            "top_direct_assignments",
             start_date=start_str, end_date=end_str,
+            limit=page_size, offset="0",
         )]
 
-    if view_name in ("da_top_entities", "da_top_orgs"):
-        return [
-            response_cache.build_key(
-                view_name,
-                end_date=end_str, limit=page_size,
-                offset="0", sort_by=sort, start_date=start_str,
-            )
-            for sort in ("amount", "frequency")
-        ]
-
-    # Single-key views: explore_decision_types, explore_statistics
-    return [response_cache.build_key(
-        view_name,
-        end_date=end_str, start_date=start_str,
-    )]
+    # Fallback for unknown views
+    return []
 
 
 # ---------------------------------------------------------------------------
@@ -253,9 +241,10 @@ def warm_analytics_cache(reference_date_str: str | None = None):
     cache keys match exactly.
 
     Views warmed:
-      - explore_orgs           (explore/organizations/)   page_size=6
-      - da_top_pairs           (direct-assignments/top-pairs/)  page_size=6
-      - unified                (decisions/unified/?source=temporal)  3 views
+      - explore_orgs              (explore/organizations/)          page_size=6
+      - da_top_pairs              (direct-assignments/top-pairs/)   page_size=6
+      - top_payments              (decisions/top-payments/)         page_size=5
+      - top_direct_assignments    (decisions/top-direct-assignments/) page_size=5
 
     Views NOT warmed (frontend no longer calls these directly):
       - explore_decisions      frontend uses unified?view=decisions (not cached)
@@ -274,7 +263,8 @@ def warm_analytics_cache(reference_date_str: str | None = None):
     from core.services.analytics_precalc_service import (
         warm_da_top_pairs_window,
         warm_explore_orgs_window,
-        warm_unified_window,
+        warm_top_direct_assignments_window,
+        warm_top_payments_window,
     )
 
     ref = (
@@ -316,7 +306,8 @@ def warm_analytics_cache(reference_date_str: str | None = None):
         for view_name, warm_fn, kwargs in [
             ("explore_orgs", warm_explore_orgs_window, {"max_limit": 200, "page_size": 6}),
             ("da_top_pairs", warm_da_top_pairs_window, {"max_limit": 50, "page_size": 6}),
-            ("unified", warm_unified_window, {}),
+            ("top_payments", warm_top_payments_window, {"page_size": 5}),
+            ("top_direct_assignments", warm_top_direct_assignments_window, {"page_size": 5}),
         ]:
             # ── Build sentinel warmup keys so L2 (defer_on_miss) can
             #     detect that L3 is already working on this view ──────
