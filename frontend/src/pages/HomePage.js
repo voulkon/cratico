@@ -6,6 +6,7 @@ import { useAuthConfig } from '../contexts/AuthConfigContext';
 import { DateRangeProvider, useDateRange } from '../contexts/DateRangeContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import SuperSearch from '../components/SuperSearch';
+import LogoGlyph from '../components/LogoGlyph';
 import { GlobeIcon } from '../components/Icons';
 import TopRelationshipPairs from '../components/TopRelationshipPairs';
 import DateRangeSelector from '../components/DateRangeSelector';
@@ -100,9 +101,12 @@ const HomePage = () => {
           {/* Hero Section */}
           <section className="hero-section">
             <div className="hero-content">
-              <h1 className="hero-title">
-                {t('homepage.title')}
-              </h1>
+              <div className="hero-brand">
+                <LogoGlyph size={40} />
+                <h1 className="hero-title">
+                  {t('homepage.title')}
+                </h1>
+              </div>
               <p className="hero-subtitle">
                 {t('homepage.subtitle')}
               </p>
@@ -156,9 +160,12 @@ const HomePage = () => {
           {/* Hero Section */}
           <section className="hero-section">
             <div className="hero-content">
-              <h1 className="hero-title">
-                {t('homepage.title')}
-              </h1>
+              <div className="hero-brand">
+                <LogoGlyph size={40} />
+                <h1 className="hero-title">
+                  {t('homepage.title')}
+                </h1>
+              </div>
               <p className="hero-subtitle">
                 {t('homepage.subtitle')}
               </p>
