@@ -3,18 +3,17 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: transform 0.2s ease, opacity 0.2s ease;
+  transition: all var(--transition-fast);
   text-decoration: none;
   padding: var(--spacing-xs) var(--spacing-sm);
   border-radius: var(--radius-md);
-  background-color: var(--surface-color);
+  background-color: transparent;
   backdrop-filter: blur(10px);
   box-shadow: 0 2px 8px var(--shadow);
   height: var(--top-controls-height);
-  min-width: fit-content;
-  /* The SVG inherits colour from here — set to the primary palette
-     colour so the logo stands out against text in both themes. */
-  color: var(--palette-primary);
+  min-width: var(--top-controls-height);
+  /* Match the control buttons: text-colour so it blends in. */
+  color: var(--text-color);
 }
 
 /* Stroke-width control for the logo SVG.
@@ -32,12 +31,12 @@
 }
 
 .logo-link:hover {
-  transform: scale(1.02);
-  opacity: 0.9;
+  background-color: var(--hover-bg);
+  transform: translateY(-2px);
 }
 
 .logo-link:active {
-  transform: scale(0.98);
+  transform: translateY(0);
 }
 
 /* Responsive */

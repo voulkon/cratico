@@ -39,21 +39,21 @@ const TopControls = ({
 
   return (
     <>
-      {/* Left side: Logo + page-header slot — stays fixed at top-left.
+      {/* Left side: page-header slot — stays fixed at top-left.
           The container is always rendered so the portal target (#top-bar-slot)
-          is available even when the logo is hidden (e.g. homepage). */}
-      <div className={`left-controls ${isLibraryOpen ? 'shifted' : ''}`}>
-        {!hideLogo && (
-          <div className="logo-container">
-            <Logo size="small" />
-          </div>
-        )}
+          is available even on the homepage. */}
+      <div className={`left-controls ${isLibraryOpen ? 'shifted' : ''} ${isCollapsed ? 'controls-collapsed' : ''}`}>
         <div id="top-bar-slot" />
       </div>
 
       {/* Right side: Collapsible controls — lives inside the grid's .controls-area */}
-      <div className={`top-controls-wrapper ${layout} ${isCollapsed ? 'collapsed' : 'expanded'}`}>
-        {/* Collapse/Expand Toggle Button */}
+      <div className={`top-controls-wrapper ${layout}`}>
+        {/* Logo — always visible, sits at the top */}
+        {!hideLogo && (
+          <Logo size="small" />
+        )}
+
+        {/* Collapse/Expand Toggle — always visible, right below the logo */}
         <button
           className="controls-collapse-toggle"
           onClick={toggleCollapse}
@@ -63,22 +63,25 @@ const TopControls = ({
           {isCollapsed ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
         </button>
 
-        {/* User Menu, Bookmark button, then Notification button */}
-        <div className={`top-controls ${layout}`}>
-          <UserMenu
-            isOpen={isUserMenuOpen}
-            onToggle={onUserMenuToggle}
-          />
-          <BookmarkButton
-            onLibraryToggle={onLibraryToggle}
-            isLibraryOpen={isLibraryOpen}
-            bookmarkCount={bookmarkCount}
-          />
-          <NotificationButton
-            onSidebarToggle={onNotificationSidebarToggle}
-            isSidebarOpen={isNotificationSidebarOpen}
-          />
-          <FontSizeControl />
+        {/* Collapsible section: slides right and hides when collapsed */}
+        <div className={`top-controls-collapsible ${isCollapsed ? 'collapsed' : 'expanded'}`}>
+          {/* User Menu, Bookmark button, then Notification button */}
+          <div className={`top-controls ${layout}`}>
+            <UserMenu
+              isOpen={isUserMenuOpen}
+              onToggle={onUserMenuToggle}
+            />
+            <BookmarkButton
+              onLibraryToggle={onLibraryToggle}
+              isLibraryOpen={isLibraryOpen}
+              bookmarkCount={bookmarkCount}
+            />
+            <NotificationButton
+              onSidebarToggle={onNotificationSidebarToggle}
+              isSidebarOpen={isNotificationSidebarOpen}
+            />
+            <FontSizeControl />
+          </div>
         </div>
       </div>
     </>
