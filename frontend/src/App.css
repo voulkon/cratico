@@ -20,15 +20,21 @@
   padding-top: var(--top-controls-offset);
 }
 
+/* On mobile the controls start collapsed (see App.js), so the collapsed
+   width must apply — otherwise the expanded-width override below would
+   eat nearly the whole screen. Specificity ties with .controls-collapsed,
+   so we repeat the collapsed value here to win on source order. */
 @media (max-width: 768px) {
-  .main-area {
-    padding-right: var(--controls-expanded-width);
+  .main-area,
+  .main-area.controls-collapsed {
+    padding-right: var(--controls-collapsed-width);
   }
 }
 
 @media (max-width: 480px) {
-  .main-area {
-    padding-right: var(--controls-expanded-width);
+  .main-area,
+  .main-area.controls-collapsed {
+    padding-right: var(--controls-collapsed-width);
   }
 }
 
