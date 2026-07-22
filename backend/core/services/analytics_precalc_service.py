@@ -1466,7 +1466,13 @@ def compute_top_payments(
             issue_date_day__lte=end_dt,
             decision_type__uid="Β.2.2",
         )
-        .annotate(calculated_amount=models.Sum("amount_fields__amount"))
+        .annotate(
+            calculated_amount=models.Sum(
+                "amount_fields__amount",
+                filter=models.Q(amount_fields__associated_relationship__isnull=False),
+            )
+        )
+        .exclude(calculated_amount__isnull=True)
         .order_by("-calculated_amount")
     )
 
@@ -1566,7 +1572,13 @@ def compute_top_direct_assignments(
             issue_date_day__lte=end_dt,
             classification__is_direct_assignment=True,
         )
-        .annotate(calculated_amount=models.Sum("amount_fields__amount"))
+        .annotate(
+            calculated_amount=models.Sum(
+                "amount_fields__amount",
+                filter=models.Q(amount_fields__associated_relationship__isnull=False),
+            )
+        )
+        .exclude(calculated_amount__isnull=True)
         .order_by("-calculated_amount")
     )
 
