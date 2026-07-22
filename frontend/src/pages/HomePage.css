@@ -19,6 +19,16 @@
   text-align: center;
 }
 
+.hero-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  /* Feeds the LogoGlyph SVG's currentColor so it tracks the palette */
+  color: var(--palette-primary);
+}
+
 .hero-title {
   font-size: 3.5rem;
   font-weight: var(--font-bold);
