@@ -17,6 +17,20 @@
   color: var(--palette-primary);
 }
 
+/* Stroke-width control for the logo SVG.
+   Two independent variables so the magnifier ring/handle can be
+   thicker than the inner column details:
+     --logo-stroke-surrounding  (default 6px)
+     --logo-stroke-column       (default 2px)
+   Override via Logo's strokeSurrounding / strokeColumn props, or
+   tweak live in browser devtools on the <svg> element. */
+.logo-link .logo-surrounding {
+  stroke-width: var(--logo-stroke-surrounding, 6);
+}
+.logo-link .logo-column {
+  stroke-width: var(--logo-stroke-column, 0.5);
+}
+
 .logo-link:hover {
   transform: scale(1.02);
   opacity: 0.9;

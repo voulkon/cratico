@@ -10,11 +10,13 @@ import './Logo.css';
  *   'small' (20), 'medium' (30), 'large' (40).  Defaults to 'medium'.
  * @param {string} color - CSS colour value passed through to LogoGlyph.
  *   Defaults to 'currentColor' (theme-aware via parent CSS).
+ * @param {number} strokeSurrounding - magnifier stroke px, forwarded to LogoGlyph.
+ * @param {number} strokeColumn - column stroke px, forwarded to LogoGlyph.
  * @param {string} className - optional additional CSS class(es).
  */
 const SIZE_MAP = { small: 20, medium: 30, large: 40 };
 
-const Logo = ({ size = 'medium', color = 'currentColor', className }) => {
+const Logo = ({ size = 'medium', color = 'currentColor', strokeSurrounding, strokeColumn, className }) => {
   const px = typeof size === 'number' ? size : (SIZE_MAP[size] ?? SIZE_MAP.medium);
   const sizeKey = typeof size === 'string' ? size : 'medium';
 
@@ -24,7 +26,12 @@ const Logo = ({ size = 'medium', color = 'currentColor', className }) => {
       className={`logo-link logo-${sizeKey}${className ? ` ${className}` : ''}`}
       aria-label="Home"
     >
-      <LogoGlyph size={px} color={color} />
+      <LogoGlyph
+        size={px}
+        color={color}
+        strokeSurrounding={strokeSurrounding}
+        strokeColumn={strokeColumn}
+      />
     </Link>
   );
 };

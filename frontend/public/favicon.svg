@@ -1,16 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-  <!-- Magnifying glass handle -->
-  <line x1="78" y1="78" x2="103" y2="103" stroke="#1a1a2e" stroke-width="8" stroke-linecap="round"/>
-  <!-- "C" lens ring -->
-  <path d="M 76 19 A 40 40 0 1 0 76 81" fill="none" stroke="#1a1a2e" stroke-width="9" stroke-linecap="round"/>
-  <!-- Abacus (column top slab) -->
-  <rect x="30" y="34" width="36" height="6" rx="1" fill="#1a1a2e"/>
-  <!-- Echinus (cushion transition) -->
-  <path d="M 30 40 L 66 40 L 60 49 L 38 49 Z" fill="#1a1a2e"/>
-  <!-- Column shaft outline -->
-  <rect x="38" y="49" width="24" height="19" fill="none" stroke="#1a1a2e" stroke-width="2"/>
-  <!-- Fluting -->
-  <line x1="44" y1="50" x2="44" y2="67" stroke="#1a1a2e" stroke-width="1.2"/>
-  <line x1="50" y1="50" x2="50" y2="67" stroke="#1a1a2e" stroke-width="1.2"/>
-  <line x1="56" y1="50" x2="56" y2="67" stroke="#1a1a2e" stroke-width="1.2"/>
+<svg width="64" height="76" viewBox="0 0 64 76" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M53 63L60 74Z" fill="currentColor"/>
+<path d="M53 63L60 74" stroke="currentColor" stroke-width="6" class="logo-surrounding" stroke-linecap="round"/>
+<path d="M62 13.4526C57.5229 8.41638 51.5092 4.80045 44.7755 3.09591C38.0418 1.39138 30.9144 1.68083 24.3613 3.92497C17.8083 6.16911 12.1471 10.2592 8.14652 15.6397C4.14598 21.0203 2 27.4305 2 34C2 40.5695 4.14598 46.9797 8.14652 52.3603C12.1471 57.7408 17.8083 61.8309 24.3613 64.075C30.9144 66.3192 38.0418 66.6086 44.7755 64.9041C51.5092 63.1995 57.5229 59.5836 62 54.5474" stroke="currentColor" stroke-width="6" class="logo-surrounding" stroke-linecap="round"/>
+<path d="M57 51.0049V54H16V51.0049H57ZM53.9492 46.2139V49.208H19.0508V46.2139H53.9492ZM23.4375 23.8525V44.417H20.5771V23.8525H23.4375ZM33.0996 23.8525V44.417H30.2393V23.8525H33.0996ZM42.7607 23.8525V44.417H39.9004V23.8525H42.7607ZM52.4229 23.8525V44.417H49.5625V23.8525H52.4229ZM53.9492 20.6582V22.0557H19.0508V20.6582H53.9492ZM55.9512 18.8613H17.0488L36.5 8L55.9512 18.8613Z" fill="currentColor"/>
+<path d="M57 51.0049V54H16V51.0049H57ZM53.9492 46.2139V49.208H19.0508V46.2139H53.9492ZM23.4375 23.8525V44.417H20.5771V23.8525H23.4375ZM33.0996 23.8525V44.417H30.2393V23.8525H33.0996ZM42.7607 23.8525V44.417H39.9004V23.8525H42.7607ZM52.4229 23.8525V44.417H49.5625V23.8525H52.4229ZM53.9492 20.6582V22.0557H19.0508V20.6582H53.9492ZM55.9512 18.8613H17.0488L36.5 8L55.9512 18.8613Z" stroke="currentColor" class="logo-column" stroke-width="1.2"/>
 </svg>
