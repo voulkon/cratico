@@ -79,6 +79,12 @@
   right: calc(var(--controls-collapsed-width) + var(--spacing-md));
 }
 
+/* Vertical layouts: controls stack, so the reserved right space is narrower. */
+.left-controls.layout-vertical-right,
+.left-controls.layout-vertical-left {
+  right: calc(var(--controls-expanded-width-vertical) + var(--spacing-md));
+}
+
 /* Top controls wrapper — fixed to the viewport top-right.
    max-width = reserved space minus the right margin so it can
    never be wider than what .main-area's padding-right reserves. */
@@ -211,6 +217,11 @@
     right: calc(var(--controls-expanded-width) + var(--spacing-sm));
   }
 
+  .left-controls.layout-vertical-right,
+  .left-controls.layout-vertical-left {
+    right: calc(var(--controls-expanded-width-vertical) + var(--spacing-sm));
+  }
+
   .left-controls.shifted {
     left: var(--spacing-sm);
   }
@@ -238,5 +249,10 @@
     top: var(--spacing-xs);
     left: var(--spacing-xs);
     right: calc(var(--controls-expanded-width) + var(--spacing-xs));
+  }
+
+  .left-controls.layout-vertical-right,
+  .left-controls.layout-vertical-left {
+    right: calc(var(--controls-expanded-width-vertical) + var(--spacing-xs));
   }
 }

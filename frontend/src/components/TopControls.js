@@ -42,7 +42,7 @@ const TopControls = ({
       {/* Left side: page-header slot — stays fixed at top-left.
           The container is always rendered so the portal target (#top-bar-slot)
           is available even on the homepage. */}
-      <div className={`left-controls ${isLibraryOpen ? 'shifted' : ''} ${isCollapsed ? 'controls-collapsed' : ''}`}>
+      <div className={`left-controls layout-${layout} ${isLibraryOpen ? 'shifted' : ''} ${isCollapsed ? 'controls-collapsed' : ''}`}>
         <div id="top-bar-slot" />
       </div>
 
