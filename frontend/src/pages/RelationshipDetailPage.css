@@ -3,7 +3,7 @@
 
 /* Relationship Detail Page Styles */
 .relationship-detail-page {
-  max-width: 1400px;
+  max-width: var(--content-max-width);
   margin: 0 auto;
   padding: 24px;
 }
@@ -48,6 +48,7 @@
   justify-content: center;
   gap: 4px;
   width: 100%;
+  max-width: var(--content-max-width) !important;
   height: var(--top-controls-height);
   padding: 0 4px;
   background: none;
@@ -55,7 +56,6 @@
   overflow: hidden;
   white-space: normal !important;
   text-overflow: clip !important;
-  max-width: none !important;
 }
 
 .entity-card-topbar {
