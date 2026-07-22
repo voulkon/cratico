@@ -468,6 +468,12 @@
     grid-template-columns: 1fr;
   }
 
+  /* Reduce inner padding so nested content gets more room. */
+  .dashboard-grid-content {
+    padding: var(--spacing-sm);
+    gap: var(--spacing-sm);
+  }
+
   .dashboard-grid-section {
     max-height: 420px;
   }

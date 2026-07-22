@@ -280,8 +280,8 @@
   color: var(--text-color);
   flex: 1;
   min-width: 0;
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 .counterpart-details {
@@ -560,8 +560,67 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
+  .top-counterparts-content {
+    padding: 0 12px 16px;
+    max-height: 440px;
+  }
+
   .counterparts-grid {
-    gap: 10px;
+    gap: var(--spacing-sm);
+  }
+
+  /* Left-aligned compact card — keep column flex, shrink font */
+  .counterpart-card {
+    align-items: flex-start;
+    text-align: left;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: 12px;
+    margin-bottom: 0;
+    gap: 4px;
+  }
+
+  .counterpart-header {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .counterpart-name {
+    font-size: var(--font-sm);
+    font-weight: var(--font-medium);
+    text-align: left;
+  }
+
+  .counterpart-details {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  /* Stats: switch from column to row so amount + count sit side by side */
+  .counterpart-stats {
+    flex-direction: row;
+    padding: var(--spacing-xs) 0 0;
+    width: 100%;
+    justify-content: flex-start;
+    align-items: center;
+    gap: var(--spacing-sm);
+  }
+
+  .counterpart-stats::before {
+    display: none;
+  }
+
+  .stat-value.amount {
+    font-size: var(--font-xs);
+    padding: 2px var(--spacing-sm);
+    white-space: nowrap;
+    /* Don't clip — with reduced padding the full number should fit */
+    overflow: visible;
+    text-overflow: clip;
+    max-width: none;
+  }
+
+  .stat-subtitle {
+    font-size: var(--font-xs);
   }
 
   .counterparts-info {
@@ -578,9 +637,5 @@
   .toggle-switch {
     width: 100%;
     justify-content: space-between;
-  }
-
-  .top-counterparts-content {
-    max-height: 440px;
   }
 }

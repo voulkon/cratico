@@ -176,6 +176,18 @@
 
 /* ── Responsive Design ──────────────────────────────────────────── */
 @media (max-width: 768px) {
+  /* Collapse the huge right padding — main-area already reserves space
+     for the controls column, so the container only needs a small gutter. */
+  .homepage-container {
+    padding-left: var(--spacing-md);
+    padding-right: var(--spacing-md);
+  }
+
+  /* Compact the card padding so content isn't buried in whitespace. */
+  .data-section {
+    padding: var(--spacing-sm);
+  }
+
   .hero-title {
     font-size: 2.5rem;
   }
