@@ -24,6 +24,7 @@
      plus right-margin (12px) never overflow: need ≥ 154px, give 160px minimum.
      Collapsed: toggle button (44px) + right-margin (12px) = 56px. */
   --controls-expanded-width: clamp(160px, 14vw, 200px);
+  --controls-expanded-width-vertical: 110px;
   --controls-collapsed-width: 56px;
   --controls-column-width: var(--controls-expanded-width);
 
@@ -684,6 +685,7 @@ code {
     --top-controls-offset: var(--top-band-height);
     /* Mobile SplitButtons shrink to 68px min; still need toggle(40px)+gap(8px)+btn(68px)+margin(8px)=124px */
     --controls-expanded-width: clamp(124px, 16vw, 160px);
+    --controls-expanded-width-vertical: 90px;
     --controls-collapsed-width: 48px;
   }
 }
@@ -694,6 +696,7 @@ code {
     --top-controls-height: calc(var(--top-band-height) - var(--spacing-xs) - var(--spacing-xs));
     --top-controls-offset: var(--top-band-height);
     --controls-expanded-width: clamp(116px, 20vw, 140px);
+    --controls-expanded-width-vertical: 80px;
     --controls-collapsed-width: 44px;
   }
 }
