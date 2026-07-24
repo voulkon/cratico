@@ -6,9 +6,10 @@
  *   and the signer-organizations section in EntityDetailPage.
  *
  * Visual spec:
- *   • Borderless card with --card-shadow + hover lift
+ *   • Neobrutalist card: hard border + hard-offset shadow, no blur
+ *     (Knobs in index.css: --neo-shadow-offset, --neo-border-width, …)
  *   • Centered plain-text title (--text-color)
- *   • Optional left accent border (4px --palette-primary)
+ *   • Optional left accent border (--neo-accent-width --palette-primary)
  *   • Chevron pinned absolute-right; optional badge left of it
  *   • Content divider only visible when open
  */
@@ -16,22 +17,25 @@
 /* ── Card shell (<details>) ──────────────────────────────────────────── */
 .collapsible-card {
   margin: var(--spacing-xl) 0;
-  border: none;
-  border-radius: var(--radius-lg);
+  border: var(--neo-border-width) solid var(--border-color);
+  border-radius: var(--neo-radius);
   background-color: var(--card-bg);
-  box-shadow: var(--card-shadow);
+  /* Neobrutalist hard-offset shadow — no blur, pure offset */
+  box-shadow:
+    var(--neo-shadow-offset) var(--neo-shadow-offset) 0 var(--border-color);
   overflow: hidden;
-  transition: box-shadow 0.25s ease, transform 0.25s ease;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .collapsible-card:hover {
-  box-shadow: var(--card-shadow-hover);
-  transform: translateY(-2px);
+  box-shadow:
+    var(--neo-shadow-offset-hover) var(--neo-shadow-offset-hover) 0 var(--border-color);
+  transform: translate(var(--neo-lift-x), var(--neo-lift-y));
 }
 
-/* Accent border variant — 4px colored stripe on the left */
+/* Accent border variant — colored stripe on the left */
 .collapsible-card--accent {
-  border-left: 4px solid var(--palette-primary);
+  border-left: var(--neo-accent-width) solid var(--palette-primary);
 }
 
 /* ── Summary row — title centered, chevron pinned right ──────────────── */
@@ -107,7 +111,7 @@
 .collapsible-card__content {
   padding: var(--spacing-xl);
   padding-bottom: var(--spacing-xxl);
-  border-top: 1px solid var(--border-color);
+  border-top: var(--neo-divider-width) solid var(--border-color);
 }
 
 /* ── Responsive ──────────────────────────────────────────────────────── */

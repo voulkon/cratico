@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import CategoryTabs from '../components/CategoryTabs';
+import ScrollableCategoryTabs from '../components/ScrollableCategoryTabs';
 import LetterIndex from '../components/browse/LetterIndex';
 import EntityList from '../components/browse/EntityList';
-import { SearchIcon } from '../components/Icons';
+import { SearchIcon, GlobeIcon } from '../components/Icons';
 import TopBarSlot from '../components/TopBarSlot';
 import { getCategoryIcon, getCategoryLabel } from '../constants/categoryDefinitions';
 import './BrowsePage.css';
@@ -14,7 +14,7 @@ const ALL_KEY = 'all';
 const BROWSE_KEYS = ['organization', 'signer', 'unit', 'company', 'companyperson', 'afmentity'];
 
 const CATEGORIES = [
-  { key: ALL_KEY, label: 'All', icon: null },
+  { key: ALL_KEY, label: 'All', icon: React.createElement(GlobeIcon, { size: 14 }) },
   ...BROWSE_KEYS.map((key) => ({
     key,
     label: getCategoryLabel(key),
@@ -36,6 +36,7 @@ const BrowsePage = () => {
   const [prefixQuery, setPrefixQuery] = useState('');
   const [availableLetters, setAvailableLetters] = useState([]);
   const [scrollToLetter, setScrollToLetter] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
 
   const scrollContainerRef = useRef(null);
   const searchInputRef = useRef(null);
@@ -125,48 +126,101 @@ const BrowsePage = () => {
       {/* ── Top bar rendered into the fixed header via portal ──── */}
       <TopBarSlot>
         <div className="browse-top-bar-inline">
-          <CategoryTabs
-            categories={tabCategories}
-            selectedKey={entityType}
-            onSelect={handleTypeChange}
-          />
+          <div className="browse-tabs-desktop">
+            <ScrollableCategoryTabs
+              categories={tabCategories}
+              selectedKey={entityType}
+              onSelect={handleTypeChange}
+            />
+          </div>
 
-          <div className="browse-controls">
-            {/* Prefix search */}
-            <div className="browse-search-wrapper">
-              <SearchIcon size={16} className="browse-search-icon" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                className="browse-search-input"
-                placeholder="Filter by prefix (e.g. Tes)…"
-                value={prefixQuery}
-                onChange={handlePrefixSearch}
-                aria-label="Filter entities by prefix"
-              />
-              {prefixQuery && (
-                <button
-                  className="browse-search-clear"
-                  onClick={() => setPrefixQuery('')}
-                  aria-label="Clear filter"
-                >
-                  ✕
-                </button>
-              )}
+          <div className="browse-search-desktop">
+            <div className="browse-controls">
+              {/* Prefix search */}
+              <div className="browse-search-wrapper">
+                <SearchIcon size={16} className="browse-search-icon" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  className="browse-search-input"
+                  placeholder="Filter by prefix (e.g. Tes)…"
+                  value={prefixQuery}
+                  onChange={handlePrefixSearch}
+                  aria-label="Filter entities by prefix"
+                />
+                {isSearching && prefixQuery && (
+                  <div className="browse-search-spinner" />
+                )}
+                {prefixQuery && (
+                  <button
+                    className="browse-search-clear"
+                    onClick={() => setPrefixQuery('')}
+                    aria-label="Clear filter"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* Sort direction toggle */}
+              <button
+                className="browse-sort-btn"
+                onClick={handleSortToggle}
+                title={`Sort ${sort === 'asc' ? 'ascending' : 'descending'}`}
+                aria-label={`Sort ${sort === 'asc' ? 'ascending' : 'descending'}`}
+              >
+                {sort === 'asc' ? 'A→Z' : 'Z→A'}
+              </button>
             </div>
-
-            {/* Sort direction toggle */}
-            <button
-              className="browse-sort-btn"
-              onClick={handleSortToggle}
-              title={`Sort ${sort === 'asc' ? 'ascending' : 'descending'}`}
-              aria-label={`Sort ${sort === 'asc' ? 'ascending' : 'descending'}`}
-            >
-              {sort === 'asc' ? 'A→Z' : 'Z→A'}
-            </button>
           </div>
         </div>
       </TopBarSlot>
+
+      {/* ── Category tabs for narrow screens (moved out of the top ribbon) ── */}
+      <div className="browse-tabs-mobile">
+        <ScrollableCategoryTabs
+          categories={tabCategories}
+          selectedKey={entityType}
+          onSelect={handleTypeChange}
+        />
+      </div>
+
+      {/* ── Search controls for narrow screens ──────────────────── */}
+      <div className="browse-search-mobile">
+        <div className="browse-controls">
+          <div className="browse-search-wrapper">
+            <SearchIcon size={16} className="browse-search-icon" />
+            <input
+              type="text"
+              className="browse-search-input"
+              placeholder="Filter by prefix…"
+              value={prefixQuery}
+              onChange={handlePrefixSearch}
+              aria-label="Filter entities by prefix"
+            />
+            {isSearching && prefixQuery && (
+              <div className="browse-search-spinner" />
+            )}
+            {prefixQuery && (
+              <button
+                className="browse-search-clear"
+                onClick={() => setPrefixQuery('')}
+                aria-label="Clear filter"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          <button
+            className="browse-sort-btn"
+            onClick={handleSortToggle}
+            title={`Sort ${sort === 'asc' ? 'ascending' : 'descending'}`}
+            aria-label={`Sort ${sort === 'asc' ? 'ascending' : 'descending'}`}
+          >
+            {sort === 'asc' ? 'A→Z' : 'Z→A'}
+          </button>
+        </div>
+      </div>
 
       {/* ── Main layout: letter sidebar + entity list ────────────── */}
       <div className="browse-layout" ref={scrollContainerRef}>
@@ -211,6 +265,7 @@ const BrowsePage = () => {
             query={prefixQuery}
             sort={sort}
             onLettersLoaded={setAvailableLetters}
+            onLoadingChange={setIsSearching}
             scrollToLetter={scrollToLetter}
           />
         </div>

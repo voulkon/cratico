@@ -12,6 +12,23 @@
   box-shadow: 0 2px 8px var(--shadow);
   height: var(--top-controls-height);
   min-width: fit-content;
+  /* The SVG inherits colour from here — set to the primary palette
+     colour so the logo stands out against text in both themes. */
+  color: var(--palette-primary);
+}
+
+/* Stroke-width control for the logo SVG.
+   Two independent variables so the magnifier ring/handle can be
+   thicker than the inner column details:
+     --logo-stroke-surrounding  (default 6px)
+     --logo-stroke-column       (default 2px)
+   Override via Logo's strokeSurrounding / strokeColumn props, or
+   tweak live in browser devtools on the <svg> element. */
+.logo-link .logo-surrounding {
+  stroke-width: var(--logo-stroke-surrounding, 6);
+}
+.logo-link .logo-column {
+  stroke-width: var(--logo-stroke-column, 0.5);
 }
 
 .logo-link:hover {
@@ -23,63 +40,9 @@
   transform: scale(0.98);
 }
 
-.logo-text {
-  display: flex;
-  align-items: baseline;
-  font-weight: var(--font-bold);
-  letter-spacing: -0.5px;
-  line-height: 1;
-}
-
-.logo-crati,
-.logo-co {
-  color: var(--text-color);
-}
-
-/* First letters - make them taller and more prominent */
-.logo-crati::first-letter,
-.logo-co::first-letter {
-  font-size: 1.4em;
-  font-weight: var(--font-black);
-  background: linear-gradient(135deg, var(--palette-primary), var(--palette-secondary));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.logo-dot {
-  color: var(--palette-primary);
-  font-weight: var(--font-black);
-  margin: 0 1px;
-}
-
-/* Size variants */
-.logo-small .logo-text {
-  font-size: 16px;
-}
-
-.logo-medium .logo-text {
-  font-size: 20px;
-}
-
-.logo-large .logo-text {
-  font-size: 28px;
-}
-
 /* Responsive */
 @media (max-width: 480px) {
   .logo-link {
-    /* height inherits from --top-controls-height (32px at this breakpoint) */
     padding: var(--spacing-xs);
-  }
-
-  .logo-small .logo-text {
-    font-size: 14px;
-  }
-
-  /* Compact logo: "Crati.Co" → "C Co" on narrow screens */
-  .logo-rest,
-  .logo-dot {
-    display: none;
   }
 }

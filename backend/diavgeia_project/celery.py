@@ -24,16 +24,17 @@ is_celery_beat = len(sys.argv) > 1 and "beat" in sys.argv
 @beat_init.connect
 def init_beat_tracing(*args, **kwargs):
     from django.conf import settings
+    from loguru import logger
 
     if not settings.TRANSMIT_TO_JAEGER:
-        print("[MUTE] [Beat] Jaeger tracing disabled (TRANSMIT_TO_JAEGER=false)")
+        logger.info("[Beat] Jaeger tracing disabled (TRANSMIT_TO_JAEGER=false)")
         return
     try:
         initialize_otel("diavgeia-celery-beat")
         CeleryInstrumentor().instrument()
-        print("[OK] [Beat] OpenTelemetry initialized")
+        logger.info("[Beat] OpenTelemetry initialized")
     except Exception as e:
-        print(f"[ERROR] [Beat] Failed to initialize OpenTelemetry: {e}")
+        logger.error(f"[Beat] Failed to initialize OpenTelemetry: {e}")
 
 
 # If we are NOT a worker and NOT beat (e.g. Django web, management command, etc.)
@@ -75,11 +76,10 @@ def init_celery_tracing(*args, **kwargs):
     are not fork-safe and break when inherited from the parent process.
     """
     from django.conf import settings
+    from loguru import logger
 
     if not settings.TRANSMIT_TO_JAEGER:
-        print(
-            "[MUTE] [Worker Child] Jaeger tracing disabled (TRANSMIT_TO_JAEGER=false)"
-        )
+        logger.info("[Worker Child] Jaeger tracing disabled (TRANSMIT_TO_JAEGER=false)")
         return
     try:
         # 1. Force reset the global state in otel_init module
@@ -93,15 +93,20 @@ def init_celery_tracing(*args, **kwargs):
         trace._TRACER_PROVIDER = None
 
         # 3. Re-initialize with a fresh gRPC channel
-        print("[RETRY] [Worker Child] Re-initializing OpenTelemetry for fork safety...")
+        # Brief sleep to let the old gRPC channel drain before creating a new one.
+        # On Docker-for-Mac (flaky gRPC/FUSE), failing to drain can cause "transport
+        # closed by client" errors and worker crash loops.
+        import time
+        time.sleep(0.5)
+        logger.info("[Worker Child] Re-initializing OpenTelemetry for fork safety")
         initialize_otel("diavgeia-celery")
 
         # 4. Ensure instrumentation is active for this process
         # We explicitly instrument here for the worker child logic
         CeleryInstrumentor().instrument()
-        print("[OK] [Worker Child] OpenTelemetry re-initialized successfully")
+        logger.info("[Worker Child] OpenTelemetry re-initialized successfully")
     except Exception as e:
-        print(f"[ERROR] [Worker Child] Failed to re-initialize OpenTelemetry: {e}")
+        logger.error(f"[Worker Child] Failed to re-initialize OpenTelemetry: {e}")
 
 
 # Instrumentation is now handled via signals (worker_process_init, beat_init)

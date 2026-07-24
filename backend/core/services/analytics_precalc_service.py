@@ -1433,6 +1433,215 @@ def warm_explore_statistics_window(
         f"(decisions={data['summary']['decisions']['total_count']})"
     )
 
+
+# ---------------------------------------------------------------------------
+# top_payments  (decisions/top-payments/)
+# ---------------------------------------------------------------------------
+
+def compute_top_payments(
+    start_dt: datetime,
+    end_dt: datetime,
+    start_date_str: str,
+    end_date_str: str,
+    limit: int = 5,
+    offset: int = 0,
+) -> dict:
+    """
+    Return the highest-amount payment (Β.2.2) decisions in a date range.
+
+    Single source of truth shared by:
+      - top_payments_api            (view delegates here on cache miss)
+      - warm_top_payments_window    (warmup pre-populates cache)
+
+    Returns the same shape as ``paginate_decisions`` so the frontend can
+    reuse the same rendering code as ``DecisionsSection``.
+    """
+    from core.models.decisions import Decision
+    from core.services.decision_projections import paginate_decisions
+
+    qs = (
+        Decision.objects
+        .filter(
+            issue_date_day__gte=start_dt,
+            issue_date_day__lte=end_dt,
+            decision_type__uid="Β.2.2",
+        )
+        .annotate(
+            calculated_amount=models.Sum(
+                "amount_fields__amount",
+                filter=models.Q(amount_fields__associated_relationship__isnull=False),
+            )
+        )
+        .exclude(calculated_amount__isnull=True)
+        .order_by("-calculated_amount")
+    )
+
+    return paginate_decisions(
+        qs,
+        page=(offset // limit) + 1 if limit else 1,
+        page_size=limit,
+        filters={
+            "start_date": start_date_str,
+            "end_date": end_date_str,
+            "sort_by": "amount_desc",
+        },
+    )
+
+
+def warm_top_payments_window(
+    start_date_str: str,
+    end_date_str: str,
+    end_date: date,
+    page_size: int = 5,
+) -> None:
+    """
+    Pre-populate the top_payments cache key for page 1.
+
+    The DashboardGrid only ever requests page 1 with a fixed page_size, so
+    we cache just that one page.  If the result set is empty we still cache
+    it so the first real request is a cache hit (avoiding defer_on_miss).
+    """
+    from django.utils.dateparse import parse_date
+
+    start_parsed = parse_date(start_date_str)
+    end_parsed = parse_date(end_date_str)
+    if not start_parsed or not end_parsed:
+        raise ValueError(
+            f"warm_top_payments_window: invalid date strings "
+            f"({start_date_str!r}, {end_date_str!r})"
+        )
+
+    start_dt = _make_aware_start(start_parsed)
+    end_dt = _make_aware_end(end_parsed)
+
+    data = compute_top_payments(
+        start_dt=start_dt,
+        end_dt=end_dt,
+        start_date_str=start_date_str,
+        end_date_str=end_date_str,
+        limit=page_size,
+        offset=0,
+    )
+
+    cache_key = response_cache.build_key(
+        "top_payments",
+        start_date=start_date_str,
+        end_date=end_date_str,
+        limit=str(page_size),
+        offset="0",
+    )
+    response_cache.set(cache_key, data, end_date=end_date)
+
+    total = data["pagination"]["total_count"]
+    logger.info(
+        f"[AnalyticsPrecalc] Warmed top_payments "
+        f"[{start_date_str} → {end_date_str}] "
+        f"(total={total}, page_size={page_size})"
+    )
+
+
+# ---------------------------------------------------------------------------
+# top_direct_assignments  (decisions/top-direct-assignments/)
+# ---------------------------------------------------------------------------
+
+def compute_top_direct_assignments(
+    start_dt: datetime,
+    end_dt: datetime,
+    start_date_str: str,
+    end_date_str: str,
+    limit: int = 5,
+    offset: int = 0,
+) -> dict:
+    """
+    Return the highest-amount direct-assignment decisions in a date range.
+
+    Single source of truth shared by:
+      - top_direct_assignments_api            (view delegates here on cache miss)
+      - warm_top_direct_assignments_window    (warmup pre-populates cache)
+
+    Returns the same shape as ``paginate_decisions`` so the frontend can
+    reuse the same rendering code as ``DecisionsSection``.
+    """
+    from core.models.decisions import Decision
+    from core.services.decision_projections import paginate_decisions
+
+    qs = (
+        Decision.objects
+        .filter(
+            issue_date_day__gte=start_dt,
+            issue_date_day__lte=end_dt,
+            classification__is_direct_assignment=True,
+        )
+        .annotate(
+            calculated_amount=models.Sum(
+                "amount_fields__amount",
+                filter=models.Q(amount_fields__associated_relationship__isnull=False),
+            )
+        )
+        .exclude(calculated_amount__isnull=True)
+        .order_by("-calculated_amount")
+    )
+
+    return paginate_decisions(
+        qs,
+        page=(offset // limit) + 1 if limit else 1,
+        page_size=limit,
+        filters={
+            "start_date": start_date_str,
+            "end_date": end_date_str,
+            "sort_by": "amount_desc",
+        },
+    )
+
+
+def warm_top_direct_assignments_window(
+    start_date_str: str,
+    end_date_str: str,
+    end_date: date,
+    page_size: int = 5,
+) -> None:
+    """
+    Pre-populate the top_direct_assignments cache key for page 1.
+    """
+    from django.utils.dateparse import parse_date
+
+    start_parsed = parse_date(start_date_str)
+    end_parsed = parse_date(end_date_str)
+    if not start_parsed or not end_parsed:
+        raise ValueError(
+            f"warm_top_direct_assignments_window: invalid date strings "
+            f"({start_date_str!r}, {end_date_str!r})"
+        )
+
+    start_dt = _make_aware_start(start_parsed)
+    end_dt = _make_aware_end(end_parsed)
+
+    data = compute_top_direct_assignments(
+        start_dt=start_dt,
+        end_dt=end_dt,
+        start_date_str=start_date_str,
+        end_date_str=end_date_str,
+        limit=page_size,
+        offset=0,
+    )
+
+    cache_key = response_cache.build_key(
+        "top_direct_assignments",
+        start_date=start_date_str,
+        end_date=end_date_str,
+        limit=str(page_size),
+        offset="0",
+    )
+    response_cache.set(cache_key, data, end_date=end_date)
+
+    total = data["pagination"]["total_count"]
+    logger.info(
+        f"[AnalyticsPrecalc] Warmed top_direct_assignments "
+        f"[{start_date_str} → {end_date_str}] "
+        f"(total={total}, page_size={page_size})"
+    )
+
+
 # ── Unified endpoint warmup ─────────────────────────────────────────────
 
 
@@ -1515,4 +1724,6 @@ WARMUP_REGISTRY = {
     "explore_decision_types": warm_explore_decision_types_window,
     "explore_statistics": warm_explore_statistics_window,
     "unified": warm_unified_window,
+    "top_payments": warm_top_payments_window,
+    "top_direct_assignments": warm_top_direct_assignments_window,
 }

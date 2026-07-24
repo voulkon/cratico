@@ -4,6 +4,7 @@ from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from loguru import logger
 
 
 class ImportJobStatus(models.TextChoices):
@@ -15,6 +16,7 @@ class ImportJobStatus(models.TextChoices):
     COMPLETED = "completed", _("Completed")
     PARTIALLY_COMPLETED = "partially_completed", _("Partially Completed")
     FAILED = "failed", _("Failed")
+    CANCELLED = "cancelled", _("Cancelled")
 
 
 class ImportJobType(models.TextChoices):
@@ -213,7 +215,83 @@ class ImportJob(models.Model):
                         f"Failed to notify queue of job completion: {e}"
                     )
 
-    def mark_chunk_failed(self, error_msg: str = None, decisions_count: int = 0):
+    def cancel(
+        self,
+        revoke_task: bool = True,
+        clean_redis: bool = True,
+    ):
+        """
+        Cancel this import job and clean up all associated resources.
+
+        Mimics the pattern from ClassificationJob.cancel() and
+        AFMScoringJob.cancel() with added Redis + Celery cleanup.
+
+        Args:
+            revoke_task: Revoke the running Celery task with SIGTERM.
+            clean_redis: Delete all chunk keys for this job from Redis DB 2.
+
+        Returns:
+            dict with summary of what was cleaned up.
+        """
+        if self.status in [
+            ImportJobStatus.COMPLETED,
+            ImportJobStatus.PARTIALLY_COMPLETED,
+            ImportJobStatus.FAILED,
+            ImportJobStatus.CANCELLED,
+        ]:
+            return {"status": "skipped", "reason": f"Job already in terminal state ({self.status})"}
+
+        result = {"status": "cancelled", "job_id": self.id, "actions": []}
+
+        # 1. Revoke running Celery task
+        if revoke_task and self.celery_task_id:
+            try:
+                from celery.result import AsyncResult
+                from diavgeia_project.celery import app
+
+                async_result = AsyncResult(self.celery_task_id, app=app)
+                async_result.revoke(terminate=True, signal="SIGTERM")
+                result["actions"].append(f"revoked_task:{self.celery_task_id}")
+            except Exception as e:
+                result["actions"].append(f"revoke_failed:{e}")
+
+        # 2. Revoke all chunk tasks
+        if revoke_task and self.chunk_task_ids:
+            from celery.result import AsyncResult
+            from diavgeia_project.celery import app
+
+            revoked_chunks = 0
+            for chunk_task_id in self.chunk_task_ids:
+                try:
+                    async_result = AsyncResult(chunk_task_id, app=app)
+                    async_result.revoke(terminate=True, signal="SIGTERM")
+                    revoked_chunks += 1
+                except Exception:
+                    pass
+            if revoked_chunks > 0:
+                result["actions"].append(f"revoked_chunk_tasks:{revoked_chunks}")
+
+        # 3. Clean Redis chunks
+        if clean_redis:
+            try:
+                from core.services.redis_decision_cache import RedisDecisionCache
+
+                cache = RedisDecisionCache()
+                deleted = cache.cleanup_job(self.id)
+                result["actions"].append(f"redis_chunks_deleted:{deleted}")
+            except Exception as e:
+                result["actions"].append(f"redis_cleanup_failed:{e}")
+
+        # 4. Mark as CANCELLED
+        self.status = ImportJobStatus.CANCELLED
+        self.completed_at = timezone.now()
+        self.save(update_fields=["status", "completed_at"])
+
+        logger.info(f"ImportJob.cancel: Job #{self.id} cancelled. Actions: {result['actions']}")
+        return result
+
+
+
         """Atomically increment failed chunk counter"""
         from django.db.models import F
 

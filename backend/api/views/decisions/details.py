@@ -1,6 +1,9 @@
 from core.models.companies import Company
 from core.models.decisions import Decision
+from core.models.document_analysis import DocumentExtraction, ProcessingStatus
 from core.models.entities import DecisionEntityRelationship
+from core.schemas.decision_detail import DecisionDetailResponse
+from api.utils.response import pydantic_response
 from django.conf import settings
 from django.db.models import Count, F, Q, Sum
 from rest_framework.decorators import api_view, permission_classes
@@ -18,6 +21,18 @@ def decision_detail(request, decision_id):
             .prefetch_related("signers", "units", "kae_amounts", "attachments")
             .get(id=decision_id)
         )  # Using integer ID
+
+        # Document content availability (so the frontend can decide whether to
+        # show the "view extracted content" action or a "request extraction" CTA).
+        has_document_content = False
+        try:
+            extraction = DocumentExtraction.objects.get(decision=decision)
+            has_document_content = (
+                extraction.extraction_status == ProcessingStatus.COMPLETED
+                and bool(extraction.raw_text)
+            )
+        except DocumentExtraction.DoesNotExist:
+            has_document_content = False
 
         # Serialize decision data
         decision_data = {
@@ -39,6 +54,19 @@ def decision_detail(request, decision_id):
             "document_url": decision.document_url,
             "document_checksum": decision.document_checksum,
             "url": decision.url,
+            # User-friendly Diavgeia page (matches DecisionCard) instead of the
+            # raw luminapi JSON endpoint.
+            "diavgeia_page_url": (
+                f"https://diavgeia.gov.gr/decision/view/{decision.ada}"
+                if decision.ada
+                else None
+            ),
+            "diavgeia_doc_url": (
+                f"https://diavgeia.gov.gr/doc/{decision.ada}?inline=true"
+                if decision.ada
+                else None
+            ),
+            "has_document_content": has_document_content,
             "warnings": decision.warnings,
             "has_private_data": decision.has_private_data,
             "organization": (
@@ -96,7 +124,7 @@ def decision_detail(request, decision_id):
             "thematic_category_ids": decision.thematic_category_ids,
         }
 
-        return Response(decision_data)
+        return pydantic_response(DecisionDetailResponse(**decision_data))
 
     except Decision.DoesNotExist:
         return Response({"error": "Decision not found"}, status=404)

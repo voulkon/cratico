@@ -6,21 +6,25 @@ import { useAuthConfig } from '../contexts/AuthConfigContext';
 import { DateRangeProvider, useDateRange } from '../contexts/DateRangeContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import SuperSearch from '../components/SuperSearch';
+import LogoGlyph from '../components/LogoGlyph';
 import { GlobeIcon } from '../components/Icons';
 import TopRelationshipPairs from '../components/TopRelationshipPairs';
 import DateRangeSelector from '../components/DateRangeSelector';
 import DashboardGrid from '../components/DashboardGrid';
 import OrganizationsSection from '../components/OrganizationsSection';
 import DecisionsSection from '../components/DecisionsSection';
+import TopPaymentsSection from '../components/TopPaymentsSection';
+import TopDirectAssignmentsSection from '../components/TopDirectAssignmentsSection';
 import './HomePage.css';
 
 /**
  * Home Page Data Component — uses DateRangeContext.
  *
- * Renders a unified DashboardGrid with three columns:
- *   1. Top Org×Entity Relationship Pairs (loads independently)
- *   2. Most Active Organizations
- *   3. Notable Recent Decisions
+ * Renders a unified DashboardGrid with two columns:
+ *
+ *   [Featured: TopRelationshipPairs (full width)]
+ *   [Most Active Organizations]    [Notable Recent Decisions]
+ *   [Highest Payments]             [Highest Direct Assignments]
  *
  * Each column has uniform appearance: card background, scrollable list,
  * section header with "See All" link.
@@ -45,13 +49,21 @@ const DashboardData = () => {
 
       {/* Column 1 — Most Active Organizations (infinite scroll) */}
       <OrganizationsSection
-        onSeeAll={() => navigate(`/explore/temporal/${dateRange.start_date}/${dateRange.end_date}`)}
         collapsible
       />
 
       {/* Column 2 — Notable Recent Decisions (infinite scroll) */}
       <DecisionsSection
-        onSeeAll={() => navigate(`/explore/temporal/${dateRange.start_date}/${dateRange.end_date}?sort_by=amount_desc`)}
+        collapsible
+      />
+
+      {/* Row 2, Column 1 — Highest Payment Decisions */}
+      <TopPaymentsSection
+        collapsible
+      />
+
+      {/* Row 2, Column 2 — Highest Direct-Assignment Decisions */}
+      <TopDirectAssignmentsSection
         collapsible
       />
     </DashboardGrid>
@@ -89,9 +101,12 @@ const HomePage = () => {
           {/* Hero Section */}
           <section className="hero-section">
             <div className="hero-content">
-              <h1 className="hero-title">
-                {t('homepage.title')}
-              </h1>
+              <div className="hero-brand">
+                <LogoGlyph size={40} />
+                <h1 className="hero-title">
+                  {t('homepage.title')}
+                </h1>
+              </div>
               <p className="hero-subtitle">
                 {t('homepage.subtitle')}
               </p>
@@ -145,9 +160,12 @@ const HomePage = () => {
           {/* Hero Section */}
           <section className="hero-section">
             <div className="hero-content">
-              <h1 className="hero-title">
-                {t('homepage.title')}
-              </h1>
+              <div className="hero-brand">
+                <LogoGlyph size={40} />
+                <h1 className="hero-title">
+                  {t('homepage.title')}
+                </h1>
+              </div>
               <p className="hero-subtitle">
                 {t('homepage.subtitle')}
               </p>

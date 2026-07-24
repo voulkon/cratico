@@ -467,3 +467,95 @@ class ImportJobQueue:
             logger.warning(f"ImportJobQueue: Marked {count} stale jobs as failed")
 
         return count
+
+    def cancel_all_in_progress_imports(
+        self,
+        purge_rabbitmq: bool = False,
+        clean_redis: bool = True,
+    ) -> dict:
+        """
+        Cancel ALL in-progress imports: revoke Celery tasks, clean Redis,
+        mark jobs as CANCELLED, and optionally purge the RabbitMQ queue.
+
+        This is the "nuclear option" for cleaning up the import pipeline —
+        useful when the queues are backed up and you need to start fresh.
+
+        Args:
+            purge_rabbitmq: Also purge the RabbitMQ 'celery' queue
+                            (removes ALL pending tasks, not just import ones).
+            clean_redis: Delete import chunk keys from Redis DB 2.
+
+        Returns:
+            dict with summary of actions taken.
+        """
+        result = {
+            "jobs_cancelled": 0,
+            "tasks_revoked": 0,
+            "redis_keys_deleted": 0,
+            "rabbitmq_purged": False,
+        }
+
+        # ── 1. Cancel all non-terminal jobs ──────────────────────────
+        cancelable_statuses = [
+            ImportJobStatus.PENDING,
+            ImportJobStatus.RUNNING,
+            ImportJobStatus.FETCHING,
+            ImportJobStatus.SPLITTING,
+            ImportJobStatus.PROCESSING,
+        ]
+
+        jobs = ImportJob.objects.filter(status__in=cancelable_statuses)
+
+        for job in jobs:
+            cancel_result = job.cancel(
+                revoke_task=True,
+                clean_redis=False,  # We'll do a global cleanup below
+            )
+            result["jobs_cancelled"] += 1
+            if cancel_result.get("actions"):
+                for action in cancel_result["actions"]:
+                    if action.startswith("revoked_task:") or action.startswith("revoked_chunk_tasks:"):
+                        result["tasks_revoked"] += 1
+
+        # ── 2. Global Redis cleanup (flush DB 2) ─────────────────────
+        if clean_redis:
+            try:
+                # Flush only the import chunks database (DB 2)
+                self.redis_client.flushdb()
+                # Get approximate key count before flush for reporting
+                result["redis_keys_deleted"] = "all (flushed DB 2)"
+            except Exception as e:
+                result["redis_cleanup_error"] = str(e)
+                logger.error(f"ImportJobQueue: Redis flush failed: {e}")
+
+        # ── 3. Purge RabbitMQ queue ──────────────────────────────────
+        if purge_rabbitmq:
+            try:
+                # Use celery's control API to purge the default queue
+                from diavgeia_project.celery import app
+
+                app.control.purge()
+                result["rabbitmq_purged"] = True
+            except Exception as e:
+                result["rabbitmq_purge_error"] = str(e)
+                logger.error(f"ImportJobQueue: RabbitMQ purge failed: {e}")
+
+        # ── 4. Clean Redis-managed queue metadata ────────────────────
+        try:
+            self.redis_client.delete(
+                self.QUEUE_KEY,   # import_job_queue:pending
+                self.ACTIVE_KEY,  # import_job_queue:active
+            )
+            result["queue_metadata_cleaned"] = True
+        except Exception as e:
+            result["queue_metadata_error"] = str(e)
+
+        logger.warning(
+            f"ImportJobQueue: Cancel all completed — "
+            f"jobs={result['jobs_cancelled']}, "
+            f"tasks_revoked={result['tasks_revoked']}, "
+            f"redis={result.get('redis_keys_deleted', 'skipped')}, "
+            f"rabbitmq_purged={result['rabbitmq_purged']}"
+        )
+
+        return result

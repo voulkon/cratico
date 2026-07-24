@@ -15,8 +15,10 @@ from core.models.entities import (
     DecisionAmountField,
     DecisionEntityRelationship,
 )
+from core.services.financial_calculation_service import FinancialCalculationService
 from django.db import transaction
-from django.db.models import Count, Max, Min, Q, Sum
+from django.db.models import Count, F, Max, Min, Q, Sum, Window
+from django.db.models.functions import Rank
 from loguru import logger
 
 
@@ -79,12 +81,20 @@ class AFMEntityStatsService:
                             "distinct_counterpart_entities": m["distinct_counterpart_entities"],
                             "direct_assignment_count": m["direct_assignment_count"],
                             "direct_assignment_percentage": m["direct_assignment_percentage"],
+                            "direct_assignment_30k_38k": m["direct_assignment_30k_38k"],
+                            "payment_30k_38k": m["payment_30k_38k"],
+                            "total_received_amount": m["total_received_amount"],
                         },
                     )
                     if was_created:
                         created += 1
                     else:
                         updated += 1
+
+        # 3. Compute combined_rank across all entities (global ranking)
+        logger.info("Step 3: computing combined ranks...")
+        self._compute_combined_ranks()
+        logger.info("Step 3 complete")
 
         result = {
             "created": created,
@@ -122,6 +132,9 @@ class AFMEntityStatsService:
                 "distinct_counterpart_entities": 0,
                 "direct_assignment_count": 0,
                 "direct_assignment_percentage": 0.0,
+                "direct_assignment_30k_38k": 0,
+                "payment_30k_38k": 0,
+                "total_received_amount": Decimal("0.00"),
             }
         )
 
@@ -256,7 +269,119 @@ class AFMEntityStatsService:
                 )
         logger.info("  (F) done")
 
+        # ---- (G) direct-assignment decisions with amounts €30k-€38k ----
+        # Always across ALL decisions (never filtered by act type).
+        logger.info("  (G) counting direct assignments €30k-€38k...")
+        direct_30k_qs = (
+            DecisionAmountField.objects
+            .filter(
+                amount__isnull=False,
+                associated_relationship__isnull=False,
+                associated_relationship__decision__classification__is_direct_assignment=True,
+            )
+            .values("associated_relationship__entity_id", "decision_id")
+            .annotate(decision_total=Sum("amount"))
+        )
+        for row in direct_30k_qs:
+            total = row["decision_total"]
+            if total and Decimal("30000.00") <= total <= Decimal("38000.00"):
+                eid = row["associated_relationship__entity_id"]
+                metrics[eid]["direct_assignment_30k_38k"] += 1
+        logger.info("  (G) done")
+
+        # ---- (H) payment (money-received) decisions with amounts €30k-€38k ----
+        # Always across ALL decisions (never filtered by act type).
+        logger.info("  (H) counting payments €30k-€38k...")
+        money_received_roles = FinancialCalculationService.MONEY_RECEIVED_ROLES
+        payment_30k_qs = (
+            DecisionAmountField.objects
+            .filter(
+                amount__isnull=False,
+                associated_relationship__isnull=False,
+                associated_relationship__role__in=money_received_roles,
+            )
+            .values("associated_relationship__entity_id", "decision_id")
+            .annotate(decision_total=Sum("amount"))
+        )
+        for row in payment_30k_qs:
+            total = row["decision_total"]
+            if total and Decimal("30000.00") <= total <= Decimal("38000.00"):
+                eid = row["associated_relationship__entity_id"]
+                metrics[eid]["payment_30k_38k"] += 1
+        logger.info("  (H) done")
+
+        # ---- (I) total amount from "Β.2.2" (expenditure/payment) decisions ----
+        # Always computed regardless of decision_type_uid filter.
+        logger.info("  (I) aggregating 'Β.2.2' received amounts...")
+        received_qs = (
+            DecisionAmountField.objects
+            .filter(
+                amount__isnull=False,
+                associated_relationship__isnull=False,
+                associated_relationship__decision__decision_type__uid="Β.2.2",
+            )
+            .values("associated_relationship__entity_id")
+            .annotate(total=Sum("amount"))
+        )
+        for row in received_qs:
+            eid = row["associated_relationship__entity_id"]
+            metrics[eid]["total_received_amount"] = row["total"] or Decimal("0")
+        logger.info("  (I) done")
+
         return dict(metrics)
+
+    # ------------------------------------------------------------------
+    # Combined ranking
+    # ------------------------------------------------------------------
+
+    def _compute_combined_ranks(self) -> None:
+        """Compute combined_rank for every AFMEntityStats row.
+
+        The rank is derived from the sum of three individual RANK()s:
+        received_rank  = RANK() OVER total_received_amount DESC
+        da_30k_38k_rank = RANK() OVER direct_assignment_30k_38k DESC
+        pay_30k_38k_rank = RANK() OVER payment_30k_38k DESC
+        raw_score = received_rank + da_30k_38k_rank + pay_30k_38k_rank
+        combined_rank = RANK() OVER raw_score ASC  (1 = best)
+
+        We compute raw_score via the ORM then do the final ranking in
+        Python to avoid nested-window-function SQL limitations.
+        """
+        ranked = AFMEntityStats.objects.annotate(
+            received_rank=Window(
+                expression=Rank(),
+                order_by=F("total_received_amount").desc(),
+            ),
+            da_30k_38k_rank=Window(
+                expression=Rank(),
+                order_by=F("direct_assignment_30k_38k").desc(),
+            ),
+            pay_30k_38k_rank=Window(
+                expression=Rank(),
+                order_by=F("payment_30k_38k").desc(),
+            ),
+            raw_score=F("received_rank")
+            + F("da_30k_38k_rank")
+            + F("pay_30k_38k_rank"),
+        )
+
+        # Sort by raw_score ascending (lowest = best) and assign ranks.
+        pairs = list(ranked.values_list("entity_id", "raw_score"))
+        pairs.sort(key=lambda x: x[1])
+
+        updates = []
+        rank = 0
+        prev_score = None
+        for pos, (entity_id, raw_score) in enumerate(pairs, start=1):
+            if raw_score != prev_score:
+                rank = pos
+                prev_score = raw_score
+            updates.append(
+                AFMEntityStats(entity_id=entity_id, combined_rank=rank)
+            )
+
+        AFMEntityStats.objects.bulk_update(updates, ["combined_rank"])
+        logger.info("  combined_rank updated for {} entities", len(updates))
 
     # ------------------------------------------------------------------
     # Convenience: compute a single entity
@@ -288,6 +413,9 @@ class AFMEntityStatsService:
                 "distinct_counterpart_entities": 0,
                 "direct_assignment_count": 0,
                 "direct_assignment_percentage": 0.0,
+                "direct_assignment_30k_38k": 0,
+                "payment_30k_38k": 0,
+                "total_received_amount": Decimal("0.00"),
             }
 
         stats, _created = AFMEntityStats.objects.update_or_create(
@@ -302,6 +430,9 @@ class AFMEntityStatsService:
                 "distinct_counterpart_entities": m["distinct_counterpart_entities"],
                 "direct_assignment_count": m["direct_assignment_count"],
                 "direct_assignment_percentage": m["direct_assignment_percentage"],
+                "direct_assignment_30k_38k": m["direct_assignment_30k_38k"],
+                "payment_30k_38k": m["payment_30k_38k"],
+                "total_received_amount": m["total_received_amount"],
             },
         )
         return stats

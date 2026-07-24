@@ -19,6 +19,16 @@
   text-align: center;
 }
 
+.hero-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  /* Feeds the LogoGlyph SVG's currentColor so it tracks the palette */
+  color: var(--palette-primary);
+}
+
 .hero-title {
   font-size: 3.5rem;
   font-weight: var(--font-bold);
@@ -166,6 +176,18 @@
 
 /* ── Responsive Design ──────────────────────────────────────────── */
 @media (max-width: 768px) {
+  /* Collapse the huge right padding — main-area already reserves space
+     for the controls column, so the container only needs a small gutter. */
+  .homepage-container {
+    padding-left: var(--spacing-md);
+    padding-right: var(--spacing-md);
+  }
+
+  /* Compact the card padding so content isn't buried in whitespace. */
+  .data-section {
+    padding: var(--spacing-sm);
+  }
+
   .hero-title {
     font-size: 2.5rem;
   }

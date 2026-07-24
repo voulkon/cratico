@@ -1,0 +1,87 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div style="padding: 20px;">
+    <h1>{{ title }}</h1>
+
+    <div style="background: #f8d7da; border: 1px solid #dc3545; border-radius: 5px; padding: 20px; margin: 20px 0;">
+        <h2 style="margin-top: 0; color: #721c24;">⚠️ Destructive Operation</h2>
+        <p><strong>This will cancel ALL in-progress import jobs, revoke their Celery tasks, and flush Redis DB 2.</strong></p>
+        <p>Pending Celery tasks in the queue will be revoked. The RabbitMQ queue can also be purged.</p>
+    </div>
+
+    {% if cancelable_count > 0 %}
+    <div style="background: white; border: 1px solid #ddd; border-radius: 5px; padding: 15px; margin-bottom: 20px;">
+        <h3 style="margin-top: 0;">Jobs that will be cancelled ({{ cancelable_count }}):</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr style="background: #f8f9fa;">
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">ID</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Date</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Status</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Created</th>
+                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Chunks</th>
+            </tr>
+            {% for job in cancelable_jobs %}
+            <tr>
+                <td style="padding: 6px; border-bottom: 1px solid #eee;">#{{ job.id }}</td>
+                <td style="padding: 6px; border-bottom: 1px solid #eee;">{{ job.start_date }}</td>
+                <td style="padding: 6px; border-bottom: 1px solid #eee;">
+                    <span style="color: {% if job.status == 'pending' %}#6c757d{% else %}#dc3545{% endif %};">
+                        {{ job.status }}
+                    </span>
+                </td>
+                <td style="padding: 6px; border-bottom: 1px solid #eee;">{{ job.created_at|date:"Y-m-d H:i" }}</td>
+                <td style="padding: 6px; border-bottom: 1px solid #eee;">{{ job.chunks_completed }}/{{ job.total_chunks }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% else %}
+    <div style="background: #d4edda; border: 1px solid #28a745; border-radius: 5px; padding: 15px; margin-bottom: 20px;">
+        <p style="margin: 0; color: #155724;">No in-progress imports found. Nothing to cancel.</p>
+    </div>
+    {% endif %}
+
+    {% if cancelable_count > 0 %}
+    <form method="post" style="margin-top: 20px;">
+        {% csrf_token %}
+
+        <div style="background: white; border: 1px solid #ddd; border-radius: 5px; padding: 20px; margin-bottom: 20px;">
+            <h3 style="margin-top: 0;">Cleanup Options</h3>
+
+            <label style="display: block; margin-bottom: 10px; font-size: 14px;">
+                <input type="checkbox" name="clean_redis" value="1" checked style="margin-right: 5px;">
+                🗑️ <strong>Flush Redis DB 2</strong> (removes ALL import chunk keys)
+            </label>
+
+            <label style="display: block; margin-bottom: 10px; font-size: 14px;">
+                <input type="checkbox" name="purge_rabbitmq" value="1" style="margin-right: 5px;">
+                ⚡ <strong>Purge RabbitMQ queue</strong> (removes ALL pending Celery tasks, not just imports)
+            </label>
+        </div>
+
+        <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; padding: 15px; margin-bottom: 20px;">
+            <h4 style="margin-top: 0; color: #856404;">ℹ️ What This Will Do:</h4>
+            <ul style="margin: 0;">
+                <li>Revoke all running Celery tasks for the jobs listed above</li>
+                <li>Mark all listed jobs as <strong>CANCELLED</strong></li>
+                <li>Delete all import chunk keys from Redis DB 2</li>
+                {% if not request.POST.purge_rabbitmq %}
+                <li>Optionally purge the RabbitMQ queue</li>
+                {% endif %}
+            </ul>
+        </div>
+
+        <button type="submit" class="button" style="background: #dc3545; color: white; font-weight: bold; padding: 10px 20px; border: none; cursor: pointer;">
+            ⚠️ Yes, Cancel All {{ cancelable_count }} Import(s)
+        </button>
+        <a href="../" class="button" style="margin-left: 10px;">✗ Cancel</a>
+    </form>
+    {% else %}
+    <a href="../" class="button">← Back</a>
+    {% endif %}
+</div>
+{% endblock %}
