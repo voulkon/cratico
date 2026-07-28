@@ -96,6 +96,8 @@ class NotificationSubscriptionSerializer(serializers.ModelSerializer):
             "subscription_type",
             "created_at",
             "last_checked",
+            "ai_summary_enabled",
+            "ai_summary_pipeline",
         ]
         read_only_fields = [
             "id",
@@ -215,6 +217,8 @@ class NotificationSubscriptionCreateSerializer(serializers.ModelSerializer):
             "also_send_email",
             "is_active",
             "check_frequency",
+            "ai_summary_enabled",
+            "ai_summary_pipeline",
         ]
 
     def validate_keywords(self, value):
