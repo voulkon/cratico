@@ -810,3 +810,53 @@ class NotificationBatchViewSet(viewsets.ReadOnlyModelViewSet):
             user=request.user, is_read=False, is_dismissed=False
         ).count()
         return Response({"unread_count": count})
+
+    @action(detail=True, methods=["post"], url_path="summarize")
+    def summarize(self, request, pk=None):
+        """
+        Manually trigger (re-)summarization of a batch.
+
+        POST /api/notifications/batches/{id}/summarize/
+
+        Returns:
+            {"status": "started", "task_id": ..., "batch_id": ...}
+        """
+        from notifications.tasks.ai_summary_tasks import summarize_notification_batch
+
+        batch = self.get_object()
+        task = summarize_notification_batch.delay(batch_id=batch.id)
+        return Response(
+            {"status": "started", "task_id": task.id, "batch_id": batch.id}
+        )
+
+    @action(detail=True, methods=["get"], url_path="summary")
+    def summary(self, request, pk=None):
+        """
+        Get the AI summary + status + cost breakdown for a batch.
+
+        GET /api/notifications/batches/{id}/summary/
+
+        Returns:
+            {
+                "status": "COMPLETED"|"RUNNING"|"PENDING"|"FAILED"|"SKIPPED",
+                "summary": "...",
+                "error": null,
+                "cost_usd": "...",
+                "total_tokens": 123,
+                "completed_at": "...",
+            }
+        """
+        batch = self.get_object()
+        data = {
+            "status": batch.ai_summary_status,
+            "summary": batch.ai_summary,
+            "error": batch.ai_summary_error,
+            "completed_at": batch.ai_summary_completed_at,
+        }
+        if batch.ai_summary_run_id:
+            run = batch.ai_summary_run
+            data["cost_usd"] = str(run.total_cost_usd)
+            data["total_input_tokens"] = run.total_input_tokens
+            data["total_output_tokens"] = run.total_output_tokens
+            data["billed_to"] = run.billed_to
+        return Response(data)

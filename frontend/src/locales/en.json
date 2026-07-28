@@ -652,7 +652,11 @@
     "emailOn": "Email on",
     "emailOff": "Email off",
     "emailNotificationsOn": "Email notifications are on. Click to turn off.",
-    "emailNotificationsOff": "Email notifications are off. Click to turn on."
+    "emailNotificationsOff": "Email notifications are off. Click to turn on.",
+    "aiOn" : "AI ON",
+    "aiOff" : "AI OFF",
+    "aiSummaryEnabled" : "AI-powered role detection is enabled. Roles are automatically detected from decision text.",
+    "aiSummaryDisabled" : "AI-powered role detection is disabled. Roles are not automatically detected from decision text."
   },
   "dateRange": {
     "today": "Today",
@@ -681,7 +685,7 @@
     "representsAloneTitle": "Represents alone",
     "representsAloneBadge": "Alone",
     "representsInCommonTitle": "Represents jointly",
-    "representsInCommonBadge": "Jointly"
+    "representsInCommonBadge": "Jointly"  
   },
   "companyInfoPanel": {
     "viewOnBusinessPortalTitle": "View on Business Portal",
@@ -723,5 +727,61 @@
   "filterPanel":{
     "apply": "Apply Filters",
     "reset": "Clear Filters"
+  },
+  "aiSettings": {
+    "title": "AI Settings",
+    "subtitle": "Configure your AI provider and API key for summarization features.",
+    "noKeyNote": "If you don't add a key, summaries use the system key and your usage may be interrupted unexpectedly.",
+    "provider": "Provider",
+    "openRouter": "OpenRouter",
+    "awsBedrockComingSoon": "AWS Bedrock (coming soon)",
+    "apiKey": "API Key",
+    "currentKeyMasked": "Current: {masked} (enter new to replace)",
+    "enterApiKey": "Enter your OpenRouter API key",
+    "testKey": "Test Key",
+    "testing": "Testing...",
+    "keyValid": "✓ Key is valid",
+    "credits": "— Credits: ${remaining} / ${total}",
+    "keyInvalid": "✗ Invalid key",
+    "requestFailed": "✗ Request failed",
+    "defaultModel": "Default Model",
+    "selectModel": "— Select a model —",
+    "ctx": "ctx",
+    "in": "in",
+    "out": "out",
+    "dynamicPricing": "dynamic",
+    "noModels": "No models loaded. Add an API key and save to load available models.",
+    "monthlyBudget": "Monthly Budget (USD)",
+    "budgetHint": "Soft cap on your monthly AI spend. Leave empty for unlimited.",
+    "active": "Active",
+    "billing": "Billing:",
+    "billedToUser": "Using your API key (billed to you)",
+    "billedToSystem": "Using system key (billed to operator)",
+    "save": "Save Settings",
+    "saving": "Saving...",
+    "saved": "Settings saved successfully",
+    "loadError": "Failed to load AI settings",
+    "saveError": "Failed to save settings"
+  },
+  "aiInteractions": {
+    "title": "AI Interactions",
+    "totalSpend": "Total Spend (This Month)",
+    "totalTokens": "Total Tokens",
+    "calls": "Calls",
+    "avgCost": "Avg Cost / Call",
+    "provider": "Provider",
+    "trigger": "Trigger",
+    "filter": "Filter",
+    "empty": "No AI interactions yet.",
+    "date": "Date",
+    "model": "Model",
+    "tokensIn": "Tokens In",
+    "tokensOut": "Tokens Out",
+    "cost": "Cost",
+    "billed": "Billed",
+    "status": "Status",
+    "prev": "← Prev",
+    "next": "Next →",
+    "pageOf": "Page {page} of {total}"
   }
 }

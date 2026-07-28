@@ -37,3 +37,22 @@ export const formatCompactAmount = (amount) => {
   }
   return `€${amount?.toLocaleString() || 0}`;
 };
+
+/**
+ * Format an OpenRouter per-token price string into a per-million-token display.
+ * OpenRouter returns prices in USD per token (e.g. "0.00000003" = $0.03/M).
+ * A value of "-1" means dynamic/variable pricing.
+ *
+ * @param {string} priceStr - Raw price string from the API
+ * @param {function} t - Translation function (for "dynamic" label)
+ * @returns {string} Formatted price per million tokens
+ */
+export const formatPrice = (priceStr, t) => {
+  const n = parseFloat(priceStr);
+  if (n < 0) return t('aiSettings.dynamicPricing');
+  const perMillion = n * 1_000_000;
+  if (perMillion >= 10) return perMillion.toFixed(2);
+  if (perMillion >= 1) return perMillion.toFixed(3);
+  if (perMillion >= 0.01) return perMillion.toFixed(4);
+  return perMillion.toFixed(6);
+};

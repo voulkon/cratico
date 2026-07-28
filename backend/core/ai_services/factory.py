@@ -9,6 +9,7 @@ from typing import Optional
 
 from core.ai_services.base import BaseLLMProvider
 from core.ai_services.providers.aws_bedrock import AWSBedrockProvider
+from core.ai_services.providers.openrouter import OpenRouterProvider
 from loguru import logger
 
 
@@ -58,9 +59,14 @@ def get_provider(
         )
 
     elif provider_upper == "OPENROUTER":
-        # TODO: Implement when needed
-        raise NotImplementedError(
-            "OpenRouter provider not yet implemented. " "Use AWS_BEDROCK for now."
+        api_key = kwargs.get("api_key")
+        base_url = kwargs.get("base_url")
+        logger.info(f"Creating OpenRouter provider for model: {model_name}")
+        return OpenRouterProvider(
+            provider_name=provider_name,
+            model_name=model_name,
+            api_key=api_key,
+            base_url=base_url,
         )
 
     elif provider_upper == "ANTHROPIC":

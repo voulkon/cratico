@@ -1,0 +1,151 @@
+.ai-interactions-page {
+  min-height: 100vh;
+  padding: 2rem;
+  background: var(--bg-color);
+  color: var(--text-color);
+}
+
+.ai-interactions-container {
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.ai-interactions-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+}
+
+.ai-interactions-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.ai-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1rem;
+  background: var(--card-bg, #fff);
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #e0e0e0);
+}
+
+.ai-summary-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #666);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ai-summary-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.ai-interactions-filters {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.ai-interactions-filters input {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border-color, #ccc);
+  border-radius: 6px;
+  background: var(--card-bg, #fff);
+  color: var(--text-color);
+  font-size: 0.8rem;
+}
+
+.ai-interactions-filters button {
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--border-color, #ccc);
+  border-radius: 6px;
+  background: var(--card-bg, #fff);
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.ai-interactions-table-wrapper {
+  overflow-x: auto;
+}
+
+.ai-interactions-loading,
+.ai-interactions-empty {
+  text-align: center;
+  padding: 3rem;
+  color: var(--text-secondary, #666);
+}
+
+.ai-interactions-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.ai-interactions-table th {
+  text-align: left;
+  padding: 0.5rem;
+  border-bottom: 2px solid var(--border-color, #e0e0e0);
+  font-weight: 600;
+  color: var(--text-secondary, #666);
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+}
+
+.ai-interactions-table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border-color, #eee);
+}
+
+.ai-model-cell {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-status-badge {
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.ai-status-badge.success {
+  background: var(--success-bg, #efe);
+  color: var(--success-color, #070);
+}
+
+.ai-status-badge.failed {
+  background: var(--error-bg, #fee);
+  color: var(--error-color, #c00);
+}
+
+.ai-interactions-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.ai-interactions-pagination button {
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--border-color, #ccc);
+  border-radius: 6px;
+  background: var(--card-bg, #fff);
+  color: var(--text-color);
+  cursor: pointer;
+}
+
+.ai-interactions-pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

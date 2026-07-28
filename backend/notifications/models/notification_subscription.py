@@ -166,6 +166,22 @@ class NotificationSubscription(models.Model):
         help_text=_("When this subscription was last checked for new decisions"),
     )
 
+    # AI summarization
+    ai_summary_enabled = models.BooleanField(
+        default=False,
+        verbose_name=_("Enable AI summary"),
+        help_text=_("Generate an AI summary for each notification batch"),
+    )
+    ai_summary_pipeline = models.ForeignKey(
+        "core.PipelineDefinition",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="subscriptions",
+        verbose_name=_("AI summary pipeline"),
+        help_text=_("Which pipeline to use for summarization. Null = default."),
+    )
+
     @property
     def subscription_type(self):
         """

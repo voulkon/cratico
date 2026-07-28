@@ -505,6 +505,25 @@ def create_batch_for_matches(
                 f"(total in batch: {batch.match_count})"
             )
 
+            # Trigger AI summarization if enabled on the subscription
+            if decisions_added > 0 and getattr(
+                subscription, "ai_summary_enabled", False
+            ):
+                try:
+                    from notifications.tasks.ai_summary_tasks import (
+                        summarize_notification_batch,
+                    )
+
+                    summarize_notification_batch.delay(batch_id=batch.id)
+                    logger.info(
+                        f"Triggered AI summarization for batch {batch.id} "
+                        f"(subscription {subscription.id})"
+                    )
+                except Exception as ai_err:
+                    logger.warning(
+                        f"Failed to trigger AI summarization for batch {batch.id}: {ai_err}"
+                    )
+
             return {
                 "batch_id": batch.id,
                 "decisions_added": decisions_added,

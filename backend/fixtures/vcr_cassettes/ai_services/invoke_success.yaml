@@ -1,0 +1,60 @@
+interactions:
+- request:
+    body: '{"model": "mistralai/mistral-small-24b-instruct-2501", "messages": [{"role":
+      "system", "content": "You are a helpful assistant."}, {"role": "user", "content":
+      "What is the capital of France? Answer in one word."}], "temperature": 0.0,
+      "max_tokens": 10}'
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '252'
+      Content-Type:
+      - application/json
+      HTTP-Referer:
+      - https://crati.local
+      User-Agent:
+      - python-requests/2.34.2
+      X-Title:
+      - Crati AI Summarization
+    method: POST
+    uri: https://openrouter.ai/api/v1/chat/completions
+  response:
+    body:
+      string: '{"id":"gen-1785262922-uPVurgDmjXxOKEqUXJC6","object":"chat.completion","created":1785262922,"model":"mistralai/mistral-small-24b-instruct-2501","provider":"DeepInfra","system_fingerprint":null,"service_tier":null,"choices":[{"index":0,"logprobs":null,"finish_reason":"stop","native_finish_reason":"stop","message":{"role":"assistant","content":"Paris","refusal":null,"reasoning":null}}],"usage":{"prompt_tokens":23,"completion_tokens":2,"total_tokens":25,"cost":0.00000131,"is_byok":false,"prompt_tokens_details":{"cached_tokens":0,"cache_write_tokens":0,"audio_tokens":0,"video_tokens":0},"cost_details":{"upstream_inference_cost":0.00000131,"upstream_inference_prompt_cost":0.00000115,"upstream_inference_completions_cost":1.6e-7},"completion_tokens_details":{"reasoning_tokens":0,"image_tokens":0,"audio_tokens":0}}}'
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      CF-RAY:
+      - a225e83409fa98a9-ATH
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 28 Jul 2026 18:22:03 GMT
+      Permissions-Policy:
+      - payment=(self "https://checkout.stripe.com" "https://connect-js.stripe.com"
+        "https://js.stripe.com" "https://*.js.stripe.com" "https://hooks.stripe.com")
+      Referrer-Policy:
+      - no-referrer, strict-origin-when-cross-origin
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      X-Generation-Id:
+      - gen-1785262922-uPVurgDmjXxOKEqUXJC6
+      access-control-expose-headers:
+      - X-Generation-Id,X-Provider-Name,cf-ray
+      content-length:
+      - '819'
+    status:
+      code: 200
+      message: OK
+version: 1

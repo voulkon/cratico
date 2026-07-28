@@ -1,0 +1,50 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://openrouter.ai/api/v1/key
+  response:
+    body:
+      string: '{"data":{"label":"sk-or-v1-af2...b6d","is_management_key":false,"is_provisioning_key":false,"limit":5,"limit_reset":null,"limit_remaining":4.99999214,"include_byok_in_limit":false,"usage":0.00000786,"usage_daily":0.00000786,"usage_weekly":0.00000786,"usage_monthly":0.00000786,"byok_usage":0,"byok_usage_daily":0,"byok_usage_weekly":0,"byok_usage_monthly":0,"is_free_tier":false,"expires_at":null,"creator_user_id":"user_2ljnj2h9hDLl0nUWqJXgriw9Unz","rate_limit":{"requests":-1,"interval":"10s","note":"This
+        field is deprecated and safe to ignore."}}}'
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - X-Generation-Id,X-Provider-Name,cf-ray
+      CF-RAY:
+      - a225e8385ee22061-ATH
+      Cache-Control:
+      - private, no-store
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 28 Jul 2026 18:22:03 GMT
+      Permissions-Policy:
+      - payment=(self "https://checkout.stripe.com" "https://connect-js.stripe.com"
+        "https://js.stripe.com" "https://*.js.stripe.com" "https://hooks.stripe.com")
+      Referrer-Policy:
+      - no-referrer, strict-origin-when-cross-origin
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      content-length:
+      - '551'
+    status:
+      code: 200
+      message: OK
+version: 1
