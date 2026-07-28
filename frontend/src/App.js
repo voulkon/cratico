@@ -202,7 +202,7 @@ function AuthenticatedApp({ controlsLayout }) {
 
       {/* Main content — right padding reserves space so content never slides under controls */}
       <div
-        className={`main-area${isCollapsed ? ' controls-collapsed' : ''}`}
+        className={`main-area layout-${controlsLayout}${isCollapsed ? ' controls-collapsed' : ''}`}
         style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}
       >
         {/* Top spacer clears the fixed logo on non-home pages */}

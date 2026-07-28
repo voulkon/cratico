@@ -10,6 +10,13 @@
   transition: padding-right var(--transition-normal);
 }
 
+/* Vertical layouts stack buttons — much narrower than horizontal.
+   Align the main area's right edge close to the controls' left edge. */
+.main-area.layout-vertical-right,
+.main-area.layout-vertical-left {
+  padding-right: var(--controls-expanded-width-vertical);
+}
+
 /* When controls are collapsed, shrink the reserved right space */
 .main-area.controls-collapsed {
   padding-right: var(--controls-collapsed-width);
