@@ -62,6 +62,14 @@ class CustomUser(AbstractUser):
         max_length=10, default="en", choices=[("en", "English"), ("el", "Greek")]
     )  # en/el
 
+    # AI spend tracking (rolled up from AIInteractionLog by CostLedgerService)
+    ai_spent_this_month_usd = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0
+    )
+    ai_spent_month = models.IntegerField(
+        null=True, blank=True, help_text="YYYYMM for monthly reset logic"
+    )
+
     @property
     def has_active_subscription(self):
         return (

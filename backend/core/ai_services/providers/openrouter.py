@@ -15,6 +15,7 @@ provider.
 """
 
 import time
+from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -155,9 +156,16 @@ class OpenRouterProvider(BaseLLMProvider):
             input_tokens = usage.get("prompt_tokens", 0)
             output_tokens = usage.get("completion_tokens", 0)
 
+            # OpenRouter returns a cost field in the usage object.
+            # Use it directly instead of local pricing tables so we always
+            # match what OpenRouter actually charged.
+            raw_cost = usage.get("cost")
+            cost_from_provider = Decimal(str(raw_cost)) if raw_cost is not None else None
+
             logger.info(
                 f"OpenRouter call ok: model={self.model_name} "
-                f"in={input_tokens} out={output_tokens} latency={latency_ms}ms"
+                f"in={input_tokens} out={output_tokens} latency={latency_ms}ms "
+                f"cost={cost_from_provider}"
             )
 
             return self._standardize_response(
@@ -167,6 +175,7 @@ class OpenRouterProvider(BaseLLMProvider):
                 output_tokens=output_tokens,
                 latency_ms=latency_ms,
                 metadata={"id": data.get("id"), "model": data.get("model")},
+                cost_from_provider=cost_from_provider,
             )
 
         except requests.exceptions.Timeout:
@@ -231,7 +240,7 @@ class OpenRouterProvider(BaseLLMProvider):
     @classmethod
     def check_key(cls, api_key: str) -> Dict[str, Any]:
         """
-        Validate an OpenRouter API key via ``GET /key/info``.
+        Validate an OpenRouter API key via ``GET /key``.
 
         Returns a dict with ``is_valid``, ``limit_total``, ``limit_remaining``,
         ``limit_used``, and raw ``data``.
@@ -240,15 +249,15 @@ class OpenRouterProvider(BaseLLMProvider):
         headers = {"Authorization": f"Bearer {api_key}"}
         try:
             resp = _session.get(
-                f"{base_url.rstrip('/')}/key/info", headers=headers, timeout=15
+                f"{base_url.rstrip('/')}/key", headers=headers, timeout=15
             )
             if resp.status_code == 200:
                 data = resp.json().get("data", {})
                 return {
                     "is_valid": True,
-                    "limit_total": data.get("limit_total"),
+                    "limit_total": data.get("limit"),
                     "limit_remaining": data.get("limit_remaining"),
-                    "limit_used": data.get("limit_used"),
+                    "limit_used": data.get("usage"),
                     "data": data,
                 }
             return {"is_valid": False, "error": f"HTTP {resp.status_code}", "data": {}}
