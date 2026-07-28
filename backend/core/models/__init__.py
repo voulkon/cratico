@@ -1,5 +1,6 @@
 from .afm_entity_stats import AFMEntityStats
 from .afm_scoring import AFMEntityScore, AFMScoringConfig
+from .ai_interaction_log import AIInteractionLog
 from .ai_pricing import (
     AIJobDefinition,
     AIJobExecution,
@@ -32,7 +33,17 @@ from .organizations import (
     Unit,
     UnitDomain,
 )
+from .pipeline import (
+    BilledTo,
+    PipelineDefinition,
+    PipelineRun,
+    PipelineStep,
+    PipelineStepRun,
+    RunStatus,
+    StepType,
+)
 from .search_analytics import PopularQuery, SearchAnalytics
 from .search_suggestions import SearchSuggestion
 from .terms import LegalDocument
 from .types import ActType, ActTypeHelp, ExtraField
+from .user_ai_settings import UserAISettings

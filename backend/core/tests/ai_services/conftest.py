@@ -30,41 +30,44 @@ if _ENV_FILE.exists():
 CASSETTE_DIR = "fixtures/vcr_cassettes/ai_services"
 
 # ---------------------------------------------------------------------------
-# VCR cassette sanitisation
+# VCR cassette sanitisation (vcrpy ≥ 7 uses object callbacks, not dicts)
 # ---------------------------------------------------------------------------
 
+# vcrpy 7.x ``before_record_response`` doesn't expose the request URI,
+# so we track it from ``before_record_request``.
+_current_request_uri: str = ""
 
-def _sanitise_cassette(interaction: dict) -> dict:
+
+def _sanitise_request(request):
+    """Redact sensitive headers from the recorded request."""
+    global _current_request_uri
+    _current_request_uri = request.uri
+    request.headers.pop("Authorization", None)
+    request.headers.pop("Cookie", None)
+    return request
+
+
+def _sanitise_response(response):
     """
-    Called **after** recording but **before** writing to the YAML file.
-
-    - Redacts ``Authorization`` from request headers (don't leak the key).
-    - Strips ``set-cookie`` from response headers (Cloudflare noise).
-    - Trims ``/models`` body to 5 entries (full catalogue is ~600 KB).
+    Strip ``set-cookie`` noise and trim ``/models`` body to 5 entries
+    (the full catalogue is ~600 KB).
     """
-    request = interaction["request"]
-    response = interaction["response"]
-
-    # -- Request: redact sensitive headers ----------------------------------
-    for header in ("Authorization", "Cookie"):
-        request["headers"].pop(header, None)
-
-    # -- Response: strip Cloudflare cookies ---------------------------------
+    # Cloudflare cookies
     response["headers"].pop("set-cookie", None)
 
-    # -- Response: trim /models body ----------------------------------------
-    if "/models" in request["uri"]:
+    # Trim /models body
+    if "/models" in _current_request_uri:
         raw = response["body"].get("string", "")
         if raw:
             try:
                 data = json.loads(raw)
                 if isinstance(data, dict) and "data" in data:
                     data["data"] = data["data"][:5]
-                    response["body"]["string"] = json.dumps(data)
+                    response["body"]["string"] = json.dumps(data).encode("utf-8")
             except (json.JSONDecodeError, TypeError):
                 pass
 
-    return interaction
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +84,8 @@ def vcr_config():
         record_mode="once",
         match_on=["uri", "method"],
         decode_compressed_response=True,
-        before_record=_sanitise_cassette,
+        before_record_request=_sanitise_request,
+        before_record_response=_sanitise_response,
     )
 
 
