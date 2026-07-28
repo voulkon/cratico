@@ -652,7 +652,11 @@
     "emailOn": "Email on",
     "emailOff": "Email off",
     "emailNotificationsOn": "Email notifications are on. Click to turn off.",
-    "emailNotificationsOff": "Email notifications are off. Click to turn on."
+    "emailNotificationsOff": "Email notifications are off. Click to turn on.",
+    "aiOn" : "AI ON",
+    "aiOff" : "AI OFF",
+    "aiSummaryEnabled" : "AI-powered role detection is enabled. Roles are automatically detected from decision text.",
+    "aiSummaryDisabled" : "AI-powered role detection is disabled. Roles are not automatically detected from decision text."
   },
   "dateRange": {
     "today": "Today",
@@ -681,7 +685,7 @@
     "representsAloneTitle": "Represents alone",
     "representsAloneBadge": "Alone",
     "representsInCommonTitle": "Represents jointly",
-    "representsInCommonBadge": "Jointly"
+    "representsInCommonBadge": "Jointly"  
   },
   "companyInfoPanel": {
     "viewOnBusinessPortalTitle": "View on Business Portal",
@@ -758,5 +762,26 @@
     "saved": "Settings saved successfully",
     "loadError": "Failed to load AI settings",
     "saveError": "Failed to save settings"
+  },
+  "aiInteractions": {
+    "title": "AI Interactions",
+    "totalSpend": "Total Spend (This Month)",
+    "totalTokens": "Total Tokens",
+    "calls": "Calls",
+    "avgCost": "Avg Cost / Call",
+    "provider": "Provider",
+    "trigger": "Trigger",
+    "filter": "Filter",
+    "empty": "No AI interactions yet.",
+    "date": "Date",
+    "model": "Model",
+    "tokensIn": "Tokens In",
+    "tokensOut": "Tokens Out",
+    "cost": "Cost",
+    "billed": "Billed",
+    "status": "Status",
+    "prev": "← Prev",
+    "next": "Next →",
+    "pageOf": "Page {page} of {total}"
   }
 }

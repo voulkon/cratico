@@ -1,8 +1,9 @@
 import React, { useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { Moon, Sun, LogOut, LogIn } from 'lucide-react';
+import { Moon, Sun, LogOut, LogIn, Sparkles, BarChart3 } from 'lucide-react';
 import './UserMenu.css';
 
 // Check if Clerk is available
@@ -19,6 +20,7 @@ if (isClerkAvailable()) {
 }
 
 const UserMenuDropdown = ({ onClose, onShowLogin }) => {
+  const navigate = useNavigate();
   const { t, language, switchLanguage, availableLanguages } = useTranslation();
   const {
     theme,
@@ -201,6 +203,33 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
             </button>
           )}
         </div>
+      )}
+
+      {/* AI Settings & Interactions (only when signed in) */}
+      {isSignedIn && (
+        <>
+          <div className="menu-divider"></div>
+          <div className="menu-section">
+            <button
+              className="menu-action"
+              onClick={() => {
+                onClose();
+                navigate('/ai/settings');
+              }}
+            >
+              <Sparkles size={16} /> AI Settings
+            </button>
+            <button
+              className="menu-action"
+              onClick={() => {
+                onClose();
+                navigate('/ai/interactions');
+              }}
+            >
+              <BarChart3 size={16} /> AI Interactions
+            </button>
+          </div>
+        </>
       )}
     </div>
   );
