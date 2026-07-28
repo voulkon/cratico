@@ -24,7 +24,6 @@ class ProcessingProvider(models.TextChoices):
     TESSERACT = "TESSERACT", _("Tesseract OCR")
     GOOGLE_VISION = "GOOGLE_VISION", _("Google Vision API")
     AZURE_OCR = "AZURE_OCR", _("Azure OCR")
-
     # Analysis providers
     OPENAI = "OPENAI", _("OpenAI")
     ANTHROPIC = "ANTHROPIC", _("Anthropic Claude")
@@ -32,6 +31,7 @@ class ProcessingProvider(models.TextChoices):
     AWS_BEDROCK = "AWS_BEDROCK", _("AWS Bedrock")
     MISTRAL = "MISTRAL", _("Mistral AI")
     OLLAMA = "OLLAMA", _("Ollama Local Models")
+    OPENROUTER = "OPENROUTER", _("OpenRouter")
 
     # Embedding providers
     OPENAI_EMBED = "OPENAI_EMBED", _("OpenAI Embeddings")
