@@ -32,7 +32,14 @@ class ExtractStep:
             text = self._get_decision_text(decision, re_extract=re_extract)
             if max_chars and len(text) > max_chars:
                 text = text[:max_chars]
-            item_id = str(getattr(decision, "id", decision.get("id", "")))
+            # Dict vs model-safe ID extraction:
+            # Using ``getattr`` with an eagerly-evaluated default like
+            # ``decision.get("id", "")`` would crash on model instances
+            # because Python evaluates the default *before* getattr runs.
+            if isinstance(decision, dict):
+                item_id = str(decision.get("id", ""))
+            else:
+                item_id = str(decision.pk)
             texts[item_id] = text
 
         # Store in context for downstream steps
