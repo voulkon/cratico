@@ -70,6 +70,16 @@ class CustomUser(AbstractUser):
         null=True, blank=True, help_text="YYYYMM for monthly reset logic"
     )
 
+    # AI feature flags
+    ai_enabled = models.BooleanField(
+        default=True,
+        help_text="Master switch — when off, no AI calls are made for this user.",
+    )
+    ai_system_key_accepted = models.BooleanField(
+        default=False,
+        help_text="User has acknowledged using the platform system key for AI.",
+    )
+
     @property
     def has_active_subscription(self):
         return (

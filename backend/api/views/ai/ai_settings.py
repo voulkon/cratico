@@ -98,6 +98,14 @@ def ai_settings(request):
             _serialize_settings(r)
             for r in UserAISettings.objects.filter(user=request.user)
         ]
+        # Include user-level AI feature flags
+        payload["ai_enabled"] = request.user.ai_enabled
+        payload["ai_system_key_accepted"] = request.user.ai_system_key_accepted
+        # Determine effective mode: BYOK if any active row has a key, else SYSTEM
+        has_active_byok = any(
+            r.has_own_key for r in UserAISettings.objects.filter(user=request.user)
+        )
+        payload["key_mode"] = "BYOK" if has_active_byok else "SYSTEM"
         return Response(payload)
 
     # PUT — update (or lazily create) the default row
@@ -105,6 +113,15 @@ def ai_settings(request):
         obj = UserAISettings(user=request.user, is_default=True)
     _apply_payload(obj, request.data)
     obj.save()
+
+    # Handle user-level flags if present in payload
+    if "ai_enabled" in request.data:
+        request.user.ai_enabled = bool(request.data["ai_enabled"])
+        request.user.save(update_fields=["ai_enabled"])
+    if "ai_system_key_accepted" in request.data:
+        request.user.ai_system_key_accepted = bool(request.data["ai_system_key_accepted"])
+        request.user.save(update_fields=["ai_system_key_accepted"])
+
     return Response(_serialize_settings(obj))
 
 
