@@ -134,6 +134,7 @@
     "all": "All",
     "loadMore": "Load More",
     "register" : "Register",
+    "ai": "AI",
     "notSignedIn": "Not signed in"
   },
   "decisionsToolbar": {
@@ -785,7 +786,8 @@
     "saving": "Saving...",
     "saved": "Settings saved successfully",
     "loadError": "Failed to load AI settings",
-    "saveError": "Failed to save settings"
+    "saveError": "Failed to save settings",
+    "viewInteractions": "AI Interactions"
   },
   "aiInteractions": {
     "title": "AI Interactions",

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import {
@@ -12,6 +13,7 @@ import './AISettingsPage.css';
 
 const AISettingsPage = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   useDocumentTitle('AI Settings');
 
   const [settings, setSettings] = useState(null);
@@ -119,6 +121,13 @@ const AISettingsPage = () => {
             </span>
           )}
         </p>
+
+        <button
+          className="ai-settings-interactions-link"
+          onClick={() => navigate('/ai/interactions')}
+        >
+          {t('aiSettings.viewInteractions')}
+        </button>
 
         {error && <div className="ai-settings-error">{error}</div>}
         {success && <div className="ai-settings-success">{success}</div>}
