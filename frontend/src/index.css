@@ -9,6 +9,7 @@
   --spacing-xxl: 24px;
   --spacing-xxxl: 30px;
   --spacing-xxxxl: 40px;
+  --spacing-xxs: 2px;
 
   /* ── Top band — single knob for the entire top strip ──
      Change --top-band-height and everything adjusts:
@@ -33,6 +34,7 @@
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-full: 50%;
+  --radius-xs: 2px;
 
   /* Content width — single knob for all page-level max-widths */
   --content-max-width: 1100px;
@@ -49,12 +51,14 @@
   --font-xl: 1.5rem;
   --font-xxl: 2rem;
   --font-xxxl: 2.5rem;
+  --font-xxs: 0.625rem;
 
   /* Font weights */
   --font-normal: 400;
   --font-medium: 500;
   --font-bold: 700;
   --font-black: 900;
+  --font-semibold: 600;
 
   /* Transitions */
   --transition-fast: 0.2s ease;
@@ -66,6 +70,34 @@
      Loaded via Google Fonts in public/index.html. */
   --font-serif: 'DM Serif Display', 'Playfair Display', Georgia, serif;
   --font-sans: 'DM Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* ── Aliases & derived tokens ──────────────────────────────
+     Resolve to themed values at runtime via var() indirection.
+     Per-palette overrides for RGB values live in palette blocks below. */
+  --accent-color: var(--palette-primary);
+  --accent-hover: var(--palette-secondary);
+  --accent-color-rgb: var(--palette-primary-rgb);
+  --palette-primary-light: var(--palette-bg-subtle);
+  --palette-primary-rgb: 66, 153, 225;          /* fallback blue; overridden per palette */
+  --primary-hover: var(--palette-secondary);
+  --bg-primary: var(--card-bg);
+  --bg-secondary: var(--surface-secondary);
+  --card-bg-hover: var(--hover-bg);
+  --color-error: var(--error-text);
+  --error-color: var(--error-text);
+  --error-light: var(--error-bg);
+  --color-error-bg: var(--error-bg);
+  --success-color: var(--success-text);
+  --success-border: var(--success-text);
+  --warning-color: var(--warning-text);
+  --dark-text: var(--text-color);
+  --info-color: var(--palette-primary);
+  --border-radius-md: var(--radius-md);
+  --border-radius-sm: var(--radius-sm);
+  --split-btn-height: var(--top-controls-height);
+  --search-max-width: var(--content-max-width);
+  --logo-stroke-surrounding: var(--text-color);
+  --logo-stroke-column: var(--palette-primary);
 }
 
 /* Scale ALL text globally — rem values cascade from here automatically */
