@@ -1,4 +1,5 @@
 from core.models.companies import Company
+from core.models.decision_ai_analysis import DecisionAIAnalysis
 from core.models.decisions import Decision
 from core.models.document_analysis import DocumentExtraction, ProcessingStatus
 from core.models.entities import DecisionEntityRelationship
@@ -34,6 +35,21 @@ def decision_detail(request, decision_id):
         except DocumentExtraction.DoesNotExist:
             has_document_content = False
 
+        # AI analysis status (if any)
+        ai_analysis_data = None
+        try:
+            ai_analysis = DecisionAIAnalysis.objects.get(decision=decision)
+            ai_analysis_data = {
+                "status": ai_analysis.status,
+                "summary": ai_analysis.summary,
+                "cost_usd": str(ai_analysis.cost_usd) if ai_analysis.cost_usd else None,
+                "model_used": ai_analysis.model_used,
+                "completed_at": ai_analysis.completed_at,
+                "error_message": ai_analysis.error_message,
+            }
+        except DecisionAIAnalysis.DoesNotExist:
+            ai_analysis_data = None
+
         # Serialize decision data
         decision_data = {
             "id": decision.id,
@@ -67,6 +83,7 @@ def decision_detail(request, decision_id):
                 else None
             ),
             "has_document_content": has_document_content,
+            "ai_analysis": ai_analysis_data,
             "warnings": decision.warnings,
             "has_private_data": decision.has_private_data,
             "organization": (
