@@ -13,11 +13,75 @@ Two separate, composable tasks:
 Both are idempotent: re-requesting an already-completed step is a no-op.
 """
 
-from django.utils import timezone
 from loguru import logger
 
 from celery import shared_task
 
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _has_completed_analysis(decision_id: int, *, force: bool = False) -> bool:
+    """
+    Return True if *decision_id* already has a completed AI summary
+    and we are not forcing regeneration.
+    """
+    if force:
+        return False
+    from core.models.decision_ai_analysis import AnalysisStatus, DecisionAIAnalysis
+    return DecisionAIAnalysis.objects.filter(
+        decision_id=decision_id,
+        status=AnalysisStatus.COMPLETED,
+    ).exclude(summary="").exists()
+
+
+def _needs_text_extraction(decision) -> bool:
+    """
+    Return True if *decision* has no usable extracted text yet.
+    """
+    from core.models.document_analysis import ProcessingStatus
+    extraction = getattr(decision, "text_extraction", None)
+    if extraction is None:
+        return True
+    if extraction.extraction_status != ProcessingStatus.COMPLETED:
+        return True
+    if not extraction.raw_text:
+        return True
+    return False
+
+
+def _resolve_user(user_id: int):
+    """Resolve a user by ID for billing attribution.  Raises if not found."""
+    if not user_id:
+        raise ValueError("user_id is required for billing attribution")
+    from users.models import CustomUser
+
+    user = CustomUser.objects.filter(id=user_id).first()
+    if user is None:
+        raise ValueError(f"User id={user_id} not found; cannot attribute billing")
+    return user
+
+
+def _extract_pipeline_output(context, run) -> str | None:
+    """
+    Extract the final output text from a *completed* pipeline run.
+
+    Only returns output when the run succeeded — partial outputs from a
+    failed run are never surfaced as the final result.
+    """
+    from core.models.pipeline import RunStatus
+    if run.status != RunStatus.COMPLETED:
+        return None
+    if context.steps_output:
+        return context.steps_output[max(context.steps_output.keys())]
+    last_step = run.step_runs.order_by("-order").first()
+    return last_step.output_text if last_step else None
+
+
+# ---------------------------------------------------------------------------
+# Tasks
+# ---------------------------------------------------------------------------
 
 @shared_task(bind=True, max_retries=2)
 def extract_decision_text(self, decision_id: int, provider: str = None):
@@ -94,7 +158,7 @@ def extract_decision_text(self, decision_id: int, provider: str = None):
 
 
 @shared_task(bind=True, max_retries=2)
-def process_decision_ai(self, decision_id: int, user_id: int = None, provider: str = None, force: bool = False):
+def process_decision_ai(self, decision_id: int, user_id: int, provider: str = None, force: bool = False):
     """
     Run AI summarization on a single decision.
 
@@ -113,8 +177,7 @@ def process_decision_ai(self, decision_id: int, user_id: int = None, provider: s
     """
     from core.models.decision_ai_analysis import AnalysisStatus, DecisionAIAnalysis
     from core.models.decisions import Decision
-    from core.models.document_analysis import DocumentExtraction, ProcessingStatus
-    from core.models.pipeline import PipelineDefinition, PipelineStep, RunStatus
+    from core.models.pipeline import RunStatus
     from core.services.pipeline_engine import PipelineContext, PipelineEngine
 
     # Map PipelineRun RunStatus → AnalysisStatus (defensive: unknown → FAILED)
@@ -141,23 +204,20 @@ def process_decision_ai(self, decision_id: int, user_id: int = None, provider: s
         _finish("failed", "decision not found")
         return {"decision_id": decision_id, "status": "not_found"}
 
-    # Check if already completed (unless force regeneration)
-    existing_analysis = DecisionAIAnalysis.objects.filter(
-        decision=decision, status=AnalysisStatus.COMPLETED
-    ).first()
-    if existing_analysis and existing_analysis.summary and not force:
+    # --- Early-exit: already analysed (unless forcing regeneration) ---
+    if _has_completed_analysis(decision_id, force=force):
         logger.info(f"Decision {decision_id}: AI analysis already completed")
         _finish("completed")
+        existing = DecisionAIAnalysis.objects.only("cost_usd").get(decision_id=decision_id)
         return {
             "decision_id": decision_id,
             "status": "already_completed",
-            "analysis_id": existing_analysis.decision_id,
-            "cost_usd": str(existing_analysis.cost_usd or 0),
+            "analysis_id": decision_id,
+            "cost_usd": str(existing.cost_usd or 0),
         }
 
-    # Ensure text is extracted
-    extraction = getattr(decision, "text_extraction", None)
-    if not extraction or extraction.extraction_status != ProcessingStatus.COMPLETED or not extraction.raw_text:
+    # --- Ensure text is extracted ---
+    if _needs_text_extraction(decision):
         logger.info(f"Decision {decision_id}: text not extracted, triggering extraction first")
         extract_result = extract_decision_text(decision_id, provider=provider)
         if extract_result.get("status") not in ("extracted", "already_extracted"):
@@ -168,10 +228,9 @@ def process_decision_ai(self, decision_id: int, user_id: int = None, provider: s
                 "status": "extraction_failed",
                 "error": error_msg,
             }
-        # Refresh
         decision.refresh_from_db()
 
-    # Get or create analysis record
+    # --- Get or create analysis record ---
     analysis, _ = DecisionAIAnalysis.objects.get_or_create(
         decision=decision,
         defaults={"status": AnalysisStatus.PENDING},
@@ -179,20 +238,12 @@ def process_decision_ai(self, decision_id: int, user_id: int = None, provider: s
     analysis.status = AnalysisStatus.RUNNING
     analysis.save(update_fields=["status"])
 
-    # Resolve user for billing
-    user = None
-    if user_id:
-        from users.models import CustomUser
-        try:
-            user = CustomUser.objects.get(id=user_id)
-        except CustomUser.DoesNotExist:
-            pass
+    # --- Resolve user for billing ---
+    user = _resolve_user(user_id)
 
     try:
-        # Get or create the single-decision pipeline
-        pipeline_def = _get_or_create_single_decision_pipeline()
+        pipeline_def = _get_or_create_simple_summary_pipeline()
 
-        # Build context and run
         context = PipelineContext(
             decisions=[decision],
             user=user,
@@ -205,14 +256,7 @@ def process_decision_ai(self, decision_id: int, user_id: int = None, provider: s
             trigger_ref=f"decision:{decision_id}",
         )
 
-        # Extract result
-        final_output = None
-        if context.steps_output:
-            final_output = context.steps_output[max(context.steps_output.keys())]
-        if not final_output:
-            last_step = run.step_runs.order_by("-order").first()
-            if last_step:
-                final_output = last_step.output_text
+        final_output = _extract_pipeline_output(context, run)
 
         # Store on analysis record
         analysis.pipeline_run = run
@@ -254,9 +298,9 @@ def process_decision_ai(self, decision_id: int, user_id: int = None, provider: s
         raise self.retry(exc=exc, countdown=60)
 
 
-def _get_or_create_single_decision_pipeline():
+def _get_or_create_simple_summary_pipeline():
     """
-    Get or create the default single-decision AI summary pipeline.
+    Get or create the simple single-decision AI summary pipeline.
 
     Steps:
     1. EXTRACT — read cached DocumentExtraction.raw_text
@@ -265,7 +309,7 @@ def _get_or_create_single_decision_pipeline():
     from core.models.pipeline import PipelineDefinition, PipelineStep
 
     pipeline, created = PipelineDefinition.objects.get_or_create(
-        name="decision_summary_v1",
+        name="simple_summary_v1",
         defaults={
             "version": 1,
             "description": "Single-decision AI summary pipeline",
@@ -306,7 +350,7 @@ def _get_or_create_single_decision_pipeline():
                 "max_tokens": 1000,
             },
         )
-        logger.info("Created default decision_summary_v1 pipeline")
+        logger.info("Created default simple_summary_v1 pipeline")
 
     return pipeline
 

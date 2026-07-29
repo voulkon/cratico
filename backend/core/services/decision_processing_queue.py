@@ -23,7 +23,7 @@ Usage:
     queue.on_completed(decision_id=42, process_type="extract")
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple  # noqa: F401 — Tuple used in dispatch_next/batch
 
 from api.redis_keys import (
     DECISION_AI_QUEUE_ACTIVE,
@@ -33,6 +33,7 @@ from api.redis_keys import (
     DECISION_AI_QUEUE_MAX_CONCURRENT,
     DECISION_AI_QUEUE_PENDING,
     DECISION_AI_QUEUE_STATS,
+    META_KEY_PREFIX
 )
 from django.utils import timezone
 from django_redis import get_redis_connection
@@ -64,10 +65,16 @@ class DecisionProcessingQueue:
     # Enqueue
     # ------------------------------------------------------------------
 
-    def enqueue(self, decision_id: int, force: bool = False) -> Dict[str, Any]:
+
+    def _meta_key(self, decision_id: int) -> str:
+        return f"{META_KEY_PREFIX}:{decision_id}"
+
+    def enqueue(self, decision_id: int, user_id: int, force: bool = False) -> Dict[str, Any]:
         """
         Add a decision to the pending set.  Idempotent — returns existing
         status if the decision is already queued/active/completed.
+
+        *user_id* is required — billing is always attributed to a real user.
 
         With ``force=True``, a completed or failed entry is reset so the
         decision can be re-processed (regeneration).
@@ -95,10 +102,12 @@ class DecisionProcessingQueue:
         self.redis.srem(self.FAILED_KEY, did)
 
         self.redis.sadd(self.PENDING_KEY, did)
+        # Persist user_id so the consumer can bill to the correct user
+        self.redis.hset(self._meta_key(decision_id), "user_id", user_id)
         self._update_stats(last_enqueue_at=timezone.now().isoformat())
 
         pending = self.redis.scard(self.PENDING_KEY)
-        logger.info(f"Decision {decision_id}: enqueued (pending={pending})")
+        logger.info(f"Decision {decision_id}: enqueued by user {user_id} (pending={pending})")
         return {"decision_id": decision_id, "status": "enqueued"}
 
     # ------------------------------------------------------------------
@@ -110,11 +119,12 @@ class DecisionProcessingQueue:
         active = self.redis.scard(self.ACTIVE_KEY)
         return active < self.MAX_CONCURRENT
 
-    def dispatch_next(self) -> Optional[int]:
+    def dispatch_next(self) -> Optional[Tuple[int, int]]:
         """
         Pop the next pending decision and move it to active.
 
-        Returns the decision ID, or ``None`` if the queue is empty or at capacity.
+        Returns a ``(decision_id, user_id)`` tuple, or ``None`` if the
+        queue is empty or at capacity.
         """
         if not self.can_dispatch():
             return None
@@ -129,15 +139,36 @@ class DecisionProcessingQueue:
         if isinstance(did, bytes):
             did = did.decode("utf-8")
 
-        self.redis.sadd(self.ACTIVE_KEY, did)
-        logger.info(f"Decision {did}: dispatched (active={self.redis.scard(self.ACTIVE_KEY)})")
-        return int(did)
+        decision_id = int(did)
 
-    def dispatch_batch(self, max_count: int = None) -> List[int]:
+        # Retrieve the user_id stored at enqueue time
+        user_id_raw = self.redis.hget(self._meta_key(decision_id), "user_id")
+        if user_id_raw is None:
+            logger.error(
+                f"Decision {decision_id}: no user_id in metadata — "
+                f"was enqueued before the user_id requirement. Moving to failed."
+            )
+            self.redis.sadd(self.FAILED_KEY, did)
+            self.redis.hset(
+                self.STATS_KEY,
+                f"error:{did}",
+                "no user_id in metadata (stale pre-migration entry)",
+            )
+            return None
+        user_id = int(user_id_raw)
+
+        self.redis.sadd(self.ACTIVE_KEY, did)
+        logger.info(
+            f"Decision {did}: dispatched for user {user_id} "
+            f"(active={self.redis.scard(self.ACTIVE_KEY)})"
+        )
+        return (decision_id, user_id)
+
+    def dispatch_batch(self, max_count: int = None) -> List[Tuple[int, int]]:
         """
         Dispatch up to *max_count* decisions (capped by capacity).
 
-        Returns list of dispatched decision IDs.
+        Returns list of ``(decision_id, user_id)`` tuples.
         """
         available = self.MAX_CONCURRENT - self.redis.scard(self.ACTIVE_KEY)
         if available <= 0:
@@ -146,13 +177,13 @@ class DecisionProcessingQueue:
         count = min(available, max_count or available)
         dispatched = []
         for _ in range(count):
-            did = self.dispatch_next()
-            if did is None:
+            item = self.dispatch_next()
+            if item is None:
                 break
-            dispatched.append(did)
+            dispatched.append(item)
 
         if dispatched:
-            logger.info(f"Dispatched {len(dispatched)}: {dispatched}")
+            logger.info(f"Dispatched {len(dispatched)}: {[d[0] for d in dispatched]}")
         return dispatched
 
     # ------------------------------------------------------------------
@@ -164,6 +195,7 @@ class DecisionProcessingQueue:
         did = str(decision_id)
         self.redis.srem(self.ACTIVE_KEY, did)
         self.redis.sadd(self.COMPLETED_KEY, did)
+        self.redis.delete(self._meta_key(decision_id))
         self._update_stats(last_completed_at=timezone.now().isoformat())
 
     def on_failed(self, decision_id: int, error: str = ""):
@@ -171,6 +203,7 @@ class DecisionProcessingQueue:
         did = str(decision_id)
         self.redis.srem(self.ACTIVE_KEY, did)
         self.redis.sadd(self.FAILED_KEY, did)
+        self.redis.delete(self._meta_key(decision_id))
         if error:
             self.redis.hset(self.STATS_KEY, f"error:{did}", error[:300])
 
@@ -198,15 +231,18 @@ class DecisionProcessingQueue:
 
             from core.tasks.tasks_decision_ai import process_decision_ai
 
-            for did in dispatched:
-                process_decision_ai.delay(did)
+            for decision_id, user_id in dispatched:
+                process_decision_ai.delay(decision_id, user_id=user_id)
 
             self._update_stats(
                 last_batch_at=timezone.now().isoformat(),
                 last_batch_size=len(dispatched),
             )
 
-            logger.info(f"Decision AI queue: dispatched {len(dispatched)} async tasks: {dispatched}")
+            logger.info(
+                f"Decision AI queue: dispatched {len(dispatched)} async tasks: "
+                f"{[d[0] for d in dispatched]}"
+            )
             return {"status": "dispatched", "dispatched": dispatched}
         finally:
             self.redis.delete(self.LOCK_KEY)
@@ -250,6 +286,25 @@ class DecisionProcessingQueue:
             self.redis.delete(self.COMPLETED_KEY)
             logger.info(f"Decision AI queue: cleared {count} completed entries")
         return count
+
+    def cleanup_stale_pending(self) -> int:
+        """
+        Remove pending entries that lack metadata (enqueued before user_id
+        was required).  Call once after deploying the user_id change.
+        """
+        removed = 0
+        for did in self.redis.smembers(self.PENDING_KEY):
+            did = did.decode("utf-8") if isinstance(did, bytes) else did
+            if not self.redis.exists(self._meta_key(int(did))):
+                self.redis.srem(self.PENDING_KEY, did)
+                removed += 1
+                logger.warning(
+                    f"Decision {did}: removed from pending — no metadata "
+                    f"(stale pre-migration entry)"
+                )
+        if removed:
+            logger.info(f"Decision AI queue: cleaned up {removed} stale pending entries")
+        return removed
 
     # ------------------------------------------------------------------
     # Helpers

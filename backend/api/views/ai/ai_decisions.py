@@ -55,7 +55,7 @@ def request_extraction(request, decision_id: int):
     from core.services.decision_processing_queue import DecisionProcessingQueue
 
     queue = DecisionProcessingQueue()
-    result = queue.enqueue(decision_id)
+    result = queue.enqueue(decision_id, user_id=request.user.id)
 
     # Kick the consumer to pick up this (and any other pending) work
     from core.tasks.tasks_decision_ai import consume_decision_queue
@@ -121,7 +121,7 @@ def request_summary(request, decision_id: int):
     from core.services.decision_processing_queue import DecisionProcessingQueue
 
     queue = DecisionProcessingQueue()
-    result = queue.enqueue(decision_id, force=force)
+    result = queue.enqueue(decision_id, user_id=request.user.id, force=force)
 
     # Kick the consumer
     from core.tasks.tasks_decision_ai import consume_decision_queue

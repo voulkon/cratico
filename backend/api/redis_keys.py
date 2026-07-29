@@ -69,6 +69,9 @@ DECISION_AI_QUEUE_LOCK = f"{DECISION_AI_QUEUE_NS}:lock"  # Global processing loc
 DECISION_AI_QUEUE_STATS = f"{DECISION_AI_QUEUE_NS}:stats"  # Hash of statistics
 DECISION_AI_QUEUE_MAX_CONCURRENT = 2  # Max concurrent AI processing jobs
 
+# Redis key for per-decision metadata (user_id, provider, etc.)
+META_KEY_PREFIX = "decision_ai_queue:meta"
+
 # Search History (personal search tracking)
 SEARCH_HISTORY_NS = "search_history"
 SEARCH_HISTORY_USER_PREFIX = (

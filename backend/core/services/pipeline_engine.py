@@ -80,16 +80,22 @@ class PipelineEngine:
     # Internals
     # ------------------------------------------------------------------
     def _resolve_billed_to(self, user) -> str:
-        """Return 'USER' or 'SYSTEM' based on user's AI settings."""
+        """Return 'USER' or 'SYSTEM' based on user's AI settings.
+
+        Raises ValueError if *user* is None — billing must be explicit.
+        """
         if user is None:
-            return "SYSTEM"
+            raise ValueError(
+                "user is required for billing attribution; "
+                "pass a real user or set billed_to explicitly"
+            )
         try:
             from core.models.user_ai_settings import UserAISettings
 
             ai_settings = UserAISettings.get_default_for_user(user)
-            return ai_settings.billed_to if ai_settings else "SYSTEM"
+            return ai_settings.billed_to if ai_settings else "USER"
         except Exception:
-            return "SYSTEM"
+            return "USER"
 
     def _execute_step(self, step, context: PipelineContext, run: PipelineRun):
         """Dispatch a single step to its executor."""
