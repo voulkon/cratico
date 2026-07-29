@@ -167,10 +167,37 @@ def ai_settings_row(request, pk: int):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def test_key(request):
-    """Validate an OpenRouter API key via /key/info."""
+    """Validate an OpenRouter API key via /key/info.
+
+    Accepts:
+      - ``api_key`` (str): a plaintext key to test (e.g. from a form field)
+      - ``row_id`` (int):  pk of a UserAISettings row whose stored key to test
+
+    If neither is provided the default row's key is tested.
+    """
+    # 1) Explicit row by id
+    row_id = request.data.get("row_id")
+    if row_id is not None:
+        try:
+            row = UserAISettings.objects.get(pk=row_id, user=request.user)
+        except UserAISettings.DoesNotExist:
+            return Response(
+                {"is_valid": False, "error": "Settings row not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        key = row.get_api_key()
+        if not key:
+            return Response(
+                {"is_valid": False, "error": "No API key stored on that row."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        result = OpenRouterProvider.check_key(key)
+        return Response(result)
+
+    # 2) Explicit plaintext key
     key = request.data.get("api_key")
     if not key:
-        # If no key provided, test the user's stored key
+        # 3) Fall back to the default row's stored key
         obj = UserAISettings.get_default_for_user(request.user)
         key = obj.get_api_key() if obj else None
         if not key:
