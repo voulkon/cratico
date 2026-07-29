@@ -121,8 +121,10 @@ class AICallStep:
         if user is None:
             return ""
         try:
-            ai_settings = user.ai_settings
-            return ai_settings.effective_api_key
+            from core.models.user_ai_settings import UserAISettings
+
+            ai_settings = UserAISettings.get_default_for_user(user)
+            return ai_settings.effective_api_key if ai_settings else ""
         except Exception:
             return ""
 

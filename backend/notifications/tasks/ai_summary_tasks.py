@@ -23,7 +23,7 @@ def summarize_notification_batch(self, batch_id):
     """
     try:
         batch = NotificationBatch.objects.select_related(
-            "subscription__user__ai_settings",
+            "subscription__user",
             "subscription__ai_summary_pipeline",
         ).get(id=batch_id)
     except NotificationBatch.DoesNotExist:

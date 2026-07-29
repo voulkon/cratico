@@ -84,8 +84,10 @@ class PipelineEngine:
         if user is None:
             return "SYSTEM"
         try:
-            ai_settings = user.ai_settings
-            return ai_settings.billed_to
+            from core.models.user_ai_settings import UserAISettings
+
+            ai_settings = UserAISettings.get_default_for_user(user)
+            return ai_settings.billed_to if ai_settings else "SYSTEM"
         except Exception:
             return "SYSTEM"
 
