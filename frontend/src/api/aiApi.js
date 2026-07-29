@@ -19,11 +19,30 @@ export const updateAISettings = async (data) => {
   return response.data;
 };
 
-export const testAIKey = async (apiKey) => {
-  const response = await apiClient.post(`${AI_BASE}/settings/test-key/`, {
-    api_key: apiKey,
-  });
+export const testAIKey = async (apiKey, rowId = null) => {
+  const payload = {};
+  if (rowId != null) {
+    payload.row_id = rowId;
+  } else if (apiKey) {
+    payload.api_key = apiKey;
+  }
+  const response = await apiClient.post(`${AI_BASE}/settings/test-key/`, payload);
   return response.data;
+};
+
+// Row-level CRUD for multiple API keys
+export const createAISettingsRow = async (data) => {
+  const response = await apiClient.post(`${AI_BASE}/settings/rows/`, data);
+  return response.data;
+};
+
+export const updateAISettingsRow = async (id, data) => {
+  const response = await apiClient.put(`${AI_BASE}/settings/rows/${id}/`, data);
+  return response.data;
+};
+
+export const deleteAISettingsRow = async (id) => {
+  await apiClient.delete(`${AI_BASE}/settings/rows/${id}/`);
 };
 
 // ---------------------------------------------------------------------------
