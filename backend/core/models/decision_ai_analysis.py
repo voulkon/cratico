@@ -50,7 +50,6 @@ class DecisionAIAnalysis(models.Model):
         max_length=20,
         choices=AnalysisStatus.choices,
         default=AnalysisStatus.PENDING,
-        db_index=True,
     )
 
     # Result content
