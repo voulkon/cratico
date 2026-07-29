@@ -23,7 +23,7 @@
 }
 
 .ai-settings-note {
-  color: var(--warning-color, #e6a700);
+  color: var(--warning-text, #856404);
 }
 
 .ai-settings-loading {
@@ -33,8 +33,8 @@
 }
 
 .ai-settings-error {
-  background: var(--error-bg, #fee);
-  color: var(--error-color, #c00);
+  background: var(--error-bg, #f8d7da);
+  color: var(--error-text, #721c24);
   padding: 0.75rem 1rem;
   border-radius: 6px;
   margin-bottom: 1.5rem;
@@ -42,8 +42,8 @@
 }
 
 .ai-settings-success {
-  background: var(--success-bg, #efe);
-  color: var(--success-color, #070);
+  background: var(--success-bg, #d4edda);
+  color: var(--success-text, #155724);
   padding: 0.75rem 1rem;
   border-radius: 6px;
   margin-bottom: 1.5rem;
@@ -117,13 +117,13 @@
 }
 
 .ai-settings-test-result.valid {
-  color: var(--success-color, #070);
-  background: var(--success-bg, #efe);
+  color: var(--success-text, #155724);
+  background: var(--success-bg, #d4edda);
 }
 
 .ai-settings-test-result.invalid {
-  color: var(--error-color, #c00);
-  background: var(--error-bg, #fee);
+  color: var(--error-text, #721c24);
+  background: var(--error-bg, #f8d7da);
 }
 
 .ai-settings-hint {
@@ -158,7 +158,7 @@
   padding: 0.6rem 2rem;
   border: none;
   border-radius: 6px;
-  background: var(--primary-color, #3b82f6);
+  background: var(--palette-primary, #3b82f6);
   color: white;
   font-size: 0.875rem;
   font-weight: 600;
@@ -191,6 +191,6 @@
 }
 
 .ai-settings-interactions-link:hover {
-  background: var(--palette-primary-light, #e8f0fe);
+  background: var(--palette-bg-subtle, #e5eef4);
   color: var(--palette-primary, #3b82f6);
 }

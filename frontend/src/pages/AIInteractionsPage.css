@@ -119,13 +119,13 @@
 }
 
 .ai-status-badge.success {
-  background: var(--success-bg, #efe);
-  color: var(--success-color, #070);
+  background: var(--success-bg, #d4edda);
+  color: var(--success-text, #155724);
 }
 
 .ai-status-badge.failed {
-  background: var(--error-bg, #fee);
-  color: var(--error-color, #c00);
+  background: var(--error-bg, #f8d7da);
+  color: var(--error-text, #721c24);
 }
 
 .ai-interactions-pagination {
