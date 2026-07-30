@@ -483,6 +483,58 @@
   background: var(--palette-emphasis);
 }
 
+/* ---------- AI Analysis Section ---------- */
+.ai-analysis-section .ai-summary-result {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  margin-top: var(--spacing-sm);
+}
+
+.ai-analysis-section .ai-summary-text {
+  line-height: 1.7;
+  white-space: pre-wrap;
+  font-size: var(--font-sm);
+  margin-bottom: var(--spacing-sm);
+}
+
+.ai-analysis-section .ai-summary-meta {
+  display: flex;
+  gap: var(--spacing-md);
+  font-size: var(--font-xs);
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border-color);
+  padding-top: var(--spacing-sm);
+}
+
+.ai-analysis-section .ai-summary-status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  color: var(--text-secondary);
+}
+
+.ai-analysis-section .ai-summary-failed {
+  color: var(--color-error);
+}
+
+.ai-analysis-section .ai-action-buttons {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+}
+
+.document-link--ai {
+  border-color: var(--palette-primary);
+  color: var(--palette-primary);
+}
+
+.document-link--ai:hover {
+  background: var(--palette-primary);
+  color: var(--palette-primary-contrast, white);
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 768px) {
   .decision-detail-page {
@@ -504,5 +556,9 @@
   .document-link {
     width: 100%;
     justify-content: center;
+  }
+
+  .ai-action-buttons {
+    flex-direction: column;
   }
 }

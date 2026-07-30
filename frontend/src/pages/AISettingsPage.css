@@ -1,3 +1,7 @@
+/* ===================================================================
+   AI Settings Page — card-based two-part layout
+   =================================================================== */
+
 .ai-settings-page {
   min-height: 100vh;
   padding: 2rem;
@@ -6,24 +10,20 @@
 }
 
 .ai-settings-container {
-  max-width: 600px;
+  max-width: 720px;
   margin: 0 auto;
 }
 
 .ai-settings-title {
   font-size: 1.75rem;
   font-weight: 700;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
 }
 
 .ai-settings-subtitle {
   font-size: 0.9rem;
   color: var(--text-secondary, #666);
-  margin-bottom: 2rem;
-}
-
-.ai-settings-note {
-  color: var(--warning-color, #e6a700);
+  margin-bottom: 1.25rem;
 }
 
 .ai-settings-loading {
@@ -33,51 +33,294 @@
 }
 
 .ai-settings-error {
-  background: var(--error-bg, #fee);
-  color: var(--error-color, #c00);
+  background: var(--error-bg, #f8d7da);
+  color: var(--error-text, #721c24);
   padding: 0.75rem 1rem;
   border-radius: 6px;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
   font-size: 0.875rem;
 }
 
 .ai-settings-success {
-  background: var(--success-bg, #efe);
-  color: var(--success-color, #070);
+  background: var(--success-bg, #d4edda);
+  color: var(--success-text, #155724);
   padding: 0.75rem 1rem;
   border-radius: 6px;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
   font-size: 0.875rem;
 }
 
-.ai-settings-field {
+.ai-settings-interactions-link {
+  display: inline-block;
+  padding: 0.5rem 1rem;
   margin-bottom: 1.5rem;
+  background: var(--hover-bg, #f5f5f5);
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 6px;
+  color: var(--text-color);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.2s;
 }
 
-.ai-settings-field label {
-  display: block;
+.ai-settings-interactions-link:hover {
+  background: var(--palette-bg-subtle, #e5eef4);
+  color: var(--palette-primary, #3b82f6);
+}
+
+/* -------------------------------------------------------------------
+   Cards
+   ------------------------------------------------------------------- */
+.ai-card {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.ai-card--disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.ai-card--disabled .ai-toggle {
+  pointer-events: auto;
+}
+
+.ai-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.ai-card-header-left {
+  flex: 1;
+}
+
+.ai-card-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0 0 0.25rem;
+}
+
+.ai-card-desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary, #888);
+  margin: 0;
+}
+
+.ai-card-empty {
+  text-align: center;
+  color: var(--text-secondary, #888);
+  padding: 1.5rem 0;
+  font-size: 0.875rem;
+}
+
+/* -------------------------------------------------------------------
+   Toggle switch
+   ------------------------------------------------------------------- */
+.ai-toggle {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.ai-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.ai-toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--border-color, #ccc);
+  border-radius: 24px;
+  transition: 0.25s;
+}
+
+.ai-toggle-slider::before {
+  content: "";
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: 0.25s;
+}
+
+.ai-toggle input:checked + .ai-toggle-slider {
+  background: var(--palette-primary, #3b82f6);
+}
+
+.ai-toggle input:checked + .ai-toggle-slider::before {
+  transform: translateX(20px);
+}
+
+/* -------------------------------------------------------------------
+   Buttons
+   ------------------------------------------------------------------- */
+.ai-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.45rem 0.9rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
   font-weight: 600;
-  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+
+.ai-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ai-btn--primary {
+  background: var(--palette-primary, #3b82f6);
+  color: #fff;
+}
+
+.ai-btn--primary:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.ai-btn--ghost {
+  background: transparent;
+  color: var(--text-secondary, #666);
+  border: 1px solid var(--border-color, #ddd);
+}
+
+.ai-btn--ghost:hover:not(:disabled) {
+  background: var(--hover-bg, #f5f5f5);
+  color: var(--text-color);
+}
+
+.ai-btn--danger:hover:not(:disabled) {
+  color: var(--error-text, #721c24);
+  border-color: var(--error-text, #721c24);
+}
+
+/* -------------------------------------------------------------------
+   Key list
+   ------------------------------------------------------------------- */
+.ai-keys-list {
+  margin-top: 1rem;
+}
+
+.ai-key-item {
+  border: 1px solid var(--border-color, #eee);
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  margin-bottom: 0.6rem;
+  background: var(--card-bg-secondary, #fafafa);
+}
+
+.ai-key-item--default {
+  border-color: var(--palette-primary, #3b82f6);
+  border-width: 1.5px;
+}
+
+.ai-key-item--new {
+  border-style: dashed;
+  border-color: var(--palette-primary, #3b82f6);
+}
+
+.ai-key-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.35rem;
+}
+
+.ai-badge {
+  display: inline-block;
+  background: var(--palette-primary, #3b82f6);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.ai-key-label {
+  font-weight: 600;
   font-size: 0.875rem;
 }
 
-.ai-settings-field input[type="text"],
-.ai-settings-field input[type="password"],
-.ai-settings-field input[type="number"],
-.ai-settings-field select {
+.ai-key-masked {
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #888);
+}
+
+.ai-key-status {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  background: var(--border-color, #eee);
+  color: var(--text-secondary, #888);
+}
+
+.ai-key-status--active {
+  background: var(--success-bg, #d4edda);
+  color: var(--success-text, #155724);
+}
+
+.ai-key-details {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #888);
+  margin-bottom: 0.5rem;
+}
+
+.ai-key-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+/* -------------------------------------------------------------------
+   Key form (inline add / edit)
+   ------------------------------------------------------------------- */
+.ai-key-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.ai-key-form-row label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-bottom: 0.2rem;
+}
+
+.ai-key-form-row input[type="text"],
+.ai-key-form-row input[type="password"],
+.ai-key-form-row input[type="number"],
+.ai-key-form-row select {
   width: 100%;
-  padding: 0.5rem 0.75rem;
+  padding: 0.4rem 0.6rem;
   border: 1px solid var(--border-color, #ccc);
   border-radius: 6px;
   background: var(--card-bg, #fff);
   color: var(--text-color);
-  font-size: 0.875rem;
-}
-
-.ai-settings-field input:disabled,
-.ai-settings-field select:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+  font-size: 0.8rem;
 }
 
 .ai-settings-key-row {
@@ -90,13 +333,13 @@
 }
 
 .ai-settings-test-btn {
-  padding: 0.5rem 1rem;
+  padding: 0.4rem 0.8rem;
   border: 1px solid var(--border-color, #ccc);
   border-radius: 6px;
   background: var(--card-bg, #fff);
   color: var(--text-color);
   cursor: pointer;
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   white-space: nowrap;
 }
 
@@ -110,66 +353,108 @@
 }
 
 .ai-settings-test-result {
-  margin-top: 0.5rem;
-  font-size: 0.8rem;
-  padding: 0.5rem;
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  padding: 0.35rem 0.5rem;
   border-radius: 4px;
 }
 
 .ai-settings-test-result.valid {
-  color: var(--success-color, #070);
-  background: var(--success-bg, #efe);
+  color: var(--success-text, #155724);
+  background: var(--success-bg, #d4edda);
 }
 
 .ai-settings-test-result.invalid {
-  color: var(--error-color, #c00);
-  background: var(--error-bg, #fee);
+  color: var(--error-text, #721c24);
+  background: var(--error-bg, #f8d7da);
 }
 
 .ai-settings-hint {
   display: block;
-  margin-top: 0.25rem;
-  font-size: 0.75rem;
-  color: var(--text-secondary, #888);
+  margin-top: 0.2rem;
+  font-size: 0.7rem;
+  color: var(--text-secondary, #999);
 }
 
-.ai-settings-toggle label {
+.ai-key-form-toggle label {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   cursor: pointer;
+  font-weight: 400;
 }
 
-.ai-settings-toggle input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
+.ai-key-form-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
   cursor: pointer;
 }
 
-.ai-settings-billing {
-  padding: 0.75rem 1rem;
-  background: var(--card-bg, #f5f5f5);
+.ai-key-form-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+/* -------------------------------------------------------------------
+   System key section
+   ------------------------------------------------------------------- */
+.ai-system-key-prompt {
+  margin-top: 0.75rem;
+}
+
+.ai-system-key-prompt p {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #666);
+  margin: 0 0 0.75rem;
+}
+
+.ai-system-key-accepted {
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--success-text, #155724);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ai-check-icon {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Model preference (independent of key)                              */
+/* ------------------------------------------------------------------ */
+
+.ai-model-preference-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.ai-model-select {
+  flex: 1;
+  min-width: 280px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color, #ddd);
   border-radius: 6px;
-  margin-bottom: 1.5rem;
-  font-size: 0.875rem;
+  background: var(--card-bg, #fff);
+  color: var(--text-color);
+  font-size: 0.9rem;
 }
 
-.ai-settings-save-btn {
-  padding: 0.6rem 2rem;
-  border: none;
-  border-radius: 6px;
-  background: var(--primary-color, #3b82f6);
-  color: white;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.ai-settings-save-btn:hover:not(:disabled) {
-  opacity: 0.9;
-}
-
-.ai-settings-save-btn:disabled {
+.ai-model-select:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.ai-model-preference-badge {
+  font-size: 0.8rem;
+  color: var(--accent-color, #2563eb);
+  background: var(--accent-bg, #eff6ff);
+  padding: 0.25rem 0.6rem;
+  border-radius: 4px;
+  white-space: nowrap;
 }

@@ -16,6 +16,7 @@ from .companies import (
     CompanyPerson,
     CompanyStock,
 )
+from .decision_ai_analysis import DecisionAIAnalysis
 from .decision_classification import DecisionClassification
 from .decision_health import DecisionHealthCheck, DecisionHealthSummary, HealthStatus
 from .decisions import Decision, DecisionStatus
@@ -46,4 +47,5 @@ from .search_analytics import PopularQuery, SearchAnalytics
 from .search_suggestions import SearchSuggestion
 from .terms import LegalDocument
 from .types import ActType, ActTypeHelp, ExtraField
+from .user_ai_model_preference import UserAIModelPreference
 from .user_ai_settings import UserAISettings

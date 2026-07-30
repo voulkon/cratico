@@ -1,0 +1,111 @@
+/* ── AISummaryCard ──────────────────────────────────────────────
+ *
+ * AI summary card for notification batch detail.
+ * Uses CSS variables exclusively — no hard-coded colors.
+ */
+
+.ai-summary-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin: 1.5rem 0;
+}
+
+.ai-summary-card__title {
+  font-size: 1.1rem;
+  font-weight: var(--font-bold);
+  margin-bottom: 1rem;
+  color: var(--text-color);
+}
+
+/* ── Completed state ─────────────────────────────────────────── */
+
+.ai-summary-text {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  margin-bottom: 0.75rem;
+}
+
+.ai-summary-meta {
+  font-size: 0.75rem;
+  color: var(--muted-text);
+  margin-bottom: 0.75rem;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+
+.ai-summary-btn {
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.ai-summary-btn--primary {
+  background: var(--palette-primary);
+  color: #fff;
+  border: none;
+}
+
+.ai-summary-btn--secondary:hover:not(:disabled) {
+  background: var(--hover-bg);
+}
+
+.ai-summary-btn--primary:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.ai-summary-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Running state ───────────────────────────────────────────── */
+
+.ai-summary-running {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted-text);
+  font-size: 0.9rem;
+}
+
+.ai-summary-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--palette-primary);
+  border-radius: 50%;
+  animation: ai-summary-spin 0.8s linear infinite;
+}
+
+@keyframes ai-summary-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Pending / Failed / Skipped states ───────────────────────── */
+
+.ai-summary-pending,
+.ai-summary-skipped {
+  font-size: 0.875rem;
+  color: var(--muted-text);
+}
+
+.ai-summary-failed {
+  font-size: 0.875rem;
+  color: var(--error-text);
+}
+
+.ai-summary-pending p,
+.ai-summary-failed p {
+  margin-bottom: 0.75rem;
+}

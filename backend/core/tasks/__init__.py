@@ -25,6 +25,7 @@ from .tasks_data_migration import (
     recompute_publish_date_fields_task,
 )
 from .tasks_db_vacuum import vacuum_multiple_tables_task, vacuum_table_task
+from .tasks_decision_ai import extract_decision_text, process_decision_ai, consume_decision_queue
 from .tasks_decisions import (
     collect_results,
     daily_decisions_sync_task,

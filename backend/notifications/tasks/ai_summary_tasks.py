@@ -7,9 +7,11 @@ or manually via the API ``summarize`` action.
 
 from django.utils import timezone
 from loguru import logger
-from notifications.models import NotificationBatch
 
 from celery import shared_task
+
+from core.tasks.tasks_decision_ai import _extract_pipeline_output
+from notifications.models import NotificationBatch
 
 
 @shared_task(bind=True, max_retries=2)
@@ -23,7 +25,7 @@ def summarize_notification_batch(self, batch_id):
     """
     try:
         batch = NotificationBatch.objects.select_related(
-            "subscription__user__ai_settings",
+            "subscription__user",
             "subscription__ai_summary_pipeline",
         ).get(id=batch_id)
     except NotificationBatch.DoesNotExist:
@@ -78,17 +80,7 @@ def summarize_notification_batch(self, batch_id):
             trigger_ref=f"batch:{batch_id}",
         )
 
-        # Store result on the batch: prefer the last step's context output,
-        # fall back to the last step run's recorded output text.
-        if context.steps_output:
-            final_output = context.steps_output[max(context.steps_output.keys())]
-        else:
-            final_output = None
-
-        if not final_output:
-            last_step_run = run.step_runs.order_by("-order").first()
-            if last_step_run:
-                final_output = last_step_run.output_text
+        final_output = _extract_pipeline_output(context, run)
 
         batch.ai_summary = final_output
         batch.ai_summary_status = run.status

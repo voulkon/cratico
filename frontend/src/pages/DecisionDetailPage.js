@@ -7,6 +7,7 @@ import './DecisionDetailPage.css';
 import '../components/StatCard.css';
 import EntityDisplay from '../components/EntityDisplay';
 import { formatAmount, formatDate } from '../utils/dateUtils';
+import { useDecisionAI } from '../hooks/useDecisionAI';
 import {
   FinancialIcon,
   CalendarIcon,
@@ -62,6 +63,8 @@ const DecisionDetailPage = () => {
     fetchDecisionData();
   }, [fetchDecisionData]);
 
+  const { aiAnalysis, requestExtraction, requestAISummary } = useDecisionAI(decision, fetchDecisionData);
+
   const handleViewDocumentContent = async () => {
     try {
       const response = await apiClient.get(`/decision/${id}/content/`);
@@ -90,9 +93,22 @@ const DecisionDetailPage = () => {
     }
   };
 
-  const handleRequestContent = () => {
-    // TODO: wire to an extraction-request queue endpoint once the workers exist.
-    alert(t('decisionDetail.requestContentComingSoon'));
+  const handleRequestContent = async () => {
+    try {
+      await requestExtraction();
+      alert(t('decisionDetail.extractionQueued'));
+    } catch (err) {
+      alert(typeof err === 'string' ? err : t('decisionDetail.extractionFailed'));
+    }
+  };
+
+  const handleRequestAISummary = async (force = false) => {
+    try {
+      await requestAISummary(force);
+      alert(t('decisionDetail.aiSummaryQueued'));
+    } catch (err) {
+      alert(typeof err === 'string' ? err : t('decisionDetail.aiSummaryFailed'));
+    }
   };
 
   if (loading) {
@@ -417,6 +433,63 @@ const DecisionDetailPage = () => {
               ))}
             </div>
           </details>
+        )}
+      </div>
+
+      {/* AI Analysis Section */}
+      <div className="section-block ai-analysis-section">
+        <h3 className="section-heading">
+          <SearchIcon size={20} /> {t('decisionDetail.aiAnalysis')}
+        </h3>
+
+        {aiAnalysis?.status === 'COMPLETED' && aiAnalysis.summary ? (
+          <div className="ai-summary-result">
+            <div className="ai-summary-text">{aiAnalysis.summary}</div>
+            <div className="ai-summary-meta">
+              {aiAnalysis.model_used && <span>{t('decisionDetail.aiModel')}: {aiAnalysis.model_used}</span>}
+              {aiAnalysis.cost_usd && <span>{t('decisionDetail.aiCost')}: ${aiAnalysis.cost_usd}</span>}
+              {aiAnalysis.completed_at && <span>{formatDate(aiAnalysis.completed_at)}</span>}
+            </div>
+            <div className="ai-action-buttons">
+              <button className="document-link" onClick={() => handleRequestAISummary(true)}>
+                {t('decisionDetail.retryAISummary')}
+              </button>
+            </div>
+          </div>
+        ) : aiAnalysis?.status === 'RUNNING' ? (
+          <div className="ai-summary-status">
+            <div className="spinner" />
+            <p>{t('decisionDetail.aiSummaryRunning')}</p>
+          </div>
+        ) : aiAnalysis?.status === 'FAILED' ? (
+          <div className="ai-summary-status ai-summary-failed">
+            <p>{t('decisionDetail.aiSummaryFailed')}: {aiAnalysis.error_message}</p>
+            <button className="document-link" onClick={() => handleRequestAISummary(true)}>
+              {t('decisionDetail.retryAISummary')}
+            </button>
+          </div>
+        ) : (
+          <div className="ai-summary-actions">
+            <p className="section-description">{t('decisionDetail.aiAnalysisDescription')}</p>
+            <div className="ai-action-buttons">
+              {!decision.has_document_content && (
+                <button
+                  className="document-link"
+                  onClick={handleRequestContent}
+                  title={t('decisionDetail.requestContentTooltip')}
+                >
+                  <BookOpenIcon size={15} /> {t('decisionDetail.requestContent')}
+                </button>
+              )}
+              <button
+                className="document-link document-link--ai"
+                onClick={handleRequestAISummary}
+                title={t('decisionDetail.requestAISummaryTooltip')}
+              >
+                <SearchIcon size={15} /> {t('decisionDetail.requestAISummary')}
+              </button>
+            </div>
+          </div>
         )}
       </div>
 

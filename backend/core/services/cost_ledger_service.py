@@ -186,9 +186,8 @@ class CostLedgerService:
 
         Raises ``BudgetExceededError`` if a budget is set and exceeded.
         """
-        try:
-            settings = user.ai_settings
-        except UserAISettings.DoesNotExist:
+        settings = UserAISettings.get_default_for_user(user)
+        if settings is None:
             return True  # No settings → no budget → allow
 
         if settings.monthly_budget_usd is None:

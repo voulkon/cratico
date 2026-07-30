@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { Moon, Sun, LogOut, LogIn, Sparkles, BarChart3 } from 'lucide-react';
+import { Moon, Sun, LogOut, LogIn, Sparkles } from 'lucide-react';
 import './UserMenu.css';
 
 // Check if Clerk is available
@@ -205,28 +205,20 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
         </div>
       )}
 
-      {/* AI Settings & Interactions (only when signed in) */}
+      {/* AI (only when signed in) */}
       {isSignedIn && (
         <>
           <div className="menu-divider"></div>
           <div className="menu-section">
             <button
               className="menu-action"
+              style={{ justifyContent: 'center', textAlign: 'center' }}
               onClick={() => {
                 onClose();
                 navigate('/ai/settings');
               }}
             >
-              <Sparkles size={16} /> AI Settings
-            </button>
-            <button
-              className="menu-action"
-              onClick={() => {
-                onClose();
-                navigate('/ai/interactions');
-              }}
-            >
-              <BarChart3 size={16} /> AI Interactions
+              <Sparkles size={16} /> {t('common.ai')}
             </button>
           </div>
         </>
