@@ -105,15 +105,33 @@ def interactions_summary(request):
     return Response(spend)
 
 
+def _serialize_log_detailed(log: AIInteractionLog) -> dict:
+    """Serialize a log with input/output from the linked pipeline step run."""
+    data = _serialize_log(log)
+
+    # Pull prompt/response from the linked PipelineStepRun, if any
+    step_run = log.pipeline_step_run
+    if step_run is not None:
+        data["input_preview"] = step_run.input_preview
+        data["output_text"] = step_run.output_text
+    else:
+        data["input_preview"] = None
+        data["output_text"] = None
+
+    return data
+
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def interactions_detail(request, pk: int):
     """Detail of a single interaction (must belong to the user)."""
     try:
-        log = AIInteractionLog.objects.get(pk=pk, user=request.user)
+        log = AIInteractionLog.objects.select_related("pipeline_step_run").get(
+            pk=pk, user=request.user
+        )
     except AIInteractionLog.DoesNotExist:
         return Response({"error": "Not found"}, status=status.HTTP_404_NOT_FOUND)
-    return Response(_serialize_log(log))
+    return Response(_serialize_log_detailed(log))
 
 
 @api_view(["GET"])

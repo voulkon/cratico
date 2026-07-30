@@ -54,6 +54,7 @@ class AICallStep:
         total_input = 0
         total_output = 0
         total_cost = Decimal("0")
+        rendered_prompts: list[str] = []  # collect for input_preview
 
         if map_over_items and context.per_item_outputs:
             # Map mode: one call per item
@@ -62,6 +63,7 @@ class AICallStep:
                 rendered_prompt = self._render_prompt(
                     prompt_template, text, context, step
                 )
+                rendered_prompts.append(rendered_prompt)
                 result = provider.invoke(
                     text=rendered_prompt,
                     prompt=system_prompt,
@@ -87,6 +89,7 @@ class AICallStep:
                 context.per_item_outputs.values()
             )
             rendered_prompt = self._render_prompt(prompt_template, text, context, step)
+            rendered_prompts.append(rendered_prompt)
             result = provider.invoke(
                 text=rendered_prompt,
                 prompt=system_prompt,
@@ -107,6 +110,9 @@ class AICallStep:
         step_run.input_tokens = total_input
         step_run.output_tokens = total_output
         step_run.cost_usd = total_cost
+        step_run.input_preview = (
+            "\n\n---\n\n".join(rendered_prompts) if rendered_prompts else ""
+        )[:5000]
         step_run.output_text = (context.steps_output.get(step.order) or "")[:5000]
         step_run.save()
 
