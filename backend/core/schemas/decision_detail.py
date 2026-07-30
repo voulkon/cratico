@@ -57,6 +57,15 @@ class AttachmentInfo(BaseModel):
     checksum: Optional[str] = None
 
 
+class AIAnalysisInfo(BaseModel):
+    status: Optional[str] = None
+    summary: Optional[str] = None
+    cost_usd: Optional[str] = None
+    model_used: Optional[str] = None
+    completed_at: Optional[datetime] = None
+    error_message: Optional[str] = None
+
+
 # ── Top-level response ─────────────────────────────────────────
 
 
@@ -80,6 +89,7 @@ class DecisionDetailResponse(BaseModel):
     diavgeia_page_url: Optional[str] = None
     diavgeia_doc_url: Optional[str] = None
     has_document_content: bool = False
+    ai_analysis: Optional[AIAnalysisInfo] = None
     warnings: Optional[list] = None
     has_private_data: bool = False
     organization: Optional[OrganizationInfo] = None

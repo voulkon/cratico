@@ -348,5 +348,9 @@ class NotificationBatchDetailSerializer(serializers.ModelSerializer):
             "created_at",
             "read_at",
             "dismissed_at",
+            "ai_summary",
+            "ai_summary_status",
+            "ai_summary_error",
+            "ai_summary_completed_at",
         ]
         read_only_fields = fields

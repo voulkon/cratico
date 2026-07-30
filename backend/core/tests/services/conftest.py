@@ -1,9 +1,19 @@
 from pathlib import Path
 
+import factory
 import pytest
 import vcr
 from core.fetchers.diavgeia_fetcher import DiavgeiaFetcher
+from core.models.pipeline import (
+    PipelineDefinition,
+    PipelineRun,
+    PipelineStep,
+    PipelineStepRun,
+    RunStatus,
+    StepType,
+)
 from core.services.decision_ingestion_service import DecisionIngestionService
+from factory.django import DjangoModelFactory
 
 
 @pytest.fixture
@@ -101,3 +111,138 @@ def a_test_decision_service(
     """Provides an instance of the service with a mocked fetcher and zero delay."""
     # Use delay=0 for tests to avoid actual sleeping
     return DecisionIngestionService(mock_diavgeia_fetcher, delay_seconds=20)
+
+
+# ============================================================================
+# Pipeline Model Factories
+# ============================================================================
+
+
+class PipelineDefinitionFactory(DjangoModelFactory):
+    """Factory for ``PipelineDefinition``."""
+
+    class Meta:
+        model = PipelineDefinition
+        django_get_or_create = ("name",)
+
+    name = factory.Sequence(lambda n: f"test-pipeline-{n}")
+    version = 1
+    is_active = True
+
+
+class PipelineStepFactory(DjangoModelFactory):
+    """Factory for ``PipelineStep``."""
+
+    class Meta:
+        model = PipelineStep
+
+    pipeline = factory.SubFactory(PipelineDefinitionFactory)
+    order = factory.Sequence(lambda n: n)
+    step_type = StepType.EXTRACT
+    name = factory.LazyAttribute(lambda o: f"Step {o.order}")
+    config = factory.LazyFunction(dict)
+    is_active = True
+
+
+class PipelineRunFactory(DjangoModelFactory):
+    """Factory for ``PipelineRun``."""
+
+    class Meta:
+        model = PipelineRun
+
+    pipeline = factory.SubFactory(PipelineDefinitionFactory)
+    status = RunStatus.PENDING
+    trigger = "manual"
+
+
+class PipelineStepRunFactory(DjangoModelFactory):
+    """Factory for ``PipelineStepRun``."""
+
+    class Meta:
+        model = PipelineStepRun
+
+    run = factory.SubFactory(PipelineRunFactory)
+    step = factory.SubFactory(PipelineStepFactory)
+    order = factory.LazyAttribute(lambda o: o.step.order if o.step else 0)
+    status = RunStatus.PENDING
+
+
+# ============================================================================
+# Pipeline Fixtures
+# ============================================================================
+
+
+@pytest.fixture
+def pipeline_definition():
+    """A basic pipeline definition with no steps."""
+    return PipelineDefinitionFactory()
+
+
+@pytest.fixture
+def pipeline_with_extract_step(pipeline_definition):
+    """Pipeline with a single EXTRACT step."""
+    PipelineStepFactory(
+        pipeline=pipeline_definition,
+        order=0,
+        step_type=StepType.EXTRACT,
+        name="Extract text",
+        config={"max_chars": 50000},
+    )
+    return pipeline_definition
+
+
+@pytest.fixture
+def pipeline_with_all_steps(pipeline_definition):
+    """Pipeline with EXTRACT → PREPROCESS → AI_CALL → AGGREGATE."""
+    PipelineStepFactory(
+        pipeline=pipeline_definition,
+        order=0,
+        step_type=StepType.EXTRACT,
+        name="Extract text",
+    )
+    PipelineStepFactory(
+        pipeline=pipeline_definition,
+        order=1,
+        step_type=StepType.PREPROCESS,
+        name="Strip boilerplate",
+        config={"preprocessor": "regex_strip"},
+    )
+    PipelineStepFactory(
+        pipeline=pipeline_definition,
+        order=2,
+        step_type=StepType.AI_CALL,
+        name="Summarize each decision",
+        config={
+            "provider": "OPENROUTER",
+            "model": "test/model",
+            "prompt_template": "Summarize: {{ text }}",
+            "system_prompt": "You are helpful.",
+        },
+    )
+    PipelineStepFactory(
+        pipeline=pipeline_definition,
+        order=3,
+        step_type=StepType.AGGREGATE,
+        name="Merge summaries",
+        config={"strategy": "concat"},
+    )
+    return pipeline_definition
+
+
+@pytest.fixture
+def decisions_plain():
+    """Return a list of plain-dict decisions used as pipeline input."""
+    return [
+        {"id": "ADA000001", "text": "Decision one content."},
+        {"id": "ADA000002", "text": "Decision two content."},
+        {"id": "ADA000003", "text": "Decision three content."},
+    ]
+
+
+@pytest.fixture
+def decisions_with_raw_text():
+    """Decisions as dicts with ``raw_text`` for ExtractStep."""
+    return [
+        {"id": "ADA000001", "raw_text": "Full text of decision one."},
+        {"id": "ADA000002", "raw_text": "Full text of decision two with ΔΙΑΒΓΕΙΑ - header."},
+    ]

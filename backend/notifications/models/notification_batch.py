@@ -89,6 +89,32 @@ class NotificationBatch(models.Model):
         null=True, blank=True, verbose_name=_("Dismissed at")
     )
 
+    # AI summary
+    ai_summary = models.TextField(
+        null=True, blank=True, verbose_name=_("AI summary"),
+        help_text=_("AI-generated summary of the decisions in this batch"),
+    )
+    ai_summary_status = models.CharField(
+        max_length=20,
+        default="PENDING",
+        verbose_name=_("AI summary status"),
+        help_text=_("PENDING / RUNNING / COMPLETED / FAILED / SKIPPED"),
+    )
+    ai_summary_run = models.ForeignKey(
+        "core.PipelineRun",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="notification_batches",
+        verbose_name=_("AI summary pipeline run"),
+    )
+    ai_summary_error = models.TextField(
+        null=True, blank=True, verbose_name=_("AI summary error"),
+    )
+    ai_summary_completed_at = models.DateTimeField(
+        null=True, blank=True, verbose_name=_("AI summary completed at"),
+    )
+
     class Meta:
         verbose_name = _("Notification Batch")
         verbose_name_plural = _("Notification Batches")

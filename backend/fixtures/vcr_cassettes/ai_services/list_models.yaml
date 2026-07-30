@@ -1,0 +1,172 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - '*/*'
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://openrouter.ai/api/v1/models
+  response:
+    body:
+      string: '{"data": [{"id": "qwen/qwen3.7-flash", "canonical_slug": "qwen/qwen3.7-flash-20260727",
+        "hugging_face_id": null, "name": "Qwen: Qwen3.7 Flash", "created": 1785190561,
+        "description": "Qwen3.7 Flash is a vision-language reasoning model from Alibaba.
+        It is suited for multimodal agents, visual coding, search, and computer interaction,
+        with strengths in object recognition, spatial understanding, and real-world...",
+        "context_length": 1000000, "architecture": {"modality": "text+image+video->text",
+        "input_modalities": ["text", "image", "video"], "output_modalities": ["text"],
+        "tokenizer": "Qwen", "instruct_type": null}, "pricing": {"prompt": "0.00000003",
+        "completion": "0.00000013", "input_cache_read": "0.000000006", "input_cache_write":
+        "0.000000038", "overrides": [{"min_prompt_tokens": 32000, "prompt": "0.0000001",
+        "completion": "0.0000004", "input_cache_read": "0.00000002", "input_cache_write":
+        "0.000000125"}, {"min_prompt_tokens": 256000, "prompt": "0.0000002", "completion":
+        "0.0000008", "input_cache_read": "0.00000004", "input_cache_write": "0.00000025"}]},
+        "top_provider": {"context_length": 1000000, "max_completion_tokens": 65536,
+        "is_moderated": false}, "per_request_limits": null, "supported_parameters":
+        ["include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning",
+        "response_format", "seed", "temperature", "tool_choice", "tools", "top_logprobs",
+        "top_p"], "default_parameters": {"temperature": null, "top_p": null, "top_k":
+        null, "frequency_penalty": null, "presence_penalty": null, "repetition_penalty":
+        null}, "supported_voices": null, "knowledge_cutoff": null, "expiration_date":
+        null, "links": {"details": "/api/v1/models/qwen/qwen3.7-flash-20260727/endpoints"},
+        "reasoning": {"mandatory": false, "default_enabled": true, "supports_max_tokens":
+        true}}, {"id": "anthropic/claude-opus-5-fast", "canonical_slug": "anthropic/claude-opus-5-fast-20260723",
+        "hugging_face_id": null, "name": "Claude Opus 5 (Fast)", "created": 1784912546,
+        "description": "Fast-mode variant of [Opus 5](/anthropic/claude-opus-5) -
+        identical capabilities with higher output speed at 2x pricing relative to
+        regular Opus 5.\n\nLearn more in Anthropic''s docs: https://platform.claude.com/docs/en/build-with-claude/fast-mode",
+        "context_length": 1000000, "architecture": {"modality": "text+image+file->text",
+        "input_modalities": ["text", "image", "file"], "output_modalities": ["text"],
+        "tokenizer": "Claude", "instruct_type": null}, "pricing": {"prompt": "0.00001",
+        "completion": "0.00005", "web_search": "0.01", "input_cache_read": "0.000001",
+        "input_cache_write": "0.0000125", "input_cache_write_1h": "0.00002"}, "top_provider":
+        {"context_length": 1000000, "max_completion_tokens": 128000, "is_moderated":
+        true}, "per_request_limits": null, "supported_parameters": ["include_reasoning",
+        "max_tokens", "reasoning", "reasoning_effort", "response_format", "stop",
+        "structured_outputs", "tool_choice", "tools", "verbosity"], "default_parameters":
+        {"temperature": null, "top_p": null, "top_k": null, "frequency_penalty": null,
+        "presence_penalty": null, "repetition_penalty": null}, "supported_voices":
+        null, "knowledge_cutoff": null, "expiration_date": null, "links": {"details":
+        "/api/v1/models/anthropic/claude-opus-5-fast-20260723/endpoints"}, "reasoning":
+        {"mandatory": false, "default_enabled": true, "supported_efforts": ["max",
+        "xhigh", "high", "medium", "low"], "default_effort": "high"}}, {"id": "anthropic/claude-opus-5",
+        "canonical_slug": "anthropic/claude-opus-5-20260723", "hugging_face_id": null,
+        "name": "Claude Opus 5", "created": 1784912544, "description": "Claude Opus
+        5 is Anthropic\u2019s flagship model for demanding reasoning, coding, and
+        long-horizon agentic work. It is particularly strong at end-to-end software
+        tasks, code review and bug finding, visual analysis...", "context_length":
+        1000000, "architecture": {"modality": "text+image+file->text", "input_modalities":
+        ["text", "image", "file"], "output_modalities": ["text"], "tokenizer": "Claude",
+        "instruct_type": null}, "pricing": {"prompt": "0.000005", "completion": "0.000025",
+        "web_search": "0.01", "input_cache_read": "0.0000005", "input_cache_write":
+        "0.00000625", "input_cache_write_1h": "0.00001"}, "top_provider": {"context_length":
+        1000000, "max_completion_tokens": 128000, "is_moderated": true}, "per_request_limits":
+        null, "supported_parameters": ["include_reasoning", "max_completion_tokens",
+        "max_tokens", "reasoning", "reasoning_effort", "response_format", "stop",
+        "structured_outputs", "temperature", "tool_choice", "tools", "verbosity"],
+        "default_parameters": {"temperature": null, "top_p": null, "top_k": null,
+        "frequency_penalty": null, "presence_penalty": null, "repetition_penalty":
+        null}, "supported_voices": null, "knowledge_cutoff": null, "expiration_date":
+        null, "links": {"details": "/api/v1/models/anthropic/claude-opus-5-20260723/endpoints"},
+        "benchmarks": {"design_arena": [{"arena": "agents", "category": "webapps",
+        "elo": 1293, "win_rate": 56.3, "rank": 5}, {"arena": "models", "category":
+        "3d", "elo": 1388, "win_rate": 64.4, "rank": 2}, {"arena": "models", "category":
+        "codecategories", "elo": 1359, "win_rate": 61.3, "rank": 2}, {"arena": "models",
+        "category": "dataviz", "elo": 1381, "win_rate": 66.5, "rank": 1}, {"arena":
+        "models", "category": "uicomponent", "elo": 1406, "win_rate": 66.8, "rank":
+        2}, {"arena": "models", "category": "website", "elo": 1341, "win_rate": 59.4,
+        "rank": 2}], "artificial_analysis": {"intelligence_index": 60.7, "coding_index":
+        78, "agentic_index": 55.3}}, "reasoning": {"mandatory": false, "default_enabled":
+        true, "supported_efforts": ["max", "xhigh", "high", "medium", "low"], "default_effort":
+        "high"}}, {"id": "anthropic/claude-opus-5:batch", "canonical_slug": "anthropic/claude-opus-5-20260723",
+        "hugging_face_id": null, "name": "Claude Opus 5 (batch)", "created": 1784912544,
+        "description": "Claude Opus 5 is Anthropic\u2019s flagship model for demanding
+        reasoning, coding, and long-horizon agentic work. It is particularly strong
+        at end-to-end software tasks, code review and bug finding, visual analysis...",
+        "context_length": 1000000, "architecture": {"modality": "text+image+file->text",
+        "input_modalities": ["text", "image", "file"], "output_modalities": ["text"],
+        "tokenizer": "Claude", "instruct_type": null}, "pricing": {"prompt": "0.0000025",
+        "completion": "0.0000125", "web_search": "0.01", "input_cache_read": "0.00000025",
+        "input_cache_write": "0.000003125", "input_cache_write_1h": "0.000005"}, "top_provider":
+        {"context_length": 1000000, "max_completion_tokens": 128000, "is_moderated":
+        true}, "per_request_limits": null, "supported_parameters": ["include_reasoning",
+        "max_tokens", "reasoning", "reasoning_effort", "response_format", "stop",
+        "structured_outputs", "tool_choice", "tools", "verbosity"], "default_parameters":
+        {"temperature": null, "top_p": null, "top_k": null, "frequency_penalty": null,
+        "presence_penalty": null, "repetition_penalty": null}, "supported_voices":
+        null, "knowledge_cutoff": null, "expiration_date": null, "links": {"details":
+        "/api/v1/models/anthropic/claude-opus-5-20260723/endpoints"}, "benchmarks":
+        {"design_arena": [{"arena": "agents", "category": "webapps", "elo": 1293,
+        "win_rate": 56.3, "rank": 5}, {"arena": "models", "category": "3d", "elo":
+        1388, "win_rate": 64.4, "rank": 2}, {"arena": "models", "category": "codecategories",
+        "elo": 1359, "win_rate": 61.3, "rank": 2}, {"arena": "models", "category":
+        "dataviz", "elo": 1381, "win_rate": 66.5, "rank": 1}, {"arena": "models",
+        "category": "uicomponent", "elo": 1406, "win_rate": 66.8, "rank": 2}, {"arena":
+        "models", "category": "website", "elo": 1341, "win_rate": 59.4, "rank": 2}],
+        "artificial_analysis": {"intelligence_index": 60.7, "coding_index": 78, "agentic_index":
+        55.3}}, "reasoning": {"mandatory": false, "default_enabled": true, "supported_efforts":
+        ["max", "xhigh", "high", "medium", "low"], "default_effort": "high"}}, {"id":
+        "inclusionai/ling-3.0-flash:free", "canonical_slug": "inclusionai/ling-3.0-flash-20260723",
+        "hugging_face_id": null, "name": "Ling-3.0-flash (free)", "created": 1784818580,
+        "description": "*Ling-3.0-flash* is a *124B-parameter Mixture-of-Experts (MoE)
+        model*, with approximately *5.1B parameters activated per token*. The model
+        is designed with *token efficiency and production-scale agentic inference*
+        as key priorities, enabling developers...", "context_length": 262144, "architecture":
+        {"modality": "text->text", "input_modalities": ["text"], "output_modalities":
+        ["text"], "tokenizer": "Other", "instruct_type": null}, "pricing": {"prompt":
+        "0", "completion": "0"}, "top_provider": {"context_length": 262144, "max_completion_tokens":
+        32768, "is_moderated": false}, "per_request_limits": null, "supported_parameters":
+        ["frequency_penalty", "include_reasoning", "logprobs", "max_tokens", "presence_penalty",
+        "reasoning", "repetition_penalty", "seed", "stop", "temperature", "tool_choice",
+        "tools", "top_k", "top_logprobs", "top_p"], "default_parameters": {"temperature":
+        null, "top_p": null, "top_k": null, "frequency_penalty": null, "presence_penalty":
+        null, "repetition_penalty": null}, "supported_voices": null, "knowledge_cutoff":
+        null, "expiration_date": null, "links": {"details": "/api/v1/models/inclusionai/ling-3.0-flash-20260723/endpoints"},
+        "reasoning": {"mandatory": false, "default_enabled": true}}], "total_count":
+        367, "links": {"next": null}}'
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      Access-Control-Expose-Headers:
+      - X-Generation-Id,X-Provider-Name,cf-ray
+      Age:
+      - '61'
+      CF-Cache-Status:
+      - HIT
+      CF-RAY:
+      - a225e83709be0b7e-ATH
+      Cache-Control:
+      - public, max-age=300, stale-while-revalidate=3600, stale-if-error=3600
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 28 Jul 2026 18:22:03 GMT
+      Permissions-Policy:
+      - payment=(self "https://checkout.stripe.com" "https://connect-js.stripe.com"
+        "https://js.stripe.com" "https://*.js.stripe.com" "https://hooks.stripe.com")
+      Referrer-Policy:
+      - no-referrer, strict-origin-when-cross-origin
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Host
+      X-Content-Type-Options:
+      - nosniff
+      content-length:
+      - '596997'
+    status:
+      code: 200
+      message: OK
+version: 1

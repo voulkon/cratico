@@ -300,6 +300,32 @@
   opacity: 1;
 }
 
+/* AI summary toggle */
+.metadata-ai-toggle {
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding: 2px 4px;
+  transition: all var(--transition-fast);
+  user-select: none;
+}
+
+.metadata-ai-toggle:hover {
+  background-color: var(--hover-bg);
+}
+
+.metadata-ai-toggle.ai-on {
+  color: #8b5cf6;
+}
+
+.metadata-ai-toggle.ai-off {
+  color: var(--muted-text);
+  opacity: 0.6;
+}
+
+.metadata-ai-toggle.ai-off:hover {
+  opacity: 1;
+}
+
 /* Actions */
 .subscription-actions {
   display: grid;

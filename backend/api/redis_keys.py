@@ -59,6 +59,19 @@ AFM_FETCH_QUEUE_IGNORED = f"{AFM_FETCH_QUEUE_NS}:ignored"  # Set of AFMs below t
 AFM_FETCH_QUEUE_LOCK = f"{AFM_FETCH_QUEUE_NS}:lock"  # Global queue processing lock
 AFM_FETCH_QUEUE_STATS = f"{AFM_FETCH_QUEUE_NS}:stats"  # Hash of queue statistics
 
+# Decision AI Processing Queue (user-triggered document extraction + AI summarization)
+DECISION_AI_QUEUE_NS = "decision_ai_queue"
+DECISION_AI_QUEUE_PENDING = f"{DECISION_AI_QUEUE_NS}:pending"  # Set of decision IDs
+DECISION_AI_QUEUE_ACTIVE = f"{DECISION_AI_QUEUE_NS}:active"  # Set being processed
+DECISION_AI_QUEUE_COMPLETED = f"{DECISION_AI_QUEUE_NS}:completed"  # Set of completed
+DECISION_AI_QUEUE_FAILED = f"{DECISION_AI_QUEUE_NS}:failed"  # Set of failed
+DECISION_AI_QUEUE_LOCK = f"{DECISION_AI_QUEUE_NS}:lock"  # Global processing lock
+DECISION_AI_QUEUE_STATS = f"{DECISION_AI_QUEUE_NS}:stats"  # Hash of statistics
+DECISION_AI_QUEUE_MAX_CONCURRENT = 2  # Max concurrent AI processing jobs
+
+# Redis key for per-decision metadata (user_id, provider, etc.)
+META_KEY_PREFIX = "decision_ai_queue:meta"
+
 # Search History (personal search tracking)
 SEARCH_HISTORY_NS = "search_history"
 SEARCH_HISTORY_USER_PREFIX = (

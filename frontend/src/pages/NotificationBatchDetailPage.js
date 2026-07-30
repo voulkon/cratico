@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { getNotificationBatch, getBatchDecisions, markBatchRead } from '../api/notifications';
+import { getBatchSummary, summarizeBatch } from '../api/aiApi';
 import apiClient from '../api/client';
 import { formatAmount } from '../utils/dateUtils';
 import './NotificationBatchDetailPage.css';
@@ -11,6 +12,7 @@ import './NotificationBatchDetailPage.css';
 import DecisionList from '../components/DecisionList';
 import DecisionsToolbar from '../components/DecisionsToolbar';
 import BatchMetadataHeader from '../components/BatchMetadataHeader';
+import AISummaryCard from '../components/AISummaryCard';
 import TopBarSlot from '../components/TopBarSlot';
 import { ChartIcon } from '../components/Icons';
 
@@ -34,6 +36,10 @@ const NotificationBatchDetailPage = () => {
   // Filters
   const [sortBy, setSortBy] = useState('recent');
   const [isViewedFilter, setIsViewedFilter] = useState(null); // null, true, or false
+
+  // AI Summary state
+  const [aiSummary, setAiSummary] = useState(null);
+  const [aiSummaryTriggering, setAiSummaryTriggering] = useState(false);
 
   // Fetch batch data
   useEffect(() => {
@@ -106,6 +112,45 @@ const NotificationBatchDetailPage = () => {
     } catch (error) {
       console.error('Error fetching document content:', error);
       throw error;
+    }
+  };
+
+  // AI Summary: single poller — fetches status, re-polls every 5s while RUNNING
+  const pollTimerRef = useRef(null);
+
+  const pollSummary = useCallback(async () => {
+    if (!batchId) return;
+    try {
+      const data = await getBatchSummary(batchId);
+      setAiSummary(data);
+      if (data.status === 'RUNNING') {
+        pollTimerRef.current = setTimeout(pollSummary, 5000);
+      }
+    } catch (err) {
+      // Summary endpoint might not be available — ignore
+    }
+  }, [batchId]);
+
+  useEffect(() => {
+    pollSummary();
+    return () => {
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    };
+  }, [pollSummary]);
+
+  // AI Summary: trigger summarization
+  const handleSummarize = async () => {
+    setAiSummaryTriggering(true);
+    try {
+      await summarizeBatch(batchId);
+      setAiSummary(prev => ({ ...prev, status: 'RUNNING' }));
+      // Kick the poller (it self-perpetuates while RUNNING)
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = setTimeout(pollSummary, 3000);
+    } catch (err) {
+      console.error('Failed to trigger summarization:', err);
+    } finally {
+      setAiSummaryTriggering(false);
     }
   };
 
@@ -215,6 +260,13 @@ const NotificationBatchDetailPage = () => {
           </button>
         </div>
       )}
+
+      {/* AI Summary Card */}
+      <AISummaryCard
+        summary={aiSummary}
+        onGenerate={handleSummarize}
+        triggering={aiSummaryTriggering}
+      />
 
       {/* Decisions Section */}
       <DecisionsToolbar

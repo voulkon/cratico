@@ -25,6 +25,7 @@ URL Structure:
 
 # Import URL modules to get their PREFIX constants (single source of truth)
 from api.urls import (
+    ai,
     auth,
     browse,
     companies,
@@ -72,6 +73,7 @@ urlpatterns = [
     # Modular URL includes using PREFIX constants (single source of truth)
     # The PREFIX from each module is used both here AND in the stealth middleware
     path(auth.PREFIX, include("api.urls.auth")),
+    path(ai.PREFIX, include("api.urls.ai")),
     path(notifications.PREFIX, include("api.urls.notifications")),
     path(search.PREFIX, include("api.urls.search")),
     path(entities.PREFIX, include("api.urls.entities")),

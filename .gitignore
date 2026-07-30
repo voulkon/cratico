@@ -1,3 +1,5 @@
+.env.test
+!.env.test.example
 *todo
 reports/
 docs_deprecated/
