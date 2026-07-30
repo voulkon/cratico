@@ -47,4 +47,5 @@ from .search_analytics import PopularQuery, SearchAnalytics
 from .search_suggestions import SearchSuggestion
 from .terms import LegalDocument
 from .types import ActType, ActTypeHelp, ExtraField
+from .user_ai_model_preference import UserAIModelPreference
 from .user_ai_settings import UserAISettings
