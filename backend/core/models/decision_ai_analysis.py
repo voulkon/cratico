@@ -1,11 +1,9 @@
 """
-DecisionAIAnalysis — derivative model storing AI analysis results per decision.
+DecisionAIAnalysis — stores AI analysis results per decision.
 
-Follows the same pattern as ``DecisionClassification``: a ``OneToOneField``
-to ``Decision`` with ``primary_key=True`` so the decision PK is the analysis PK.
-
-Each decision can have at most one "current" analysis.  Re-running an analysis
-overwrites the previous result (the old ``PipelineRun`` is kept for audit).
+Each decision can have multiple analyses (e.g. different models, re-runs).
+The relationship is a ``ForeignKey`` so analyses accumulate over time rather
+than overwriting each other.  The ``PipelineRun`` is kept for audit.
 """
 
 from django.db import models
@@ -22,18 +20,16 @@ class AnalysisStatus(models.TextChoices):
 
 class DecisionAIAnalysis(models.Model):
     """
-    One-to-one storage for AI analysis results on a decision.
+    AI analysis results for a decision.
 
-    Currently supports a "summary" analysis type.  Future types (extraction,
-    entity checks, etc.) can share this model by adding a discriminator field
-    or by creating additional derivative models.
+    Multiple analyses may exist per decision (e.g. different models, re-runs).
+    The most recent COMPLETED analysis is typically surfaced to the user.
     """
 
-    decision = models.OneToOneField(
+    decision = models.ForeignKey(
         "core.Decision",
         on_delete=models.CASCADE,
-        related_name="ai_analysis",
-        primary_key=True,
+        related_name="ai_analyses",
     )
 
     # Pipeline run that produced this analysis (nullable for manual/legacy)

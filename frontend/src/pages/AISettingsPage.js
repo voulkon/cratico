@@ -10,6 +10,8 @@ import {
   createAISettingsRow,
   updateAISettingsRow,
   deleteAISettingsRow,
+  getModelPreference,
+  updateModelPreference,
 } from '../api/aiApi';
 import { formatPrice } from '../utils/format';
 import './AISettingsPage.css';
@@ -39,6 +41,7 @@ const AISettingsPage = () => {
   const [aiEnabled, setAiEnabled] = useState(true);
   const [systemKeyAccepted, setSystemKeyAccepted] = useState(false);
   const [keyMode, setKeyMode] = useState('SYSTEM'); // BYOK | SYSTEM
+  const [preferredModel, setPreferredModel] = useState(null); // user's model choice (independent of key)
 
   // ---------- inline "add / edit" form state ----------
   const [editingRow, setEditingRow] = useState(null); // null | row-id | 'new'
@@ -58,6 +61,13 @@ const AISettingsPage = () => {
       setAiEnabled(data.ai_enabled ?? true);
       setSystemKeyAccepted(data.ai_system_key_accepted ?? false);
       setKeyMode(data.key_mode || 'SYSTEM');
+      // Load model preference (independent endpoint)
+      try {
+        const pref = await getModelPreference();
+        setPreferredModel(pref.preferred_model || null);
+      } catch {
+        // non-critical — model preference might not be available yet
+      }
     } catch (err) {
       setError(t('aiSettings.loadError'));
     }
@@ -94,7 +104,17 @@ const AISettingsPage = () => {
     }
   };
 
-  // ---------- system-key acknowledgement ----------
+  // ---------- model preference (independent of key) ----------
+  const handleModelChange = async (modelId) => {
+    clearMessages();
+    try {
+      await updateModelPreference(modelId || null);
+      setPreferredModel(modelId || null);
+      setSuccess(t('aiSettings.saved'));
+    } catch (err) {
+      setError(err.response?.data?.error || t('aiSettings.saveError'));
+    }
+  };
   const handleAcceptSystemKey = async () => {
     clearMessages();
     try {
@@ -260,7 +280,43 @@ const AISettingsPage = () => {
         </div>
 
         {/* ================================================================ */}
-        {/*  PART 2 — BYOK: Your API Keys                                      */}
+        {/*  PART 2 — Preferred Model (independent of key)                     */}
+        {/* ================================================================ */}
+        <div className={`ai-card ${disabled ? 'ai-card--disabled' : ''}`}>
+          <div className="ai-card-header">
+            <div className="ai-card-header-left">
+              <h2 className="ai-card-title">{t('aiSettings.preferredModel')}</h2>
+              <p className="ai-card-desc">
+                {t('aiSettings.preferredModelDesc')}
+              </p>
+            </div>
+          </div>
+          <div className="ai-model-preference-row">
+            <select
+              value={preferredModel || ''}
+              onChange={(e) => handleModelChange(e.target.value)}
+              disabled={disabled}
+              className="ai-model-select"
+            >
+              <option value="">{t('aiSettings.usePipelineDefault')}</option>
+              {models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name || m.id} · {t('aiSettings.ctx')} {(m.context_length / 1000).toFixed(0)}k ·
+                  ${formatPrice(m.pricing.prompt, t)}/M {t('aiSettings.in')} ·
+                  ${formatPrice(m.pricing.completion, t)}/M {t('aiSettings.out')}
+                </option>
+              ))}
+            </select>
+            {preferredModel && (
+              <span className="ai-model-preference-badge">
+                {t('aiSettings.usingModel', { model: preferredModel })}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* ================================================================ */}
+        {/*  PART 3 — BYOK: Your API Keys                                      */}
         {/* ================================================================ */}
         <div className={`ai-card ${disabled ? 'ai-card--disabled' : ''}`}>
           <div className="ai-card-header">
@@ -413,7 +469,7 @@ const AISettingsPage = () => {
         </div>
 
         {/* ================================================================ */}
-        {/*  PART 3 — System Key acknowledgment                                */}
+        {/*  PART 4 — System Key acknowledgment                                */}
         {/* ================================================================ */}
         {!hasActiveByok && (
           <div className={`ai-card ${disabled ? 'ai-card--disabled' : ''}`}>

@@ -21,6 +21,7 @@ from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 
 from core.ai_services.providers.openrouter import OpenRouterProvider
+from core.models.user_ai_model_preference import UserAIModelPreference
 from core.models.user_ai_settings import UserAISettings
 from core.services.openrouter_sync_service import OpenRouterModelSyncService
 
@@ -240,3 +241,35 @@ def sync_models(request):
     # Invalidate the models cache so the next list reflects new prices
     cache.delete(_MODELS_CACHE_KEY)
     return Response(result)
+
+
+# ---------------------------------------------------------------------------
+# Model preference (independent of API key)
+# ---------------------------------------------------------------------------
+
+@api_view(["GET", "PUT"])
+@permission_classes([IsAuthenticated])
+def model_preference(request):
+    """
+    Get or update the current user's preferred AI model.
+
+    This is independent of the user's API key — a user can choose a model
+    even when using the system key.
+
+    GET  → ``{"preferred_model": "openai/gpt-4o" | null}``
+    PUT  → ``{"preferred_model": "openai/gpt-4o"}`` or ``{"preferred_model": null}``
+    """
+    pref, _created = UserAIModelPreference.objects.get_or_create(
+        user=request.user,
+    )
+
+    if request.method == "GET":
+        return Response({"preferred_model": pref.preferred_model})
+
+    # PUT
+    model = request.data.get("preferred_model")
+    if model == "":
+        model = None
+    pref.preferred_model = model
+    pref.save(update_fields=["preferred_model", "updated_at"])
+    return Response({"preferred_model": pref.preferred_model})

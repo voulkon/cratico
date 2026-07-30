@@ -86,7 +86,7 @@ def request_summary(request, decision_id: int):
     existing = DecisionAIAnalysis.objects.filter(
         decision=decision,
         status=AnalysisStatus.COMPLETED,
-    ).first()
+    ).order_by("-created_at").first()
 
     if existing and existing.summary and not force:
         return Response({
@@ -99,11 +99,9 @@ def request_summary(request, decision_id: int):
         })
 
     if force and existing:
-        # Reset the record so the task re-runs from scratch
-        existing.status = AnalysisStatus.PENDING
-        existing.summary = None
-        existing.error_message = None
-        existing.save(update_fields=["status", "summary", "error_message"])
+        # With the FK model, force means "create a new analysis row" — the
+        # task will do that.  We just skip the early-return below.
+        pass
 
     # Check if currently running
     running = DecisionAIAnalysis.objects.filter(
@@ -156,8 +154,13 @@ def get_analysis(request, decision_id: int):
             "extracted_at": extraction.extraction_date,
         }
 
-    # AI analysis info
-    analysis = DecisionAIAnalysis.objects.filter(decision=decision).first()
+    # AI analysis info (latest, regardless of status)
+    analysis = (
+        DecisionAIAnalysis.objects
+        .filter(decision=decision)
+        .order_by("-created_at")
+        .first()
+    )
     analysis_data = None
     if analysis:
         analysis_data = {

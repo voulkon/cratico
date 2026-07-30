@@ -208,11 +208,13 @@ def process_decision_ai(self, decision_id: int, user_id: int, provider: str = No
     if _has_completed_analysis(decision_id, force=force):
         logger.info(f"Decision {decision_id}: AI analysis already completed")
         _finish("completed")
-        existing = DecisionAIAnalysis.objects.only("cost_usd").get(decision_id=decision_id)
+        existing = DecisionAIAnalysis.objects.filter(
+            decision_id=decision_id, status=AnalysisStatus.COMPLETED
+        ).only("cost_usd").order_by("-created_at").first()
         return {
             "decision_id": decision_id,
             "status": "already_completed",
-            "analysis_id": decision_id,
+            "analysis_id": existing.pk if existing else None,
             "cost_usd": str(existing.cost_usd or 0),
         }
 
@@ -230,13 +232,11 @@ def process_decision_ai(self, decision_id: int, user_id: int, provider: str = No
             }
         decision.refresh_from_db()
 
-    # --- Get or create analysis record ---
-    analysis, _ = DecisionAIAnalysis.objects.get_or_create(
+    # --- Create a new analysis record for this run ---
+    analysis = DecisionAIAnalysis.objects.create(
         decision=decision,
-        defaults={"status": AnalysisStatus.PENDING},
+        status=AnalysisStatus.RUNNING,
     )
-    analysis.status = AnalysisStatus.RUNNING
-    analysis.save(update_fields=["status"])
 
     # --- Resolve user for billing ---
     user = _resolve_user(user_id)
@@ -266,6 +266,7 @@ def process_decision_ai(self, decision_id: int, user_id: int, provider: str = No
         analysis.cost_usd = run.total_cost_usd
         analysis.input_tokens = run.total_input_tokens
         analysis.output_tokens = run.total_output_tokens
+        analysis.model_used = context.metadata.get("model_used")
         analysis.error_message = run.error_message if analysis.status == AnalysisStatus.FAILED else None
         analysis.save()
 

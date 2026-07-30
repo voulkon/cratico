@@ -422,3 +422,39 @@
   font-weight: 700;
   font-size: 1rem;
 }
+
+/* ------------------------------------------------------------------ */
+/*  Model preference (independent of key)                              */
+/* ------------------------------------------------------------------ */
+
+.ai-model-preference-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.ai-model-select {
+  flex: 1;
+  min-width: 280px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 6px;
+  background: var(--card-bg, #fff);
+  color: var(--text-color);
+  font-size: 0.9rem;
+}
+
+.ai-model-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-model-preference-badge {
+  font-size: 0.8rem;
+  color: var(--accent-color, #2563eb);
+  background: var(--accent-bg, #eff6ff);
+  padding: 0.25rem 0.6rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}

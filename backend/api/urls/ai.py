@@ -24,6 +24,7 @@ from api.views.ai.ai_settings import (
     ai_settings_create,
     ai_settings_row,
     list_models,
+    model_preference,
     sync_models,
     test_key,
 )
@@ -36,6 +37,8 @@ urlpatterns = [
     path("settings/rows/<int:pk>/", ai_settings_row, name="ai_settings_row"),
     # Models
     path("models/", list_models, name="ai_models_list"),
+    # Model preference (independent of key)
+    path("model-preference/", model_preference, name="ai_model_preference"),
     path("models/sync/", sync_models, name="ai_models_sync"),
     # Interactions
     path("interactions/", interactions_list, name="ai_interactions_list"),

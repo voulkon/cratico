@@ -60,6 +60,22 @@ export const syncAIModels = async () => {
 };
 
 // ---------------------------------------------------------------------------
+// Model preference (independent of API key)
+// ---------------------------------------------------------------------------
+
+export const getModelPreference = async () => {
+  const response = await apiClient.get(`${AI_BASE}/model-preference/`);
+  return response.data;
+};
+
+export const updateModelPreference = async (preferredModel) => {
+  const response = await apiClient.put(`${AI_BASE}/model-preference/`, {
+    preferred_model: preferredModel,
+  });
+  return response.data;
+};
+
+// ---------------------------------------------------------------------------
 // Interactions
 // ---------------------------------------------------------------------------
 

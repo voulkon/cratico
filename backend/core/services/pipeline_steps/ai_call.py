@@ -37,7 +37,9 @@ class AICallStep:
     def execute(self, step, step_run: PipelineStepRun, context: PipelineContext, run):
         config = step.config or {}
         provider_name = config.get("provider", "OPENROUTER")
-        model_name = config.get("model", "")
+        model_name = self._resolve_model(context.user, config.get("model", ""))
+        # Surface the resolved model so callers (e.g. tasks) can record it
+        context.metadata["model_used"] = model_name
         prompt_template = config.get("prompt_template", "Summarize: {{ text }}")
         system_prompt = config.get("system_prompt", "")
         temperature = config.get("temperature", 0.3)
@@ -127,6 +129,24 @@ class AICallStep:
             return ai_settings.effective_api_key if ai_settings else ""
         except Exception:
             return ""
+
+    def _resolve_model(self, user, pipeline_default: str) -> str:
+        """
+        Resolve which model to use.
+
+        Precedence:
+            1. User's ``UserAIModelPreference.preferred_model`` (independent of key)
+            2. ``PipelineStep.config.model`` (pipeline default / fallback)
+        """
+        try:
+            from core.models.user_ai_model_preference import UserAIModelPreference
+
+            preferred = UserAIModelPreference.get_preferred_model(user)
+            if preferred:
+                return preferred
+        except Exception:
+            pass
+        return pipeline_default
 
     def _render_prompt(self, template_str, text, context: PipelineContext, step):
         """Render a Jinja2 prompt template with available variables."""

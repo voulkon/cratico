@@ -35,18 +35,24 @@ def decision_detail(request, decision_id):
         except DocumentExtraction.DoesNotExist:
             has_document_content = False
 
-        # AI analysis status (if any)
+        # AI analysis (latest completed, if any)
         ai_analysis_data = None
         try:
-            ai_analysis = DecisionAIAnalysis.objects.get(decision=decision)
-            ai_analysis_data = {
-                "status": ai_analysis.status,
-                "summary": ai_analysis.summary,
-                "cost_usd": str(ai_analysis.cost_usd) if ai_analysis.cost_usd else None,
-                "model_used": ai_analysis.model_used,
-                "completed_at": ai_analysis.completed_at,
-                "error_message": ai_analysis.error_message,
-            }
+            ai_analysis = (
+                DecisionAIAnalysis.objects
+                .filter(decision=decision, status="COMPLETED")
+                .order_by("-created_at")
+                .first()
+            )
+            if ai_analysis:
+                ai_analysis_data = {
+                    "status": ai_analysis.status,
+                    "summary": ai_analysis.summary,
+                    "cost_usd": str(ai_analysis.cost_usd) if ai_analysis.cost_usd else None,
+                    "model_used": ai_analysis.model_used,
+                    "completed_at": ai_analysis.completed_at,
+                    "error_message": ai_analysis.error_message,
+                }
         except DecisionAIAnalysis.DoesNotExist:
             ai_analysis_data = None
 
