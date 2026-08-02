@@ -112,14 +112,12 @@ class CostLedgerService:
     def get_user_spend(user, month: date | None = None) -> dict:
         """
         Return total spend, token totals, and per-provider breakdown for a
-        user in a given month (defaults to current month).
+        user.  When *month* is given, only that month is counted; otherwise
+        all-time stats are returned.
         """
         qs = AIInteractionLog.objects.filter(user=user, status="SUCCESS")
         if month:
             qs = qs.filter(created_at__year=month.year, created_at__month=month.month)
-        else:
-            now = timezone.now()
-            qs = qs.filter(created_at__year=now.year, created_at__month=now.month)
 
         total_cost = Decimal("0")
         total_input = 0
@@ -151,13 +149,11 @@ class CostLedgerService:
 
     @staticmethod
     def get_system_spend(month: date | None = None) -> dict:
-        """Aggregate all SYSTEM-billed rows for a given month."""
+        """Aggregate all SYSTEM-billed rows. When *month* is given, only
+        that month is counted; otherwise all-time stats are returned."""
         qs = AIInteractionLog.objects.filter(billed_to="SYSTEM", status="SUCCESS")
         if month:
             qs = qs.filter(created_at__year=month.year, created_at__month=month.month)
-        else:
-            now = timezone.now()
-            qs = qs.filter(created_at__year=now.year, created_at__month=now.month)
 
         total_cost = Decimal("0")
         by_user: dict[int, dict] = {}

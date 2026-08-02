@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import TopBarSlot from '../components/TopBarSlot';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { getAIInteractions, getAIInteractionsSummary } from '../api/aiApi';
+import { getAIInteractions, getAIInteractionsSummary, getAIInteractionDetail } from '../api/aiApi';
+import { ChevronRight, ChevronDown, X as XIcon } from 'lucide-react';
 import './AIInteractionsPage.css';
 
 const AIInteractionsPage = () => {
@@ -14,6 +16,12 @@ const AIInteractionsPage = () => {
   const [page, setPage] = useState(1);
   const [count, setCount] = useState(0);
   const pageSize = 50;
+
+  // Detail modal
+  const [selectedDetail, setSelectedDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [inputExpanded, setInputExpanded] = useState(false);
+  const [outputExpanded, setOutputExpanded] = useState(false);
 
   // Filters
   const [provider, setProvider] = useState('');
@@ -54,12 +62,39 @@ const AIInteractionsPage = () => {
     );
   }, [loadInteractions, loadSummary]);
 
+  const handleRowClick = async (interaction) => {
+    setDetailLoading(true);
+    setSelectedDetail(null);
+    setInputExpanded(false);
+    setOutputExpanded(false);
+    try {
+      const detail = await getAIInteractionDetail(interaction.id);
+      setSelectedDetail(detail);
+    } catch (err) {
+      setSelectedDetail(null);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setSelectedDetail(null);
+    setInputExpanded(false);
+    setOutputExpanded(false);
+  };
+
   const totalPages = Math.ceil(count / pageSize);
 
   return (
     <div className="ai-interactions-page">
+      {/* ── Title rendered into the fixed top bar via portal ──── */}
+      <TopBarSlot>
+        <div className="ai-interactions-topbar">
+          <span className="ai-interactions-title-topbar">{t('aiInteractions.title')}</span>
+        </div>
+      </TopBarSlot>
+
       <div className="ai-interactions-container">
-        <h1 className="ai-interactions-title">{t('aiInteractions.title')}</h1>
 
         {/* Summary cards */}
         {summary && (
@@ -146,7 +181,11 @@ const AIInteractionsPage = () => {
               </thead>
               <tbody>
                 {interactions.map((log) => (
-                  <tr key={log.id}>
+                  <tr
+                    key={log.id}
+                    className="ai-interaction-row"
+                    onClick={() => handleRowClick(log)}
+                  >
                     <td>{new Date(log.created_at).toLocaleString()}</td>
                     <td>{log.trigger}</td>
                     <td>{log.provider}</td>
@@ -168,6 +207,136 @@ const AIInteractionsPage = () => {
             </table>
           )}
         </div>
+
+        {/* Detail Modal */}
+        {(selectedDetail || detailLoading) && (
+          <div className="ai-detail-overlay" onClick={handleCloseModal}>
+            <div
+              className="ai-detail-modal"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="ai-detail-header">
+                <h2>{t('aiInteractions.detailTitle')}</h2>
+                <button
+                  className="ai-detail-close"
+                  onClick={handleCloseModal}
+                  aria-label="Close"
+                >
+                  <XIcon size={20} />
+                </button>
+              </div>
+
+              {detailLoading ? (
+                <div className="ai-detail-loading">{t('common.loading')}</div>
+              ) : selectedDetail ? (
+                <div className="ai-detail-body">
+                  {/* Metadata */}
+                  <div className="ai-detail-meta">
+                    <div className="ai-detail-meta-row">
+                      <span className="ai-detail-label">{t('aiInteractions.date')}:</span>
+                      <span>{new Date(selectedDetail.created_at).toLocaleString()}</span>
+                    </div>
+                    <div className="ai-detail-meta-row">
+                      <span className="ai-detail-label">{t('aiInteractions.provider')}:</span>
+                      <span>{selectedDetail.provider} / {selectedDetail.model_name}</span>
+                    </div>
+                    <div className="ai-detail-meta-row">
+                      <span className="ai-detail-label">{t('aiInteractions.trigger')}:</span>
+                      <span>{selectedDetail.trigger}{selectedDetail.trigger_ref ? ` (${selectedDetail.trigger_ref})` : ''}</span>
+                    </div>
+                    <div className="ai-detail-meta-row">
+                      <span className="ai-detail-label">{t('aiInteractions.tokensIn')}:</span>
+                      <span>{selectedDetail.input_tokens}</span>
+                    </div>
+                    <div className="ai-detail-meta-row">
+                      <span className="ai-detail-label">{t('aiInteractions.tokensOut')}:</span>
+                      <span>{selectedDetail.output_tokens}</span>
+                    </div>
+                    <div className="ai-detail-meta-row">
+                      <span className="ai-detail-label">{t('aiInteractions.cost')}:</span>
+                      <span>${parseFloat(selectedDetail.cost_usd).toFixed(6)}</span>
+                    </div>
+                    <div className="ai-detail-meta-row">
+                      <span className="ai-detail-label">{t('aiInteractions.status')}:</span>
+                      <span className={`ai-status-badge ${selectedDetail.status.toLowerCase()}`}>
+                        {selectedDetail.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Prompt (input) — collapsible */}
+                  {selectedDetail.input_preview && (
+                    <div className="ai-detail-section">
+                      <button
+                        className="ai-detail-section-toggle"
+                        onClick={() => setInputExpanded(!inputExpanded)}
+                      >
+                        <span className="ai-detail-toggle-arrow">
+                          {inputExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                        </span>
+                        {t('aiInteractions.inputPrompt')}
+                        <span className="ai-detail-toggle-hint">
+                          ({selectedDetail.input_preview.length.toLocaleString()} chars)
+                        </span>
+                      </button>
+                      {inputExpanded && (
+                        <pre className="ai-detail-content">
+                          {selectedDetail.input_preview}
+                        </pre>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Response (output) — collapsible */}
+                  {selectedDetail.output_text && (
+                    <div className="ai-detail-section">
+                      <button
+                        className="ai-detail-section-toggle"
+                        onClick={() => setOutputExpanded(!outputExpanded)}
+                      >
+                        <span className="ai-detail-toggle-arrow">
+                          {outputExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                        </span>
+                        {t('aiInteractions.outputResponse')}
+                        <span className="ai-detail-toggle-hint">
+                          ({selectedDetail.output_text.length.toLocaleString()} chars)
+                        </span>
+                      </button>
+                      {outputExpanded && (
+                        <pre className="ai-detail-content">
+                          {selectedDetail.output_text}
+                        </pre>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Error message if failed */}
+                  {selectedDetail.error_message && (
+                    <div className="ai-detail-section ai-detail-error">
+                      <h3 className="ai-detail-section-title">
+                        {t('aiInteractions.errorMessage')}
+                      </h3>
+                      <pre className="ai-detail-content ai-detail-error-content">
+                        {selectedDetail.error_message}
+                      </pre>
+                    </div>
+                  )}
+
+                  {/* No content available */}
+                  {!selectedDetail.input_preview && !selectedDetail.output_text && !selectedDetail.error_message && (
+                    <div className="ai-detail-empty">
+                      {t('aiInteractions.noContent')}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="ai-detail-empty">
+                  {t('aiInteractions.loadError')}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Pagination */}
         {totalPages > 1 && (

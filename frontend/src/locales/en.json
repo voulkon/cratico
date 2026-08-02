@@ -838,6 +838,12 @@
     "status": "Status",
     "prev": "← Prev",
     "next": "Next →",
-    "pageOf": "Page {page} of {total}"
+    "pageOf": "Page {page} of {total}",
+    "detailTitle": "Interaction Detail",
+    "inputPrompt": "Input (Prompt Sent)",
+    "outputResponse": "Output (Response Received)",
+    "errorMessage": "Error Message",
+    "noContent": "No prompt or response content available for this interaction.",
+    "loadError": "Could not load interaction details."
   }
 }
