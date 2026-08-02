@@ -99,8 +99,7 @@ class AggregateStep:
             context.steps_output[step.order] = result["text"]
             step_run.input_tokens = result["input_tokens"]
             step_run.output_tokens = result["output_tokens"]
-            step_run.cost_usd = result.get("actual_cost_usd", Decimal("0"))
+            step_run.cost_usd = Decimal(str(result.get("actual_cost_usd", 0)))
+            step_run.input_preview = rendered[:5000]
         else:
-            # Fallback: use the concatenated summaries
-            context.steps_output[step.order] = items_text
-            logger.warning(f"AggregateStep merge AI call failed: {result.get('error')}")
+            raise RuntimeError(f"Aggregate merge call failed: {result.get('error')}")

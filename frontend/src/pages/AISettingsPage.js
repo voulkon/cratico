@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import TopBarSlot from '../components/TopBarSlot';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import {
@@ -13,7 +14,7 @@ import {
   getModelPreference,
   updateModelPreference,
 } from '../api/aiApi';
-import { formatPrice } from '../utils/format';
+import ModelDropdown from '../components/ModelDropdown';
 import './AISettingsPage.css';
 
 const EMPTY_ROW = {
@@ -244,9 +245,14 @@ const AISettingsPage = () => {
 
   return (
     <div className="ai-settings-page">
-      <div className="ai-settings-container">
+      {/* ── Title rendered into the fixed top bar via portal ──── */}
+      <TopBarSlot>
+        <div className="ai-settings-topbar">
+          <span className="ai-settings-title-topbar">{t('aiSettings.title')}</span>
+        </div>
+      </TopBarSlot>
 
-        <h1 className="ai-settings-title">{t('aiSettings.title')}</h1>
+      <div className="ai-settings-container">
         <p className="ai-settings-subtitle">{t('aiSettings.subtitle')}</p>
 
         <button
@@ -292,21 +298,13 @@ const AISettingsPage = () => {
             </div>
           </div>
           <div className="ai-model-preference-row">
-            <select
+            <ModelDropdown
+              models={models}
               value={preferredModel || ''}
-              onChange={(e) => handleModelChange(e.target.value)}
+              onChange={handleModelChange}
               disabled={disabled}
-              className="ai-model-select"
-            >
-              <option value="">{t('aiSettings.usePipelineDefault')}</option>
-              {models.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name || m.id} · {t('aiSettings.ctx')} {(m.context_length / 1000).toFixed(0)}k ·
-                  ${formatPrice(m.pricing.prompt, t)}/M {t('aiSettings.in')} ·
-                  ${formatPrice(m.pricing.completion, t)}/M {t('aiSettings.out')}
-                </option>
-              ))}
-            </select>
+              t={t}
+            />
             {preferredModel && (
               <span className="ai-model-preference-badge">
                 {t('aiSettings.usingModel', { model: preferredModel })}
@@ -552,16 +550,13 @@ const KeyForm = ({ form, setForm, models, testResult, testing, onTest, onSave, o
 
       <div className="ai-key-form-row">
         <label>{t('aiSettings.defaultModel')}</label>
-        <select value={form.default_model} onChange={set('default_model')}>
-          <option value="">{t('aiSettings.selectModel')}</option>
-          {models.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name || m.id} · {t('aiSettings.ctx')} {(m.context_length / 1000).toFixed(0)}k ·
-              ${formatPrice(m.pricing.prompt, t)}/M {t('aiSettings.in')} ·
-              ${formatPrice(m.pricing.completion, t)}/M {t('aiSettings.out')}
-            </option>
-          ))}
-        </select>
+        <ModelDropdown
+          models={models}
+          value={form.default_model}
+          onChange={(id) => setForm((f) => ({ ...f, default_model: id }))}
+          placeholder={t('aiSettings.selectModel')}
+          t={t}
+        />
       </div>
 
       <div className="ai-key-form-row">
