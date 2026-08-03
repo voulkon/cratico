@@ -15,6 +15,56 @@
   min-height: 100vh;
 }
 
+/* ---------- Top-bar decision header (TopBarSlot portal) ---------- */
+.entity-header-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: center;
+  justify-content: center;
+  gap: 0 var(--spacing-sm);
+  width: 100%;
+  min-width: 0;
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+}
+
+.entity-title-topbar {
+  font-size: 1rem;
+  font-weight: var(--font-bold);
+  color: var(--palette-primary);
+  /* Long decision subjects wrap to several lines instead of being
+     truncated to one line, but are clamped so the fixed top bar
+     doesn't grow unbounded.  Adjust -webkit-line-clamp as needed. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.2;
+  min-width: 0;
+  flex-shrink: 0;
+  max-width: 100%;
+}
+
+/* Decision ADA — full-width second line */
+.entity-subtitle-topbar {
+  font-size: 0.68rem;
+  color: var(--muted-text);
+  flex-basis: 100%;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  line-height: 1.1;
+}
+
 /* ---------- Header (centered) ---------- */
 .decision-header {
   margin-bottom: var(--spacing-xl);

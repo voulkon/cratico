@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '../api/client';
+import TopBarSlot from '../components/TopBarSlot';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import './DecisionDetailPage.css';
@@ -113,10 +114,18 @@ const DecisionDetailPage = () => {
 
   if (loading) {
     return (
-      <div className="loading-container">
-        <h2>{t('decisionDetail.loadingDecision')}</h2>
-        <div className="spinner"></div>
-      </div>
+      <>
+        <TopBarSlot>
+          <div className="entity-header-topbar">
+            <span className="entity-title-topbar">{t('decisionDetail.loadingDecision')}</span>
+            <span className="entity-subtitle-topbar">ADA: {id}</span>
+          </div>
+        </TopBarSlot>
+        <div className="loading-container">
+          <h2>{t('decisionDetail.loadingDecision')}</h2>
+          <div className="spinner"></div>
+        </div>
+      </>
     );
   }
 
@@ -148,6 +157,17 @@ const DecisionDetailPage = () => {
 
   return (
     <div className="decision-detail-page">
+      {/* Top-bar decision header (rendered via TopBarSlot portal) —
+          always keeps the current decision visible in the fixed top bar */}
+      <TopBarSlot>
+        <div className="entity-header-topbar">
+          <span className="entity-title-topbar">{decision.subject}</span>
+          <span className="entity-subtitle-topbar">
+            {t('decisionDetail.decisionLabel')} {decision.ada}
+          </span>
+        </div>
+      </TopBarSlot>
+
       {/* Header Section — centered */}
       <div className="decision-header">
         <div className="breadcrumb">
