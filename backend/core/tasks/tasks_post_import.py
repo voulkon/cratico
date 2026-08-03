@@ -12,8 +12,8 @@ To add new post-import work:
 
 Execution order (via Celery chain):
   compute_entity_rankings  →  warm_analytics_cache  →  invalidate_browse_cache
-  →  trigger_check_all_subscriptions
-  (Track 2: DB snapshots)     (Track 1: Redis cache)     (Notifications)
+  →  trigger_check_all_subscriptions  →  verify_high_value_amounts
+  (DB snapshots)               (Redis cache)            (Notifications)         (AI amount audit)
 
 Views warmed (all DashboardGrid sections):
   explore_orgs               → OrganizationsSection
@@ -171,6 +171,8 @@ def post_daily_import_orchestrator(job_id: int, reference_date_str: str):
         invalidate_browse_cache.si(),
         # Notifications: Check all active subscriptions against yesterday's data
         trigger_check_all_subscriptions.si(reference_date_str=reference_date_str),
+        # Amount Verification: AI-based validation of high-value decisions
+        verify_high_value_amounts.si(reference_date_str=reference_date_str),
     )
 
     result = task_chain.apply_async()
@@ -511,4 +513,60 @@ def trigger_check_all_subscriptions(reference_date_str: str | None = None):
         "status": "dispatched",
         "reference_date": str(ref),
         "task_id": str(result.id),
+    }
+
+
+# ── Amount Verification — AI-based validation of high-value decisions ─────
+
+@shared_task
+def verify_high_value_amounts(reference_date_str: str | None = None):
+    """
+    Verify monetary amounts for decisions exceeding the high-value threshold
+    by reading the actual document text (regex-first, optional AI).
+
+    Catches data-entry errors where decimal separators are misplaced
+    (e.g. €30,000.00 recorded as €3,000,000 in Diavgeia).
+
+    This task is idempotent — it skips decisions that have already been
+    verified.  It runs as a standalone @shared_task so it can also be
+    triggered manually via the Django admin or management command.
+
+    Args:
+        reference_date_str: ISO-format date string.  Currently informational;
+                            the verification runs on ALL unverified decisions
+                            above the threshold regardless of date.
+
+    Returns:
+        Dict with batch summary (total_candidates, verified, skipped, etc.).
+    """
+    if not feature_flags.is_enabled("POST_IMPORT_AMOUNT_VERIFICATION_ENABLED"):
+        logger.debug(
+            "POST_IMPORT_AMOUNT_VERIFICATION_ENABLED is disabled, skipping"
+        )
+        return {"status": "skipped", "reason": "feature_flag_disabled"}
+
+    from core.services.amount_verification_service import AmountVerificationService
+
+    ref = (
+        date.fromisoformat(reference_date_str)
+        if reference_date_str
+        else date.today()
+    )
+
+    logger.info(
+        f"Starting amount verification batch (reference date: {ref})"
+    )
+
+    service = AmountVerificationService()
+    result = service.verify_high_value_decisions()
+
+    logger.info(
+        f"Amount verification batch complete: {result['verified']} verified, "
+        f"{result['discrepancies']} discrepancies found"
+    )
+
+    return {
+        "status": "completed",
+        "reference_date": str(ref),
+        **result,
     }

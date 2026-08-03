@@ -242,9 +242,9 @@ class FeatureFlagService:
         "POST_IMPORT_ORCHESTRATOR_ENABLED": {
             "name": "Post-Import Orchestrator",
             "description": "Master switch for the post-import task pipeline (analytics, "
-            "cache warming, notifications).  When enabled, fires automatically after "
-            "a global daily import completes.  Individual sub-tasks can be toggled "
-            "independently via their own flags.",
+            "cache warming, notifications, amount verification).  When enabled, fires "
+            "automatically after a global daily import completes.  Individual sub-tasks "
+            "can be toggled independently via their own flags.",
             "default": False,
             "env_var": "POST_IMPORT_ORCHESTRATOR_ENABLED",
             "category": "data_ingestion",
@@ -280,6 +280,17 @@ class FeatureFlagService:
             "default": False,
             "env_var": "POST_IMPORT_NOTIFICATIONS_ENABLED",
             "category": "notifications",
+            "requires_restart": False,
+        },
+        "POST_IMPORT_AMOUNT_VERIFICATION_ENABLED": {
+            "name": "Post-Import Amount Verification",
+            "description": "After a global daily import, verify monetary amounts in "
+            "high-value decisions (≥€1M) by reading the document text (regex-first, "
+            "optional AI). Catches data-entry errors like misplaced decimal "
+            "separators. Requires POST_IMPORT_ORCHESTRATOR_ENABLED.",
+            "default": True,
+            "env_var": "POST_IMPORT_AMOUNT_VERIFICATION_ENABLED",
+            "category": "data_quality",
             "requires_restart": False,
         },
         # ── User-Triggered GEMI Fetch ─────────────────────────────────
