@@ -43,7 +43,9 @@ export {
     FolderPlus as FolderPlusIcon,
     Share2 as Share2Icon,
     Copy as CopyIcon,
-    Forward as ForwardIcon
+    Forward as ForwardIcon,
+    Info as InfoIcon,
+    Sparkles as SparklesIcon
 } from 'lucide-react';
 
 // export const OrganizationIcon = () => (

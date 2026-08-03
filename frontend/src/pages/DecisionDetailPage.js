@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import DOMPurify from 'dompurify';
 import apiClient from '../api/client';
 import TopBarSlot from '../components/TopBarSlot';
 import { useTranslation } from '../contexts/TranslationContext';
@@ -24,7 +25,9 @@ import {
   PaperclipIcon,
   SearchIcon,
   EyeIcon,
-  DownloadIcon
+  DownloadIcon,
+  SparklesIcon,
+  InfoIcon
 } from '../components/Icons';
 
 const DecisionDetailPage = () => {
@@ -73,14 +76,16 @@ const DecisionDetailPage = () => {
       if (response.data.content || response.data.raw_text) {
         const body = response.data.content || response.data.raw_text;
         const newWindow = window.open('', '_blank');
+        // Sanitize: document content is extracted from external PDFs and
+        // must not be injected as raw HTML (XSS).
         newWindow.document.write(`
           <html>
             <head><title>${t('decisionDetail.documentTitle', { ada: decision.ada })}</title></head>
             <body style="font-family: Arial, sans-serif; padding: 20px;">
               <h1>${t('decisionDetail.decisionLabel')} ${decision.ada}</h1>
-              <h2>${decision.subject}</h2>
+              <h2>${DOMPurify.sanitize(decision.subject)}</h2>
               <div style="white-space: pre-wrap; line-height: 1.6;">
-                ${body}
+                ${DOMPurify.sanitize(body)}
               </div>
             </body>
           </html>
@@ -153,8 +158,6 @@ const DecisionDetailPage = () => {
     );
   }
 
-  const hasTimeline = decision.publish_timestamp || decision.submission_timestamp;
-
   return (
     <div className="decision-detail-page">
       {/* Top-bar decision header (rendered via TopBarSlot portal) —
@@ -164,6 +167,7 @@ const DecisionDetailPage = () => {
           <span className="entity-title-topbar">{decision.subject}</span>
           <span className="entity-subtitle-topbar">
             {t('decisionDetail.decisionLabel')} {decision.ada}
+            {decision.status && <span> · {decision.status}</span>}
           </span>
         </div>
       </TopBarSlot>
@@ -178,32 +182,35 @@ const DecisionDetailPage = () => {
           <span>{t('decisionDetail.decisionDetails')}</span>
         </div>
 
-        <h1 className="decision-title">{decision.subject}</h1>
+        <div className="decision-title-row">
+          <h1 className="decision-title">{decision.subject}</h1>
 
-        {/* Metadata demoted to hover tooltips on compact chips */}
-        <div className="decision-metadata">
-          {decision.ada && (
-            <span
-              className="meta-chip meta-chip--ada"
-              title={`${t('decisionDetail.versionId')}: ${decision.version_id || '—'}`}
-            >
-              ADA: {decision.ada}
-            </span>
-          )}
-          <span
-            className={`meta-chip status-badge status-${(decision.status || '').toLowerCase()}`}
-            title={t('decisionDetail.statusLabel')}
-          >
-            {decision.status}
+          {/* All metadata lives behind a single uniform (i) hover card */}
+          <span className="metadata-info" tabIndex={0}>
+            <InfoIcon size={16} />
+            <div className="metadata-popover">
+              {decision.ada && (
+                <div className="metadata-row">
+                  <span className="metadata-key">ADA</span>
+                  <span className="metadata-value">{decision.ada}</span>
+                </div>
+              )}
+              <div className="metadata-row">
+                <span className="metadata-key">{t('decisionDetail.versionId')}</span>
+                <span className="metadata-value">{decision.version_id || '—'}</span>
+              </div>
+              <div className="metadata-row">
+                <span className="metadata-key">{t('decisionDetail.statusLabel')}</span>
+                <span className="metadata-value">{decision.status}</span>
+              </div>
+              {decision.protocol_number && (
+                <div className="metadata-row">
+                  <span className="metadata-key">{t('decisionDetail.protocol')}</span>
+                  <span className="metadata-value">{decision.protocol_number}</span>
+                </div>
+              )}
+            </div>
           </span>
-          {decision.protocol_number && (
-            <span
-              className="meta-chip protocol-badge"
-              title={t('decisionDetail.protocol')}
-            >
-              {t('decisionDetail.protocol')}: {decision.protocol_number}
-            </span>
-          )}
         </div>
       </div>
 
@@ -222,62 +229,42 @@ const DecisionDetailPage = () => {
         </div>
       )}
 
-      {/* Core Information — stat cards (StatisticsGrid outline) */}
-      <div className="statistics-grid decision-stats-grid">
-        <div className="stat-card">
-          <h3 className="stat-title">
-            <CalendarIcon size={16} /> {t('decisionDetail.timeline')}
-          </h3>
-          <div className="stat-value date-range">
-            {formatDate(decision.issue_date)}
-          </div>
-          {hasTimeline && (
-            <div className="stat-context timeline-lines">
-              {decision.publish_timestamp && (
-                <div>
-                  <strong>{t('decisionDetail.published')}:</strong>{' '}
-                  {formatDate(decision.publish_timestamp)}
-                </div>
-              )}
-              {decision.submission_timestamp && (
-                <div>
-                  <strong>{t('decisionDetail.submitted')}:</strong>{' '}
-                  {formatDate(decision.submission_timestamp)}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="stat-card">
-          <h3 className="stat-title">
-            <DocumentTypeIcon size={16} /> {t('decisionDetail.decisionType')}
-          </h3>
-          {decision.decision_type ? (
-            <div className="stat-context decision-type-text">
-              {decision.decision_type.label}
-            </div>
-          ) : (
-            <div className="stat-context no-data">
-              {t('decisionDetail.typeNotSpecified')}
-            </div>
-          )}
-        </div>
-
-        <div className="stat-card">
-          <h3 className="stat-title">
-            <FinancialIcon size={16} /> {t('decisionDetail.financialInformation')}
-          </h3>
-          <div className="stat-value">{formatAmount(decision.amount)}</div>
-          <div className="stat-context">
-            {decision.financial_year && (
-              <span>{t('decisionDetail.financialYear')} {decision.financial_year}</span>
-            )}
-            {decision.currency && decision.currency !== 'EUR' && (
-              <span> · {decision.currency}</span>
-            )}
-          </div>
-        </div>
+      {/* Core Information — compact inline strip (amount is already
+          shown in the hero, so the financial card was redundant) */}
+      <div className="decision-facts">
+        <span className="fact-item">
+          <CalendarIcon size={14} />
+          <span className="fact-label">{t('decisionDetail.timeline')}</span>
+          <strong>{formatDate(decision.issue_date)}</strong>
+        </span>
+        {decision.publish_timestamp && (
+          <span className="fact-item">
+            <span className="fact-label">{t('decisionDetail.published')}</span>
+            <strong>{formatDate(decision.publish_timestamp)}</strong>
+          </span>
+        )}
+        {decision.submission_timestamp && (
+          <span className="fact-item">
+            <span className="fact-label">{t('decisionDetail.submitted')}</span>
+            <strong>{formatDate(decision.submission_timestamp)}</strong>
+          </span>
+        )}
+        <span className="fact-item">
+          <DocumentTypeIcon size={14} />
+          <span className="fact-label">{t('decisionDetail.decisionType')}</span>
+          <strong>
+            {decision.decision_type
+              ? decision.decision_type.label
+              : t('decisionDetail.typeNotSpecified')}
+          </strong>
+        </span>
+        {decision.financial_year && (
+          <span className="fact-item">
+            <FinancialIcon size={14} />
+            <span className="fact-label">{t('decisionDetail.financialYear')}</span>
+            <strong>{decision.financial_year}</strong>
+          </span>
+        )}
       </div>
 
       {/* Organizational Context — stat cards (Organization / Signers / Units) */}
@@ -429,13 +416,33 @@ const DecisionDetailPage = () => {
         {decision.attachments && decision.attachments.length > 0 && (
           <div className="attachments-list">
             <h4><PaperclipIcon size={16} /> {t('decisionDetail.attachments', { count: decision.attachments.length })}</h4>
-            {decision.attachments.map((attachment, index) => (
-              <div key={index} className="attachment-item">
-                <span className="attachment-icon"><PaperclipIcon size={14} /></span>
-                <span className="attachment-name">{attachment.filename}</span>
-                <span className="attachment-type">({attachment.mime_type})</span>
-              </div>
-            ))}
+            {decision.attachments.map((attachment, index) => {
+              const attachmentUrl = decision.ada && attachment.attachment_id
+                ? `https://diavgeia.gov.gr/luminapi/api/decisions/${decision.ada}/attachments/${attachment.attachment_id}/document`
+                : null;
+              return (
+                <div key={index} className="attachment-item">
+                  <span className="attachment-icon"><PaperclipIcon size={14} /></span>
+                  {attachmentUrl ? (
+                    <a
+                      className="attachment-name attachment-link"
+                      href={attachmentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={t('decisionDetail.downloadAttachmentTooltip', { filename: attachment.filename })}
+                    >
+                      {attachment.filename}
+                    </a>
+                  ) : (
+                    <span className="attachment-name">{attachment.filename}</span>
+                  )}
+                  {attachment.description && (
+                    <span className="attachment-description">{attachment.description}</span>
+                  )}
+                  <span className="attachment-type">({attachment.mime_type})</span>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -459,7 +466,7 @@ const DecisionDetailPage = () => {
       {/* AI Analysis Section */}
       <div className="section-block ai-analysis-section">
         <h3 className="section-heading">
-          <SearchIcon size={20} /> {t('decisionDetail.aiAnalysis')}
+          <SparklesIcon size={20} /> {t('decisionDetail.aiAnalysis')}
         </h3>
 
         {aiAnalysis?.status === 'COMPLETED' && aiAnalysis.summary ? (
@@ -492,15 +499,6 @@ const DecisionDetailPage = () => {
           <div className="ai-summary-actions">
             <p className="section-description">{t('decisionDetail.aiAnalysisDescription')}</p>
             <div className="ai-action-buttons">
-              {!decision.has_document_content && (
-                <button
-                  className="document-link"
-                  onClick={handleRequestContent}
-                  title={t('decisionDetail.requestContentTooltip')}
-                >
-                  <BookOpenIcon size={15} /> {t('decisionDetail.requestContent')}
-                </button>
-              )}
               <button
                 className="document-link document-link--ai"
                 onClick={handleRequestAISummary}
@@ -532,9 +530,9 @@ const DecisionDetailPage = () => {
               >
                 <div className="related-header">
                   <span className="related-ada">{related.ada}</span>
-                  {related.amount && (
+                  {related.amount != null && (
                     <span className="related-amount">
-                      €{related.amount.toLocaleString()}
+                      {formatAmount(related.amount)}
                     </span>
                   )}
                 </div>

@@ -366,7 +366,8 @@
     "documentTitle": "Απόφαση {ada} - Περιεχόμενο Εγγράφου",
     "decisionLabel": "Απόφαση",
     "documentNotAvailable": "Το περιεχόμενο του εγγράφου δεν είναι διαθέσιμο",
-    "documentContentError": "Αποτυχία φόρτωσης περιεχομένου εγγράφου: {error}"
+    "documentContentError": "Αποτυχία φόρτωσης περιεχομένου εγγράφου: {error}",
+    "downloadAttachmentTooltip": "Λήψη του συνημμένου αρχείου"
   },
   "afmEntityDetail": {
     "loadingEntity": "Φόρτωση οντότητας ΑΦΜ {afm}...",
