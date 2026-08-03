@@ -31,6 +31,11 @@ urlpatterns = [
         decision_lists.top_direct_assignments_api,
         name="top_direct_assignments",
     ),
+    path(
+        "top-by-amount/",
+        decision_lists.top_by_amount_api,
+        name="top_by_amount",
+    ),
     # Decision detail endpoints (using integer ID)
     path("<int:decision_id>/", decisions_views.decision_detail, name="decision_detail"),
     path(
