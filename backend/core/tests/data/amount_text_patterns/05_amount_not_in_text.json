@@ -1,0 +1,9 @@
+{
+  "id": "amount_not_in_text",
+  "text_content": "Απόφαση με την οποία εγκρίνεται η διενέργεια διαγωνισμού για την προμήθεια υλικών γραφείου.",
+  "db_amounts": ["15000.00"],
+  "expected_status": "failed",
+  "expected_has_discrepancy": false,
+  "expected_verified_amount": null,
+  "notes": "No amount anywhere in the text — verification cannot complete."
+}

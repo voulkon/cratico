@@ -1,0 +1,9 @@
+{
+  "id": "vat_and_net_amounts",
+  "text_content": "Η δαπάνη ανέρχεται σε 24.193,55 € πλέον ΦΠΑ 5.806,45 €, ήτοι συνολικά 30.000,00 € με ΦΠΑ.",
+  "db_amounts": ["30000.00"],
+  "expected_status": "completed",
+  "expected_has_discrepancy": false,
+  "expected_verified_amount": "30000.00",
+  "notes": "Text contains net + VAT + total; DB amount matches the total (which is keyword-adjacent to 'συνολικά')."
+}

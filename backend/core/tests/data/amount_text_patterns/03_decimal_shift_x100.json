@@ -1,0 +1,10 @@
+{
+  "id": "decimal_shift_x100",
+  "text_content": "Εγκρίνεται η δαπάνη ποσού 3.000.000,00 € για την κατασκευή του έργου.",
+  "db_amounts": ["30000.00"],
+  "expected_status": "completed",
+  "expected_has_discrepancy": true,
+  "expected_verified_amount": "3000000.00",
+  "expected_note_contains": "decimal shift",
+  "notes": "Classic typo: 30.000,00 entered as 3.000.000 in Diavgeia (decimal comma dropped). Text says 3M, DB says 30k — ×100 shift detected via clone."
+}

@@ -1,0 +1,9 @@
+{
+  "id": "integer_amount_no_decimals",
+  "text_content": "Ο προϋπολογισμός της δράσης ανέρχεται σε 45.000 ευρώ.",
+  "db_amounts": ["45000.00"],
+  "expected_status": "completed",
+  "expected_has_discrepancy": false,
+  "expected_verified_amount": "45000",
+  "notes": "Amount written without decimal part: 45.000 ευρώ. Also exercises the '1.234 means 1234' Greek convention (not 1.234)."
+}

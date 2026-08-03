@@ -1,0 +1,9 @@
+{
+  "id": "exact_match_multi_thousands",
+  "text_content": "Η συνολική δαπάνη ανέρχεται σε 1.234.567,89 € συμπεριλαμβανομένου ΦΠΑ 24%.",
+  "db_amounts": ["1234567.89"],
+  "expected_status": "completed",
+  "expected_has_discrepancy": false,
+  "expected_verified_amount": "1234567.89",
+  "notes": "Multiple thousands separator groups: 1.234.567,89"
+}
