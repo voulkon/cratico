@@ -9,9 +9,8 @@ Two-layer design:
 from datetime import date
 
 from django.db import models
-from loguru import logger
 
-from ._helpers import _make_aware_start, _make_aware_end, parse_date, response_cache
+from ._helpers import _make_aware_start, _make_aware_end, _validate_dates, parse_date
 
 __all__ = [
     "compute_explore_orgs",
@@ -118,63 +117,35 @@ def warm_explore_orgs_window(
         page_size:      Frontend's page size — must match what the
                         OrganizationsSection sends (homepage sends limit=6)
     """
-    # ── compute ONCE with the large limit ──────────────────────────
+    from ._warmup import cache_paginated_offset
+
     data = compute_explore_orgs(start_date_str, end_date_str, limit=max_limit)
 
-    full_results: list[dict] = data["organizations"]
-    original_has_more: bool = data["has_more"]
-
-    # ── slice into pages and cache each one ────────────────────────
-    cached = 0
-    for offset in range(0, len(full_results), page_size):
-        page_results = full_results[offset : offset + page_size]
-        if not page_results:
-            break
-
-        # has_more: more items in cache, OR more items in DB beyond max_limit
-        has_more = (offset + page_size < len(full_results)) or original_has_more
-
-        page_data = {
-            "organizations": page_results,
-            "total_organizations": len(page_results),
-            "has_more": has_more,
+    cache_paginated_offset(
+        cache_prefix="explore_orgs",
+        full_results=data["organizations"],
+        total_count=len(data["organizations"]),
+        page_size=page_size,
+        start_date_str=start_date_str,
+        end_date_str=end_date_str,
+        end_date=end_date,
+        max_limit=max_limit,
+        use_historical_ttl=True,
+        log_label="explore_orgs",
+        # explore_orgs uses "organizations" not "results" and has no pagination section.
+        build_page_data=lambda results, offset, page, total_pages: {
+            "organizations": results,
+            "total_organizations": len(results),
+            "has_more": (offset + page_size < len(data["organizations"]))
+            or data["has_more"],
             "offset": offset,
             "limit": page_size,
-        }
-
-        cache_key = response_cache.build_key(
-            "explore_orgs",
-            start_date=start_date_str,
-            end_date=end_date_str,
-            limit=str(page_size),
-            offset=str(offset),
-        )
-        response_cache.set(cache_key, page_data, end_date=end_date, timeout=response_cache.EXPIRE_HISTORICAL)
-        cached += 1
-
-    # ── always cache at least page 1 (even if empty) so subsequent
-    #     requests get cache hits instead of triggering defer_on_miss ─
-    if cached == 0:
-        empty_data = {
+        },
+        build_empty_data=lambda ps: {
             "organizations": [],
             "total_organizations": 0,
             "has_more": False,
             "offset": 0,
-            "limit": page_size,
-        }
-        empty_key = response_cache.build_key(
-            "explore_orgs",
-            start_date=start_date_str,
-            end_date=end_date_str,
-            limit=str(page_size),
-            offset="0",
-        )
-        response_cache.set(empty_key, empty_data, end_date=end_date, timeout=response_cache.EXPIRE_HISTORICAL)
-        cached += 1
-
-    logger.info(
-        f"[AnalyticsPrecalc] Warmed explore_orgs "
-        f"[{start_date_str} → {end_date_str}] {cached} pages "
-        f"(max_limit={max_limit}, page_size={page_size}, "
-        f"orgs_cached={len(full_results)})"
+            "limit": ps,
+        },
     )

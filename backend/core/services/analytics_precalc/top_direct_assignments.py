@@ -9,12 +9,11 @@ Two-layer design:
 from datetime import date, datetime
 
 from django.db import models
-from loguru import logger
 
 from core.models.decisions import Decision
 from core.services.decision_projections import paginate_decisions
 
-from ._helpers import _make_aware_start, _make_aware_end, parse_date, response_cache
+from ._helpers import _make_aware_start, _make_aware_end, _validate_dates, parse_date
 
 __all__ = [
     "compute_top_direct_assignments",
@@ -84,55 +83,36 @@ def warm_top_direct_assignments_window(
     Mirrors ``warm_top_payments_window`` / ``warm_explore_orgs_window`` so
     the TopDirectAssignmentsSection can infinite-scroll on cache hits.
     """
-    start_parsed = parse_date(start_date_str)
-    end_parsed = parse_date(end_date_str)
-    if not start_parsed or not end_parsed:
-        raise ValueError(
-            f"warm_top_direct_assignments_window: invalid date strings "
-            f"({start_date_str!r}, {end_date_str!r})"
-        )
+    from ._warmup import cache_paginated_offset
 
-    start_dt = _make_aware_start(start_parsed)
-    end_dt = _make_aware_end(end_parsed)
+    _validate_dates(start_date_str, end_date_str, "warm_top_direct_assignments_window")
 
-    # ── compute ONCE with the large limit ──────────────────────────
     data = compute_top_direct_assignments(
-        start_dt=start_dt,
-        end_dt=end_dt,
+        start_dt=_make_aware_start(parse_date(start_date_str)),
+        end_dt=_make_aware_end(parse_date(end_date_str)),
         start_date_str=start_date_str,
         end_date_str=end_date_str,
         limit=max_limit,
         offset=0,
     )
 
-    full_results: list = data["results"]
-    original_pagination: dict = data["pagination"]
-    total_count = original_pagination["total_count"]
-
-    # ── slice into pages and cache each one ────────────────────────
-    cached = 0
-    for offset in range(0, len(full_results), page_size):
-        page_results = full_results[offset : offset + page_size]
-        if not page_results:
-            break
-
-        page = (offset // page_size) + 1
-        total_pages = (
-            max(1, (total_count + page_size - 1) // page_size) if page_size else 1
-        )
-        # has_more: more items in cache, OR more items in DB beyond max_limit
-        has_next = (
-            (offset + page_size < len(full_results))
-            or original_pagination["has_next"]
-        )
-
-        page_data = {
-            "results": page_results,
+    cache_paginated_offset(
+        cache_prefix="top_direct_assignments",
+        full_results=data["results"],
+        total_count=data["pagination"]["total_count"],
+        page_size=page_size,
+        start_date_str=start_date_str,
+        end_date_str=end_date_str,
+        end_date=end_date,
+        max_limit=max_limit,
+        build_page_data=lambda results, offset, page, total_pages: {
+            "results": results,
             "pagination": {
                 "current_page": page,
                 "total_pages": total_pages,
-                "total_count": total_count,
-                "has_next": has_next,
+                "total_count": data["pagination"]["total_count"],
+                "has_next": (offset + page_size < len(data["results"]))
+                or data["pagination"]["has_next"],
                 "has_previous": page > 1,
                 "page_size": page_size,
             },
@@ -141,21 +121,8 @@ def warm_top_direct_assignments_window(
                 "end_date": end_date_str,
                 "sort_by": "amount_desc",
             },
-        }
-
-        cache_key = response_cache.build_key(
-            "top_direct_assignments",
-            start_date=start_date_str,
-            end_date=end_date_str,
-            limit=str(page_size),
-            offset=str(offset),
-        )
-        response_cache.set(cache_key, page_data, end_date=end_date)
-        cached += 1
-
-    # ── always cache at least page 1 (even if empty) ───────────────
-    if cached == 0:
-        empty_data = {
+        },
+        build_empty_data=lambda ps: {
             "results": [],
             "pagination": {
                 "current_page": 1,
@@ -163,26 +130,12 @@ def warm_top_direct_assignments_window(
                 "total_count": 0,
                 "has_next": False,
                 "has_previous": False,
-                "page_size": page_size,
+                "page_size": ps,
             },
             "filters": {
                 "start_date": start_date_str,
                 "end_date": end_date_str,
                 "sort_by": "amount_desc",
             },
-        }
-        empty_key = response_cache.build_key(
-            "top_direct_assignments",
-            start_date=start_date_str,
-            end_date=end_date_str,
-            limit=str(page_size),
-            offset="0",
-        )
-        response_cache.set(empty_key, empty_data, end_date=end_date)
-        cached += 1
-
-    logger.info(
-        f"[AnalyticsPrecalc] Warmed top_direct_assignments "
-        f"[{start_date_str} → {end_date_str}] {cached} pages "
-        f"(max_limit={max_limit}, page_size={page_size}, total={total_count})"
+        },
     )

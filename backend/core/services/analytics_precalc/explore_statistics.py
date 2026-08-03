@@ -10,12 +10,11 @@ from datetime import date, datetime
 from typing import Optional
 
 from django.db import models
-from loguru import logger
 
 from core.models.decisions import Decision
 from core.models.entities import DecisionAmountField
 
-from ._helpers import _make_aware_start, _make_aware_end, parse_date, response_cache
+from ._helpers import _make_aware_start, _make_aware_end, _validate_dates, parse_date
 
 __all__ = [
     "compute_explore_statistics",
@@ -102,25 +101,23 @@ def warm_explore_statistics_window(
     This view has no pagination params, so we cache a single key.
     max_limit and page_size are unused but kept for API consistency.
     """
-    start_parsed = parse_date(start_date_str)
-    end_parsed = parse_date(end_date_str)
+    from ._warmup import cache_single_key
+
+    _validate_dates(start_date_str, end_date_str, "warm_explore_statistics_window")
 
     data = compute_explore_statistics(
-        start_dt=_make_aware_start(start_parsed) if start_parsed else None,
-        end_dt=_make_aware_end(end_parsed) if end_parsed else None,
+        start_dt=_make_aware_start(parse_date(start_date_str)),
+        end_dt=_make_aware_end(parse_date(end_date_str)),
         start_date_str=start_date_str,
         end_date_str=end_date_str,
     )
 
-    cache_key = response_cache.build_key(
-        "explore_statistics",
-        end_date=end_date_str,
-        start_date=start_date_str,
-    )
-    response_cache.set(cache_key, data, end_date=end_date, timeout=response_cache.EXPIRE_HISTORICAL)
-
-    logger.info(
-        f"[AnalyticsPrecalc] Warmed explore_statistics "
-        f"[{start_date_str} → {end_date_str}] "
-        f"(decisions={data['summary']['decisions']['total_count']})"
+    cache_single_key(
+        cache_prefix="explore_statistics",
+        data=data,
+        start_date_str=start_date_str,
+        end_date_str=end_date_str,
+        end_date=end_date,
+        log_label="explore_statistics",
+        log_detail=f"decisions={data['summary']['decisions']['total_count']}",
     )

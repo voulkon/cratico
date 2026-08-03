@@ -9,12 +9,11 @@ Two-layer design:
 from datetime import date, datetime
 
 from django.db.models import Avg, Count, Max, Min, Sum
-from loguru import logger
 
 from core.models.entities import DecisionEntityRelationship
 from core.services.financial_calculation_service import financial_service
 
-from ._helpers import _make_aware_start, _make_aware_end, parse_date, response_cache
+from ._helpers import _make_aware_start, _make_aware_end, _validate_dates, parse_date
 
 __all__ = [
     "compute_da_top_pairs",
@@ -153,81 +152,49 @@ def warm_da_top_pairs_window(
         max_limit:      How many top pairs to pre-compute (default 50)
         page_size:      Frontend's page size — must match TopRelationshipPairs.limit
     """
-    start_parsed = parse_date(start_date_str)
-    end_parsed = parse_date(end_date_str)
-    if not start_parsed or not end_parsed:
-        raise ValueError(
-            f"warm_da_top_pairs_window: invalid date strings "
-            f"({start_date_str!r}, {end_date_str!r})"
-        )
+    from ._warmup import cache_paginated_offset
 
-    # ── compute ONCE with the large limit ──────────────────────────
+    _validate_dates(start_date_str, end_date_str, "warm_da_top_pairs_window")
+
     data = compute_da_top_pairs(
-        start_dt=_make_aware_start(start_parsed),
-        end_dt=_make_aware_end(end_parsed),
+        start_dt=_make_aware_start(parse_date(start_date_str)),
+        end_dt=_make_aware_end(parse_date(end_date_str)),
         start_date_str=start_date_str,
         end_date_str=end_date_str,
         limit=max_limit,
         offset=0,
     )
 
-    full_results: list[dict] = data["results"]
-    total_count: int = data["pagination"]["total_count"]
-    summary: dict = data["summary"]
-
-    # ── slice into pages and cache each one ────────────────────────
-    cached = 0
-    for offset in range(0, len(full_results), page_size):
-        page_results = full_results[offset : offset + page_size]
-
-        page_data = {
+    cache_paginated_offset(
+        cache_prefix="da_top_pairs",
+        full_results=data["results"],
+        total_count=data["pagination"]["total_count"],
+        page_size=page_size,
+        start_date_str=start_date_str,
+        end_date_str=end_date_str,
+        end_date=end_date,
+        max_limit=max_limit,
+        use_historical_ttl=True,
+        build_page_data=lambda results, offset, page, total_pages: {
             "date_range": data["date_range"],
-            "results": page_results,
+            "results": results,
             "pagination": {
                 "limit": page_size,
                 "offset": offset,
-                "total_count": total_count,
-                "has_more": (offset + page_size) < total_count,
+                "total_count": data["pagination"]["total_count"],
+                "has_more": (offset + page_size) < data["pagination"]["total_count"],
             },
-            "summary": summary,
-        }
-
-        cache_key = response_cache.build_key(
-            "da_top_pairs",
-            start_date=start_date_str,
-            end_date=end_date_str,
-            limit=str(page_size),
-            offset=str(offset),
-        )
-        response_cache.set(cache_key, page_data, end_date=end_date, timeout=response_cache.EXPIRE_HISTORICAL)
-        cached += 1
-
-    # ── always cache at least page 1 (even if empty) so subsequent
-    #     requests get cache hits instead of triggering defer_on_miss ─
-    if cached == 0:
-        empty_data = {
+            "summary": data["summary"],
+        },
+        build_empty_data=lambda ps: {
             "date_range": data["date_range"],
             "results": [],
             "pagination": {
-                "limit": page_size,
+                "limit": ps,
                 "offset": 0,
                 "total_count": 0,
                 "has_more": False,
             },
-            "summary": summary,
-        }
-        empty_key = response_cache.build_key(
-            "da_top_pairs",
-            start_date=start_date_str,
-            end_date=end_date_str,
-            limit=str(page_size),
-            offset="0",
-        )
-        response_cache.set(empty_key, empty_data, end_date=end_date, timeout=response_cache.EXPIRE_HISTORICAL)
-        cached += 1
-
-    logger.info(
-        f"[AnalyticsPrecalc] Warmed da_top_pairs "
-        f"[{start_date_str} → {end_date_str}] {cached} pages "
-        f"(max_limit={max_limit}, page_size={page_size}, total_count={total_count})"
+            "summary": data["summary"],
+        },
     )
