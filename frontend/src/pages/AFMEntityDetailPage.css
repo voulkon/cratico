@@ -541,7 +541,6 @@
 .time-range-container {
   margin: 1rem 0;
   padding: 1rem;
-  background: var(--bg-secondary);
   border-radius: 8px;
   border: 1px solid var(--border-color);
 }
