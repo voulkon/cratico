@@ -1492,14 +1492,23 @@ def warm_top_payments_window(
     start_date_str: str,
     end_date_str: str,
     end_date: date,
+    max_limit: int = 100,
     page_size: int = 5,
 ) -> None:
     """
-    Pre-populate the top_payments cache key for page 1.
+    Compute top payments ONCE with a large limit, then slice into
+    page_size batches and cache each one under the exact key the frontend
+    will request (matching offset + limit).
 
-    The DashboardGrid only ever requests page 1 with a fixed page_size, so
-    we cache just that one page.  If the result set is empty we still cache
-    it so the first real request is a cache hit (avoiding defer_on_miss).
+    Why: the TopPaymentsSection infinite-scrolls with ``limit=5``, so the
+    cache key includes both ``limit`` and ``offset``.  A single
+    ``limit=max_limit`` entry never satisfies a request for
+    ``limit=5&offset=10``.  By pre-slicing we cover every page the user can
+    scroll to without re-running the heavy DB query; pages beyond
+    ``max_limit`` fall through to the view's synchronous compute + cache
+    (the query is bounded by limit/offset and cheap).
+
+    Mirrors ``warm_explore_orgs_window``.
     """
     from django.utils.dateparse import parse_date
 
@@ -1514,29 +1523,97 @@ def warm_top_payments_window(
     start_dt = _make_aware_start(start_parsed)
     end_dt = _make_aware_end(end_parsed)
 
+    # ── compute ONCE with the large limit ──────────────────────────
     data = compute_top_payments(
         start_dt=start_dt,
         end_dt=end_dt,
         start_date_str=start_date_str,
         end_date_str=end_date_str,
-        limit=page_size,
+        limit=max_limit,
         offset=0,
     )
 
-    cache_key = response_cache.build_key(
-        "top_payments",
-        start_date=start_date_str,
-        end_date=end_date_str,
-        limit=str(page_size),
-        offset="0",
-    )
-    response_cache.set(cache_key, data, end_date=end_date)
+    full_results: list = data["results"]
+    original_pagination: dict = data["pagination"]
+    total_count = original_pagination["total_count"]
 
-    total = data["pagination"]["total_count"]
+    # ── slice into pages and cache each one ────────────────────────
+    cached = 0
+    for offset in range(0, len(full_results), page_size):
+        page_results = full_results[offset : offset + page_size]
+        if not page_results:
+            break
+
+        page = (offset // page_size) + 1
+        total_pages = (
+            max(1, (total_count + page_size - 1) // page_size) if page_size else 1
+        )
+        # has_more: more items in cache, OR more items in DB beyond max_limit
+        has_next = (
+            (offset + page_size < len(full_results))
+            or original_pagination["has_next"]
+        )
+
+        page_data = {
+            "results": page_results,
+            "pagination": {
+                "current_page": page,
+                "total_pages": total_pages,
+                "total_count": total_count,
+                "has_next": has_next,
+                "has_previous": page > 1,
+                "page_size": page_size,
+            },
+            "filters": {
+                "start_date": start_date_str,
+                "end_date": end_date_str,
+                "sort_by": "amount_desc",
+            },
+        }
+
+        cache_key = response_cache.build_key(
+            "top_payments",
+            start_date=start_date_str,
+            end_date=end_date_str,
+            limit=str(page_size),
+            offset=str(offset),
+        )
+        response_cache.set(cache_key, page_data, end_date=end_date)
+        cached += 1
+
+    # ── always cache at least page 1 (even if empty) so subsequent
+    #     requests get cache hits instead of a cold compute ─────────
+    if cached == 0:
+        empty_data = {
+            "results": [],
+            "pagination": {
+                "current_page": 1,
+                "total_pages": 0,
+                "total_count": 0,
+                "has_next": False,
+                "has_previous": False,
+                "page_size": page_size,
+            },
+            "filters": {
+                "start_date": start_date_str,
+                "end_date": end_date_str,
+                "sort_by": "amount_desc",
+            },
+        }
+        empty_key = response_cache.build_key(
+            "top_payments",
+            start_date=start_date_str,
+            end_date=end_date_str,
+            limit=str(page_size),
+            offset="0",
+        )
+        response_cache.set(empty_key, empty_data, end_date=end_date)
+        cached += 1
+
     logger.info(
         f"[AnalyticsPrecalc] Warmed top_payments "
-        f"[{start_date_str} → {end_date_str}] "
-        f"(total={total}, page_size={page_size})"
+        f"[{start_date_str} → {end_date_str}] {cached} pages "
+        f"(max_limit={max_limit}, page_size={page_size}, total={total_count})"
     )
 
 
@@ -1598,10 +1675,16 @@ def warm_top_direct_assignments_window(
     start_date_str: str,
     end_date_str: str,
     end_date: date,
+    max_limit: int = 100,
     page_size: int = 5,
 ) -> None:
     """
-    Pre-populate the top_direct_assignments cache key for page 1.
+    Compute top direct-assignments ONCE with a large limit, then slice into
+    page_size batches and cache each one under the exact key the frontend
+    will request (matching offset + limit).
+
+    Mirrors ``warm_top_payments_window`` / ``warm_explore_orgs_window`` so
+    the TopDirectAssignmentsSection can infinite-scroll on cache hits.
     """
     from django.utils.dateparse import parse_date
 
@@ -1616,29 +1699,96 @@ def warm_top_direct_assignments_window(
     start_dt = _make_aware_start(start_parsed)
     end_dt = _make_aware_end(end_parsed)
 
+    # ── compute ONCE with the large limit ──────────────────────────
     data = compute_top_direct_assignments(
         start_dt=start_dt,
         end_dt=end_dt,
         start_date_str=start_date_str,
         end_date_str=end_date_str,
-        limit=page_size,
+        limit=max_limit,
         offset=0,
     )
 
-    cache_key = response_cache.build_key(
-        "top_direct_assignments",
-        start_date=start_date_str,
-        end_date=end_date_str,
-        limit=str(page_size),
-        offset="0",
-    )
-    response_cache.set(cache_key, data, end_date=end_date)
+    full_results: list = data["results"]
+    original_pagination: dict = data["pagination"]
+    total_count = original_pagination["total_count"]
 
-    total = data["pagination"]["total_count"]
+    # ── slice into pages and cache each one ────────────────────────
+    cached = 0
+    for offset in range(0, len(full_results), page_size):
+        page_results = full_results[offset : offset + page_size]
+        if not page_results:
+            break
+
+        page = (offset // page_size) + 1
+        total_pages = (
+            max(1, (total_count + page_size - 1) // page_size) if page_size else 1
+        )
+        # has_more: more items in cache, OR more items in DB beyond max_limit
+        has_next = (
+            (offset + page_size < len(full_results))
+            or original_pagination["has_next"]
+        )
+
+        page_data = {
+            "results": page_results,
+            "pagination": {
+                "current_page": page,
+                "total_pages": total_pages,
+                "total_count": total_count,
+                "has_next": has_next,
+                "has_previous": page > 1,
+                "page_size": page_size,
+            },
+            "filters": {
+                "start_date": start_date_str,
+                "end_date": end_date_str,
+                "sort_by": "amount_desc",
+            },
+        }
+
+        cache_key = response_cache.build_key(
+            "top_direct_assignments",
+            start_date=start_date_str,
+            end_date=end_date_str,
+            limit=str(page_size),
+            offset=str(offset),
+        )
+        response_cache.set(cache_key, page_data, end_date=end_date)
+        cached += 1
+
+    # ── always cache at least page 1 (even if empty) ───────────────
+    if cached == 0:
+        empty_data = {
+            "results": [],
+            "pagination": {
+                "current_page": 1,
+                "total_pages": 0,
+                "total_count": 0,
+                "has_next": False,
+                "has_previous": False,
+                "page_size": page_size,
+            },
+            "filters": {
+                "start_date": start_date_str,
+                "end_date": end_date_str,
+                "sort_by": "amount_desc",
+            },
+        }
+        empty_key = response_cache.build_key(
+            "top_direct_assignments",
+            start_date=start_date_str,
+            end_date=end_date_str,
+            limit=str(page_size),
+            offset="0",
+        )
+        response_cache.set(empty_key, empty_data, end_date=end_date)
+        cached += 1
+
     logger.info(
         f"[AnalyticsPrecalc] Warmed top_direct_assignments "
-        f"[{start_date_str} → {end_date_str}] "
-        f"(total={total}, page_size={page_size})"
+        f"[{start_date_str} → {end_date_str}] {cached} pages "
+        f"(max_limit={max_limit}, page_size={page_size}, total={total_count})"
     )
 
 

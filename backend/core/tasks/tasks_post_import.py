@@ -241,10 +241,10 @@ def warm_analytics_cache(reference_date_str: str | None = None):
     cache keys match exactly.
 
     Views warmed:
-      - explore_orgs              (explore/organizations/)          page_size=6
-      - da_top_pairs              (direct-assignments/top-pairs/)   page_size=6
-      - top_payments              (decisions/top-payments/)         page_size=5
-      - top_direct_assignments    (decisions/top-direct-assignments/) page_size=5
+      - explore_orgs              (explore/organizations/)          page_size=6, max_limit=200
+      - da_top_pairs              (direct-assignments/top-pairs/)   page_size=6, max_limit=50
+      - top_payments              (decisions/top-payments/)         page_size=5, max_limit=100
+      - top_direct_assignments    (decisions/top-direct-assignments/) page_size=5, max_limit=100
 
     Views NOT warmed (frontend no longer calls these directly):
       - explore_decisions      frontend uses unified?view=decisions (not cached)
@@ -306,8 +306,8 @@ def warm_analytics_cache(reference_date_str: str | None = None):
         for view_name, warm_fn, kwargs in [
             ("explore_orgs", warm_explore_orgs_window, {"max_limit": 200, "page_size": 6}),
             ("da_top_pairs", warm_da_top_pairs_window, {"max_limit": 50, "page_size": 6}),
-            ("top_payments", warm_top_payments_window, {"page_size": 5}),
-            ("top_direct_assignments", warm_top_direct_assignments_window, {"page_size": 5}),
+            ("top_payments", warm_top_payments_window, {"max_limit": 100, "page_size": 5}),
+            ("top_direct_assignments", warm_top_direct_assignments_window, {"max_limit": 100, "page_size": 5}),
         ]:
             # ── Build sentinel warmup keys so L2 (defer_on_miss) can
             #     detect that L3 is already working on this view ──────

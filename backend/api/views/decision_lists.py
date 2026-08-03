@@ -21,7 +21,7 @@ Pattern
 ───────
   Each endpoint follows the same structure as ``da_top_pairs``:
     ┌─ @swagger_auto_schema
-    ├─ @cached_view(cache_prefix=…, defer_on_miss=True)
+    ├─ @cached_view(cache_prefix=…, defer_on_miss=False)
     ├─ @api_view(["GET"])
     ├─ Parse + validate date range
     ├─ Delegate to compute_* function in analytics_precalc_service
@@ -29,6 +29,13 @@ Pattern
 
   The compute_* functions are the single source of truth — shared by both
   the view (on cache miss) and the warmup task (to pre-populate).
+
+  Note: these views do NOT use ``defer_on_miss``.  They are paginated with
+  ``limit``/``offset`` and the DashboardGrid sections infinite-scroll, so a
+  cache miss for any page must compute synchronously and cache the result
+  (the queries are bounded by limit/offset and cheap).  ``defer_on_miss``
+  would return 202 for every page beyond the pre-warmed ``offset=0`` and
+  stall the scroll for ~30s per page.
 """
 
 from core.decorators.cache_decorator import cached_view
@@ -130,7 +137,6 @@ _DATE_PARAMS = [
     cache_prefix="top_payments",
     cache_params=["start_date", "end_date", "limit", "offset"],
     end_date_param="end_date",
-    defer_on_miss=True,
 )
 @api_view(["GET"])
 @permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
@@ -174,7 +180,6 @@ def top_payments_api(request):
     cache_prefix="top_direct_assignments",
     cache_params=["start_date", "end_date", "limit", "offset"],
     end_date_param="end_date",
-    defer_on_miss=True,
 )
 @api_view(["GET"])
 @permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
