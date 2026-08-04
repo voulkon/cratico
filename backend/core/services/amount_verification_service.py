@@ -126,8 +126,10 @@ class AmountVerificationService:
         # A decision is "verified" once its resolution points at a COMPLETED run.
         # NOTE: sums ALL amount fields (linked + unlinked) to stay consistent
         # with verify_decision(), which uses include_unlinked=True.
+        from core.services.decision_facets import amount_sum_excluding_kae
+
         candidates = (
-            Decision.objects.annotate(calc_total=Sum("amount_fields__amount"))
+            Decision.objects.annotate(calc_total=amount_sum_excluding_kae())
             .filter(calc_total__gte=self.threshold)
             .exclude(
                 amount_verification__winning_run__status=(
