@@ -15,6 +15,51 @@
   min-height: 100vh;
 }
 
+/* ---------- Top-bar decision header (TopBarSlot portal) ---------- */
+.entity-header-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: center;
+  justify-content: center;
+  gap: 0 var(--spacing-sm);
+  width: 100%;
+  min-width: 0;
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+}
+
+.entity-title-topbar {
+  font-size: 1rem;
+  font-weight: var(--font-bold);
+  color: var(--palette-primary);
+  /* Single-line ellipsis: the fixed top band is only
+     --top-band-height tall (40-64px) and #top-bar-slot clips
+     overflow, so multi-line content gets cut off. The full
+     subject is always visible as the page's <h1> below. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+  min-width: 0;
+  flex-shrink: 1;
+  max-width: 100%;
+}
+
+/* Decision ADA — full-width second line */
+.entity-subtitle-topbar {
+  font-size: 0.68rem;
+  color: var(--muted-text);
+  flex-basis: 100%;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  line-height: 1.1;
+}
+
 /* ---------- Header (centered) ---------- */
 .decision-header {
   margin-bottom: var(--spacing-xl);
@@ -61,48 +106,88 @@
   overflow-wrap: anywhere;
 }
 
-/* Compact metadata chips — details live in hover tooltips */
-.decision-metadata {
+/* ---------- Title row + metadata (i) popover ---------- */
+.decision-title-row {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
   gap: var(--spacing-sm);
+  max-width: 100%;
 }
 
-.meta-chip {
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--radius-full);
-  font-size: var(--font-xs);
-  font-weight: var(--font-bold);
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  cursor: default;
-  border: 1px solid transparent;
-}
-
-.meta-chip--ada {
-  background-color: var(--palette-bg-subtle);
-  color: var(--palette-primary);
-}
-
-.status-badge {
-  background-color: var(--success-color, #28a745);
-  color: #fff;
-}
-
-.status-badge.status-revoked {
-  background-color: var(--danger-color, #dc3545);
-}
-
-.status-badge.status-pending_revocation {
-  background-color: var(--warning-color, #ffc107);
-  color: var(--dark-text, #212529);
-}
-
-.protocol-badge {
-  background-color: var(--hover-bg);
+.metadata-info {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
   color: var(--muted-text);
-  border-color: var(--border-color);
+  cursor: help;
+  transition: var(--transition-fast);
+}
+
+.metadata-info:hover,
+.metadata-info:focus-visible {
+  color: var(--palette-primary);
+  border-color: var(--palette-primary);
+}
+
+.metadata-popover {
+  position: absolute;
+  top: calc(100% + var(--spacing-xs));
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  min-width: 260px;
+  max-width: 80vw;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px var(--shadow);
+  padding: var(--spacing-sm) var(--spacing-md);
+  z-index: 50;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.metadata-info:hover .metadata-popover,
+.metadata-info:focus-within .metadata-popover {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+
+.metadata-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  padding: var(--spacing-xs) 0;
+  border-bottom: 1px solid var(--border-color);
+  font-size: var(--font-xs);
+  text-align: left;
+}
+
+.metadata-row:last-child {
+  border-bottom: none;
+}
+
+.metadata-key {
+  color: var(--muted-text);
+  font-weight: var(--font-medium);
+  white-space: nowrap;
+}
+
+.metadata-value {
+  color: var(--text-color);
+  font-weight: var(--font-bold);
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 /* ---------- Hero amount ---------- */
@@ -131,34 +216,50 @@
   color: var(--muted-text);
 }
 
+/* ---------- Core facts strip (replaces the bulky stats grid) ---------- */
+.decision-facts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--spacing-xs) var(--spacing-lg);
+  margin-bottom: var(--spacing-xxl);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+  font-size: var(--font-sm);
+}
+
+.fact-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  color: var(--text-color);
+  min-width: 0;
+}
+
+.fact-item svg {
+  color: var(--muted-text);
+  flex-shrink: 0;
+}
+
+.fact-label {
+  color: var(--muted-text);
+}
+
+.fact-item strong {
+  font-weight: var(--font-medium);
+  overflow-wrap: anywhere;
+}
+
 /* ---------- Stat grids (StatisticsGrid outline) ---------- */
-.decision-stats-grid,
 .decision-org-grid {
   margin-bottom: var(--spacing-xxxl);
 }
 
-.decision-stats-grid .stat-title,
 .decision-org-grid .stat-title {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-xs);
-}
-
-.decision-type-text {
-  font-size: var(--font-md);
-  color: var(--text-color);
-  font-weight: var(--font-medium);
-  line-height: 1.4;
-}
-
-.timeline-lines {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-}
-
-.timeline-lines strong {
-  color: var(--palette-primary);
 }
 
 .no-data {
@@ -322,6 +423,25 @@
 
 .attachment-name {
   font-weight: var(--font-medium);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.attachment-link {
+  color: var(--palette-primary);
+  text-decoration: none;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.attachment-link:hover {
+  color: var(--palette-emphasis);
+  text-decoration: underline;
+}
+
+.attachment-description {
+  color: var(--muted-text);
+  font-size: var(--font-xs);
   overflow-wrap: anywhere;
   min-width: 0;
 }

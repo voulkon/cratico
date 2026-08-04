@@ -1,0 +1,9 @@
+{
+  "id": "random_big_number_exact",
+  "text_content": "Εγκρίνεται η δαπάνη ποσού 3.021.201,00 € για την εκτέλεση των απαραίτητων εργασιών.",
+  "db_amounts": ["3021201.00"],
+  "expected_status": "completed",
+  "expected_has_discrepancy": false,
+  "expected_verified_amount": "3021201.00",
+  "notes": "A non-round number appearing verbatim in the text is effectively impossible by coincidence → the DB amount is confirmed, no discrepancy."
+}

@@ -1,0 +1,9 @@
+{
+  "id": "decimal_shift_div100",
+  "text_content": "Το ποσό της ανάθεσης ανέρχεται σε 300,00 € (τριακόσια ευρώ).",
+  "db_amounts": ["30000.00"],
+  "expected_status": "completed",
+  "expected_has_discrepancy": true,
+  "expected_verified_amount": "300.00",
+  "notes": "Reverse shift: DB has 30.000 but text shows 300,00 — ÷100 clone matches."
+}

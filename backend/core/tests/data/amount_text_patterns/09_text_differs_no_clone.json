@@ -1,0 +1,9 @@
+{
+  "id": "text_differs_no_clone",
+  "text_content": "Εγκρίνεται δαπάνη ποσού 85.000,00 € για τις αναγκαίες εργασίες συντήρησης.",
+  "db_amounts": ["30000.00"],
+  "expected_status": "completed",
+  "expected_has_discrepancy": true,
+  "expected_verified_amount": "85000.00",
+  "notes": "Text has an amount (85k) that is neither the DB amount (30k) nor a decimal clone of it — genuine mismatch, discrepancy flagged."
+}

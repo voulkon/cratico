@@ -34,7 +34,7 @@
     "last7DaysDecisions": "Last 7 days of government decisions",
     "mostActiveOrgs": "Most Active Organizations",
     "mostActiveOrganizations": "Most Active Organizations",
-    "notableRecentDecisions": "Notable Recent Decisions",
+    "largestDecisions": "Largest Decisions",
     "highestPayments": "Highest Payments",
     "highestDirectAssignments": "Highest Direct Assignments",
     "seeAll": "See All",
@@ -366,7 +366,8 @@
     "documentTitle": "Decision {ada} - Document Content",
     "decisionLabel": "Decision",
     "documentNotAvailable": "Document content not available",
-    "documentContentError": "Failed to load document content: {error}"
+    "documentContentError": "Failed to load document content: {error}",
+    "downloadAttachmentTooltip": "Download the attached file"
   },
   "afmEntityDetail": {
     "loadingEntity": "Loading entity AFM {afm}...",

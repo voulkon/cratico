@@ -84,7 +84,8 @@ from .tasks_post_import import (
     compute_entity_rankings,
     warm_analytics_cache,
     warm_single_window,
-    trigger_check_all_subscriptions
+    trigger_check_all_subscriptions,
+    verify_high_value_amounts,
     )
 from .tasks_periodic_validation import periodic_validation_task
 from .tasks_browse import (

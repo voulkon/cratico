@@ -1,20 +1,20 @@
-import React, { useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useDateRange } from '../contexts/DateRangeContext';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
-import useDecisionsList from '../hooks/useDecisionsList';
+import apiClient from '../api/client';
 import { CollapsibleSection, DashboardSectionLoading } from './DashboardGrid';
 import { formatCompactAmount } from '../utils/format';
 
 const PAGE_SIZE = 5;
 
 /**
- * DecisionsSection — Infinite-scroll list of notable recent decisions.
+ * DecisionsSection — Highest-amount decisions (all types).
  *
- * Uses useDecisionsList hook which handles page-based pagination
- * against /api/decisions/unified/ (source=temporal).  The sentinel
- * triggers loadMore() when scrolled into view.
+ * Infinite-scroll ranked list. Fetches from /decisions/top-by-amount/
+ * (cached endpoint) with limit/offset pagination and appends pages as
+ * the user scrolls.
  */
 const DecisionsSection = ({
   onSeeAll,
@@ -25,32 +25,65 @@ const DecisionsSection = ({
   const { t } = useTranslation();
   const { dateRange } = useDateRange();
 
-  // Build stable params for useDecisionsList — useMemo avoids
-  // referential changes that would trigger re-fetches.
-  const params = useMemo(() => ({
-    source: 'temporal',
-    view: 'decisions',
-    start_date: dateRange?.start_date || '',
-    end_date: dateRange?.end_date || '',
-    sort_by: 'amount_desc',
-  }), [dateRange?.start_date, dateRange?.end_date]);
+  const [decisions, setDecisions] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState(null);
 
-  const {
-    decisions,
-    pagination,
-    loading,
-    loadingMore,
-    error,
-    loadMore,
-  } = useDecisionsList({
-    endpoint: '/decisions/unified/',
-    params,
-    enabled: !!dateRange,
-    pageSize: PAGE_SIZE,
-  });
+  // Fetch a page of decisions (append mode after the initial load).
+  const fetchDecisions = useCallback(async (offset, append = false) => {
+    if (!dateRange) return;
+
+    try {
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+        setError(null);
+      }
+
+      const response = await apiClient.get(
+        `/decisions/top-by-amount/?start_date=${dateRange.start_date}&end_date=${dateRange.end_date}&limit=${PAGE_SIZE}&offset=${offset}`
+      );
+
+      const data = response.data;
+
+      if (append) {
+        setDecisions(prev => [...prev, ...(data.results || [])]);
+      } else {
+        setDecisions(data.results || []);
+      }
+
+      setTotalCount(data.pagination?.total_count ?? 0);
+      setHasMore(data.pagination?.has_next ?? false);
+    } catch (err) {
+      console.error('Failed to load top-by-amount decisions:', err);
+      if (!append) setError(err.response?.data?.error || err.message);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, [dateRange]);
+
+  // Reset and reload when the date range changes.
+  useEffect(() => {
+    setDecisions([]);
+    setTotalCount(0);
+    setHasMore(true);
+    fetchDecisions(0, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange]);
+
+  const loadMore = useCallback(() => {
+    if (hasMore && !loadingMore && !loading) {
+      fetchDecisions(decisions.length, true);
+    }
+  }, [hasMore, loadingMore, loading, decisions.length, fetchDecisions]);
 
   const { sentinelRef } = useInfiniteScroll({
-    hasMore: pagination?.has_next ?? false,
+    hasMore,
     loading,
     loadingMore,
     onLoadMore: loadMore,
@@ -78,15 +111,15 @@ const DecisionsSection = ({
   return (
     <CollapsibleSection
       title={t('homepage.notableRecentDecisions')}
-      onSeeAll={decisions?.length > 0 ? onSeeAll : undefined}
+      onSeeAll={decisions.length > 0 ? onSeeAll : undefined}
       collapsible={collapsible}
       className={className}
     >
       <div className="dashboard-section-info">
-        <span>{decisions?.length ?? 0} {t('homepage.decisions')}</span>
+        <span>{totalCount} {t('homepage.decisions')}</span>
       </div>
       <div className="dashboard-section-scroll">
-        {!decisions || decisions.length === 0 ? (
+        {decisions.length === 0 ? (
           <p className="dashboard-empty">{t('exploration.noResults')}</p>
         ) : (
           <>
@@ -112,7 +145,7 @@ const DecisionsSection = ({
             ))}
 
             {/* Infinite-scroll sentinel */}
-            {pagination?.has_next && (
+            {hasMore && (
               <div ref={sentinelRef} className="dashboard-scroll-sentinel">
                 {loadingMore && (
                   <div className="dashboard-loading-more">
@@ -124,7 +157,7 @@ const DecisionsSection = ({
             )}
 
             {/* Manual "Load more" fallback */}
-            {pagination?.has_next && !loadingMore && (
+            {hasMore && !loadingMore && (
               <button
                 className="dashboard-load-more"
                 onClick={loadMore}
