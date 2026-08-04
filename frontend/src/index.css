@@ -106,6 +106,51 @@ html {
 }
 
 /* ===========================================
+   DEFAULT FALLBACK (Light Blue)
+   Applies when no data-theme is set on <html>.
+   Placed BEFORE theme blocks so [data-theme] selectors
+   (equal specificity, later source order) override it.
+   =========================================== */
+:root {
+  --bg-color: #ffffff;
+  --text-color: #000000;
+  --border-color: #e0e0e0;
+  --card-bg: #ffffff;
+  --card-bg-secondary: #f5f5f5;
+  --palette-primary: #4299E1;
+  --palette-secondary: #2B6CB0;
+  --palette-bg-subtle: #C4F1F9;
+  --palette-emphasis: #1E4F72;
+  --palette-primary-contrast: #ffffff;
+  --bg-info: #e3f2fd;
+  --color-text-info: #1976d2;
+  --bg-selected: #e3f2fd;
+  --success-bg: #d4edda;
+  --success-text: #155724;
+  --error-bg: #f8d7da;
+  --error-text: #721c24;
+  --warning-bg: #fff3cd;
+  --warning-text: #856404;
+  --warning-border: #ffeaa7;
+  --danger-color: #ff6b6b;
+  --muted-text: #666666;
+  --light-text: #888888;
+  --disabled-bg: #cccccc;
+  --disabled-text: #999999;
+  --hover-bg: #f5f5f5;
+  --focus-color: #0066cc;
+  --text-secondary: #6b7280;
+  --surface-secondary: #f3f4f6;
+  --color-star: #f59e0b;
+  --avatar-border-default: #9ca3af;
+  --avatar-border-authenticated: #10b981;
+  --slider-rail-color: var(--border-color);
+  --shadow: rgba(0,0,0,0.1);
+  --shadow-hover: rgba(0,0,0,0.15);
+  --shadow-focus: rgba(0,0,0,0.3);
+}
+
+/* ===========================================
    LIGHT THEME BASE
    =========================================== */
 [data-theme="light"] {
@@ -604,48 +649,6 @@ html {
   --bg-info: rgba(211, 54, 130, 0.1);
   --color-text-info: #d33682;
   --bg-selected: rgba(211, 54, 130, 0.15);
-}
-
-/* ===========================================
-   DEFAULT FALLBACK (Light Blue)
-   =========================================== */
-:root {
-  --bg-color: #ffffff;
-  --text-color: #000000;
-  --border-color: #e0e0e0;
-  --card-bg: #ffffff;
-  --card-bg-secondary: #f5f5f5;
-  --palette-primary: #4299E1;
-  --palette-secondary: #2B6CB0;
-  --palette-bg-subtle: #C4F1F9;
-  --palette-emphasis: #1E4F72;
-  --palette-primary-contrast: #ffffff;
-  --bg-info: #e3f2fd;
-  --color-text-info: #1976d2;
-  --bg-selected: #e3f2fd;
-  --success-bg: #d4edda;
-  --success-text: #155724;
-  --error-bg: #f8d7da;
-  --error-text: #721c24;
-  --warning-bg: #fff3cd;
-  --warning-text: #856404;
-  --warning-border: #ffeaa7;
-  --danger-color: #ff6b6b;
-  --muted-text: #666666;
-  --light-text: #888888;
-  --disabled-bg: #cccccc;
-  --disabled-text: #999999;
-  --hover-bg: #f5f5f5;
-  --focus-color: #0066cc;
-  --text-secondary: #6b7280;
-  --surface-secondary: #f3f4f6;
-  --color-star: #f59e0b;
-  --avatar-border-default: #9ca3af;
-  --avatar-border-authenticated: #10b981;
-  --slider-rail-color: var(--border-color);
-  --shadow: rgba(0,0,0,0.1);
-  --shadow-hover: rgba(0,0,0,0.15);
-  --shadow-focus: rgba(0,0,0,0.3);
 }
 
 /* Apply border-box globally so palette accent borders on buttons don't

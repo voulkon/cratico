@@ -52,14 +52,16 @@ export const ThemeProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    const body = document.body;
+    const root = document.documentElement;
 
-    // Apply theme and palette
-    body.setAttribute('data-theme', theme);
-    body.setAttribute('data-palette', palette);
+    // Apply theme and palette to <html> so :root-level custom property
+    // aliases (e.g. --bg-secondary: var(--surface-secondary)) resolve
+    // against themed values, not the fallback block.
+    root.setAttribute('data-theme', theme);
+    root.setAttribute('data-palette', palette);
 
     // Optional: Add classes for additional styling
-    body.className = `theme-${theme} palette-${palette}`;
+    root.className = `theme-${theme} palette-${palette}`;
 
   }, [theme, palette]);
 
