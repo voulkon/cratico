@@ -4,7 +4,7 @@ import apiClient from '../api/client';
 const useDocumentContent = () => {
   const fetchContent = useCallback(async (decisionId) => {
     try {
-      const response = await apiClient.get(`/decision/${decisionId}/content/`);
+      const response = await apiClient.get(`/decisions/${decisionId}/content/`);
       return response.data;
     } catch (error) {
       if (error.response) {

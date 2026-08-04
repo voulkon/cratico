@@ -22,53 +22,53 @@ from rest_framework.response import Response
 @api_view(["GET"])
 @permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
 def get_document_content_api_dev(request, decision_id):
-    """Get document content for a specific decision by ID"""
+    """Get document content / extraction status for a specific decision by ID.
+
+    Returns 200 with ``status`` field in all cases so the frontend can poll:
+    - ``COMPLETED``: ``raw_text`` and metadata are present.
+    - ``PENDING`` / ``PROCESSING`` / ``FAILED``: status-only response (poll).
+    - ``NOT_FOUND``: no DocumentExtraction row exists yet (show CTA).
+    """
     try:
         from core.models.document_analysis import DocumentExtraction
 
-        # Get the decision by integer ID - much simpler!
         decision = Decision.objects.get(id=decision_id)
 
         try:
             extraction = DocumentExtraction.objects.get(decision=decision)
 
-            # Only return content if extraction was successful
+            base = {
+                "decision_id": decision_id,
+                "ada": decision.ada,
+                "status": extraction.extraction_status,
+                "extraction_provider": extraction.extraction_provider,
+                "extraction_date": (
+                    extraction.extraction_date.isoformat()
+                    if extraction.extraction_date
+                    else None
+                ),
+                "character_count": extraction.character_count,
+                "page_count": extraction.page_count,
+                "is_scanned_document": extraction.is_scanned_document,
+                "processing_time_ms": extraction.processing_time_ms,
+                "error_message": extraction.error_message,
+            }
+
             if extraction.extraction_status == "COMPLETED" and extraction.raw_text:
-                return Response(
-                    {
-                        "decision_id": decision_id,
-                        "ada": decision.ada,  # Still include ADA for reference
-                        "raw_text": extraction.raw_text,
-                        "extraction_provider": extraction.extraction_provider,
-                        "extraction_date": (
-                            extraction.extraction_date.isoformat()
-                            if extraction.extraction_date
-                            else None
-                        ),
-                        "character_count": extraction.character_count,
-                        "page_count": extraction.page_count,
-                        "is_scanned_document": extraction.is_scanned_document,
-                        "processing_time_ms": extraction.processing_time_ms,
-                        "status": extraction.extraction_status,
-                    }
-                )
-            else:
-                return Response(
-                    {
-                        "error": "Document content not available",
-                        "status": extraction.extraction_status,
-                        "reason": "Extraction not completed or no text extracted",
-                    },
-                    status=404,
-                )
+                base["raw_text"] = extraction.raw_text
+                return Response(base)
+
+            # PENDING, PROCESSING, FAILED, NEEDS_VISION, etc. —
+            # return 200 so the frontend can poll without treating it as an error.
+            return Response(base)
 
         except DocumentExtraction.DoesNotExist:
             return Response(
                 {
-                    "error": "Document extraction not found",
-                    "reason": "No document has been processed for this decision",
-                },
-                status=404,
+                    "decision_id": decision_id,
+                    "ada": decision.ada,
+                    "status": "NOT_FOUND",
+                }
             )
 
     except Decision.DoesNotExist:

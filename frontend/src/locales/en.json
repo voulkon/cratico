@@ -216,7 +216,18 @@
     "noRelatedEntities": "No related entities found for this decision",
     "entityRelationships" : "Εntity Relationships",
     "showText" : "Show Decision's Text",
-    "hideText" : "Hide Decision's Text"
+    "hideText" : "Hide Decision's Text",
+    "documentContent": "Document Content",
+    "aiSummary": "AI Summary",
+    "extractionInProgress": "Text extraction in progress...",
+    "extractionFailed": "Text extraction failed",
+    "noDocumentContent": "No document text extracted yet",
+    "requestExtraction": "Request Extraction",
+    "aiSummaryRunning": "AI summary is being generated...",
+    "aiSummaryFailed": "AI summary failed",
+    "noAISummary": "No AI summary available",
+    "requestAISummary": "Generate Summary",
+    "retry": "Retry"
   },
   "personPage": {
     "errorTitle": "Error Loading Person",
@@ -367,7 +378,14 @@
     "decisionLabel": "Decision",
     "documentNotAvailable": "Document content not available",
     "documentContentError": "Failed to load document content: {error}",
-    "downloadAttachmentTooltip": "Download the attached file"
+    "downloadAttachmentTooltip": "Download the attached file",
+    "documentContent": "Document Content",
+    "documentContentNotAvailable": "No document text has been extracted yet.",
+    "documentContentExtractionInProgress": "Text extraction is in progress...",
+    "documentContentExtractionFailed": "Text extraction failed: {error}",
+    "documentContentRequestExtraction": "Request Text Extraction",
+    "documentContentMeta": "{chars} characters · {pages} pages · extracted via {provider}",
+    "documentContentNotRequested": "Document text has not been extracted for this decision."
   },
   "afmEntityDetail": {
     "loadingEntity": "Loading entity AFM {afm}...",

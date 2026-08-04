@@ -216,7 +216,18 @@
     "noRelatedEntities": "Δεν βρέθηκαν σχετικές οντότητες για αυτή την απόφαση",
     "entityRelationships" : "Σχετικές Οντότητες",
     "showText" : "Κείμενο Απόφασης",
-    "hideText" : "Απόκρυψη Κειμένου Απόφασης"
+    "hideText" : "Απόκρυψη Κειμένου Απόφασης",
+    "documentContent": "Περιεχόμενο Εγγράφου",
+    "aiSummary": "Περίληψη AI",
+    "extractionInProgress": "Εξαγωγή κειμένου σε εξέλιξη...",
+    "extractionFailed": "Η εξαγωγή κειμένου απέτυχε",
+    "noDocumentContent": "Δεν έχει εξαχθεί κείμενο ακόμη",
+    "requestExtraction": "Αίτημα Εξαγωγής",
+    "aiSummaryRunning": "Δημιουργία περίληψης AI...",
+    "aiSummaryFailed": "Η περίληψη AI απέτυχε",
+    "noAISummary": "Δεν υπάρχει περίληψη AI",
+    "requestAISummary": "Δημιουργία Περίληψης",
+    "retry": "Επανάληψη"
   },
   "personPage": {
     "errorTitle": "Σφάλμα Φόρτωσης Προσώπου",
@@ -367,7 +378,14 @@
     "decisionLabel": "Απόφαση",
     "documentNotAvailable": "Το περιεχόμενο του εγγράφου δεν είναι διαθέσιμο",
     "documentContentError": "Αποτυχία φόρτωσης περιεχομένου εγγράφου: {error}",
-    "downloadAttachmentTooltip": "Λήψη του συνημμένου αρχείου"
+    "downloadAttachmentTooltip": "Λήψη του συνημμένου αρχείου",
+    "documentContent": "Περιεχόμενο Εγγράφου",
+    "documentContentNotAvailable": "Δεν έχει εξαχθεί ακόμη κείμενο από το έγγραφο.",
+    "documentContentExtractionInProgress": "Η εξαγωγή κειμένου βρίσκεται σε εξέλιξη...",
+    "documentContentExtractionFailed": "Η εξαγωγή κειμένου απέτυχε: {error}",
+    "documentContentRequestExtraction": "Αίτημα Εξαγωγής Κειμένου",
+    "documentContentMeta": "{chars} χαρακτήρες · {pages} σελίδες · εξαγωγή μέσω {provider}",
+    "documentContentNotRequested": "Δεν έχει ζητηθεί εξαγωγή κειμένου για αυτή την απόφαση."
   },
   "afmEntityDetail": {
     "loadingEntity": "Φόρτωση οντότητας ΑΦΜ {afm}...",

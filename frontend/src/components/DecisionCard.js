@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useTranslation } from '../contexts/TranslationContext';
 import apiClient from '../api/client';
+import CollapsibleCard from './CollapsibleCard';
 import './DecisionCard.css';
 
-import {OrganizationIcon, PenIcon, CalendarIcon, EyeIcon, DownloadIcon, ExternalLinkIcon, BookOpenIcon, LoaderIcon, ChevronDown, ChevronUp} from './Icons.js';
+import {OrganizationIcon, PenIcon, CalendarIcon, EyeIcon, DownloadIcon, ExternalLinkIcon, BookOpenIcon, LoaderIcon, ChevronDown, ChevronUp, SparklesIcon, SearchIcon, AlertIcon} from './Icons.js';
 
 import EntityDisplay from './EntityDisplay';
 import { getMainRecipient, getTotalAmount, groupEntityRelationships, getCounterpartEntities } from '../utils/decisionUtils';
@@ -15,39 +18,130 @@ import { formatDate } from '../utils/dateUtils';
 const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumentContent }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [isLoadingContent, setIsLoadingContent] = useState(false);
-  const [documentContent, setDocumentContent] = useState(null);
-  const [showContent, setShowContent] = useState(false);
+
+  // ── Document content (self-contained) ──────────────────────────────
+  const [docContent, setDocContent] = useState(null);
+  const [docStatus, setDocStatus] = useState(null);
+  const [docMeta, setDocMeta] = useState(null);
+  const [docLoading, setDocLoading] = useState(false);
+  const docPollRef = useRef(null);
+
+  // ── AI summary (self-contained) ────────────────────────────────────
+  const [aiSummary, setAiSummary] = useState(null);
+  const [aiStatus, setAiStatus] = useState(null);
+  const [aiMeta, setAiMeta] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiRequesting, setAiRequesting] = useState(false);
+  const aiPollRef = useRef(null);
+
   const [entityRelationships, setEntityRelationships] = useState(null);
   const [showEntities, setShowEntities] = useState(false);
   const [loadingEntities, setLoadingEntities] = useState(false);
   const [showKae, setShowKae] = useState(false);
+
+  // ── Fetch document content ─────────────────────────────────────────
+  const fetchDocumentContent = useCallback(async () => {
+    try {
+      setDocLoading(true);
+      const response = await apiClient.get(`/decisions/${decision.id}/content/`);
+      const data = response.data;
+      setDocStatus(data.status);
+      if (data.status === 'COMPLETED' && data.raw_text) {
+        setDocContent(data.raw_text);
+        setDocMeta({
+          character_count: data.character_count,
+          page_count: data.page_count,
+          extraction_provider: data.extraction_provider,
+          processing_time_ms: data.processing_time_ms,
+        });
+      } else {
+        setDocContent(null);
+        setDocMeta(null);
+      }
+    } catch {
+      setDocStatus('ERROR');
+    } finally {
+      setDocLoading(false);
+    }
+  }, [decision.id]);
+
+  // ── Fetch AI summary ───────────────────────────────────────────────
+  const fetchAISummary = useCallback(async () => {
+    try {
+      setAiLoading(true);
+      const response = await apiClient.get(`/decisions/${decision.id}/`);
+      const ai = response.data?.ai_analysis;
+      if (ai) {
+        setAiStatus(ai.status);
+        if (ai.status === 'COMPLETED' && ai.summary) {
+          setAiSummary(ai.summary);
+          setAiMeta({
+            model_used: ai.model_used,
+            cost_usd: ai.cost_usd,
+            completed_at: ai.completed_at,
+          });
+        }
+      } else {
+        setAiStatus('NOT_FOUND');
+      }
+    } catch {
+      setAiStatus('ERROR');
+    } finally {
+      setAiLoading(false);
+    }
+  }, [decision.id]);
+
+  // Initial fetch on mount
+  useEffect(() => {
+    if (decision.has_document_content) fetchDocumentContent();
+    fetchAISummary();
+  }, [decision.has_document_content, fetchDocumentContent, fetchAISummary]);
+
+  // Polling for document extraction
+  useEffect(() => {
+    if (docStatus === 'PENDING' || docStatus === 'PROCESSING') {
+      docPollRef.current = setInterval(fetchDocumentContent, 4000);
+    } else {
+      if (docPollRef.current) { clearInterval(docPollRef.current); docPollRef.current = null; }
+    }
+    return () => { if (docPollRef.current) clearInterval(docPollRef.current); };
+  }, [docStatus, fetchDocumentContent]);
+
+  // Polling for AI summary
+  useEffect(() => {
+    if (aiStatus === 'RUNNING') {
+      aiPollRef.current = setInterval(fetchAISummary, 4000);
+    } else {
+      if (aiPollRef.current) { clearInterval(aiPollRef.current); aiPollRef.current = null; }
+    }
+    return () => { if (aiPollRef.current) clearInterval(aiPollRef.current); };
+  }, [aiStatus, fetchAISummary]);
 
   // Check if entity data is already included in decision (from optimized endpoint)
   const hasPreloadedEntityData = decision.entity_amount !== undefined
     || decision.main_recipient !== undefined
     || decision.entities !== undefined;
 
-  const handleViewContent = async () => {
-    if (documentContent) {
-      setShowContent(!showContent);
-      return;
-    }
-
-    if (!onViewDocumentContent) {
-      console.error('onViewDocumentContent function not provided');
-      return;
-    }
-
-    setIsLoadingContent(true);
+  // ── Request AI summary ─────────────────────────────────────────────
+  const handleRequestAISummary = async () => {
     try {
-      const content = await onViewDocumentContent(decision.id);
-      setDocumentContent(content);
-      setShowContent(true);
-    } catch (error) {
-      console.error('Failed to fetch document content:', error);
+      setAiRequesting(true);
+      await apiClient.post(`/ai/decisions/${decision.id}/summarize/`, {});
+      setAiStatus('RUNNING');
+    } catch {
+      // silently fail — polling will pick up any status change
     } finally {
-      setIsLoadingContent(false);
+      setAiRequesting(false);
+    }
+  };
+
+  // ── Request extraction (reuse parent callback or direct call) ──────
+  const handleRequestContent = async () => {
+    try {
+      await apiClient.post(`/ai/decisions/${decision.id}/extract/`);
+      setDocStatus('PENDING');
+    } catch {
+      // silently fail
     }
   };
 
@@ -238,7 +332,7 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
         </div>
       )}
 
-      {/* Document Actions Section - Compact */}
+      {/* External links */}
       <div className="document-actions">
         {decision.ada && (
           <a
@@ -275,29 +369,103 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
             <DownloadIcon size={14} /> {t('decisionCard.downloadDocument')}
           </a>
         )}
-
-        {decision.has_document_content && (
-          <button
-            onClick={handleViewContent}
-            disabled={isLoadingContent}
-            className="document-link content-button"
-            title={showContent ? t('decisionCard.hideDocumentContent') : t('decisionCard.viewDocumentContent')}
-          >
-            {isLoadingContent ? <LoaderIcon className="spinner" size={14} /> : <BookOpenIcon size={14} />} {showContent ? t('decisionCard.hideText') : t('decisionCard.showText')}
-          </button>
-        )}
       </div>
 
-      {/* Document Content Display */}
-      {showContent && documentContent && (
-        <div className="document-content-section">
-          <div className="document-content">
-            <div className="raw-text-container">
-              <pre className="raw-text">{documentContent.raw_text}</pre>
-            </div>
+      {/* ── Document Content (collapsible) ─────────────────────────── */}
+      <CollapsibleCard
+        title={
+          <span className="dc-collapsible-title">
+            <BookOpenIcon size={14} /> {t('decisionCard.documentContent')}
+          </span>
+        }
+        subtitle={
+          docStatus === 'COMPLETED' && docMeta ? (
+            <span className="dc-collapsible-subtitle">
+              {docMeta.character_count?.toLocaleString() || '?'} chars
+              {docMeta.page_count != null && ` · ${docMeta.page_count}p`}
+              {docMeta.extraction_provider && ` · ${docMeta.extraction_provider}`}
+            </span>
+          ) : null
+        }
+        defaultOpen={false}
+        className="dc-collapsible dc-content-collapsible"
+      >
+        {docStatus === 'COMPLETED' && docContent ? (
+          <div className="dc-collapsible-body">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {docContent}
+            </ReactMarkdown>
           </div>
-        </div>
-      )}
+        ) : docStatus === 'PENDING' || docStatus === 'PROCESSING' ? (
+          <div className="dc-collapsible-placeholder">
+            <div className="spinner" /><p>{t('decisionCard.extractionInProgress')}</p>
+          </div>
+        ) : docStatus === 'FAILED' ? (
+          <div className="dc-collapsible-placeholder">
+            <AlertIcon size={20} />
+            <p>{t('decisionCard.extractionFailed')}</p>
+            <button className="document-link" onClick={handleRequestContent}>{t('decisionCard.retry')}</button>
+          </div>
+        ) : docStatus === 'NOT_FOUND' || !decision.has_document_content ? (
+          <div className="dc-collapsible-placeholder">
+            <BookOpenIcon size={20} />
+            <p>{t('decisionCard.noDocumentContent')}</p>
+            <button className="document-link" onClick={handleRequestContent}>{t('decisionCard.requestExtraction')}</button>
+          </div>
+        ) : docLoading ? (
+          <div className="dc-collapsible-placeholder">
+            <div className="spinner" /><p>{t('common.loading')}</p>
+          </div>
+        ) : null}
+      </CollapsibleCard>
+
+      {/* ── AI Summary (collapsible) ────────────────────────────────── */}
+      <CollapsibleCard
+        title={
+          <span className="dc-collapsible-title">
+            <SparklesIcon size={14} /> {t('decisionCard.aiSummary')}
+          </span>
+        }
+        subtitle={
+          aiStatus === 'COMPLETED' && aiMeta ? (
+            <span className="dc-collapsible-subtitle">
+              {aiMeta.model_used}
+              {aiMeta.cost_usd && ` · $${aiMeta.cost_usd}`}
+            </span>
+          ) : null
+        }
+        defaultOpen={false}
+        className="dc-collapsible dc-ai-collapsible"
+      >
+        {aiStatus === 'COMPLETED' && aiSummary ? (
+          <div className="dc-collapsible-body">
+            <div className="dc-ai-text">{aiSummary}</div>
+          </div>
+        ) : aiStatus === 'RUNNING' ? (
+          <div className="dc-collapsible-placeholder">
+            <div className="spinner" /><p>{t('decisionCard.aiSummaryRunning')}</p>
+          </div>
+        ) : aiStatus === 'FAILED' ? (
+          <div className="dc-collapsible-placeholder">
+            <AlertIcon size={20} />
+            <p>{t('decisionCard.aiSummaryFailed')}</p>
+            <button className="document-link" onClick={handleRequestAISummary}>{t('decisionCard.retry')}</button>
+          </div>
+        ) : aiStatus === 'NOT_FOUND' ? (
+          <div className="dc-collapsible-placeholder">
+            <SparklesIcon size={20} />
+            <p>{t('decisionCard.noAISummary')}</p>
+            <button className="document-link" onClick={handleRequestAISummary} disabled={aiRequesting}>
+              {aiRequesting ? <LoaderIcon className="spinner" size={14} /> : <SearchIcon size={14} />}
+              {' '}{t('decisionCard.requestAISummary')}
+            </button>
+          </div>
+        ) : aiLoading ? (
+          <div className="dc-collapsible-placeholder">
+            <div className="spinner" /><p>{t('common.loading')}</p>
+          </div>
+        ) : null}
+      </CollapsibleCard>
 
       {decision.kae_amounts && decision.kae_amounts.length > 1 && (
         <div className="kae-breakdown">
