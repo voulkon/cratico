@@ -73,7 +73,7 @@ class AICallStep:
                 self._log_interaction(result, context, run, step_run, item_id=item_id)
 
                 if result.get("success"):
-                    results[item_id] = result["text"]
+                    results[item_id] = result.get("text", "")
                     total_input += result["input_tokens"]
                     total_output += result["output_tokens"]
                     total_cost += result.get("actual_cost_usd", Decimal("0"))
@@ -99,7 +99,7 @@ class AICallStep:
             self._log_interaction(result, context, run, step_run)
 
             if result.get("success"):
-                context.steps_output[step.order] = result["text"]
+                context.steps_output[step.order] = result.get("text", "")
                 total_input = result["input_tokens"]
                 total_output = result["output_tokens"]
                 total_cost = result.get("actual_cost_usd", Decimal("0"))
