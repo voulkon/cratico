@@ -580,8 +580,10 @@ class DecisionAnalysisService:
         # Annotate with calculated amount for sorting and display
         # Include all amount fields, not just those linked to relationships
         # (linking is optional for decisions without entities)
+        from core.services.decision_facets import amount_sum_excluding_kae
+
         decisions_qs = decisions_qs.annotate(
-            calculated_amount=Sum("amount_fields__amount")
+            calculated_amount=amount_sum_excluding_kae()
         ).annotate(effective_amount=Coalesce("amount", "calculated_amount"))
 
         decisions_qs = (

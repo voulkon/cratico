@@ -325,18 +325,35 @@ class EntityAmountExtractionService:
         if isinstance(efv, dict):
             # Check for amount fields at this level
             amount_info = self._detect_amounts_in_dict(efv, parent_path)
-            extracted_fields = set()
+            extracted_fields: set[str] = set()
 
-            if amount_info and parent_path:  # Skip root-level containers
-                extractions.append(
-                    {
-                        "parent_path": parent_path,
-                        "amount_info": amount_info,
-                        "raw_data": efv,
-                    }
-                )
-                # Track which fields had amounts extracted to avoid recursing into them
+            # Always track which fields had amounts detected so we never
+            # recurse into them — even at root level where we skip saving.
+            # Without this, root-level amount containers like
+            # "amountWithVAT" and "amountWithKae" are recursed into and
+            # their inner amounts are extracted again, doubling the total.
+            if amount_info:
                 extracted_fields = set(amount_info["fields_found"])
+                # Also block the container keys for list-amount fields:
+                # "amountWithKae[0]" → also skip "amountWithKae" (the dict key).
+                container_keys = {
+                    f.split("[")[0]
+                    for f in amount_info["fields_found"]
+                    if "[" in f
+                }
+                extracted_fields |= container_keys
+
+                if "amountWithKae" not in parent_path:
+                    # Skip amountWithKae paths — always redundant.
+                    # Root-level amounts (awardAmount, contractAmount, etc.)
+                    # are now saved normally.
+                    extractions.append(
+                        {
+                            "parent_path": parent_path,
+                            "amount_info": amount_info,
+                            "raw_data": efv,
+                        }
+                    )
 
             # Recurse into nested structures (but skip fields we already extracted amounts from)
             for key, value in efv.items():
@@ -385,7 +402,14 @@ class EntityAmountExtractionService:
                     structure_types.append(amount_type)
 
                 elif isinstance(value, list):
-                    # List of amounts (e.g., amountWithKae)
+                    # List of amounts (e.g., amountWithKae).
+                    # amountWithKae always duplicates amountWithVAT or contains
+                    # unrelated budget numbers — skip its amounts entirely.
+                    # Still add the container key to fields_found so recursion
+                    # is blocked at the _extract_amounts level.
+                    if key.startswith("amountWithKae"):
+                        fields_found.append(key)
+                        continue
                     for i, item in enumerate(value):
                         if isinstance(item, dict):
                             amount = item.get("amount") or item.get("amountWithVAT")
@@ -564,11 +588,18 @@ class EntityAmountExtractionService:
         These are amounts that typically apply to the entire decision/contract
         and should be linked to a single entity if present.
 
-        Examples: awardAmount, contractAmount, budgetAmount
+        Examples: awardAmount, contractAmount, budgetAmount, or empty string
+        (amount detected at root level without a named container).
         """
         # Root-level amounts (no array index, no nested path)
         if "[" in amount_path or "." in amount_path:
             return False
+
+        # Empty path means the amount was detected at the root level
+        # (e.g. contractAmount, awardAmount with no wrapper) —
+        # still a direct-assignment candidate.
+        if not amount_path:
+            return True
 
         # Check if it's one of the known direct assignment amount types
         direct_assignment_fields = {

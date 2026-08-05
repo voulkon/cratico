@@ -26,6 +26,8 @@ from django.core.paginator import Paginator
 from django.db import models
 from django.db.models import QuerySet, Sum
 
+from core.services.decision_facets import amount_sum_excluding_kae
+
 
 # ---------------------------------------------------------------------------
 # paginate_decisions  (view=decisions)
@@ -157,7 +159,7 @@ def aggregate_decision_types(qs: QuerySet) -> Dict[str, Any]:
         qs.values("decision_type__uid")
         .annotate(
             count=models.Count("id"),
-            total_amount=models.Sum("amount_fields__amount"),
+            total_amount=amount_sum_excluding_kae(),
             max_amount=models.Max("amount_fields__amount"),
             label=models.Max("decision_type__label"),
         )
@@ -208,7 +210,7 @@ def compute_statistics(
     """
     stats = qs.aggregate(
         total_decisions=models.Count("id"),
-        total_amount=models.Sum("amount_fields__amount"),
+        total_amount=amount_sum_excluding_kae(),
     )
 
     organizations_count = qs.values("organization").distinct().count()
@@ -257,7 +259,7 @@ def compute_date_range(qs: QuerySet) -> Dict[str, Any]:
         earliest_date=dj_models.Min("issue_date_day"),
         latest_date=dj_models.Max("issue_date_day"),
         total_decisions=dj_models.Count("id"),
-        total_amount=dj_models.Sum("amount_fields__amount"),
+        total_amount=amount_sum_excluding_kae(),
     )
 
     total_amount = float(date_stats["total_amount"] or 0)
@@ -291,7 +293,7 @@ def compute_date_range(qs: QuerySet) -> Dict[str, Any]:
         .values("period")
         .annotate(
             count=dj_models.Count("id"),
-            total_amount=dj_models.Sum("amount_fields__amount"),
+            total_amount=amount_sum_excluding_kae(),
         )
         .order_by("period")
     )

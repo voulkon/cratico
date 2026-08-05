@@ -48,6 +48,9 @@ const CollapsibleCard = ({
   const isOpen = isControlled ? controlledOpen : uncontrolledOpen;
 
   const handleToggle = (e) => {
+    // Ignore toggle events that bubble up from nested <details> elements.
+    if (e.target !== e.currentTarget) return;
+
     // When tag="div" we manage state via click; when tag="details"
     // the browser fires onToggle with e.target.open.
     if (tag === 'div') {

@@ -603,56 +603,220 @@
   background: var(--palette-emphasis);
 }
 
-/* ---------- AI Analysis Section ---------- */
-.ai-analysis-section .ai-summary-result {
-  background: var(--bg-secondary);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-md);
-  margin-top: var(--spacing-sm);
+/* ---------- AI Analysis (CollapsibleCard overrides) ---------- */
+.ai-analysis-collapsible {
+  margin-top: 0;
+  margin-bottom: var(--spacing-xxl);
 }
 
-.ai-analysis-section .ai-summary-text {
+.ai-analysis-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-md);
+  font-weight: var(--font-bold);
+  color: var(--text-color);
+}
+
+.ai-analysis-subtitle {
+  font-size: var(--font-xs);
+  color: var(--muted-text);
+  font-weight: var(--font-normal);
+}
+
+.ai-analysis-badge {
+  font-size: var(--font-xs);
+  color: var(--color-success, #22c55e);
+  font-weight: var(--font-bold);
+}
+
+/* Summary body inside CollapsibleCard content */
+.ai-summary-body {
+  padding: var(--spacing-sm) 0;
+}
+
+.ai-summary-text {
   line-height: 1.7;
   white-space: pre-wrap;
   font-size: var(--font-sm);
-  margin-bottom: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
 }
 
-.ai-analysis-section .ai-summary-meta {
-  display: flex;
-  gap: var(--spacing-md);
-  font-size: var(--font-xs);
-  color: var(--text-secondary);
-  border-top: 1px solid var(--border-color);
+.ai-summary-footer {
   padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--border-color);
 }
 
-.ai-analysis-section .ai-summary-status {
+.ai-summary-footer .document-link {
+  font-size: var(--font-xs);
+  padding: 2px 8px;
+}
+
+/* Placeholder states inside CollapsibleCard content */
+.ai-summary-placeholder {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-md);
-  color: var(--text-secondary);
+  justify-content: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-xl) var(--spacing-lg);
+  text-align: center;
+  color: var(--muted-text);
+  min-height: 120px;
 }
 
-.ai-analysis-section .ai-summary-failed {
-  color: var(--color-error);
+.ai-summary-placeholder p {
+  max-width: 40ch;
+  font-size: var(--font-sm);
 }
 
-.ai-analysis-section .ai-action-buttons {
-  display: flex;
-  gap: var(--spacing-sm);
+.ai-summary-placeholder .spinner {
+  width: 32px;
+  height: 32px;
+}
+
+.ai-summary-failed {
+  color: var(--error-color, #ef4444);
+}
+
+.ai-summary-retry {
   margin-top: var(--spacing-sm);
 }
 
-.document-link--ai {
-  border-color: var(--palette-primary);
+/* ---------- Document Content (CollapsibleCard overrides) ---------- */
+.document-content-collapsible {
+  margin-top: 0;
+  margin-bottom: var(--spacing-xxl);
+}
+
+.doc-content-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-md);
+  font-weight: var(--font-bold);
+  color: var(--text-color);
+}
+
+.doc-content-subtitle {
+  font-size: var(--font-xs);
+  color: var(--muted-text);
+  font-weight: var(--font-normal);
+}
+
+.doc-content-badge {
+  font-size: var(--font-xs);
+  color: var(--success-color);
+  font-weight: var(--font-bold);
+}
+
+/* Markdown body inside CollapsibleCard content */
+.document-content-body {
+  padding: var(--spacing-sm) 0;
+  max-height: 600px;
+  overflow-y: auto;
+  font-size: var(--font-sm);
+  line-height: 1.7;
+  color: var(--text-color);
+}
+
+.document-content-body h1,
+.document-content-body h2,
+.document-content-body h3 {
+  margin-top: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
   color: var(--palette-primary);
 }
 
-.document-link--ai:hover {
-  background: var(--palette-primary);
-  color: var(--palette-primary-contrast, white);
+.document-content-body h1 { font-size: var(--font-xl); }
+.document-content-body h2 { font-size: var(--font-lg); }
+.document-content-body h3 { font-size: var(--font-md); }
+
+.document-content-body p {
+  margin-bottom: var(--spacing-sm);
+}
+
+.document-content-body ul,
+.document-content-body ol {
+  margin-bottom: var(--spacing-sm);
+  padding-left: var(--spacing-lg);
+}
+
+.document-content-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: var(--spacing-md);
+  font-size: var(--font-xs);
+  overflow-x: auto;
+  display: block;
+}
+
+.document-content-body th,
+.document-content-body td {
+  border: 1px solid var(--border-color);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  text-align: left;
+}
+
+.document-content-body th {
+  background: var(--hover-bg);
+  font-weight: var(--font-bold);
+}
+
+.document-content-body code {
+  font-family: monospace;
+  background: var(--hover-bg);
+  padding: 1px var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  font-size: 0.9em;
+}
+
+.document-content-body pre {
+  background: var(--hover-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-sm);
+  overflow-x: auto;
+  margin-bottom: var(--spacing-sm);
+}
+
+.document-content-body pre code {
+  background: none;
+  padding: 0;
+}
+
+.document-content-body blockquote {
+  border-left: 3px solid var(--palette-primary);
+  margin-left: 0;
+  padding-left: var(--spacing-md);
+  color: var(--muted-text);
+}
+
+/* Placeholder states inside the CollapsibleCard content */
+.document-content-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-xl) var(--spacing-lg);
+  text-align: center;
+  color: var(--muted-text);
+  min-height: 120px;
+}
+
+.document-content-placeholder p {
+  max-width: 40ch;
+  font-size: var(--font-sm);
+}
+
+.document-content-placeholder .spinner {
+  width: 32px;
+  height: 32px;
+}
+
+.document-content-retry {
+  margin-top: var(--spacing-sm);
 }
 
 /* ---------- Responsive ---------- */
@@ -676,9 +840,5 @@
   .document-link {
     width: 100%;
     justify-content: center;
-  }
-
-  .ai-action-buttons {
-    flex-direction: column;
   }
 }

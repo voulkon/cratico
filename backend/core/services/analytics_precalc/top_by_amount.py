@@ -11,6 +11,7 @@ from datetime import date, datetime
 from django.db import models
 
 from core.models.decisions import Decision
+from core.services.decision_facets import amount_sum_excluding_kae
 from core.services.decision_projections import paginate_decisions
 
 from ._helpers import _make_aware_start, _make_aware_end, _validate_dates, parse_date
@@ -46,7 +47,7 @@ def compute_top_by_amount(
             issue_date_day__lte=end_dt,
         )
         .annotate(
-            calculated_amount=models.Sum("amount_fields__amount"),
+            calculated_amount=amount_sum_excluding_kae(),
         )
         .exclude(calculated_amount__isnull=True)
         .order_by("-calculated_amount")

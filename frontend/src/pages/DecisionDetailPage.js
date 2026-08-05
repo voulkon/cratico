@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import DOMPurify from 'dompurify';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import apiClient from '../api/client';
 import TopBarSlot from '../components/TopBarSlot';
 import { useTranslation } from '../contexts/TranslationContext';
@@ -10,6 +11,7 @@ import '../components/StatCard.css';
 import EntityDisplay from '../components/EntityDisplay';
 import { formatAmount, formatDate } from '../utils/dateUtils';
 import { useDecisionAI } from '../hooks/useDecisionAI';
+import CollapsibleCard from '../components/CollapsibleCard';
 import {
   FinancialIcon,
   CalendarIcon,
@@ -27,7 +29,9 @@ import {
   EyeIcon,
   DownloadIcon,
   SparklesIcon,
-  InfoIcon
+  InfoIcon,
+  LoaderIcon,
+  AlertIcon
 } from '../components/Icons';
 
 const DecisionDetailPage = () => {
@@ -41,6 +45,67 @@ const DecisionDetailPage = () => {
   const [relatedDecisions, setRelatedDecisions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // ── Document content (inline) ──────────────────────────────────────
+  const [docContent, setDocContent] = useState(null);       // raw_text when COMPLETED
+  const [docStatus, setDocStatus] = useState(null);          // PENDING | PROCESSING | COMPLETED | FAILED | NOT_FOUND
+  const [docMeta, setDocMeta] = useState(null);              // { character_count, page_count, extraction_provider, ... }
+  const [docLoading, setDocLoading] = useState(false);       // fetching content
+  const [docRequesting, setDocRequesting] = useState(false); // requesting extraction
+  const pollRef = useRef(null);
+  const aiPollRef = useRef(null);
+
+  const fetchDocumentContent = useCallback(async () => {
+    try {
+      setDocLoading(true);
+      const response = await apiClient.get(`/decisions/${id}/content/`);
+      const data = response.data;
+      setDocStatus(data.status);
+      if (data.status === 'COMPLETED' && data.raw_text) {
+        setDocContent(data.raw_text);
+        setDocMeta({
+          character_count: data.character_count,
+          page_count: data.page_count,
+          extraction_provider: data.extraction_provider,
+          extraction_date: data.extraction_date,
+          processing_time_ms: data.processing_time_ms,
+        });
+      } else {
+        setDocContent(null);
+        setDocMeta(null);
+      }
+    } catch (err) {
+      console.error('Error fetching document content:', err);
+      setDocStatus('ERROR');
+      setDocContent(null);
+    } finally {
+      setDocLoading(false);
+    }
+  }, [id]);
+
+  // Initial fetch + polling while extraction is in flight
+  useEffect(() => {
+    fetchDocumentContent();
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [fetchDocumentContent]);
+
+  useEffect(() => {
+    if (docStatus === 'PENDING' || docStatus === 'PROCESSING') {
+      if (pollRef.current) clearInterval(pollRef.current);
+      pollRef.current = setInterval(fetchDocumentContent, 4000);
+    } else {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    }
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [docStatus, fetchDocumentContent]);
 
   const fetchDecisionData = useCallback(async () => {
     try {
@@ -69,42 +134,32 @@ const DecisionDetailPage = () => {
 
   const { aiAnalysis, requestExtraction, requestAISummary } = useDecisionAI(decision, fetchDecisionData);
 
-  const handleViewDocumentContent = async () => {
-    try {
-      const response = await apiClient.get(`/decision/${id}/content/`);
-
-      if (response.data.content || response.data.raw_text) {
-        const body = response.data.content || response.data.raw_text;
-        const newWindow = window.open('', '_blank');
-        // Sanitize: document content is extracted from external PDFs and
-        // must not be injected as raw HTML (XSS).
-        newWindow.document.write(`
-          <html>
-            <head><title>${t('decisionDetail.documentTitle', { ada: decision.ada })}</title></head>
-            <body style="font-family: Arial, sans-serif; padding: 20px;">
-              <h1>${t('decisionDetail.decisionLabel')} ${decision.ada}</h1>
-              <h2>${DOMPurify.sanitize(decision.subject)}</h2>
-              <div style="white-space: pre-wrap; line-height: 1.6;">
-                ${DOMPurify.sanitize(body)}
-              </div>
-            </body>
-          </html>
-        `);
-      } else {
-        alert(t('decisionDetail.documentNotAvailable'));
+  // AI summary polling while generation is running
+  useEffect(() => {
+    if (aiAnalysis?.status === 'RUNNING') {
+      if (aiPollRef.current) clearInterval(aiPollRef.current);
+      aiPollRef.current = setInterval(fetchDecisionData, 4000);
+    } else {
+      if (aiPollRef.current) {
+        clearInterval(aiPollRef.current);
+        aiPollRef.current = null;
       }
-    } catch (error) {
-      console.error('Error fetching document content:', error);
-      alert(t('decisionDetail.documentContentError', { error: error.message }));
     }
-  };
+    return () => {
+      if (aiPollRef.current) clearInterval(aiPollRef.current);
+    };
+  }, [aiAnalysis?.status, fetchDecisionData]);
 
   const handleRequestContent = async () => {
     try {
+      setDocRequesting(true);
       await requestExtraction();
-      alert(t('decisionDetail.extractionQueued'));
+      // Immediately poll — the backend just queued the task
+      setDocStatus('PENDING');
     } catch (err) {
       alert(typeof err === 'string' ? err : t('decisionDetail.extractionFailed'));
+    } finally {
+      setDocRequesting(false);
     }
   };
 
@@ -228,6 +283,94 @@ const DecisionDetailPage = () => {
           </div>
         </div>
       )}
+
+      {/* ── Document Content (collapsible, with polling) ──────────────── */}
+      <CollapsibleCard
+        title={
+          <span className="doc-content-title">
+            <BookOpenIcon size={16} /> {t('decisionDetail.documentContent')}
+          </span>
+        }
+        subtitle={
+          docStatus === 'COMPLETED' && docMeta ? (
+            <span className="doc-content-subtitle">
+              {t('decisionDetail.documentContentMeta', {
+                chars: docMeta.character_count?.toLocaleString() || '?',
+                pages: docMeta.page_count ?? '?',
+                provider: docMeta.extraction_provider || '?',
+              })}
+              {docMeta.processing_time_ms && ` · ${docMeta.processing_time_ms}ms`}
+            </span>
+          ) : null
+        }
+        badge={
+          docStatus === 'COMPLETED' ? (
+            <span className="doc-content-badge">✓</span>
+          ) : docStatus === 'PENDING' || docStatus === 'PROCESSING' ? (
+            <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+          ) : docStatus === 'FAILED' ? (
+            <AlertIcon size={14} />
+          ) : null
+        }
+        defaultOpen={docStatus === 'COMPLETED'}
+        className="document-content-collapsible"
+      >
+        {docLoading && !docContent && docStatus !== 'COMPLETED' ? (
+          <div className="document-content-placeholder">
+            <div className="spinner" />
+            <p>{t('common.loading')}</p>
+          </div>
+        ) : docStatus === 'COMPLETED' && docContent ? (
+          <div className="document-content-body">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {docContent}
+            </ReactMarkdown>
+          </div>
+        ) : docStatus === 'PENDING' || docStatus === 'PROCESSING' ? (
+          <div className="document-content-placeholder">
+            <div className="spinner" />
+            <p>{t('decisionDetail.documentContentExtractionInProgress')}</p>
+          </div>
+        ) : docStatus === 'FAILED' ? (
+          <div className="document-content-placeholder">
+            <AlertIcon size={28} />
+            <p>{t('decisionDetail.documentContentExtractionFailed', { error: '' })}</p>
+            <button
+              className="document-link document-content-retry"
+              onClick={handleRequestContent}
+              disabled={docRequesting}
+            >
+              {docRequesting ? <LoaderIcon className="spinner" size={14} /> : <BookOpenIcon size={14} />}
+              {' '}{t('decisionDetail.documentContentRequestExtraction')}
+            </button>
+          </div>
+        ) : docStatus === 'NOT_FOUND' ? (
+          <div className="document-content-placeholder">
+            <BookOpenIcon size={28} />
+            <p>{t('decisionDetail.documentContentNotRequested')}</p>
+            <button
+              className="document-link document-content-retry"
+              onClick={handleRequestContent}
+              disabled={docRequesting}
+            >
+              {docRequesting ? <LoaderIcon className="spinner" size={14} /> : <BookOpenIcon size={14} />}
+              {' '}{t('decisionDetail.documentContentRequestExtraction')}
+            </button>
+          </div>
+        ) : (
+          <div className="document-content-placeholder">
+            <p>{t('decisionDetail.documentContentNotAvailable')}</p>
+            <button
+              className="document-link document-content-retry"
+              onClick={handleRequestContent}
+              disabled={docRequesting}
+            >
+              {docRequesting ? <LoaderIcon className="spinner" size={14} /> : <BookOpenIcon size={14} />}
+              {' '}{t('decisionDetail.documentContentRequestExtraction')}
+            </button>
+          </div>
+        )}
+      </CollapsibleCard>
 
       {/* Core Information — compact inline strip (amount is already
           shown in the hero, so the financial card was redundant) */}
@@ -393,24 +536,6 @@ const DecisionDetailPage = () => {
               <GlobeIcon size={15} /> {t('decisionDetail.viewOnDiavgeia')}
             </button>
           )}
-
-          {decision.has_document_content ? (
-            <button
-              className="document-link"
-              onClick={handleViewDocumentContent}
-              title={t('decisionDetail.viewExtractedContentTooltip')}
-            >
-              <BookOpenIcon size={15} /> {t('decisionDetail.viewExtractedContent')}
-            </button>
-          ) : (
-            <button
-              className="document-link document-link--request"
-              onClick={handleRequestContent}
-              title={t('decisionDetail.requestContentTooltip')}
-            >
-              <BookOpenIcon size={15} /> {t('decisionDetail.requestContent')}
-            </button>
-          )}
         </div>
 
         {decision.attachments && decision.attachments.length > 0 && (
@@ -463,53 +588,70 @@ const DecisionDetailPage = () => {
         )}
       </div>
 
-      {/* AI Analysis Section */}
-      <div className="section-block ai-analysis-section">
-        <h3 className="section-heading">
-          <SparklesIcon size={20} /> {t('decisionDetail.aiAnalysis')}
-        </h3>
-
+      {/* ── AI Analysis (collapsible, with polling) ──────────────────── */}
+      <CollapsibleCard
+        title={
+          <span className="ai-analysis-title">
+            <SparklesIcon size={16} /> {t('decisionDetail.aiAnalysis')}
+          </span>
+        }
+        subtitle={
+          aiAnalysis?.status === 'COMPLETED' ? (
+            <span className="ai-analysis-subtitle">
+              {aiAnalysis.model_used && `${aiAnalysis.model_used}`}
+              {aiAnalysis.cost_usd && ` · $${aiAnalysis.cost_usd}`}
+              {aiAnalysis.completed_at && ` · ${formatDate(aiAnalysis.completed_at)}`}
+            </span>
+          ) : null
+        }
+        badge={
+          aiAnalysis?.status === 'COMPLETED' ? (
+            <span className="ai-analysis-badge">✓</span>
+          ) : aiAnalysis?.status === 'RUNNING' ? (
+            <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+          ) : aiAnalysis?.status === 'FAILED' ? (
+            <AlertIcon size={14} />
+          ) : null
+        }
+        defaultOpen={aiAnalysis?.status === 'COMPLETED'}
+        className="ai-analysis-collapsible"
+      >
         {aiAnalysis?.status === 'COMPLETED' && aiAnalysis.summary ? (
-          <div className="ai-summary-result">
+          <div className="ai-summary-body">
             <div className="ai-summary-text">{aiAnalysis.summary}</div>
-            <div className="ai-summary-meta">
-              {aiAnalysis.model_used && <span>{t('decisionDetail.aiModel')}: {aiAnalysis.model_used}</span>}
-              {aiAnalysis.cost_usd && <span>{t('decisionDetail.aiCost')}: ${aiAnalysis.cost_usd}</span>}
-              {aiAnalysis.completed_at && <span>{formatDate(aiAnalysis.completed_at)}</span>}
-            </div>
-            <div className="ai-action-buttons">
+            <div className="ai-summary-footer">
               <button className="document-link" onClick={() => handleRequestAISummary(true)}>
                 {t('decisionDetail.retryAISummary')}
               </button>
             </div>
           </div>
         ) : aiAnalysis?.status === 'RUNNING' ? (
-          <div className="ai-summary-status">
+          <div className="ai-summary-placeholder">
             <div className="spinner" />
             <p>{t('decisionDetail.aiSummaryRunning')}</p>
           </div>
         ) : aiAnalysis?.status === 'FAILED' ? (
-          <div className="ai-summary-status ai-summary-failed">
-            <p>{t('decisionDetail.aiSummaryFailed')}: {aiAnalysis.error_message}</p>
-            <button className="document-link" onClick={() => handleRequestAISummary(true)}>
+          <div className="ai-summary-placeholder ai-summary-failed">
+            <AlertIcon size={28} />
+            <p>{t('decisionDetail.aiSummaryFailed')}{aiAnalysis.error_message ? `: ${aiAnalysis.error_message}` : ''}</p>
+            <button className="document-link ai-summary-retry" onClick={() => handleRequestAISummary(true)}>
               {t('decisionDetail.retryAISummary')}
             </button>
           </div>
         ) : (
-          <div className="ai-summary-actions">
-            <p className="section-description">{t('decisionDetail.aiAnalysisDescription')}</p>
-            <div className="ai-action-buttons">
-              <button
-                className="document-link document-link--ai"
-                onClick={handleRequestAISummary}
-                title={t('decisionDetail.requestAISummaryTooltip')}
-              >
-                <SearchIcon size={15} /> {t('decisionDetail.requestAISummary')}
-              </button>
-            </div>
+          <div className="ai-summary-placeholder">
+            <SparklesIcon size={28} />
+            <p>{t('decisionDetail.aiAnalysisDescription')}</p>
+            <button
+              className="document-link ai-summary-retry"
+              onClick={handleRequestAISummary}
+              title={t('decisionDetail.requestAISummaryTooltip')}
+            >
+              <SearchIcon size={15} /> {t('decisionDetail.requestAISummary')}
+            </button>
           </div>
         )}
-      </div>
+      </CollapsibleCard>
 
       {/* Related Decisions */}
       {relatedDecisions && relatedDecisions.length > 0 && (

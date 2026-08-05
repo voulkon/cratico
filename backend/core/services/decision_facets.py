@@ -24,9 +24,26 @@ from datetime import datetime
 from typing import Optional, Tuple
 
 from django.db import models
-from django.db.models import QuerySet
+from django.db.models import Q, QuerySet, Sum
 from django.utils.dateparse import parse_date
 from rest_framework.response import Response
+
+
+# ---------------------------------------------------------------------------
+# Shared annotation: sum of DecisionAmountField.amount excluding KAE rows
+# ---------------------------------------------------------------------------
+# amountWithKae rows duplicate the amountWithVAT total (or contain budget
+# numbers, not actual expenditures).  Every Sum("amount_fields__amount")
+# should use this expression instead to avoid double-counting.
+# Confirmed by analysis: 190K decisions have KAE=non-KAE, 7.6K have KAE as
+# unrelated budget figures.
+
+def amount_sum_excluding_kae():
+    """Return a Sum expression that excludes amountWithKae* rows."""
+    return Sum(
+        "amount_fields__amount",
+        filter=~Q(amount_fields__parent_key_path__startswith="amountWithKae"),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -303,7 +320,7 @@ def apply_sort(qs: QuerySet, sort_by: str, amount_field: str = "calculated_amoun
     if sort_by in ("amount_desc", "amount_asc"):
         if "calculated_amount" not in qs.query.annotations:
             qs = qs.annotate(
-                calculated_amount=models.Sum("amount_fields__amount")
+                calculated_amount=amount_sum_excluding_kae()
             )
         amount_field = "calculated_amount"
 
@@ -423,7 +440,7 @@ def apply_decision_facets(
     # even when linked amount fields contain real data.
     if "calculated_amount" not in qs.query.annotations:
         qs = qs.annotate(
-            calculated_amount=models.Sum("amount_fields__amount")
+            calculated_amount=amount_sum_excluding_kae()
         )
     amount_field = "calculated_amount"
 

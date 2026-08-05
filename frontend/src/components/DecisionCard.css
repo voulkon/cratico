@@ -629,3 +629,91 @@
   color: var(--palette-primary);
   white-space: nowrap;
 }
+
+/* ── CollapsibleCard overrides inside DecisionCard ────────────────── */
+.dc-collapsible {
+  margin: var(--spacing-sm) 0;
+  font-size: var(--font-sm);
+}
+
+.dc-collapsible .collapsible-card__summary {
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.dc-collapsible-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-sm);
+  font-weight: var(--font-medium);
+  color: var(--text-color);
+}
+
+.dc-collapsible-subtitle {
+  font-size: var(--font-xs);
+  color: var(--muted-text);
+  font-weight: var(--font-normal);
+}
+
+.dc-collapsible-body {
+  max-height: 350px;
+  overflow-y: auto;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-sm);
+  line-height: 1.65;
+  color: var(--text-color);
+}
+
+.dc-collapsible-body h1,
+.dc-collapsible-body h2,
+.dc-collapsible-body h3 {
+  margin-top: var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+  color: var(--palette-primary);
+  font-size: var(--font-md);
+}
+
+.dc-collapsible-body p { margin-bottom: var(--spacing-sm); }
+.dc-collapsible-body ul,
+.dc-collapsible-body ol { margin-bottom: var(--spacing-sm); padding-left: var(--spacing-md); }
+.dc-collapsible-body table { font-size: var(--font-xs); width: 100%; border-collapse: collapse; }
+.dc-collapsible-body th,
+.dc-collapsible-body td { border: 1px solid var(--border-color); padding: 2px var(--spacing-xs); }
+.dc-collapsible-body th { background: var(--hover-bg); }
+.dc-collapsible-body code { font-family: monospace; background: var(--hover-bg); padding: 1px 4px; border-radius: 3px; font-size: 0.9em; }
+.dc-collapsible-body pre { background: var(--hover-bg); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: var(--spacing-xs); overflow-x: auto; }
+.dc-collapsible-body blockquote { border-left: 3px solid var(--palette-primary); margin-left: 0; padding-left: var(--spacing-sm); color: var(--muted-text); }
+
+/* AI summary text (not markdown, plain text) */
+.dc-ai-text {
+  white-space: pre-wrap;
+  line-height: 1.65;
+}
+
+/* Placeholder states */
+.dc-collapsible-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-lg) var(--spacing-md);
+  text-align: center;
+  color: var(--muted-text);
+  min-height: 80px;
+}
+
+.dc-collapsible-placeholder p {
+  max-width: 30ch;
+  font-size: var(--font-xs);
+}
+
+.dc-collapsible-placeholder .spinner {
+  width: 24px;
+  height: 24px;
+}
+
+.dc-collapsible-placeholder .document-link {
+  font-size: var(--font-xs);
+  padding: 2px 10px;
+}
