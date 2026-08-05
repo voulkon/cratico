@@ -62,7 +62,7 @@
 /* ── Title group — centered, wraps on overflow ───────────────────────── */
 .collapsible-card__title-group {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--spacing-xs);
   flex-wrap: wrap;
   justify-content: center;
