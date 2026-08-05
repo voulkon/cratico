@@ -11,6 +11,7 @@ from api.views import decisions as decisions_views
 from api.views import decisions_unified
 from api.views import decision_lists
 from api.views import search
+from api.views import text_processes
 
 urlpatterns = [
     # ── Unified decisions endpoint ──────────────────────────────────
@@ -58,5 +59,11 @@ urlpatterns = [
         "<int:decision_id>/content/",
         search.get_document_content_api_dev,
         name="decision_content_dev",
+    ),
+    # Run a text process on demand (amount, dates, ...)
+    path(
+        "<int:decision_id>/processes/run/",
+        text_processes.run_text_process,
+        name="decision_run_text_process",
     ),
 ]

@@ -148,6 +148,30 @@ html {
   --shadow: rgba(0,0,0,0.1);
   --shadow-hover: rgba(0,0,0,0.15);
   --shadow-focus: rgba(0,0,0,0.3);
+
+  /* ── Annotation span tokens (AnnotatedText) ────────────────
+     Translucent so they read on both light and dark canvases.
+     Each span type has a bg + underline-accent pair. */
+  --annot-amount-bg: rgba(255, 213, 79, 0.35);
+  --annot-amount-accent: rgba(255, 213, 79, 0.8);
+  --annot-amount-chosen-bg: rgba(76, 175, 80, 0.30);
+  --annot-amount-chosen-accent: rgba(76, 175, 80, 0.8);
+  --annot-amount-clone-bg: rgba(244, 67, 54, 0.25);
+  --annot-amount-clone-accent: rgba(244, 67, 54, 0.7);
+  --annot-date-bg: rgba(100, 181, 246, 0.28);
+  --annot-date-accent: rgba(100, 181, 246, 0.7);
+  --annot-subject-bg: rgba(171, 71, 188, 0.25);
+  --annot-subject-accent: rgba(171, 71, 188, 0.7);
+  --annot-main-point-bg: rgba(0, 150, 136, 0.25);
+  --annot-main-point-accent: rgba(0, 150, 136, 0.7);
+  --annot-signer-bg: rgba(63, 81, 181, 0.25);
+  --annot-signer-accent: rgba(63, 81, 181, 0.7);
+  --annot-entity-bg: rgba(255, 152, 0, 0.25);
+  --annot-entity-accent: rgba(255, 152, 0, 0.7);
+  --annot-boilerplate-bg: rgba(158, 158, 158, 0.18);
+  --annot-boilerplate-accent: rgba(158, 158, 158, 0.5);
+  --annot-useless-bg: rgba(200, 200, 200, 0.08);
+  --annot-useless-accent: rgba(200, 200, 200, 0.3);
 }
 
 /* ===========================================

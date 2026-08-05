@@ -456,6 +456,7 @@ class NotificationSubscriptionListSerializer(serializers.ModelSerializer):
             "also_send_email",
             "is_active",
             "check_frequency",
+            "ai_summary_enabled",
             "notification_count",
             "last_checked_at",
             "created_at",

@@ -8,13 +8,14 @@ separator (e.g. a decision worth €30,000.00 ends up recorded as €3,000,000).
 
 Architecture
 ------------
-Each verification run is anchored to a *DocumentExtraction* (the exact text
-it was verified against) and stored as an ``AmountVerificationRun``, keyed by
-(extraction, method, provider, model, version) — so the regex heuristic and
-any number of AI models can coexist and be compared for the same document.
-The raw amounts actually found in the text are persisted as
-``TextAmountCandidate`` rows *before* any decision is made; the final
-decision-level verdict lives in ``AmountVerificationResolution``.
+Amount verification is a *text process* (``process="amount"``).  Each run is
+anchored to a *DocumentExtraction* (the exact text it was verified against)
+and stored as a ``TextProcessRun``, keyed by (extraction, process, method,
+provider, model, version) — so the regex heuristic and any number of AI
+models can coexist and be compared for the same document.  The raw amounts
+found in the text are persisted as ``TextSpan`` rows (label="amount") by the
+``amount`` text process; the decision-level verdict lives in
+``TextProcessResolution``.
 
 Resolution policy ("exact match wins")
 ---------------------------------------
@@ -37,19 +38,23 @@ from typing import Any
 
 from core.models.decisions import Decision
 from core.models.document_analysis import (
-    AmountVerificationResolution,
-    AmountVerificationRun,
-    AmountVerificationStatus,
     DocumentExtraction,
     ProcessingStatus,
-    TextAmountCandidate,
+    TextProcessResolution,
+    TextProcessRun,
+    TextProcessStatus,
+    TextSpan,
 )
 from core.services.amount_text_detection import (
     DetectedAmount,
     verify_amounts_in_text,
 )
 from core.services.financial_calculation_service import financial_service
+from core.services.text_process_service import TextProcessService
+from core.services.text_processes.base import TextSpanData
 from loguru import logger
+
+PROCESS_SLUG = "amount"
 
 
 # ── Prompt templates ────────────────────────────────────────────────────────
@@ -132,9 +137,10 @@ class AmountVerificationService:
             Decision.objects.annotate(calc_total=amount_sum_excluding_kae())
             .filter(calc_total__gte=self.threshold)
             .exclude(
-                amount_verification__winning_run__status=(
-                    AmountVerificationStatus.COMPLETED
-                )
+                text_process_resolutions__process=PROCESS_SLUG,
+                text_process_resolutions__winning_run__status=(
+                    TextProcessStatus.COMPLETED
+                ),
             )
             .order_by("-calc_total")
         )
@@ -198,9 +204,10 @@ class AmountVerificationService:
         """
         Verify the amount of a single decision against its document text.
 
-        Creates/updates an ``AmountVerificationRun`` for this (extraction,
-        method, provider, model, version) and upserts the decision-level
-        ``AmountVerificationResolution`` from the run's outcome.
+        Delegates span detection to the ``amount`` text process (which
+        persists a ``TextProcessRun`` + ``TextSpan`` rows), then computes the
+        resolution (exact-match-wins / clone detection) and upserts the
+        decision-level ``TextProcessResolution``.
 
         Args:
             decision: The Decision instance.
@@ -223,20 +230,45 @@ class AmountVerificationService:
                 "reason": "no_text",
             }
 
-        # --- Step 2: Get or create the run for this (extraction, method, ...) ---
-        run_provider = "REGEX" if method == "regex" else provider
-        run_model = "greek-amount-v1" if method == "regex" else model
-        run, created = AmountVerificationRun.objects.get_or_create(
+        # --- Step 2: Compute the accurate amount ---
+        calculated_amount = financial_service.get_decision_total_amount(
+            decision, include_unlinked=True
+        )
+        raw_amount = decision.amount
+
+        # --- Step 3: Detect the amount in the text (regex or AI) ---
+        # The AI path calls the LLM here and returns a single amount; the
+        # regex path delegates span detection to the amount text process.
+        if method == "ai":
+            run_provider = provider
+            run_model = model
+            ai_result = self._call_ai_for_amount(
+                text=extraction.raw_text,
+                provider=provider,
+                model=model,
+            )
+        else:
+            ai_result = self._detect_amounts_with_regex(
+                decision=decision,
+                text=extraction.raw_text,
+                calculated_amount=calculated_amount,
+            )
+            run_provider = "REGEX"
+            run_model = "greek-amount-v1"
+
+        spans = self._candidates_to_spans(ai_result.get("candidates", []))
+
+        # --- Step 4: Get-or-create the generic run, persist spans ---
+        run, created = TextProcessRun.objects.get_or_create(
             extraction=extraction,
+            process=PROCESS_SLUG,
             method=method,
             provider=run_provider,
             model=run_model,
             version=version,
-            defaults={"status": AmountVerificationStatus.PENDING},
+            defaults={"status": TextProcessStatus.PENDING},
         )
-
-        # If this exact run already completed, skip
-        if not created and run.status == AmountVerificationStatus.COMPLETED:
+        if not created and run.status == TextProcessStatus.COMPLETED:
             logger.debug(f"Decision {decision.id}: already verified, skipping")
             return {
                 "status": "skipped",
@@ -244,102 +276,82 @@ class AmountVerificationService:
                 "run_id": run.id,
             }
 
-        # --- Step 3: Compute the accurate amount ---
-        calculated_amount = financial_service.get_decision_total_amount(
-            decision, include_unlinked=True
-        )
-        raw_amount = decision.amount
+        # Persist run-level audit data + spans via the process service
+        run.meta = {
+            "raw_amount": str(raw_amount) if raw_amount is not None else None,
+            "calculated_amount": str(calculated_amount)
+            if calculated_amount is not None
+            else None,
+            "raw_response": ai_result.get("raw_response", ""),
+            "ai_verified_amount": str(ai_result.get("amount"))
+            if ai_result.get("amount") is not None
+            else None,
+        }
+        run.input_tokens = ai_result.get("input_tokens")
+        run.output_tokens = ai_result.get("output_tokens")
+        run.cost_usd = ai_result.get("cost_usd")
 
-        # Update run with amounts we already know
-        run.status = AmountVerificationStatus.AI_ANALYZING
-        run.raw_amount = raw_amount
-        run.calculated_amount = calculated_amount
-        run.save()
+        TextProcessService()._save_spans(run, spans)
 
-        # --- Step 4: Detect the amount in the text (regex or AI) ---
-        try:
+        # --- Step 5: Status + discrepancy ---
+        verified_amount = ai_result.get("amount")
+        if verified_amount is not None:
             if method == "ai":
-                ai_result = self._call_ai_for_amount(
-                    text=extraction.raw_text,
-                    provider=provider,
-                    model=model,
-                )
-            else:
-                ai_result = self._detect_amounts_with_regex(
-                    decision=decision,
-                    text=extraction.raw_text,
-                    calculated_amount=calculated_amount,
-                )
-
-            run.ai_raw_response = ai_result.get("raw_response", "")
-            run.ai_verified_amount = ai_result.get("amount")
-            run.input_tokens = ai_result.get("input_tokens")
-            run.output_tokens = ai_result.get("output_tokens")
-            run.cost_usd = ai_result.get("cost_usd")
-
-            # Persist the raw amounts found in the text (before any decision)
-            self._save_candidates(run, ai_result.get("candidates", []))
-
-            if ai_result.get("amount") is not None:
-                if method == "ai":
-                    # AI returns a single amount → compare against the DB amounts
-                    run.has_discrepancy = self._has_significant_discrepancy(
-                        text_amount=ai_result["amount"],
-                        calculated_amount=calculated_amount,
-                        raw_amount=raw_amount,
-                    )
-                else:
-                    # Regex path computes the discrepancy via the exact-wins policy
-                    run.has_discrepancy = ai_result.get("has_discrepancy", False)
-
-                run.discrepancy_note = self._build_discrepancy_note(
-                    text_amount=ai_result["amount"],
+                has_discrepancy = self._has_significant_discrepancy(
+                    text_amount=verified_amount,
                     calculated_amount=calculated_amount,
                     raw_amount=raw_amount,
                 )
-                run.status = AmountVerificationStatus.COMPLETED
-
-                logger.info(
-                    f"Decision {decision.id} ({decision.ada}): "
-                    f"verified={ai_result['amount']}, "
-                    f"calc={calculated_amount}, "
-                    f"raw={raw_amount}, "
-                    f"discrepancy={run.has_discrepancy}"
-                )
             else:
-                run.status = AmountVerificationStatus.FAILED
-                run.error_message = "Could not determine amount from text"
-                logger.warning(
-                    f"Decision {decision.id}: could not determine amount from text"
-                )
+                has_discrepancy = ai_result.get("has_discrepancy", False)
 
-        except Exception as exc:
-            run.status = AmountVerificationStatus.FAILED
-            run.error_message = str(exc)[:500]
-            logger.error(
-                f"Decision {decision.id}: amount verification failed: {exc}",
-                exc_info=True,
+            run.status = TextProcessStatus.COMPLETED
+            run.error_message = None
+            discrepancy_note = self._build_discrepancy_note(
+                text_amount=verified_amount,
+                calculated_amount=calculated_amount,
+                raw_amount=raw_amount,
+            )
+            run.meta["has_discrepancy"] = has_discrepancy
+            run.meta["discrepancy_note"] = discrepancy_note
+
+            logger.info(
+                f"Decision {decision.id} ({decision.ada}): "
+                f"verified={verified_amount}, "
+                f"calc={calculated_amount}, "
+                f"raw={raw_amount}, "
+                f"discrepancy={has_discrepancy}"
+            )
+        else:
+            run.status = TextProcessStatus.FAILED
+            run.error_message = ai_result.get("error") or (
+                "Could not determine amount from text"
+            )
+            has_discrepancy = False
+            discrepancy_note = None
+            logger.warning(
+                f"Decision {decision.id}: could not determine amount from text"
             )
 
         run.save()
 
-        # --- Step 5: Upsert the decision-level resolution (only from a completed run) ---
-        # A failed/skipped run never clobbers a previous good verdict.
+        # --- Step 6: Upsert the decision-level resolution (completed only) ---
         resolution_id = None
-        if run.status == AmountVerificationStatus.COMPLETED:
-            chosen_candidate = (
-                TextAmountCandidate.objects.filter(
-                    run=run, amount=run.ai_verified_amount
+        if run.status == TextProcessStatus.COMPLETED:
+            chosen_span = (
+                TextSpan.objects.filter(
+                    run=run, value__amount=str(verified_amount)
                 ).first()
             )
-            resolution, _ = AmountVerificationResolution.objects.update_or_create(
+            resolution, _ = TextProcessResolution.objects.update_or_create(
                 decision=decision,
+                process=PROCESS_SLUG,
                 defaults={
                     "winning_run": run,
-                    "chosen_amount": run.ai_verified_amount,
-                    "chosen_candidate": chosen_candidate,
-                    "has_discrepancy": run.has_discrepancy,
-                    "discrepancy_note": run.discrepancy_note,
+                    "chosen_span": chosen_span,
+                    "value": {"amount": str(verified_amount)},
+                    "has_discrepancy": has_discrepancy,
+                    "note": discrepancy_note,
                 },
             )
             resolution_id = resolution.id
@@ -347,17 +359,15 @@ class AmountVerificationService:
         return {
             "status": (
                 "completed"
-                if run.status == AmountVerificationStatus.COMPLETED
+                if run.status == TextProcessStatus.COMPLETED
                 else "failed"
             ),
             "run_id": run.id,
             "resolution_id": resolution_id,
-            "ai_amount": str(run.ai_verified_amount)
-            if run.ai_verified_amount
-            else None,
+            "ai_amount": str(verified_amount) if verified_amount else None,
             "calculated_amount": str(calculated_amount),
             "raw_amount": str(raw_amount) if raw_amount else None,
-            "has_discrepancy": run.has_discrepancy,
+            "has_discrepancy": has_discrepancy,
         }
 
     # ------------------------------------------------------------------
@@ -386,6 +396,36 @@ class AmountVerificationService:
             )
 
         return extraction
+
+    @staticmethod
+    def _candidates_to_spans(candidates: list[DetectedAmount]) -> list[TextSpanData]:
+        """
+        Convert ``DetectedAmount`` results into ``TextSpanData`` rows.
+
+        Dedupes by amount *value* (not by position): repeated occurrences of
+        the same amount collapse into one span pointing at the first
+        occurrence, with ``occurrence_count`` set — matching the original
+        ``TextAmountCandidate`` semantics (one row per unique amount).
+        """
+        counter = Counter(c.amount for c in candidates)
+        first: dict[Decimal, DetectedAmount] = {}
+        for c in candidates:
+            first.setdefault(c.amount, c)
+
+        return [
+            TextSpanData(
+                label="amount",
+                start=first[amount].position,
+                end=first[amount].position + len(first[amount].raw),
+                text_snippet=first[amount].raw,
+                value={
+                    "amount": str(amount),
+                    "near_keyword": first[amount].near_keyword,
+                },
+                occurrence_count=counter[amount],
+            )
+            for amount in counter
+        ]
 
     def _detect_amounts_with_regex(
         self,
@@ -474,39 +514,6 @@ class AmountVerificationService:
             "success": success,
             "has_discrepancy": has_discrepancy,
         }
-
-    def _save_candidates(
-        self,
-        run: AmountVerificationRun,
-        detected_amounts: list[DetectedAmount],
-    ) -> None:
-        """
-        Persist the raw amounts found in the text as ``TextAmountCandidate`` rows.
-
-        One row per unique (run, amount) with the occurrence count and the
-        context of the first occurrence.  Existing candidates for the run are
-        replaced, so re-runs stay idempotent.
-        """
-        run.text_candidates.all().delete()
-        if not detected_amounts:
-            return
-
-        counter = Counter(d.amount for d in detected_amounts)
-        first: dict[Decimal, DetectedAmount] = {}
-        for d in detected_amounts:
-            first.setdefault(d.amount, d)
-
-        TextAmountCandidate.objects.bulk_create(
-            TextAmountCandidate(
-                run=run,
-                amount=amount,
-                raw=first[amount].raw,
-                position=first[amount].position,
-                near_keyword=first[amount].near_keyword,
-                occurrence_count=counter[amount],
-            )
-            for amount in counter
-        )
 
     def _call_ai_for_amount(
         self,
