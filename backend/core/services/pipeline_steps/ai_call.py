@@ -144,7 +144,8 @@ class AICallStep:
             0. ``context.metadata["model_override"]`` — explicit per-run override
                (e.g. user picked a specific model for this summary)
             1. User's ``UserAIModelPreference.preferred_model`` (independent of key)
-            2. ``PipelineStep.config.model`` (pipeline default / fallback)
+            2. ``PipelineStep.config.model`` (pipeline default)
+            3. ``settings.AI_DEFAULT_MODEL`` (system-wide fallback)
         """
         # 0. Explicit per-run override from context metadata
         override = context.metadata.get("model_override")
@@ -159,7 +160,14 @@ class AICallStep:
                 return preferred
         except Exception:
             pass
-        return pipeline_default
+
+        if pipeline_default:
+            return pipeline_default
+
+        # Ultimate fallback: system-wide default
+        from django.conf import settings
+
+        return getattr(settings, "AI_DEFAULT_MODEL", "deepseek/deepseek-v4-flash")
 
     def _render_prompt(self, template_str, text, context: PipelineContext, step):
         """Render a Jinja2 prompt template with available variables."""
