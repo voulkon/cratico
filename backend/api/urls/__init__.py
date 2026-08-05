@@ -39,6 +39,7 @@ from api.urls import (
     system,
     tasks,
     public,
+    text_processes,
 )
 from api.views import entities as entities_views
 from api.views.direct_assignments import entity_direct_assignment_top_organizations
@@ -85,6 +86,7 @@ urlpatterns = [
     path(direct_assignments.PREFIX, include("api.urls.direct_assignments")),
     path(system.PREFIX, include("api.urls.system")),
     path(tasks.PREFIX, include("api.urls.tasks")),
+    path(text_processes.PREFIX, include("api.urls.text_processes")),
     # Legacy organization chart endpoints (TODO: consider moving to organizations module)
     path("org-chart-api/", organization_chart_api, name="org-chart-api"),
     path("org-chart-api-dev/", organization_chart_api_dev, name="org-chart-api-dev"),

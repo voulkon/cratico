@@ -215,13 +215,14 @@ class TestRegexAmountVerification:
                 )
 
             if expected_note_contains:
-                from core.models.document_analysis import AmountVerificationRun
+                from core.models.document_analysis import TextProcessRun
 
-                run = AmountVerificationRun.objects.get(
-                    extraction=decision.text_extraction
+                run = TextProcessRun.objects.get(
+                    extraction=decision.text_extraction, process="amount"
                 )
-                assert run.discrepancy_note is not None
-                assert expected_note_contains in run.discrepancy_note
+                note = run.meta.get("discrepancy_note")
+                assert note is not None
+                assert expected_note_contains in note
 
     def test_idempotent_second_run_skips(self):
         """A completed verification is not re-run."""
@@ -270,7 +271,7 @@ class TestRegexAmountVerification:
             DecisionFactory,
             DocumentExtractionFactory,
         )
-        from core.models.document_analysis import AmountVerificationRun
+        from core.models.document_analysis import TextProcessRun
 
         decision = DecisionFactory()
         DecisionAmountFieldFactory(decision=decision, amount=Decimal("30000.00"))
@@ -281,7 +282,9 @@ class TestRegexAmountVerification:
         service = AmountVerificationService()
         service.verify_decision(decision, method="regex")
 
-        run = AmountVerificationRun.objects.get(extraction=decision.text_extraction)
+        run = TextProcessRun.objects.get(
+            extraction=decision.text_extraction, process="amount"
+        )
         assert run.provider == "REGEX"
         assert run.input_tokens is None
         assert run.output_tokens is None
@@ -289,19 +292,19 @@ class TestRegexAmountVerification:
 
 
 class TestRunAndResolution:
-    """Run / TextAmountCandidate / Resolution persistence for the new schema."""
+    """Run / TextSpan / Resolution persistence for the generic schema."""
 
     def test_run_candidates_and_resolution_are_persisted(self):
-        """A completed regex run stores its candidates and decision resolution."""
+        """A completed regex run stores its spans and decision resolution."""
         from conftest import (
             DecisionAmountFieldFactory,
             DecisionFactory,
             DocumentExtractionFactory,
         )
         from core.models.document_analysis import (
-            AmountVerificationResolution,
-            AmountVerificationRun,
-            TextAmountCandidate,
+            TextProcessResolution,
+            TextProcessRun,
+            TextSpan,
         )
 
         decision = DecisionFactory()
@@ -320,21 +323,23 @@ class TestRunAndResolution:
         assert result["run_id"] is not None
         assert result["resolution_id"] is not None
 
-        run = AmountVerificationRun.objects.get(id=result["run_id"])
+        run = TextProcessRun.objects.get(id=result["run_id"])
         assert run.provider == "REGEX"
         assert run.method == "regex"
         assert run.status == "COMPLETED"
 
         # Occurrence counting: 30.000,00 appears twice in the text
-        candidate = TextAmountCandidate.objects.get(
-            run=run, amount=Decimal("30000.00")
-        )
-        assert candidate.occurrence_count == 2
-        assert candidate.near_keyword is True
+        span = TextSpan.objects.get(run=run, value__amount="30000.00")
+        assert span.occurrence_count == 2
+        assert span.value["near_keyword"] is True
+        assert span.label == "amount"
+        assert span.end > span.start
 
-        resolution = AmountVerificationResolution.objects.get(decision=decision)
+        resolution = TextProcessResolution.objects.get(
+            decision=decision, process="amount"
+        )
         assert resolution.winning_run_id == run.id
-        assert resolution.chosen_amount == Decimal("30000.00")
+        assert resolution.value["amount"] == "30000.00"
         assert resolution.has_discrepancy is False
 
     def test_multiple_versions_create_separate_runs(self):
@@ -344,7 +349,7 @@ class TestRunAndResolution:
             DecisionFactory,
             DocumentExtractionFactory,
         )
-        from core.models.document_analysis import AmountVerificationRun
+        from core.models.document_analysis import TextProcessRun
 
         decision = DecisionFactory()
         DecisionAmountFieldFactory(decision=decision, amount=Decimal("30000.00"))
@@ -361,8 +366,8 @@ class TestRunAndResolution:
         assert second["status"] == "completed"
         assert second["run_id"] != first["run_id"]
 
-        runs = AmountVerificationRun.objects.filter(
-            extraction=decision.text_extraction
+        runs = TextProcessRun.objects.filter(
+            extraction=decision.text_extraction, process="amount"
         )
         assert runs.count() == 2
 
@@ -374,8 +379,8 @@ class TestRunAndResolution:
             DocumentExtractionFactory,
         )
         from core.models.document_analysis import (
-            AmountVerificationResolution,
-            AmountVerificationRun,
+            TextProcessResolution,
+            TextProcessRun,
         )
 
         decision = DecisionFactory()
@@ -391,8 +396,10 @@ class TestRunAndResolution:
         assert result["status"] == "failed"
         assert result["resolution_id"] is None
 
-        run = AmountVerificationRun.objects.get(extraction=decision.text_extraction)
+        run = TextProcessRun.objects.get(
+            extraction=decision.text_extraction, process="amount"
+        )
         assert run.status == "FAILED"
-        assert not AmountVerificationResolution.objects.filter(
-            decision=decision
+        assert not TextProcessResolution.objects.filter(
+            decision=decision, process="amount"
         ).exists()
