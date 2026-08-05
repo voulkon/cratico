@@ -4,10 +4,12 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useTranslation } from '../contexts/TranslationContext';
 import apiClient from '../api/client';
+import { getAIModels } from '../api/aiApi';
+import ModelDropdown from './ModelDropdown';
 import CollapsibleCard from './CollapsibleCard';
 import './DecisionCard.css';
 
-import {OrganizationIcon, PenIcon, CalendarIcon, EyeIcon, DownloadIcon, ExternalLinkIcon, BookOpenIcon, LoaderIcon, ChevronDown, ChevronUp, SparklesIcon, SearchIcon, AlertIcon} from './Icons.js';
+import {OrganizationIcon, PenIcon, CalendarIcon, EyeIcon, DownloadIcon, ExternalLinkIcon, BookOpenIcon, LoaderIcon, ChevronDown, ChevronUp, SparklesIcon, AlertIcon} from './Icons.js';
 
 import EntityDisplay from './EntityDisplay';
 import { getMainRecipient, getTotalAmount, groupEntityRelationships, getCounterpartEntities } from '../utils/decisionUtils';
@@ -26,18 +28,25 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
   const [docLoading, setDocLoading] = useState(false);
   const docPollRef = useRef(null);
 
-  // ── AI summary (self-contained) ────────────────────────────────────
-  const [aiSummary, setAiSummary] = useState(null);
-  const [aiStatus, setAiStatus] = useState(null);
-  const [aiMeta, setAiMeta] = useState(null);
+  // ── AI summary (multi-model) ────────────────────────────────────
+  const [aiAnalyses, setAiAnalyses] = useState([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiRequesting, setAiRequesting] = useState(false);
   const aiPollRef = useRef(null);
+  // Model selection for requesting a new summary
+  const [models, setModels] = useState([]);
+  const [selectedModel, setSelectedModel] = useState('');
 
   const [entityRelationships, setEntityRelationships] = useState(null);
   const [showEntities, setShowEntities] = useState(false);
   const [loadingEntities, setLoadingEntities] = useState(false);
   const [showKae, setShowKae] = useState(false);
+  // Track which AI summaries are expanded (by analysis id or index)
+  const [expandedSummaries, setExpandedSummaries] = useState({});
+
+  const toggleSummary = (key) => {
+    setExpandedSummaries(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   // ── Fetch document content ─────────────────────────────────────────
   const fetchDocumentContent = useCallback(async () => {
@@ -65,27 +74,17 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
     }
   }, [decision.id]);
 
-  // ── Fetch AI summary ───────────────────────────────────────────────
-  const fetchAISummary = useCallback(async () => {
+  // ── Fetch AI analyses ──────────────────────────────────────────
+  const fetchAIAnalyses = useCallback(async () => {
     try {
       setAiLoading(true);
       const response = await apiClient.get(`/decisions/${decision.id}/`);
-      const ai = response.data?.ai_analysis;
-      if (ai) {
-        setAiStatus(ai.status);
-        if (ai.status === 'COMPLETED' && ai.summary) {
-          setAiSummary(ai.summary);
-          setAiMeta({
-            model_used: ai.model_used,
-            cost_usd: ai.cost_usd,
-            completed_at: ai.completed_at,
-          });
-        }
-      } else {
-        setAiStatus('NOT_FOUND');
-      }
+      const data = response.data;
+      // Support both old ai_analysis (single) and new ai_analyses (array)
+      const analyses = data?.ai_analyses || (data?.ai_analysis ? [data.ai_analysis] : []);
+      setAiAnalyses(analyses);
     } catch {
-      setAiStatus('ERROR');
+      // silently fail
     } finally {
       setAiLoading(false);
     }
@@ -94,8 +93,15 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
   // Initial fetch on mount
   useEffect(() => {
     if (decision.has_document_content) fetchDocumentContent();
-    fetchAISummary();
-  }, [decision.has_document_content, fetchDocumentContent, fetchAISummary]);
+    fetchAIAnalyses();
+  }, [decision.has_document_content, fetchDocumentContent, fetchAIAnalyses]);
+
+  // Fetch available models for the dropdown
+  useEffect(() => {
+    getAIModels().then(data => {
+      if (data?.models) setModels(data.models);
+    }).catch(() => {});
+  }, []);
 
   // Polling for document extraction
   useEffect(() => {
@@ -107,27 +113,31 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
     return () => { if (docPollRef.current) clearInterval(docPollRef.current); };
   }, [docStatus, fetchDocumentContent]);
 
-  // Polling for AI summary
+  // Polling for AI analyses (when any is RUNNING)
   useEffect(() => {
-    if (aiStatus === 'RUNNING') {
-      aiPollRef.current = setInterval(fetchAISummary, 4000);
+    const hasRunning = aiAnalyses.some(a => a.status === 'RUNNING');
+    if (hasRunning) {
+      aiPollRef.current = setInterval(fetchAIAnalyses, 4000);
     } else {
       if (aiPollRef.current) { clearInterval(aiPollRef.current); aiPollRef.current = null; }
     }
     return () => { if (aiPollRef.current) clearInterval(aiPollRef.current); };
-  }, [aiStatus, fetchAISummary]);
+  }, [aiAnalyses, fetchAIAnalyses]);
 
   // Check if entity data is already included in decision (from optimized endpoint)
   const hasPreloadedEntityData = decision.entity_amount !== undefined
     || decision.main_recipient !== undefined
     || decision.entities !== undefined;
 
-  // ── Request AI summary ─────────────────────────────────────────────
-  const handleRequestAISummary = async () => {
+  // ── Request AI summary with optional model ─────────────────────
+  const handleRequestAISummary = async (model = null) => {
     try {
       setAiRequesting(true);
-      await apiClient.post(`/ai/decisions/${decision.id}/summarize/`, {});
-      setAiStatus('RUNNING');
+      const payload = {};
+      if (model) payload.model = model;
+      await apiClient.post(`/ai/decisions/${decision.id}/summarize/`, payload);
+      // Refresh immediately to pick up the new RUNNING analysis
+      fetchAIAnalyses();
     } catch {
       // silently fail — polling will pick up any status change
     } finally {
@@ -419,52 +429,105 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
         ) : null}
       </CollapsibleCard>
 
-      {/* ── AI Summary (collapsible) ────────────────────────────────── */}
+      {/* ── AI Summaries (multi-model, collapsible) ──────────────── */}
       <CollapsibleCard
         title={
           <span className="dc-collapsible-title">
             <SparklesIcon size={14} /> {t('decisionCard.aiSummary')}
+            {aiAnalyses.filter(a => a.status === 'COMPLETED').length > 0 && (
+              <span className="dc-ai-count">
+                {' '}({aiAnalyses.filter(a => a.status === 'COMPLETED').length})
+              </span>
+            )}
           </span>
         }
         subtitle={
-          aiStatus === 'COMPLETED' && aiMeta ? (
-            <span className="dc-collapsible-subtitle">
-              {aiMeta.model_used}
-              {aiMeta.cost_usd && ` · $${aiMeta.cost_usd}`}
-            </span>
+          aiAnalyses.some(a => a.status === 'RUNNING') ? (
+            <span className="dc-collapsible-subtitle">{t('decisionCard.aiSummaryRunning')}</span>
           ) : null
         }
         defaultOpen={false}
         className="dc-collapsible dc-ai-collapsible"
       >
-        {aiStatus === 'COMPLETED' && aiSummary ? (
-          <div className="dc-collapsible-body">
-            <div className="dc-ai-text">{aiSummary}</div>
+        {/* Model picker + single summarize button — always visible */}
+        <div className="dc-ai-request-row">
+          <div className="dc-ai-model-picker">
+            <ModelDropdown
+              models={models}
+              value={selectedModel}
+              onChange={setSelectedModel}
+              placeholder={t('aiSettings.usePipelineDefault')}
+              t={t}
+            />
           </div>
-        ) : aiStatus === 'RUNNING' ? (
-          <div className="dc-collapsible-placeholder">
-            <div className="spinner" /><p>{t('decisionCard.aiSummaryRunning')}</p>
-          </div>
-        ) : aiStatus === 'FAILED' ? (
-          <div className="dc-collapsible-placeholder">
-            <AlertIcon size={20} />
-            <p>{t('decisionCard.aiSummaryFailed')}</p>
-            <button className="document-link" onClick={handleRequestAISummary}>{t('decisionCard.retry')}</button>
-          </div>
-        ) : aiStatus === 'NOT_FOUND' ? (
-          <div className="dc-collapsible-placeholder">
-            <SparklesIcon size={20} />
-            <p>{t('decisionCard.noAISummary')}</p>
-            <button className="document-link" onClick={handleRequestAISummary} disabled={aiRequesting}>
-              {aiRequesting ? <LoaderIcon className="spinner" size={14} /> : <SearchIcon size={14} />}
-              {' '}{t('decisionCard.requestAISummary')}
-            </button>
-          </div>
-        ) : aiLoading ? (
+          <button
+            className="document-link dc-ai-summarize-btn"
+            onClick={() => handleRequestAISummary(selectedModel || null)}
+            disabled={aiRequesting}
+          >
+            {aiRequesting ? <LoaderIcon className="spinner" size={14} /> : <SparklesIcon size={14} />}
+            {' '}{t('decisionCard.requestAISummary')}
+          </button>
+        </div>
+
+        {/* Loading state */}
+        {aiLoading && aiAnalyses.length === 0 ? (
           <div className="dc-collapsible-placeholder">
             <div className="spinner" /><p>{t('common.loading')}</p>
           </div>
         ) : null}
+
+        {/* Running analyses */}
+        {aiAnalyses.filter(a => a.status === 'RUNNING').map((a, i) => (
+          <div key={`running-${i}`} className="dc-ai-summary-item dc-ai-summary-item--running">
+            <div className="dc-ai-summary-header">
+              <span className="dc-ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
+              <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+            </div>
+            <p className="dc-ai-summary-status">{t('decisionCard.aiSummaryRunning')}</p>
+          </div>
+        ))}
+
+        {/* Completed analyses — click header to expand/collapse */}
+        {aiAnalyses.filter(a => a.status === 'COMPLETED').map((a, i) => {
+          const key = a.id || i;
+          const expanded = expandedSummaries[key];
+          return (
+            <div key={key} className="dc-ai-summary-item">
+              <div
+                className="dc-ai-summary-header dc-ai-summary-header--clickable"
+                onClick={() => toggleSummary(key)}
+                title={expanded ? t('decisionCard.collapse') : t('decisionCard.expand')}
+              >
+                <span className="dc-ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
+                <span className="dc-ai-summary-cost">
+                  {a.cost_usd && `$${a.cost_usd}`}
+                  <span className="dc-ai-summary-chevron">{expanded ? '▴' : '▾'}</span>
+                </span>
+              </div>
+              {expanded && <div className="dc-ai-text">{a.summary}</div>}
+            </div>
+          );
+        })}
+
+        {/* Failed analyses — show error, no retry (pick model again from dropdown to retry) */}
+        {aiAnalyses.filter(a => a.status === 'FAILED').map((a, i) => (
+          <div key={`failed-${i}`} className="dc-ai-summary-item dc-ai-summary-item--failed">
+            <div className="dc-ai-summary-header">
+              <span className="dc-ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
+              <AlertIcon size={14} />
+            </div>
+            <p className="dc-ai-summary-error">{a.error_message || t('decisionCard.aiSummaryFailed')}</p>
+          </div>
+        ))}
+
+        {/* No summaries yet */}
+        {!aiLoading && aiAnalyses.length === 0 && (
+          <div className="dc-collapsible-placeholder">
+            <SparklesIcon size={20} />
+            <p>{t('decisionCard.noAISummary')}</p>
+          </div>
+        )}
       </CollapsibleCard>
 
       {decision.kae_amounts && decision.kae_amounts.length > 1 && (

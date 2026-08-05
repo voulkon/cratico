@@ -236,6 +236,21 @@ def serialize_decision_with_content_info(decision):
             for signer in decision.signers.all()
         ]
 
+    # AI analyses — all completed, newest first (for summary cards)
+    ai_analyses_data = []
+    if hasattr(decision, "ai_analyses"):
+        # Prefetched via prefetch_related('ai_analyses')
+        for ai in decision.ai_analyses.all():
+            if ai.status == "COMPLETED" and ai.summary:
+                ai_analyses_data.append({
+                    "id": ai.id,
+                    "status": ai.status,
+                    "summary": ai.summary,
+                    "cost_usd": str(ai.cost_usd) if ai.cost_usd else None,
+                    "model_used": ai.model_used,
+                    "completed_at": ai.completed_at,
+                })
+
     return {
         "id": decision.id,
         "ada": decision.ada,
@@ -263,6 +278,7 @@ def serialize_decision_with_content_info(decision):
         "has_amount_discrepancy": has_discrepancy,
         "discrepancy_percentage": round(discrepancy_percentage, 2),
         "has_document_content": has_document_content,
+        "ai_analyses": ai_analyses_data,
     }
 
 

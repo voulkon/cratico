@@ -227,7 +227,12 @@
     "aiSummaryFailed": "AI summary failed",
     "noAISummary": "No AI summary available",
     "requestAISummary": "Generate Summary",
-    "retry": "Retry"
+    "retry": "Retry",
+    "chooseModel": "Choose Model",
+    "hideModelPicker": "Use Default",
+    "defaultModel": "Default",
+    "expand": "Expand",
+    "collapse": "Collapse"
   },
   "personPage": {
     "errorTitle": "Error Loading Person",

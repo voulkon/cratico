@@ -69,12 +69,16 @@ class DecisionProcessingQueue:
     def _meta_key(self, decision_id: int) -> str:
         return f"{META_KEY_PREFIX}:{decision_id}"
 
-    def enqueue(self, decision_id: int, user_id: int, force: bool = False) -> Dict[str, Any]:
+    def enqueue(self, decision_id: int, user_id: int, force: bool = False, model: str | None = None, task_force: bool = False) -> Dict[str, Any]:
         """
         Add a decision to the pending set.  Idempotent — returns existing
         status if the decision is already queued/active/completed.
 
         *user_id* is required — billing is always attributed to a real user.
+        *model* is optional — when passed, the AI summarization will use
+        this specific model instead of the user's preferred model or default.
+        *task_force* — passed through to the Celery task; when True the task
+        will skip its own idempotency check (force-regeneration).
 
         With ``force=True``, a completed or failed entry is reset so the
         decision can be re-processed (regeneration).
@@ -102,12 +106,16 @@ class DecisionProcessingQueue:
         self.redis.srem(self.FAILED_KEY, did)
 
         self.redis.sadd(self.PENDING_KEY, did)
-        # Persist user_id so the consumer can bill to the correct user
+        # Persist metadata so the consumer can pass it to the task
         self.redis.hset(self._meta_key(decision_id), "user_id", user_id)
+        if model:
+            self.redis.hset(self._meta_key(decision_id), "model", model)
+        if task_force:
+            self.redis.hset(self._meta_key(decision_id), "task_force", "1")
         self._update_stats(last_enqueue_at=timezone.now().isoformat())
 
         pending = self.redis.scard(self.PENDING_KEY)
-        logger.info(f"Decision {decision_id}: enqueued by user {user_id} (pending={pending})")
+        logger.info(f"Decision {decision_id}: enqueued by user {user_id} (pending={pending}, model={model or 'default'})")
         return {"decision_id": decision_id, "status": "enqueued"}
 
     # ------------------------------------------------------------------
@@ -119,12 +127,13 @@ class DecisionProcessingQueue:
         active = self.redis.scard(self.ACTIVE_KEY)
         return active < self.MAX_CONCURRENT
 
-    def dispatch_next(self) -> Optional[Tuple[int, int]]:
+    def dispatch_next(self) -> Optional[Tuple[int, int, Optional[str], bool]]:
         """
         Pop the next pending decision and move it to active.
 
-        Returns a ``(decision_id, user_id)`` tuple, or ``None`` if the
-        queue is empty or at capacity.
+        Returns a ``(decision_id, user_id, model, task_force)`` tuple, or
+        ``None`` if the queue is empty or at capacity.
+        *model* may be ``None``; *task_force* defaults to ``False``.
         """
         if not self.can_dispatch():
             return None
@@ -157,18 +166,26 @@ class DecisionProcessingQueue:
             return None
         user_id = int(user_id_raw)
 
+        # Retrieve optional model override
+        model_raw = self.redis.hget(self._meta_key(decision_id), "model")
+        model = model_raw.decode("utf-8") if model_raw else None
+
+        # Retrieve optional task_force flag
+        task_force_raw = self.redis.hget(self._meta_key(decision_id), "task_force")
+        task_force = bool(task_force_raw)
+
         self.redis.sadd(self.ACTIVE_KEY, did)
         logger.info(
             f"Decision {did}: dispatched for user {user_id} "
-            f"(active={self.redis.scard(self.ACTIVE_KEY)})"
+            f"(active={self.redis.scard(self.ACTIVE_KEY)}, model={model or 'default'}, force={task_force})"
         )
-        return (decision_id, user_id)
+        return (decision_id, user_id, model, task_force)
 
-    def dispatch_batch(self, max_count: int = None) -> List[Tuple[int, int]]:
+    def dispatch_batch(self, max_count: int = None) -> List[Tuple[int, int, Optional[str], bool]]:
         """
         Dispatch up to *max_count* decisions (capped by capacity).
 
-        Returns list of ``(decision_id, user_id)`` tuples.
+        Returns list of ``(decision_id, user_id, model, task_force)`` tuples.
         """
         available = self.MAX_CONCURRENT - self.redis.scard(self.ACTIVE_KEY)
         if available <= 0:
@@ -231,8 +248,8 @@ class DecisionProcessingQueue:
 
             from core.tasks.tasks_decision_ai import process_decision_ai
 
-            for decision_id, user_id in dispatched:
-                process_decision_ai.delay(decision_id, user_id=user_id)
+            for decision_id, user_id, model, task_force in dispatched:
+                process_decision_ai.delay(decision_id, user_id=user_id, model=model, force=task_force)
 
             self._update_stats(
                 last_batch_at=timezone.now().isoformat(),

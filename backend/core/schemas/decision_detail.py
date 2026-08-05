@@ -89,7 +89,7 @@ class DecisionDetailResponse(BaseModel):
     diavgeia_page_url: Optional[str] = None
     diavgeia_doc_url: Optional[str] = None
     has_document_content: bool = False
-    ai_analysis: Optional[AIAnalysisInfo] = None
+    ai_analyses: list[AIAnalysisInfo] = []
     warnings: Optional[list] = None
     has_private_data: bool = False
     organization: Optional[OrganizationInfo] = None

@@ -683,6 +683,93 @@
   margin-top: var(--spacing-sm);
 }
 
+/* ── Multi-model AI summary items ─────────────────────────────── */
+
+.ai-analysis-count {
+  font-size: var(--font-xs);
+  color: var(--muted-text);
+  font-weight: 400;
+}
+
+.ai-analysis-request-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding-bottom: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.ai-model-picker-row {
+  flex: 1;
+  min-width: 180px;
+}
+
+.ai-summary-item {
+  border: 1px solid color-mix(in srgb, var(--muted-text) 15%, transparent);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+}
+
+.ai-summary-item--running {
+  border-color: var(--palette-primary);
+  background: var(--hover-bg);
+}
+
+.ai-summary-item--failed {
+  border-color: color-mix(in srgb, var(--error-text) 25%, transparent);
+  background: var(--error-bg);
+}
+
+.ai-summary-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-sm);
+}
+
+.ai-summary-item-header--clickable {
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 0;
+}
+
+.ai-summary-item-header--clickable:hover {
+  opacity: 0.8;
+}
+
+.ai-summary-chevron {
+  font-size: 10px;
+  margin-left: var(--spacing-xs);
+  color: var(--muted-text);
+}
+
+.ai-model-badge {
+  font-size: var(--font-xs);
+  font-weight: 600;
+  color: var(--palette-primary);
+  background: var(--palette-primary-bg, color-mix(in srgb, var(--palette-primary) 10%, transparent));
+  padding: 2px 10px;
+  border-radius: 10px;
+}
+
+.ai-summary-item-cost {
+  font-size: var(--font-xs);
+  color: var(--muted-text);
+}
+
+.ai-summary-item-status {
+  font-size: var(--font-xs);
+  color: var(--muted-text);
+  margin: 0;
+}
+
+.ai-summary-item-error {
+  font-size: var(--font-xs);
+  color: var(--error-text);
+  margin: var(--spacing-xs) 0;
+}
+
 /* ---------- Document Content (CollapsibleCard overrides) ---------- */
 .document-content-collapsible {
   margin-top: 0;

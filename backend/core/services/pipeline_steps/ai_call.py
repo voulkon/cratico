@@ -37,7 +37,7 @@ class AICallStep:
     def execute(self, step, step_run: PipelineStepRun, context: PipelineContext, run):
         config = step.config or {}
         provider_name = config.get("provider", "OPENROUTER")
-        model_name = self._resolve_model(context.user, config.get("model", ""))
+        model_name = self._resolve_model(context, config.get("model", ""))
         # Surface the resolved model so callers (e.g. tasks) can record it
         context.metadata["model_used"] = model_name
         prompt_template = config.get("prompt_template", "Summarize: {{ text }}")
@@ -136,18 +136,25 @@ class AICallStep:
         except Exception:
             return ""
 
-    def _resolve_model(self, user, pipeline_default: str) -> str:
+    def _resolve_model(self, context, pipeline_default: str) -> str:
         """
         Resolve which model to use.
 
         Precedence:
+            0. ``context.metadata["model_override"]`` — explicit per-run override
+               (e.g. user picked a specific model for this summary)
             1. User's ``UserAIModelPreference.preferred_model`` (independent of key)
             2. ``PipelineStep.config.model`` (pipeline default / fallback)
         """
+        # 0. Explicit per-run override from context metadata
+        override = context.metadata.get("model_override")
+        if override:
+            return override
+
         try:
             from core.models.user_ai_model_preference import UserAIModelPreference
 
-            preferred = UserAIModelPreference.get_preferred_model(user)
+            preferred = UserAIModelPreference.get_preferred_model(context.user)
             if preferred:
                 return preferred
         except Exception:

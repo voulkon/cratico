@@ -22,18 +22,23 @@ from celery import shared_task
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _has_completed_analysis(decision_id: int, *, force: bool = False) -> bool:
+def _has_completed_analysis(decision_id: int, *, force: bool = False, model: str | None = None) -> bool:
     """
     Return True if *decision_id* already has a completed AI summary
     and we are not forcing regeneration.
+
+    When *model* is provided, only considers analyses that used that model.
     """
     if force:
         return False
     from core.models.decision_ai_analysis import AnalysisStatus, DecisionAIAnalysis
-    return DecisionAIAnalysis.objects.filter(
+    qs = DecisionAIAnalysis.objects.filter(
         decision_id=decision_id,
         status=AnalysisStatus.COMPLETED,
-    ).exclude(summary="").exists()
+    ).exclude(summary="")
+    if model:
+        qs = qs.filter(model_used=model)
+    return qs.exists()
 
 
 def _needs_text_extraction(decision) -> bool:
@@ -158,7 +163,7 @@ def extract_decision_text(self, decision_id: int, provider: str = None):
 
 
 @shared_task(bind=True, max_retries=2)
-def process_decision_ai(self, decision_id: int, user_id: int, provider: str = None, force: bool = False):
+def process_decision_ai(self, decision_id: int, user_id: int, provider: str = None, force: bool = False, model: str | None = None):
     """
     Run AI summarization on a single decision.
 
@@ -171,6 +176,8 @@ def process_decision_ai(self, decision_id: int, user_id: int, provider: str = No
         user_id: Optional user for billing attribution.
         provider: Optional extraction provider (e.g. ``"PYMUPDF"``).
         force: If True, re-run even if a completed analysis exists (regeneration).
+        model: Optional model override (e.g. ``"openai/gpt-4o"``).  When set,
+               overrides the user's preferred model and pipeline default.
 
     Returns:
         dict with keys: decision_id, status, analysis_id, cost_usd
@@ -205,12 +212,15 @@ def process_decision_ai(self, decision_id: int, user_id: int, provider: str = No
         return {"decision_id": decision_id, "status": "not_found"}
 
     # --- Early-exit: already analysed (unless forcing regeneration) ---
-    if _has_completed_analysis(decision_id, force=force):
-        logger.info(f"Decision {decision_id}: AI analysis already completed")
+    if _has_completed_analysis(decision_id, force=force, model=model):
+        logger.info(f"Decision {decision_id}: AI analysis already completed (model={model or 'default'})")
         _finish("completed")
-        existing = DecisionAIAnalysis.objects.filter(
+        existing_qs = DecisionAIAnalysis.objects.filter(
             decision_id=decision_id, status=AnalysisStatus.COMPLETED
-        ).only("cost_usd").order_by("-created_at").first()
+        )
+        if model:
+            existing_qs = existing_qs.filter(model_used=model)
+        existing = existing_qs.only("cost_usd").order_by("-created_at").first()
         return {
             "decision_id": decision_id,
             "status": "already_completed",
@@ -236,6 +246,7 @@ def process_decision_ai(self, decision_id: int, user_id: int, provider: str = No
     analysis = DecisionAIAnalysis.objects.create(
         decision=decision,
         status=AnalysisStatus.RUNNING,
+        model_used=model or "",  # Set early if explicitly chosen; pipeline resolves otherwise
     )
 
     # --- Resolve user for billing ---
@@ -248,6 +259,8 @@ def process_decision_ai(self, decision_id: int, user_id: int, provider: str = No
             decisions=[decision],
             user=user,
         )
+        if model:
+            context.metadata["model_override"] = model
         engine = PipelineEngine()
         run = engine.run(
             pipeline_def,
