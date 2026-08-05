@@ -1,0 +1,177 @@
+/* ── Annotated text container ────────────────────────────────────────── */
+.annotated-text-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono, 'SF Mono', 'Fira Code', monospace);
+  font-size: var(--font-sm, 13px);
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text-color);
+}
+
+/* ── Legend ──────────────────────────────────────────────────────────── */
+.text-span-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  background: var(--surface-secondary);
+  border-radius: var(--radius-md);
+  font-size: var(--font-xs);
+}
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-secondary);
+}
+.legend-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+/* ── Span base styles ────────────────────────────────────────────────── */
+mark[class*="text-span--"] {
+  border-radius: 3px;
+  padding: 0 1px;
+  cursor: default;
+}
+
+/* ── Color palette ───────────────────────────────────────────────────── */
+/* amount */
+.text-span--amount,
+.legend-swatch.text-span--amount {
+  background: var(--annot-amount-bg);
+  border-bottom: 2px solid var(--annot-amount-accent);
+  color: inherit;
+}
+.text-span--amount.text-span--chosen {
+  background: var(--annot-amount-chosen-bg);
+  border-bottom: 2px solid var(--annot-amount-chosen-accent);
+}
+.text-span--amount.text-span--clone {
+  background: var(--annot-amount-clone-bg);
+  border-bottom: 2px solid var(--annot-amount-clone-accent);
+}
+
+/* date */
+.text-span--date,
+.legend-swatch.text-span--date {
+  background: var(--annot-date-bg);
+  border-bottom: 2px solid var(--annot-date-accent);
+  color: inherit;
+}
+
+/* subject */
+.text-span--subject,
+.legend-swatch.text-span--subject {
+  background: var(--annot-subject-bg);
+  border-bottom: 2px solid var(--annot-subject-accent);
+  color: inherit;
+}
+
+/* main_point */
+.text-span--main_point,
+.legend-swatch.text-span--main_point {
+  background: var(--annot-main-point-bg);
+  border-bottom: 2px solid var(--annot-main-point-accent);
+  color: inherit;
+}
+
+/* signer */
+.text-span--signer,
+.legend-swatch.text-span--signer {
+  background: var(--annot-signer-bg);
+  border-bottom: 2px solid var(--annot-signer-accent);
+  color: inherit;
+}
+
+/* entity */
+.text-span--entity,
+.legend-swatch.text-span--entity {
+  background: var(--annot-entity-bg);
+  border-bottom: 2px solid var(--annot-entity-accent);
+  color: inherit;
+}
+
+/* boilerplate */
+.text-span--boilerplate,
+.legend-swatch.text-span--boilerplate {
+  background: var(--annot-boilerplate-bg);
+  border-bottom: 2px solid var(--annot-boilerplate-accent);
+  color: inherit;
+}
+
+/* useless */
+.text-span--useless,
+.legend-swatch.text-span--useless {
+  background: var(--annot-useless-bg);
+  border-bottom: 1px dashed var(--annot-useless-accent);
+  color: inherit;
+}
+
+/* hover effect for clickable spans */
+mark[class*="text-span--"]:hover {
+  filter: brightness(1.2);
+  cursor: pointer;
+}
+
+/* ── Process controls (in doc-content card) ─────────────────────────── */
+.process-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.process-trigger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  font-size: var(--font-xs);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--surface-secondary);
+  color: var(--text-color);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.process-trigger-btn:hover:not(:disabled) {
+  background: var(--hover-bg);
+}
+.process-trigger-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.process-trigger-btn.process-trigger-btn--primary {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.view-toggle {
+  display: inline-flex;
+  gap: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  font-size: var(--font-xs);
+  margin-bottom: 8px;
+}
+.view-toggle button {
+  padding: 3px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.view-toggle button.active {
+  background: var(--accent-color);
+  color: var(--text-on-primary);
+}
