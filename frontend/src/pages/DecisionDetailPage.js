@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm';
 import apiClient from '../api/client';
 import { getAIModels } from '../api/aiApi';
 import ModelDropdown from '../components/ModelDropdown';
+import AnnotatedText from '../components/AnnotatedText';
 import TopBarSlot from '../components/TopBarSlot';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -13,6 +14,7 @@ import '../components/StatCard.css';
 import EntityDisplay from '../components/EntityDisplay';
 import { formatAmount, formatDate } from '../utils/dateUtils';
 import { useDecisionAI } from '../hooks/useDecisionAI';
+import { useTextProcesses } from '../hooks/useTextProcesses';
 import CollapsibleCard from '../components/CollapsibleCard';
 import {
   FinancialIcon,
@@ -60,7 +62,7 @@ const DecisionDetailPage = () => {
   const fetchDocumentContent = useCallback(async () => {
     try {
       setDocLoading(true);
-      const response = await apiClient.get(`/decisions/${id}/content/`);
+      const response = await apiClient.get(`/decisions/${id}/content/?include=spans`);
       const data = response.data;
       setDocStatus(data.status);
       if (data.status === 'COMPLETED' && data.raw_text) {
@@ -72,9 +74,14 @@ const DecisionDetailPage = () => {
           extraction_date: data.extraction_date,
           processing_time_ms: data.processing_time_ms,
         });
+        // Capture text-process runs + resolution (for annotated view)
+        setProcessRuns(data.runs || []);
+        setProcessResolution(data.resolution || null);
       } else {
         setDocContent(null);
         setDocMeta(null);
+        setProcessRuns([]);
+        setProcessResolution(null);
       }
     } catch (err) {
       console.error('Error fetching document content:', err);
@@ -83,6 +90,7 @@ const DecisionDetailPage = () => {
     } finally {
       setDocLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   // Initial fetch + polling while extraction is in flight
@@ -135,6 +143,14 @@ const DecisionDetailPage = () => {
   }, [fetchDecisionData]);
 
   const { aiAnalyses, requestExtraction, requestAISummary } = useDecisionAI(decision, fetchDecisionData);
+
+  const {
+    viewMode, setViewMode,
+    processRuns, setProcessRuns,
+    setProcessResolution,
+    processList, selectedProcess, setSelectedProcess,
+    processRunning, handleRunProcess,
+  } = useTextProcesses(id, fetchDocumentContent);
 
   // Model selection for AI summarization
   const [models, setModels] = useState([]);
@@ -492,11 +508,72 @@ const DecisionDetailPage = () => {
             <p>{t('common.loading')}</p>
           </div>
         ) : docStatus === 'COMPLETED' && docContent ? (
-          <div className="document-content-body">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {docContent}
-            </ReactMarkdown>
-          </div>
+          <>
+            {/* View toggle */}
+            <div className="view-toggle">
+              <button
+                className={viewMode === 'rendered' ? 'active' : ''}
+                onClick={() => setViewMode('rendered')}
+              >
+                Rendered
+              </button>
+              <button
+                className={viewMode === 'annotated' ? 'active' : ''}
+                onClick={() => setViewMode('annotated')}
+              >
+                Annotated
+              </button>
+            </div>
+
+            {/* Process controls — only shown in annotated mode */}
+            {viewMode === 'annotated' && (
+              <div className="process-controls">
+                <select
+                  value={selectedProcess}
+                  onChange={e => setSelectedProcess(e.target.value)}
+                  style={{ fontSize: 12, padding: '3px 6px', borderRadius: 4, border: '1px solid var(--border-color, #444)', background: 'var(--surface, #1e1e1e)', color: 'var(--text-primary, #e0e0e0)' }}
+                >
+                  <option value="">-- Run a process --</option>
+                  {processList.map(p => (
+                    <option key={p.slug} value={p.slug}>{p.name}</option>
+                  ))}
+                </select>
+                <button
+                  className="process-trigger-btn process-trigger-btn--primary"
+                  disabled={!selectedProcess || processRunning}
+                  onClick={() => handleRunProcess()}
+                >
+                  {processRunning ? <LoaderIcon className="spinner" size={12} /> : <SparklesIcon size={12} />}
+                  {' '}Run
+                </button>
+                {/* Quick-run buttons for common processes */}
+                {processList.filter(p => !processRuns.some(r => r.process === p.slug && r.status === 'COMPLETED')).slice(0, 2).map(p => (
+                  <button
+                    key={p.slug}
+                    className="process-trigger-btn"
+                    disabled={processRunning}
+                    onClick={() => handleRunProcess(p.slug)}
+                  >
+                    Detect {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Content: annotated or rendered */}
+            {viewMode === 'annotated' ? (
+              <AnnotatedText
+                rawText={docContent}
+                runs={processRuns}
+              />
+            ) : (
+              <div className="document-content-body">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {docContent}
+                </ReactMarkdown>
+              </div>
+            )}
+          </>
         ) : docStatus === 'PENDING' || docStatus === 'PROCESSING' ? (
           <div className="document-content-placeholder">
             <div className="spinner" />
