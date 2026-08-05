@@ -227,7 +227,12 @@
     "aiSummaryFailed": "Η περίληψη AI απέτυχε",
     "noAISummary": "Δεν υπάρχει περίληψη AI",
     "requestAISummary": "Δημιουργία Περίληψης",
-    "retry": "Επανάληψη"
+    "retry": "Επανάληψη",
+    "chooseModel": "Επιλογή Μοντέλου",
+    "hideModelPicker": "Προεπιλογή",
+    "defaultModel": "Προεπιλεγμένο",
+    "expand": "Ανάπτυξη",
+    "collapse": "Σύμπτυξη"
   },
   "personPage": {
     "errorTitle": "Σφάλμα Φόρτωσης Προσώπου",

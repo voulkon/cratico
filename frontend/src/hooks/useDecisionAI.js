@@ -4,16 +4,16 @@ import apiClient from '../api/client';
 /**
  * Hook for decision-level AI operations (extraction + summarization).
  *
- * Returns handlers and the current AI analysis state extracted from the
- * decision object.  The caller is responsible for refreshing the decision
- * after an operation completes (via the returned ``refresh`` callback).
+ * Returns handlers and the current AI analyses array extracted from the
+ * decision object.  Supports multiple summaries per decision (one per model).
  *
  * Usage:
- *   const { aiAnalysis, requestExtraction, requestAISummary } = useDecisionAI(decision, fetchDecisionData);
+ *   const { aiAnalyses, requestExtraction, requestAISummary } = useDecisionAI(decision, fetchDecisionData);
  */
 export function useDecisionAI(decision, onRefresh) {
   const id = decision?.id;
-  const aiAnalysis = decision?.ai_analysis || null;
+  // Support both old ai_analysis (single) and new ai_analyses (array)
+  const aiAnalyses = decision?.ai_analyses || (decision?.ai_analysis ? [decision.ai_analysis] : []);
 
   const requestExtraction = useCallback(async () => {
     if (!id) return;
@@ -28,10 +28,14 @@ export function useDecisionAI(decision, onRefresh) {
     }
   }, [id, onRefresh]);
 
-  const requestAISummary = useCallback(async (force = false) => {
+  const requestAISummary = useCallback(async (force = false, model = null) => {
     if (!id) return;
     try {
-      const response = await apiClient.post(`/ai/decisions/${id}/summarize/`, force ? { force: true } : {});
+      const payload = force ? { force: true } : {};
+      if (model) {
+        payload.model = model;
+      }
+      const response = await apiClient.post(`/ai/decisions/${id}/summarize/`, payload);
       if (response.data.status === 'already_completed') {
         onRefresh?.();
       }
@@ -42,7 +46,7 @@ export function useDecisionAI(decision, onRefresh) {
   }, [id, onRefresh]);
 
   return {
-    aiAnalysis,
+    aiAnalyses,
     requestExtraction,
     requestAISummary,
   };

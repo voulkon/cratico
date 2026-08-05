@@ -35,26 +35,27 @@ def decision_detail(request, decision_id):
         except DocumentExtraction.DoesNotExist:
             has_document_content = False
 
-        # AI analysis (latest completed, if any)
-        ai_analysis_data = None
+        # AI analyses — all completed, newest first
+        ai_analyses_data = []
         try:
-            ai_analysis = (
+            ai_analyses = (
                 DecisionAIAnalysis.objects
                 .filter(decision=decision, status="COMPLETED")
+                .exclude(summary="")
                 .order_by("-created_at")
-                .first()
             )
-            if ai_analysis:
-                ai_analysis_data = {
-                    "status": ai_analysis.status,
-                    "summary": ai_analysis.summary,
-                    "cost_usd": str(ai_analysis.cost_usd) if ai_analysis.cost_usd else None,
-                    "model_used": ai_analysis.model_used,
-                    "completed_at": ai_analysis.completed_at,
-                    "error_message": ai_analysis.error_message,
-                }
+            for ai in ai_analyses:
+                ai_analyses_data.append({
+                    "id": ai.id,
+                    "status": ai.status,
+                    "summary": ai.summary,
+                    "cost_usd": str(ai.cost_usd) if ai.cost_usd else None,
+                    "model_used": ai.model_used,
+                    "completed_at": ai.completed_at,
+                    "error_message": ai.error_message,
+                })
         except DecisionAIAnalysis.DoesNotExist:
-            ai_analysis_data = None
+            ai_analyses_data = []
 
         # Serialize decision data
         decision_data = {
@@ -89,7 +90,7 @@ def decision_detail(request, decision_id):
                 else None
             ),
             "has_document_content": has_document_content,
-            "ai_analysis": ai_analysis_data,
+            "ai_analyses": ai_analyses_data,
             "warnings": decision.warnings,
             "has_private_data": decision.has_private_data,
             "organization": (

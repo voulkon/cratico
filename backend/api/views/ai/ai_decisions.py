@@ -71,8 +71,10 @@ def request_summary(request, decision_id: int):
     """
     Request AI summarization for a decision.
 
-    Idempotent: returns cached result if already completed.
+    Idempotent: returns cached result if already completed for the same model.
     Pass ``{"force": true}`` in the body to regenerate (re-run the pipeline).
+    Pass ``{"model": "openai/gpt-4o"}`` to use a specific model.
+
     Enqueues via the queue service for concurrency control.
     """
     try:
@@ -81,12 +83,16 @@ def request_summary(request, decision_id: int):
         return Response({"error": "Decision not found"}, status=status.HTTP_404_NOT_FOUND)
 
     force = bool(request.data.get("force", False))
+    model = request.data.get("model") or None
 
-    # Check if already completed
-    existing = DecisionAIAnalysis.objects.filter(
+    # Check if already completed for this model
+    existing_qs = DecisionAIAnalysis.objects.filter(
         decision=decision,
         status=AnalysisStatus.COMPLETED,
-    ).order_by("-created_at").first()
+    )
+    if model:
+        existing_qs = existing_qs.filter(model_used=model)
+    existing = existing_qs.order_by("-created_at").first()
 
     if existing and existing.summary and not force:
         return Response({
@@ -98,16 +104,14 @@ def request_summary(request, decision_id: int):
             "completed_at": existing.completed_at,
         })
 
-    if force and existing:
-        # With the FK model, force means "create a new analysis row" — the
-        # task will do that.  We just skip the early-return below.
-        pass
-
-    # Check if currently running
-    running = DecisionAIAnalysis.objects.filter(
+    # Check if currently running for this model
+    running_qs = DecisionAIAnalysis.objects.filter(
         decision=decision,
         status=AnalysisStatus.RUNNING,
-    ).first()
+    )
+    if model:
+        running_qs = running_qs.filter(model_used=model)
+    running = running_qs.first()
 
     if running:
         return Response({
@@ -115,11 +119,15 @@ def request_summary(request, decision_id: int):
             "status": "already_running",
         }, status=status.HTTP_202_ACCEPTED)
 
-    # Enqueue via the queue service
+    # Enqueue via the queue service.
+    # Always use force=True to bypass the Redis queue's per-decision completed
+    # check — the DB-level check above already confirmed we need a new analysis
+    # (either no analysis exists for this model, or the caller passed force=True).
+    # task_force carries the original request-level force flag to the task.
     from core.services.decision_processing_queue import DecisionProcessingQueue
 
     queue = DecisionProcessingQueue()
-    result = queue.enqueue(decision_id, user_id=request.user.id, force=force)
+    result = queue.enqueue(decision_id, user_id=request.user.id, force=True, model=model, task_force=force)
 
     # Kick the consumer
     from core.tasks.tasks_decision_ai import consume_decision_queue
@@ -154,29 +162,29 @@ def get_analysis(request, decision_id: int):
             "extracted_at": extraction.extraction_date,
         }
 
-    # AI analysis info (latest, regardless of status)
-    analysis = (
+    # AI analyses — all, newest first
+    analyses = (
         DecisionAIAnalysis.objects
         .filter(decision=decision)
         .order_by("-created_at")
-        .first()
     )
-    analysis_data = None
-    if analysis:
-        analysis_data = {
-            "status": analysis.status,
-            "summary": analysis.summary,
-            "cost_usd": str(analysis.cost_usd) if analysis.cost_usd else None,
-            "input_tokens": analysis.input_tokens,
-            "output_tokens": analysis.output_tokens,
-            "model_used": analysis.model_used,
-            "error_message": analysis.error_message,
-            "completed_at": analysis.completed_at,
-            "pipeline_run_id": analysis.pipeline_run_id,
-        }
+    analyses_data = []
+    for ai in analyses:
+        analyses_data.append({
+            "id": ai.id,
+            "status": ai.status,
+            "summary": ai.summary,
+            "cost_usd": str(ai.cost_usd) if ai.cost_usd else None,
+            "input_tokens": ai.input_tokens,
+            "output_tokens": ai.output_tokens,
+            "model_used": ai.model_used,
+            "error_message": ai.error_message,
+            "completed_at": ai.completed_at,
+            "pipeline_run_id": ai.pipeline_run_id,
+        })
 
     return Response({
         "decision_id": decision_id,
         "extraction": extraction_data,
-        "analysis": analysis_data,
+        "analyses": analyses_data,
     })
