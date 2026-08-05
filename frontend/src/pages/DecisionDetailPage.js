@@ -294,6 +294,114 @@ const DecisionDetailPage = () => {
         </div>
       </div>
 
+      {/* AI Analyses card is rendered below the document content card */}
+      {false && (
+      <CollapsibleCard
+        title={
+          <span className="ai-analysis-title">
+            <SparklesIcon size={16} /> {t('decisionDetail.aiAnalysis')}
+            {aiAnalyses.filter(a => a.status === 'COMPLETED').length > 0 && (
+              <span className="ai-analysis-count">
+                {' '}({aiAnalyses.filter(a => a.status === 'COMPLETED').length})
+              </span>
+            )}
+          </span>
+        }
+        subtitle={
+          aiAnalyses.some(a => a.status === 'RUNNING') ? (
+            <span className="ai-analysis-subtitle">{t('decisionDetail.aiSummaryRunning')}</span>
+          ) : null
+        }
+        badge={
+          aiAnalyses.some(a => a.status === 'RUNNING') ? (
+            <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+          ) : null
+        }
+        defaultOpen={aiAnalyses.filter(a => a.status === 'COMPLETED').length > 0}
+        className="ai-analysis-collapsible"
+      >
+        {/* Model picker + single summarize button — always visible */}
+        <div className="ai-analysis-request-row">
+          <div className="ai-model-picker-row">
+            <ModelDropdown
+              models={models}
+              value={selectedModel}
+              onChange={setSelectedModel}
+              placeholder={t('aiSettings.usePipelineDefault')}
+              t={t}
+            />
+          </div>
+          <button
+            className="document-link ai-summary-retry"
+            onClick={() => handleRequestAISummary(selectedModel || null)}
+            disabled={aiRequesting}
+          >
+            {aiRequesting ? <LoaderIcon className="spinner" size={14} /> : <SparklesIcon size={14} />}
+            {' '}{t('decisionDetail.requestAISummary')}
+          </button>
+        </div>
+
+        {/* Running analyses */}
+        {aiAnalyses.filter(a => a.status === 'RUNNING').map((a, i) => (
+          <div key={`running-${i}`} className="ai-summary-item ai-summary-item--running">
+            <div className="ai-summary-item-header">
+              <span className="ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
+              <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+            </div>
+            <p className="ai-summary-item-status">{t('decisionDetail.aiSummaryRunning')}</p>
+          </div>
+        ))}
+
+        {/* Completed analyses — click header to expand/collapse */}
+        {aiAnalyses.filter(a => a.status === 'COMPLETED').map((a, i) => {
+          const key = a.id || i;
+          const expanded = expandedSummaries[key];
+          return (
+            <div key={key} className="ai-summary-item">
+              <div
+                className="ai-summary-item-header ai-summary-item-header--clickable"
+                onClick={() => toggleSummary(key)}
+                title={expanded ? t('decisionCard.collapse') : t('decisionCard.expand')}
+              >
+                <span className="ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
+                <span className="ai-summary-item-cost">
+                  {a.cost_usd && `$${a.cost_usd}`}
+                  {a.completed_at && ` · ${formatDate(a.completed_at)}`}
+                  <span className="ai-summary-chevron">{expanded ? '▴' : '▾'}</span>
+                </span>
+              </div>
+              {expanded && (
+                <div className="ai-summary-text">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {a.summary}
+                  </ReactMarkdown>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Failed analyses — show error, no retry (pick model again from dropdown to retry) */}
+        {aiAnalyses.filter(a => a.status === 'FAILED').map((a, i) => (
+          <div key={`failed-${i}`} className="ai-summary-item ai-summary-item--failed">
+            <div className="ai-summary-item-header">
+              <span className="ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
+              <AlertIcon size={14} />
+            </div>
+            <p className="ai-summary-item-error">{a.error_message || t('decisionDetail.aiSummaryFailed')}</p>
+          </div>
+        ))}
+
+        {/* No summaries yet */}
+        {aiAnalyses.length === 0 && (
+          <div className="ai-summary-placeholder">
+            <SparklesIcon size={28} />
+            <p>{t('decisionDetail.aiAnalysisDescription')}</p>
+          </div>
+        )}
+      </CollapsibleCard>
+      )}
+
       {/* Hero amount */}
       {decision.amount != null && (
         <div className="amount-hero">
@@ -308,6 +416,44 @@ const DecisionDetailPage = () => {
           </div>
         </div>
       )}
+
+      {/* Core Information — compact inline strip (amount is already
+          shown in the hero, so the financial card was redundant) */}
+      <div className="decision-facts">
+        <span className="fact-item">
+          <CalendarIcon size={14} />
+          <span className="fact-label">{t('decisionDetail.timeline')}</span>
+          <strong>{formatDate(decision.issue_date)}</strong>
+        </span>
+        {decision.publish_timestamp && (
+          <span className="fact-item">
+            <span className="fact-label">{t('decisionDetail.published')}</span>
+            <strong>{formatDate(decision.publish_timestamp)}</strong>
+          </span>
+        )}
+        {decision.submission_timestamp && (
+          <span className="fact-item">
+            <span className="fact-label">{t('decisionDetail.submitted')}</span>
+            <strong>{formatDate(decision.submission_timestamp)}</strong>
+          </span>
+        )}
+        <span className="fact-item">
+          <DocumentTypeIcon size={14} />
+          <span className="fact-label">{t('decisionDetail.decisionType')}</span>
+          <strong>
+            {decision.decision_type
+              ? decision.decision_type.label
+              : t('decisionDetail.typeNotSpecified')}
+          </strong>
+        </span>
+        {decision.financial_year && (
+          <span className="fact-item">
+            <FinancialIcon size={14} />
+            <span className="fact-label">{t('decisionDetail.financialYear')}</span>
+            <strong>{decision.financial_year}</strong>
+          </span>
+        )}
+      </div>
 
       {/* ── Document Content (collapsible, with polling) ──────────────── */}
       <CollapsibleCard
@@ -397,43 +543,113 @@ const DecisionDetailPage = () => {
         )}
       </CollapsibleCard>
 
-      {/* Core Information — compact inline strip (amount is already
-          shown in the hero, so the financial card was redundant) */}
-      <div className="decision-facts">
-        <span className="fact-item">
-          <CalendarIcon size={14} />
-          <span className="fact-label">{t('decisionDetail.timeline')}</span>
-          <strong>{formatDate(decision.issue_date)}</strong>
-        </span>
-        {decision.publish_timestamp && (
-          <span className="fact-item">
-            <span className="fact-label">{t('decisionDetail.published')}</span>
-            <strong>{formatDate(decision.publish_timestamp)}</strong>
+      {/* ── AI Analyses (multi-model, collapsible, with polling) —
+          rendered directly below the document content so the summary
+          follows the raw text ──── */}
+      <CollapsibleCard
+        title={
+          <span className="ai-analysis-title">
+            <SparklesIcon size={16} /> {t('decisionDetail.aiAnalysis')}
+            {aiAnalyses.filter(a => a.status === 'COMPLETED').length > 0 && (
+              <span className="ai-analysis-count">
+                {' '}({aiAnalyses.filter(a => a.status === 'COMPLETED').length})
+              </span>
+            )}
           </span>
+        }
+        subtitle={
+          aiAnalyses.some(a => a.status === 'RUNNING') ? (
+            <span className="ai-analysis-subtitle">{t('decisionDetail.aiSummaryRunning')}</span>
+          ) : null
+        }
+        badge={
+          aiAnalyses.some(a => a.status === 'RUNNING') ? (
+            <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+          ) : null
+        }
+        defaultOpen={aiAnalyses.filter(a => a.status === 'COMPLETED').length > 0}
+        className="ai-analysis-collapsible"
+      >
+        {/* Model picker + single summarize button — always visible */}
+        <div className="ai-analysis-request-row">
+          <div className="ai-model-picker-row">
+            <ModelDropdown
+              models={models}
+              value={selectedModel}
+              onChange={setSelectedModel}
+              placeholder={t('aiSettings.usePipelineDefault')}
+              t={t}
+            />
+          </div>
+          <button
+            className="document-link ai-summary-retry"
+            onClick={() => handleRequestAISummary(selectedModel || null)}
+            disabled={aiRequesting}
+          >
+            {aiRequesting ? <LoaderIcon className="spinner" size={14} /> : <SparklesIcon size={14} />}
+            {' '}{t('decisionDetail.requestAISummary')}
+          </button>
+        </div>
+
+        {/* Running analyses */}
+        {aiAnalyses.filter(a => a.status === 'RUNNING').map((a, i) => (
+          <div key={`running-${i}`} className="ai-summary-item ai-summary-item--running">
+            <div className="ai-summary-item-header">
+              <span className="ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
+              <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+            </div>
+            <p className="ai-summary-item-status">{t('decisionDetail.aiSummaryRunning')}</p>
+          </div>
+        ))}
+
+        {/* Completed analyses — click header to expand/collapse */}
+        {aiAnalyses.filter(a => a.status === 'COMPLETED').map((a, i) => {
+          const key = a.id || i;
+          const expanded = expandedSummaries[key];
+          return (
+            <div key={key} className="ai-summary-item">
+              <div
+                className="ai-summary-item-header ai-summary-item-header--clickable"
+                onClick={() => toggleSummary(key)}
+                title={expanded ? t('decisionCard.collapse') : t('decisionCard.expand')}
+              >
+                <span className="ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
+                <span className="ai-summary-item-cost">
+                  {a.cost_usd && `$${a.cost_usd}`}
+                  {a.completed_at && ` · ${formatDate(a.completed_at)}`}
+                  <span className="ai-summary-chevron">{expanded ? '▴' : '▾'}</span>
+                </span>
+              </div>
+              {expanded && (
+                <div className="ai-summary-text">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {a.summary}
+                  </ReactMarkdown>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Failed analyses — show error, no retry (pick model again from dropdown to retry) */}
+        {aiAnalyses.filter(a => a.status === 'FAILED').map((a, i) => (
+          <div key={`failed-${i}`} className="ai-summary-item ai-summary-item--failed">
+            <div className="ai-summary-item-header">
+              <span className="ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
+              <AlertIcon size={14} />
+            </div>
+            <p className="ai-summary-item-error">{a.error_message || t('decisionDetail.aiSummaryFailed')}</p>
+          </div>
+        ))}
+
+        {/* No summaries yet */}
+        {aiAnalyses.length === 0 && (
+          <div className="ai-summary-placeholder">
+            <SparklesIcon size={28} />
+            <p>{t('decisionDetail.aiAnalysisDescription')}</p>
+          </div>
         )}
-        {decision.submission_timestamp && (
-          <span className="fact-item">
-            <span className="fact-label">{t('decisionDetail.submitted')}</span>
-            <strong>{formatDate(decision.submission_timestamp)}</strong>
-          </span>
-        )}
-        <span className="fact-item">
-          <DocumentTypeIcon size={14} />
-          <span className="fact-label">{t('decisionDetail.decisionType')}</span>
-          <strong>
-            {decision.decision_type
-              ? decision.decision_type.label
-              : t('decisionDetail.typeNotSpecified')}
-          </strong>
-        </span>
-        {decision.financial_year && (
-          <span className="fact-item">
-            <FinancialIcon size={14} />
-            <span className="fact-label">{t('decisionDetail.financialYear')}</span>
-            <strong>{decision.financial_year}</strong>
-          </span>
-        )}
-      </div>
+      </CollapsibleCard>
 
       {/* Organizational Context — stat cards (Organization / Signers / Units) */}
       <div className="section-block">
@@ -612,106 +828,6 @@ const DecisionDetailPage = () => {
           </details>
         )}
       </div>
-
-      {/* ── AI Analyses (multi-model, collapsible, with polling) ──── */}
-      <CollapsibleCard
-        title={
-          <span className="ai-analysis-title">
-            <SparklesIcon size={16} /> {t('decisionDetail.aiAnalysis')}
-            {aiAnalyses.filter(a => a.status === 'COMPLETED').length > 0 && (
-              <span className="ai-analysis-count">
-                {' '}({aiAnalyses.filter(a => a.status === 'COMPLETED').length})
-              </span>
-            )}
-          </span>
-        }
-        subtitle={
-          aiAnalyses.some(a => a.status === 'RUNNING') ? (
-            <span className="ai-analysis-subtitle">{t('decisionDetail.aiSummaryRunning')}</span>
-          ) : null
-        }
-        badge={
-          aiAnalyses.some(a => a.status === 'RUNNING') ? (
-            <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-          ) : null
-        }
-        defaultOpen={aiAnalyses.filter(a => a.status === 'COMPLETED').length > 0}
-        className="ai-analysis-collapsible"
-      >
-        {/* Model picker + single summarize button — always visible */}
-        <div className="ai-analysis-request-row">
-          <div className="ai-model-picker-row">
-            <ModelDropdown
-              models={models}
-              value={selectedModel}
-              onChange={setSelectedModel}
-              placeholder={t('aiSettings.usePipelineDefault')}
-              t={t}
-            />
-          </div>
-          <button
-            className="document-link ai-summary-retry"
-            onClick={() => handleRequestAISummary(selectedModel || null)}
-            disabled={aiRequesting}
-          >
-            {aiRequesting ? <LoaderIcon className="spinner" size={14} /> : <SparklesIcon size={14} />}
-            {' '}{t('decisionDetail.requestAISummary')}
-          </button>
-        </div>
-
-        {/* Running analyses */}
-        {aiAnalyses.filter(a => a.status === 'RUNNING').map((a, i) => (
-          <div key={`running-${i}`} className="ai-summary-item ai-summary-item--running">
-            <div className="ai-summary-item-header">
-              <span className="ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
-              <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
-            </div>
-            <p className="ai-summary-item-status">{t('decisionDetail.aiSummaryRunning')}</p>
-          </div>
-        ))}
-
-        {/* Completed analyses — click header to expand/collapse */}
-        {aiAnalyses.filter(a => a.status === 'COMPLETED').map((a, i) => {
-          const key = a.id || i;
-          const expanded = expandedSummaries[key];
-          return (
-            <div key={key} className="ai-summary-item">
-              <div
-                className="ai-summary-item-header ai-summary-item-header--clickable"
-                onClick={() => toggleSummary(key)}
-                title={expanded ? t('decisionCard.collapse') : t('decisionCard.expand')}
-              >
-                <span className="ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
-                <span className="ai-summary-item-cost">
-                  {a.cost_usd && `$${a.cost_usd}`}
-                  {a.completed_at && ` · ${formatDate(a.completed_at)}`}
-                  <span className="ai-summary-chevron">{expanded ? '▴' : '▾'}</span>
-                </span>
-              </div>
-              {expanded && <div className="ai-summary-text">{a.summary}</div>}
-            </div>
-          );
-        })}
-
-        {/* Failed analyses — show error, no retry (pick model again from dropdown to retry) */}
-        {aiAnalyses.filter(a => a.status === 'FAILED').map((a, i) => (
-          <div key={`failed-${i}`} className="ai-summary-item ai-summary-item--failed">
-            <div className="ai-summary-item-header">
-              <span className="ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
-              <AlertIcon size={14} />
-            </div>
-            <p className="ai-summary-item-error">{a.error_message || t('decisionDetail.aiSummaryFailed')}</p>
-          </div>
-        ))}
-
-        {/* No summaries yet */}
-        {aiAnalyses.length === 0 && (
-          <div className="ai-summary-placeholder">
-            <SparklesIcon size={28} />
-            <p>{t('decisionDetail.aiAnalysisDescription')}</p>
-          </div>
-        )}
-      </CollapsibleCard>
 
       {/* Related Decisions */}
       {relatedDecisions && relatedDecisions.length > 0 && (

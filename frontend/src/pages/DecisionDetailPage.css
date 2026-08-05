@@ -642,6 +642,14 @@
   margin-bottom: var(--spacing-md);
 }
 
+/* AI summary body is rendered as markdown — let the block elements flow
+   naturally instead of preserving raw source whitespace. Scoped to the
+   decision-detail AI card so the shared .ai-summary-text (used by
+   AISummaryCard) keeps its plain-text pre-wrap behavior. */
+.ai-analysis-collapsible .ai-summary-text {
+  white-space: normal;
+}
+
 .ai-summary-footer {
   padding-top: var(--spacing-sm);
   border-top: 1px solid var(--border-color);
