@@ -745,7 +745,7 @@
 }
 
 .dc-ai-summary-item {
-  border: 1px solid var(--border-color);
+  border: 1px solid color-mix(in srgb, var(--muted-text) 15%, transparent);
   border-radius: var(--radius-sm);
   padding: var(--spacing-sm);
   margin-bottom: var(--spacing-sm);
@@ -757,8 +757,8 @@
 }
 
 .dc-ai-summary-item--failed {
-  border-color: #e74c3c33;
-  background: #e74c3c08;
+  border-color: color-mix(in srgb, var(--error-text) 25%, transparent);
+  background: var(--error-bg);
 }
 
 .dc-ai-summary-header {
@@ -806,6 +806,6 @@
 
 .dc-ai-summary-error {
   font-size: var(--font-xs);
-  color: #e74c3c;
+  color: var(--error-text);
   margin: var(--spacing-xs) 0;
 }
