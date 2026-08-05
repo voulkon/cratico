@@ -156,7 +156,6 @@ def _get_or_create_default_pipeline():
             name="Summarize each decision",
             config={
                 "provider": "OPENROUTER",
-                "model": "anthropic/claude-3.5-sonnet",
                 "map_over_items": True,
                 "system_prompt": "You are a legal analyst. Summarize the key points of this government decision concisely.",
                 "prompt_template": "Summarize this decision:\n{{ text }}",
@@ -172,7 +171,6 @@ def _get_or_create_default_pipeline():
             config={
                 "strategy": "summarize_each_then_merge",
                 "provider": "OPENROUTER",
-                "model": "anthropic/claude-3.5-sonnet",
                 "system_prompt": "You are a legal analyst. Synthesize the provided decision summaries into a single coherent overview.",
                 "merge_prompt_template": "Synthesize a single summary of these decision summaries:\n{{ text }}",
                 "temperature": 0.3,

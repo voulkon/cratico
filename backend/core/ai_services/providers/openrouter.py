@@ -150,7 +150,9 @@ class OpenRouterProvider(BaseLLMProvider):
             choices = data.get("choices", [])
             generated_text = ""
             if choices:
-                generated_text = choices[0].get("message", {}).get("content", "")
+                # .get() returns None when the key exists but has a null value,
+                # so use `or ""` to fall back to an empty string in that case.
+                generated_text = choices[0].get("message", {}).get("content") or ""
 
             usage = data.get("usage", {})
             input_tokens = usage.get("prompt_tokens", 0)

@@ -89,8 +89,15 @@ const AISummaryCard = ({ summary, onGenerate, triggering }) => {
 
       case 'SKIPPED':
         return (
-          <div className="ai-summary-skipped">
-            {t('notifications.aiSummarySkipped')}
+          <div className="ai-summary-pending">
+            <p>{t('notifications.aiSummarySkipped')}</p>
+            <button
+              className="ai-summary-btn ai-summary-btn--primary"
+              onClick={onGenerate}
+              disabled={triggering}
+            >
+              {triggering ? t('notifications.aiSummaryStarting') : t('notifications.aiSummaryGenerate')}
+            </button>
           </div>
         );
 

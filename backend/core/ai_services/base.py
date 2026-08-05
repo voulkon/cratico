@@ -190,6 +190,7 @@ class BaseLLMProvider(ABC):
 
         response = {
             "success": success,
+            "text": text or "",
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "estimated_cost_usd": estimated_cost,
@@ -199,9 +200,6 @@ class BaseLLMProvider(ABC):
             "provider": self.provider_name,
             "is_estimate": False,
         }
-
-        if text is not None:
-            response["text"] = text
 
         if error:
             response["error"] = error

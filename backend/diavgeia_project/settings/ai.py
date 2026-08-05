@@ -14,5 +14,9 @@ AI_SECRETS_KEY = os.getenv("AI_SECRETS_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 OPENROUTER_API_BASE = os.getenv("OPENROUTER_API_BASE", "https://openrouter.ai/api/v1")
 
+# System-wide default model for pipeline steps that don't specify one.
+# Overridden by user preferences when set.
+AI_DEFAULT_MODEL = os.getenv("AI_DEFAULT_MODEL", "deepseek/deepseek-v4-flash")
+
 # Optional global cap on system-billed AI spend (USD/month).
 SYSTEM_AI_MONTHLY_CAP = float(os.getenv("SYSTEM_AI_MONTHLY_CAP", "0") or "0")
