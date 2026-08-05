@@ -275,39 +275,45 @@ class ExtractorComparison(models.Model):
         return f"Comparison for {self.decision.ada}"
 
 
-class AmountVerificationStatus(models.TextChoices):
+class TextProcessStatus(models.TextChoices):
     PENDING = "PENDING", _("Pending")
-    TEXT_EXTRACTING = "TEXT_EXTRACTING", _("Extracting Text")
-    AI_ANALYZING = "AI_ANALYZING", _("AI Analyzing")
+    RUNNING = "RUNNING", _("Running")
     COMPLETED = "COMPLETED", _("Completed")
     FAILED = "FAILED", _("Failed")
-    SKIPPED = "SKIPPED", _("Skipped – No Text Available")
+    SKIPPED = "SKIPPED", _("Skipped")
 
 
-class AmountVerificationRun(models.Model):
+class TextProcessRun(models.Model):
     """
-    A single amount-verification pass over one document extraction.
+    A single execution of a text process over one document extraction.
 
-    One row per (extraction, method, provider, model, version), so the regex
-    heuristic and AI results (and different LLMs) can be stored side-by-side
-    and compared.  The raw amounts found in the text are stored as
-    ``TextAmountCandidate`` children; the decision-level verdict lives in
-    ``AmountVerificationResolution``.
+    A *text process* is any algorithm that scans ``DocumentExtraction.raw_text``
+    and emits labeled spans (``TextSpan``) — e.g. amount detection, date
+    detection, boilerplate breakdown, entity detection.  One row per
+    (extraction, process, method, provider, model, version), so regex
+    heuristics and any number of AI models can coexist per text and be
+    compared.  Processes that produce a decision-level verdict (e.g. the
+    chosen amount) persist it in ``TextProcessResolution``.
     """
 
     extraction = models.ForeignKey(
         DocumentExtraction,
         on_delete=models.CASCADE,
-        related_name="amount_verification_runs",
-        help_text=_("The exact document text this run was verified against"),
+        related_name="text_process_runs",
+        help_text=_("The exact document text snapshot this run was executed on"),
     )
 
-    # --- Method identity ---
+    # --- Process identity ---
+    process = models.CharField(
+        max_length=50,
+        db_index=True,
+        help_text=_("Process slug: 'amount', 'dates', 'boilerplate', ..."),
+    )
     method = models.CharField(
         max_length=20,
         choices=[("regex", _("Regex / Heuristics")), ("ai", _("AI / LLM"))],
         default="regex",
-        help_text=_("Detection method used for this run"),
+        help_text=_("Execution method used for this run"),
     )
     provider = models.CharField(
         max_length=30,
@@ -319,169 +325,167 @@ class AmountVerificationRun(models.Model):
         max_length=100,
         null=True,
         blank=True,
-        help_text=_("Model: 'greek-amount-v1' for regex runs, else the LLM name"),
+        help_text=_("Model name for AI runs, else the algorithm tag"),
     )
     version = models.CharField(max_length=20, default="1.0")
 
     # --- Status ---
     status = models.CharField(
         max_length=20,
-        choices=AmountVerificationStatus.choices,
-        default=AmountVerificationStatus.PENDING,
+        choices=TextProcessStatus.choices,
+        default=TextProcessStatus.PENDING,
         db_index=True,
     )
 
-    # --- Amounts (three-way comparison) ---
-    raw_amount = models.DecimalField(
-        max_digits=15,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text=_("The decision.amount field from Diavgeia (may be inaccurate)"),
-    )
-    calculated_amount = models.DecimalField(
-        max_digits=15,
-        decimal_places=2,
-        null=True,
+    # --- Run-level metadata / params / audit trail ---
+    meta = models.JSONField(
+        default=dict,
         blank=True,
         help_text=_(
-            "Accurate total from DecisionAmountField (FinancialCalculationService)"
+            "Run-level inputs & outputs: params, raw response, computed totals, ..."
         ),
-    )
-    ai_verified_amount = models.DecimalField(
-        max_digits=15,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text=_("The amount this run decided on from the document text"),
-    )
-
-    # --- Result ---
-    has_discrepancy = models.BooleanField(
-        default=False,
-        help_text=_("True if this run's chosen amount contradicts the DB amounts"),
-    )
-    discrepancy_note = models.TextField(
-        null=True,
-        blank=True,
-        help_text=_("Human-readable explanation of the discrepancy"),
-    )
-    ai_raw_response = models.TextField(
-        null=True,
-        blank=True,
-        help_text=_("Full method response / audit trail for this run"),
     )
     error_message = models.TextField(null=True, blank=True)
 
-    # --- Cost tracking ---
+    # --- Cost tracking (null for regex runs) ---
     input_tokens = models.IntegerField(null=True, blank=True)
     output_tokens = models.IntegerField(null=True, blank=True)
     cost_usd = models.DecimalField(
         max_digits=10, decimal_places=6, null=True, blank=True
     )
 
+    triggered_by = models.ForeignKey(
+        "users.CustomUser",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="text_process_runs",
+    )
+    pipeline_run = models.ForeignKey(
+        "core.PipelineRun",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="text_process_runs",
+        help_text=_("Set when this process ran as part of a pipeline"),
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = _("Amount Verification Run")
-        verbose_name_plural = _("Amount Verification Runs")
+        verbose_name = _("Text Process Run")
+        verbose_name_plural = _("Text Process Runs")
         unique_together = [
-            ["extraction", "method", "provider", "model", "version"]
+            ["extraction", "process", "method", "provider", "model", "version"]
         ]
         indexes = [
-            models.Index(fields=["status"]),
-            models.Index(fields=["extraction", "status"]),
+            models.Index(fields=["process", "status"]),
+            models.Index(fields=["extraction", "process"]),
             models.Index(fields=["-created_at"]),
         ]
 
     def __str__(self):
-        return f"{self.extraction.decision.ada} [{self.method}/{self.provider}]"
+        return (
+            f"{self.extraction.decision.ada} [{self.process}/"
+            f"{self.method}/{self.provider}]"
+        )
 
 
-class TextAmountCandidate(models.Model):
+class TextSpan(models.Model):
     """
-    A distinct monetary amount detected in the document text by a run.
+    A labeled region of text produced by a ``TextProcessRun``.
 
-    One row per unique (run, amount) value, with how many times it appeared
-    (``occurrence_count``) and context about the first occurrence.  These are
-    the raw observations — stored *before* any decision about which one is the
-    correct amount.
+    ``start``/``end`` are char offsets into the run's extraction
+    ``raw_text`` (inclusive/exclusive) — including any markdown characters
+    the extractor emitted.  ``value`` holds the process-specific payload
+    (e.g. ``{"amount": "30000.00"}`` or ``{"date": "2026-08-05"}``).
     """
 
     run = models.ForeignKey(
-        AmountVerificationRun,
+        TextProcessRun,
         on_delete=models.CASCADE,
-        related_name="text_candidates",
+        related_name="spans",
     )
-    amount = models.DecimalField(max_digits=15, decimal_places=2)
-    raw = models.CharField(
-        max_length=50, help_text=_("Matched token, e.g. '10.000,00'")
+    label = models.CharField(
+        max_length=50,
+        db_index=True,
+        help_text=_(
+            "Span type: 'amount', 'date', 'boilerplate', 'signer', "
+            "'subject', 'main_point', 'useless', 'entity', ..."
+        ),
     )
-    position = models.IntegerField(
-        help_text=_("Char offset of the first occurrence in the text")
+    start = models.IntegerField(help_text=_("Char offset, inclusive"))
+    end = models.IntegerField(help_text=_("Char offset, exclusive"))
+    text_snippet = models.CharField(
+        max_length=500,
+        help_text=_("The matched text (for quick preview / debugging)"),
     )
-    near_keyword = models.BooleanField(
-        default=False,
-        help_text=_("True if the occurrence is near a financial keyword"),
+    value = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_("Process-specific payload for this span"),
     )
+    confidence = models.FloatField(null=True, blank=True)
     occurrence_count = models.PositiveIntegerField(
-        default=1, help_text=_("How many times this amount appears in the text")
+        default=1,
+        help_text=_("How many times this span's value appears in the text"),
     )
 
     class Meta:
-        verbose_name = _("Text Amount Candidate")
-        verbose_name_plural = _("Text Amount Candidates")
-        unique_together = [["run", "amount"]]
+        verbose_name = _("Text Span")
+        verbose_name_plural = _("Text Spans")
+        ordering = ["start"]
         indexes = [
-            models.Index(fields=["run", "amount"]),
+            models.Index(fields=["run", "label"]),
+            models.Index(fields=["run", "start"]),
         ]
 
     def __str__(self):
-        return f"{self.raw} (x{self.occurrence_count})"
+        return f"{self.label} [{self.start}:{self.end}] {self.text_snippet[:40]!r}"
 
 
-class AmountVerificationResolution(models.Model):
+class TextProcessResolution(models.Model):
     """
-    Decision-level verdict for amount verification.
+    Decision-level verdict for a text process (optional).
 
-    Points at the winning run and the amount that run chose.  This is the
-    record queries/UI read to answer 'is this decision's amount trustworthy?'.
+    Only processes that pick a *winner* among their spans need one (e.g. the
+    amount process resolves which detected amount is the correct one).
+    One row per (decision, process) — the record queries/UI read.
     """
 
-    decision = models.OneToOneField(
+    decision = models.ForeignKey(
         Decision,
         on_delete=models.CASCADE,
-        related_name="amount_verification",
+        related_name="text_process_resolutions",
     )
+    process = models.CharField(max_length=50, db_index=True)
     winning_run = models.ForeignKey(
-        AmountVerificationRun,
+        TextProcessRun,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="resolutions",
     )
-    chosen_amount = models.DecimalField(
-        max_digits=15,
-        decimal_places=2,
-        null=True,
-        blank=True,
-        help_text=_("The final amount believed correct for this decision"),
-    )
-    chosen_candidate = models.ForeignKey(
-        TextAmountCandidate,
+    chosen_span = models.ForeignKey(
+        TextSpan,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="+",
-        help_text=_("The text candidate that corresponds to the chosen amount"),
+        help_text=_("The span that corresponds to the resolved value"),
+    )
+    value = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_("The final resolved value, e.g. {'amount': '30000.00'}"),
     )
     has_discrepancy = models.BooleanField(
         default=False,
         db_index=True,
         help_text=_("True if the winning run found a discrepancy"),
     )
-    discrepancy_note = models.TextField(
+    note = models.TextField(
         null=True, blank=True, help_text=_("Explanation copied from the winning run")
     )
 
@@ -489,26 +493,12 @@ class AmountVerificationResolution(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        verbose_name = _("Amount Verification Resolution")
-        verbose_name_plural = _("Amount Verification Resolutions")
+        verbose_name = _("Text Process Resolution")
+        verbose_name_plural = _("Text Process Resolutions")
+        unique_together = [["decision", "process"]]
         indexes = [
             models.Index(fields=["-updated_at"]),
         ]
 
     def __str__(self):
-        return f"Amount resolution for {self.decision.ada}"
-
-    @property
-    def discrepancy_ratio(self) -> float | None:
-        """How far the chosen amount is from the calculated amount (0–1)."""
-        if (
-            self.chosen_amount
-            and self.winning_run
-            and self.winning_run.calculated_amount
-            and self.winning_run.calculated_amount > 0
-        ):
-            return float(
-                abs(self.chosen_amount - self.winning_run.calculated_amount)
-                / self.winning_run.calculated_amount
-            )
-        return None
+        return f"{self.process} resolution for {self.decision.ada}"
