@@ -49,7 +49,7 @@ class BaseLLMProvider(ABC):
         # Validate pricing exists
         pricing = self.cost_estimator.get_pricing(provider_name, model_name)
         if not pricing:
-            logger.warning(
+            logger.debug(
                 f"No pricing found for {provider_name}/{model_name}. "
                 "Cost tracking will be incomplete."
             )
@@ -149,7 +149,7 @@ class BaseLLMProvider(ABC):
         pricing = self.cost_estimator.get_pricing(self.provider_name, self.model_name)
 
         if not pricing:
-            logger.warning(
+            logger.debug(
                 f"No pricing available for {self.provider_name}/{self.model_name}"
             )
             return Decimal("0")
