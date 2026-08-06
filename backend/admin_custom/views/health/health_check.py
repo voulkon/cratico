@@ -311,7 +311,7 @@ def retry_document_extraction(request, pk):
             )
         except DocumentExtraction.DoesNotExist:
             # Create extraction record if it doesn't exist
-            if decision.document_url:
+            if decision.document_url_or_fallback:
                 DocumentExtraction.objects.create(
                     decision=decision, extraction_status=ProcessingStatus.PENDING
                 )
@@ -321,7 +321,7 @@ def retry_document_extraction(request, pk):
                 )
             else:
                 messages.error(
-                    request, "[ERROR] Decision has no document URL to extract"
+                    request, "[ERROR] Decision has no document URL to extract (and no ADA)"
                 )
                 return redirect("admin:health_check_detail", pk=pk)
 

@@ -287,6 +287,30 @@ class Decision(models.Model):
     # PostgreSQL Full-Text Search
     search_vector = SearchVectorField(null=True, blank=True)
 
+    # ------------------------------------------------------------------
+    # Derived properties
+    # ------------------------------------------------------------------
+
+    @property
+    def document_url_or_fallback(self) -> str | None:
+        """
+        Return ``document_url`` if set, otherwise construct it from the ADA.
+
+        Diavgeia document URLs follow the pattern
+        ``https://diavgeia.gov.gr/doc/{ada}`` — this property ensures every
+        decision has a usable URL even when the stored ``document_url`` is
+        empty or NULL (which happens for a small minority of imported decisions).
+        """
+        if self.document_url:
+            return self.document_url
+        if self.ada:
+            return f"https://diavgeia.gov.gr/doc/{self.ada}"
+        return None
+
+    # ------------------------------------------------------------------
+    # Save / lifecycle
+    # ------------------------------------------------------------------
+
     def save(self, *args, **kwargs):
         # Auto-populate the computed fields
         # Diavgeia encodes issue dates as midnight Athens time, so we must

@@ -108,9 +108,10 @@ class DecisionHealthService:
             if not decision.decision_type:
                 issues.append("Missing decision type")
 
-            # Check document URL if applicable
-            if hasattr(decision, "document_url") and decision.document_url:
-                if not decision.document_url.startswith("http"):
+            # Check document URL if applicable (use fallback which constructs URL from ADA)
+            doc_url = getattr(decision, "document_url_or_fallback", None)
+            if doc_url:
+                if not str(doc_url).startswith("http"):
                     issues.append("Invalid document URL format")
 
             # Determine status
@@ -305,57 +306,69 @@ class DecisionHealthService:
     ):
         """Check if document is downloaded and text extracted"""
         try:
-            # Check if decision has a document URL
-            if not getattr(decision, "document_url", None):
-                status = HealthStatus.HEALTHY  # No document to extract is normal
-                message = "No document URL - extraction not needed"
-                details = {"has_document_url": False}
-            else:
-                # Check if extraction exists
-                try:
-                    extraction = decision.text_extraction
+            # Check if decision has a document URL (stored or constructable from ADA)
+            doc_url = getattr(decision, "document_url_or_fallback", None)
+            if not doc_url:
+                health_check.set_finding(
+                    "document_extraction",
+                    HealthStatus.WARNING,
+                    "No document URL and no ADA to construct one",
+                    {"has_document_url": False, "has_ada": bool(decision.ada)},
+                )
+                return
 
-                    if extraction.extraction_status == ProcessingStatus.COMPLETED:
-                        if (
-                            extraction.raw_text
-                            and len(extraction.raw_text.strip()) > 10
-                        ):
-                            status = HealthStatus.HEALTHY
-                            message = "Document successfully extracted"
-                        else:
-                            status = HealthStatus.WARNING
-                            message = "Extraction completed but text appears empty"
+            has_stored_url = bool(getattr(decision, "document_url", None))
+            details = {
+                "has_document_url": has_stored_url,
+                "has_ada": bool(decision.ada),
+                "using_fallback": not has_stored_url,
+            }
 
-                    elif extraction.extraction_status == ProcessingStatus.FAILED:
-                        status = HealthStatus.ERROR
-                        message = f"Extraction failed: {extraction.error_message or 'Unknown error'}"
+            # Check if extraction exists
+            try:
+                extraction = decision.text_extraction
 
-                    elif extraction.extraction_status == ProcessingStatus.PROCESSING:
+                if extraction.extraction_status == ProcessingStatus.COMPLETED:
+                    if (
+                        extraction.raw_text
+                        and len(extraction.raw_text.strip()) > 10
+                    ):
+                        status = HealthStatus.HEALTHY
+                        message = "Document successfully extracted"
+                    else:
                         status = HealthStatus.WARNING
-                        message = "Extraction still in progress"
+                        message = "Extraction completed but text appears empty"
 
-                    elif extraction.extraction_status == ProcessingStatus.NEEDS_VISION:
-                        status = HealthStatus.WARNING
-                        message = "Document needs OCR processing"
-
-                    else:  # PENDING or other
-                        status = HealthStatus.WARNING
-                        message = f"Extraction pending (status: {extraction.extraction_status})"
-
-                    details = {
-                        "has_extraction": True,
-                        "status": extraction.extraction_status,
-                        "provider": extraction.extraction_provider,
-                        "character_count": extraction.character_count,
-                        "page_count": extraction.page_count,
-                        "retry_count": extraction.retry_count,
-                        "error_message": extraction.error_message,
-                    }
-
-                except DocumentExtraction.DoesNotExist:
+                elif extraction.extraction_status == ProcessingStatus.FAILED:
                     status = HealthStatus.ERROR
-                    message = "Document extraction record missing"
-                    details = {"has_extraction": False, "has_document_url": True}
+                    message = f"Extraction failed: {extraction.error_message or 'Unknown error'}"
+
+                elif extraction.extraction_status == ProcessingStatus.PROCESSING:
+                    status = HealthStatus.WARNING
+                    message = "Extraction still in progress"
+
+                elif extraction.extraction_status == ProcessingStatus.NEEDS_VISION:
+                    status = HealthStatus.WARNING
+                    message = "Document needs OCR processing"
+
+                else:  # PENDING or other
+                    status = HealthStatus.WARNING
+                    message = f"Extraction pending (status: {extraction.extraction_status})"
+
+                details.update({
+                    "has_extraction": True,
+                    "status": extraction.extraction_status,
+                    "provider": extraction.extraction_provider,
+                    "character_count": extraction.character_count,
+                    "page_count": extraction.page_count,
+                    "retry_count": extraction.retry_count,
+                    "error_message": extraction.error_message,
+                })
+
+            except DocumentExtraction.DoesNotExist:
+                status = HealthStatus.ERROR
+                message = "Document extraction record missing"
+                details.update({"has_extraction": False})
 
             health_check.set_finding("document_extraction", status, message, details)
 

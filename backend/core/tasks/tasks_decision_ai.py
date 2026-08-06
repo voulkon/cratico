@@ -133,8 +133,8 @@ def extract_decision_text(self, decision_id: int, provider: str = None):
             "extraction_provider": existing.extraction_provider,
         }
 
-    if not decision.document_url:
-        logger.warning(f"Decision {decision_id}: no document URL")
+    if not decision.document_url_or_fallback:
+        logger.warning(f"Decision {decision_id}: no document URL and no ADA to construct one")
         return {"decision_id": decision_id, "status": "no_document_url"}
 
     # Run extraction

@@ -190,13 +190,13 @@ class TextExtractionProcessor(BaseDocumentProcessor):
             bool: Success status
         """
 
-        if not decision.document_url:
-            logger.warning(f"Decision {decision.ada} has no document URL")
+        if not decision.document_url_or_fallback:
+            logger.warning(f"Decision {decision.ada} has no document URL and no ADA")
             return False
 
         # Log which file we're starting to process
         logger.debug(f"Starting processing for decision {decision.ada}")
-        logger.debug(f"Document URL: {decision.document_url}")
+        logger.debug(f"Document URL: {decision.document_url_or_fallback}")
 
         # Use the specified provider or default
         provider = provider or self.default_extractor
@@ -249,7 +249,7 @@ class TextExtractionProcessor(BaseDocumentProcessor):
 
         # Download the PDF
         logger.debug(f"Downloading PDF for {decision.ada}")
-        temp_path, success = self.download_pdf(decision.document_url)
+        temp_path, success = self.download_pdf(decision.document_url_or_fallback)
         if not success:
             logger.error(f"Failed to download PDF for {decision.ada}")
             importer.mark_extraction_failed(extraction, "Failed to download PDF")

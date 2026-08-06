@@ -234,7 +234,7 @@ def queue_document_processing(sender, instance, created, **kwargs):
         # )
         return
 
-    if created and instance.document_url:
+    if created and instance.document_url_or_fallback:
         # Import here to avoid circular imports
         from core.tasks import process_document_task
 
