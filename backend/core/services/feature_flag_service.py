@@ -354,9 +354,9 @@ class FeatureFlagService:
         "SECURITY_VELOCITY_THRESHOLD": {
             "name": "Velocity Threshold (req/min)",
             "description": "Number of requests per minute from a single IP that triggers "
-            "a velocity flag. Default 120 (2 req/sec sustained). "
+            "a velocity flag. Default 300 (5 req/sec sustained). "
             "Tune based on legitimate traffic patterns.",
-            "default": 120,
+            "default": 300,
             "env_var": "SECURITY_VELOCITY_THRESHOLD",
             "category": "security",
             "requires_restart": False,
@@ -387,8 +387,9 @@ class FeatureFlagService:
             "name": "Scan Detection Threshold",
             "description": "Number of distinct endpoints hit by a single IP within "
             "the scan window (default 5 minutes) that triggers a scan flag. "
-            "Default 50.",
-            "default": 50,
+            "Default 80. Endpoints are normalized (numeric IDs collapsed) before "
+            "counting, so /api/decisions/123/ and /api/decisions/456/ count as one.",
+            "default": 80,
             "env_var": "SECURITY_SCAN_THRESHOLD",
             "category": "security",
             "requires_restart": False,
@@ -398,8 +399,8 @@ class FeatureFlagService:
             "name": "Error Rate Threshold",
             "description": "Number of 4xx/5xx responses from a single IP within "
             "the error window (default 5 minutes) that triggers an error-rate flag. "
-            "Default 40.",
-            "default": 40,
+            "Default 60.",
+            "default": 60,
             "env_var": "SECURITY_ERROR_THRESHOLD",
             "category": "security",
             "requires_restart": False,

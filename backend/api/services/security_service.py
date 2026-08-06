@@ -17,16 +17,59 @@ Enforcement:
       to the Redis banned set (sorted by expiry timestamp) and a FlaggedIP
       record is created in the DB.
     - The middleware checks the banned set on every request (O(log n) ZRANGEBYSCORE).
+
+Endpoint normalization:
+    - Scan detection collapses numeric path segments (decision IDs, batch
+      IDs, etc.) into {id} so that browsing many decisions doesn't look
+      like an attacker scanning for endpoints.
+    - Example: /api/decisions/31946583/ → /api/decisions/{id}/
 """
 
 from __future__ import annotations
 
+import re
 import time
 from typing import Optional
 from datetime import timedelta
 from django.utils import timezone
 from django_redis import get_redis_connection
 from loguru import logger
+
+# ── Endpoint normalization for scan detection ───────────────────────
+# Collapse numeric path segments so that browsing many decisions or
+# notification batches does not look like endpoint scanning.
+_NUMERIC_PATH_SEGMENT_RE = re.compile(r"/\d+(?=/|$)")
+
+# Endpoints that are called frequently by the legitimate frontend and
+# should not contribute to velocity/scan/error signals.  Excluding them
+# prevents self-inflicted bans during normal browsing.
+_NOISY_FRONTEND_PREFIXES: tuple[str, ...] = (
+    "/api/ai/models/",
+    "/api/user-data/bookmarks/",
+    "/api/notifications/batches/unread-count/",
+    "/api/admin/jsi18n/",
+    "/api/auth/me/",
+    "/api/system/legal/",
+    "/api/system/config/",
+)
+
+
+def normalize_endpoint_for_scan(path: str) -> str:
+    """Replace numeric path segments with {id} for scan detection.
+
+    >>> normalize_endpoint_for_scan("/api/decisions/31946583/")
+    '/api/decisions/{id}/'
+    >>> normalize_endpoint_for_scan("/api/notifications/batches/280/summary/")
+    '/api/notifications/batches/{id}/summary/'
+    >>> normalize_endpoint_for_scan("/api/ai/models/")
+    '/api/ai/models/'
+    """
+    return _NUMERIC_PATH_SEGMENT_RE.sub("/{id}", path)
+
+
+def is_noisy_endpoint(path: str) -> bool:
+    """Check if this endpoint should be excluded from signal recording."""
+    return path.startswith(_NOISY_FRONTEND_PREFIXES)
 
 from api.redis_keys import (
     SECURITY_BANNED_SET,
@@ -204,17 +247,33 @@ class SecurityService:
         request in the window, not after the *last* request (which would let
         a low-rate attacker keep the counter alive indefinitely by sending
         one request just before the previous TTL elapses).
+
+        Noisy frontend endpoints (/api/ai/models/, /api/user-data/bookmarks/,
+        /api/notifications/batches/unread-count/, etc.) are excluded entirely
+        — they are called constantly by the legitimate SPA and inflate all
+        signals, causing self-inflicted bans during normal usage.
+
+        Scan detection normalizes endpoint paths by collapsing numeric
+        segments into {id} so that browsing many decisions does not look
+        like an attacker scanning for endpoints.  For example:
+        /api/decisions/31946583/ and /api/decisions/31937823/ both become
+        /api/decisions/{id}/ and count as 1 endpoint, not 2.
         """
         if not ip:
+            return
+        # Skip noisy frontend endpoints that are called on every page load
+        if is_noisy_endpoint(endpoint):
             return
         pipe = self.redis.pipeline()
         # Velocity: only set TTL when the key is first created (NX)
         vel_key = get_velocity_key(ip)
         pipe.incr(vel_key)
         pipe.expire(vel_key, SECURITY_VELOCITY_WINDOW, nx=True)
-        # Scan detection
+        # Scan detection — use normalized path so /decisions/123/ and
+        # /decisions/456/ count as the same endpoint.
         scan_key = get_scan_key(ip)
-        pipe.sadd(scan_key, endpoint)
+        normalized = normalize_endpoint_for_scan(endpoint)
+        pipe.sadd(scan_key, normalized)
         pipe.expire(scan_key, SECURITY_SCAN_WINDOW, nx=True)
         # Error rate (optional)
         if is_error:
@@ -260,7 +319,7 @@ class SecurityService:
         # 1. Velocity check
         vel_key = get_velocity_key(ip)
         velocity = int(self.redis.get(vel_key) or 0)
-        vel_threshold = feature_flags.get_value("SECURITY_VELOCITY_THRESHOLD", 120)
+        vel_threshold = feature_flags.get_value("SECURITY_VELOCITY_THRESHOLD", 300)
         if velocity >= vel_threshold:
             return "velocity"
 
@@ -274,14 +333,14 @@ class SecurityService:
         # 3. Scan detection: distinct-endpoint count exceeds threshold
         scan_key = get_scan_key(ip)
         distinct_endpoints = self.redis.scard(scan_key)
-        scan_threshold = feature_flags.get_value("SECURITY_SCAN_THRESHOLD", 50)
+        scan_threshold = feature_flags.get_value("SECURITY_SCAN_THRESHOLD", 80)
         if distinct_endpoints >= scan_threshold:
             return "scan"
 
         # 4. Error rate: 4xx/5xx count exceeds threshold
         err_key = get_errors_key(ip)
         errors = int(self.redis.get(err_key) or 0)
-        error_threshold = feature_flags.get_value("SECURITY_ERROR_THRESHOLD", 40)
+        error_threshold = feature_flags.get_value("SECURITY_ERROR_THRESHOLD", 60)
         if errors >= error_threshold:
             return "errors"
 
