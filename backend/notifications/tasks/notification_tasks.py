@@ -88,6 +88,18 @@ def check_single_subscription(
                 )
             )
             if should_email:
+                # Never send email to users whose email hasn't been verified.
+                # SES rejects unverified identities; this also prevents
+                # sending to test/placeholder addresses (e.g. admin@example.com).
+                if not getattr(subscription.user, "email_verified", False):
+                    logger.warning(
+                        f"User {subscription.user_id} ({subscription.user.email}) "
+                        f"email not verified — skipping notification email for "
+                        f"batch {batch_result['batch_id']} (subscription {subscription_id})"
+                    )
+                    should_email = False
+
+            if should_email:
                 logger.info(
                     f"Triggering email for batch {batch_result['batch_id']} "
                     f"(subscription {subscription_id}, decisions_added={batch_result.get('decisions_added', 0)}, "
@@ -871,6 +883,16 @@ def send_consolidated_email_for_user(*args, user_id=None):
     except User.DoesNotExist:
         logger.error(f"User {user_id} not found, cannot send consolidated email")
         return {"user_id": user_id, "batches_emailed": 0, "success": False}
+
+    # Never send email to users whose email hasn't been verified.
+    # SES rejects unverified identities; this also prevents sending
+    # to test/placeholder addresses (e.g. admin@example.com).
+    if not getattr(user, "email_verified", False):
+        logger.warning(
+            f"User {user_id} ({user.email}) email not verified — "
+            f"skipping consolidated notification email"
+        )
+        return {"user_id": user_id, "batches_emailed": 0, "success": True}
 
     user_language = getattr(user, "preferred_language", "en") or "en"
 
