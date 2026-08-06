@@ -388,7 +388,7 @@ class EntityAmountExtractionService:
                 if isinstance(value, dict):
                     # Nested amount like {"amount": 1000, "currency": "EUR"}
                     amount = value.get("amount")
-                    currency = value.get("currency", "EUR")
+                    currency = value.get("currency") or "EUR"
                     if amount is not None:
                         amounts.append(amount)
                         currencies.append(currency)
@@ -413,7 +413,7 @@ class EntityAmountExtractionService:
                     for i, item in enumerate(value):
                         if isinstance(item, dict):
                             amount = item.get("amount") or item.get("amountWithVAT")
-                            currency = item.get("currency", "EUR")
+                            currency = item.get("currency") or "EUR"
                             if amount is not None:
                                 amounts.append(amount)
                                 currencies.append(currency)
@@ -519,6 +519,7 @@ class EntityAmountExtractionService:
                         "currency": (
                             amount_info["currencies"][i]
                             if i < len(amount_info["currencies"])
+                            and amount_info["currencies"][i]
                             else "EUR"
                         ),
                         "structure_type": amount_info["structure_types"][i],

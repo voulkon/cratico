@@ -1,0 +1,21 @@
+{
+    "id": "currency_missing",
+    "description": "Realistic salary/withholding decision with amountWithVAT and no currency key at all",
+    "ada": "CUR-MISSING",
+    "extra_field_values_json": {
+        "financialYear": 2026,
+        "budgettype": "Τακτικός Προϋπολογισμός",
+        "entryNumber": "585",
+        "partialead": false,
+        "recalledExpenseDecision": false,
+        "amountWithVAT": {
+            "amount": 9795.7
+        },
+        "amountWithKae": [],
+        "documentType": "ΠΡΑΞΗ"
+    },
+    "expected": {
+        "entities": 0,
+        "amounts": 1
+    }
+}
