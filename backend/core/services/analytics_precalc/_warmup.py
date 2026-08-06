@@ -73,9 +73,6 @@ def cache_paginated_offset(
         total_pages = (
             max(1, (total_count + page_size - 1) // page_size) if page_size else 1
         )
-        # has_more: more items in cache, OR more items in DB beyond max_limit
-        has_more = (offset + page_size < len(full_results)) or original_has_next
-
         page_data = build_page_data(page_results, offset, page, total_pages)
 
         cache_key = response_cache.build_key(
