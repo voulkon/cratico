@@ -49,13 +49,27 @@ export const deleteAISettingsRow = async (id) => {
 // Models
 // ---------------------------------------------------------------------------
 
+// Client-side cache: models rarely change, so avoid redundant fetches on
+// every page navigation.  Invalidate after 5 minutes or on sync.
+let _modelsCache = null;
+let _modelsCacheAt = 0;
+const _MODELS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
+
 export const getAIModels = async () => {
+  const now = Date.now();
+  if (_modelsCache && (now - _modelsCacheAt) < _MODELS_CACHE_TTL_MS) {
+    return _modelsCache;
+  }
   const response = await apiClient.get(`${AI_BASE}/models/`);
-  return response.data;
+  _modelsCache = response.data;
+  _modelsCacheAt = now;
+  return _modelsCache;
 };
 
 export const syncAIModels = async () => {
   const response = await apiClient.post(`${AI_BASE}/models/sync/`);
+  _modelsCache = null; // invalidate client cache after sync
+  _modelsCacheAt = 0;
   return response.data;
 };
 

@@ -342,6 +342,13 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
         """Classify an IP's behavior based on its stats.
 
         Returns one of: attacker, scanner, suspicious, normal
+
+        Classification is deliberately conservative to avoid false-flagging
+        legitimate users who browse many decision pages.  Endpoint
+        normalization (collapsing numeric IDs) is NOT applied here because
+        this view operates on raw DB data — the counts are already inflated
+        by unique decision/notification IDs.  Thresholds are therefore
+        higher than the Redis-based real-time detection.
         """
         suspicious = stat.get("suspicious_hits", 0)
         unique = stat.get("unique_endpoints", 0)
@@ -350,23 +357,25 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
         notfound_rate = stat.get("notfound_rate", 0)
 
         # Hits known attack endpoints (.env, /wp-admin, etc.) → attacker
-        if suspicious >= 3:
+        if suspicious >= 5:
             return "attacker"
-        if suspicious >= 1 and unique >= 5:
+        if suspicious >= 2 and unique >= 30:
             return "attacker"
 
         # High-volume scanning (many unique endpoints, mostly 404s)
-        if unique >= 20 and notfound_rate >= 70:
+        if unique >= 50 and notfound_rate >= 80:
             return "scanner"
-        if unique >= 10 and notfound_rate >= 80:
+        if unique >= 30 and notfound_rate >= 90:
             return "scanner"
 
-        # Suspicious: moderate scanning or high error rate
-        if unique >= 10 and notfound_rate >= 50:
+        # Suspicious: requires both high endpoint diversity AND high error rate.
+        # A legitimate user browsing 50 decision pages with <30% errors is
+        # not suspicious — that's normal SPA usage.
+        if unique >= 40 and notfound_rate >= 60:
             return "suspicious"
-        if error_rate >= 50 and total >= 10:
+        if error_rate >= 70 and total >= 20:
             return "suspicious"
-        if suspicious >= 1:
+        if suspicious >= 1 and unique >= 20:
             return "suspicious"
 
         return "normal"

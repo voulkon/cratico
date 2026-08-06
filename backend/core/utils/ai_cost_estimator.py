@@ -194,7 +194,7 @@ class AICostEstimator:
                 }
             )
         else:
-            logger.warning(
+            logger.debug(
                 f"No pricing available for {provider}/{model_name}. "
                 "Cost estimation incomplete."
             )
@@ -254,7 +254,7 @@ class AICostEstimator:
                 }
             )
         else:
-            logger.warning(
+            logger.debug(
                 f"No pricing available for {provider}/{model_name}. "
                 "Cost estimation incomplete."
             )

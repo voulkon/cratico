@@ -45,9 +45,9 @@ def request_extraction(request, decision_id: int):
             "extraction_provider": extraction.extraction_provider,
         })
 
-    if not decision.document_url:
+    if not decision.document_url_or_fallback:
         return Response(
-            {"error": "Decision has no document URL"},
+            {"error": "Decision has no document URL (and no ADA to construct one)"},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
