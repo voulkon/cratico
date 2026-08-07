@@ -1,0 +1,16 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_urls %}
+
+{% block object-tools-items %}
+    <li>
+        <a href="{{ batch_correct_url }}" class="addlink">
+            Batch Correct Amounts
+        </a>
+    </li>
+    <li>
+        <a href="{{ corrected_pool_url }}" class="viewlink">
+            Corrected Amounts Pool
+        </a>
+    </li>
+    {{ block.super }}
+{% endblock %}

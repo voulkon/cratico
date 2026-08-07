@@ -9,6 +9,7 @@ PREFIX = "ai/"
 
 from api.views.ai.ai_decisions import (
     get_analysis,
+    request_amount_verification,
     request_extraction,
     request_summary,
 )
@@ -51,5 +52,6 @@ urlpatterns = [
     # Decision AI (extraction + summarization)
     path("decisions/<int:decision_id>/extract/", request_extraction, name="ai_decision_extract"),
     path("decisions/<int:decision_id>/summarize/", request_summary, name="ai_decision_summarize"),
+    path("decisions/<int:decision_id>/verify-amount/", request_amount_verification, name="ai_decision_verify_amount"),
     path("decisions/<int:decision_id>/analysis/", get_analysis, name="ai_decision_analysis"),
 ]

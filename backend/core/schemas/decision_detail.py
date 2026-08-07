@@ -99,3 +99,6 @@ class DecisionDetailResponse(BaseModel):
     kae_amounts: list[KaeAmount] = []
     attachments: list[AttachmentInfo] = []
     thematic_category_ids: Optional[list] = None
+    # Amount correction state (for the "verify amount" UI knob)
+    has_corrected_amounts: bool = False
+    corrected_amount: Optional[float] = None

@@ -372,6 +372,12 @@ class CustomAdminSite(admin.AdminSite):
                     "admin_url": "/api/admin/amount-entity-analysis/",
                     "view_only": True,
                 },
+                {
+                    "name": "Batch Amount Correction",
+                    "object_name": "BatchAmountCorrection",
+                    "admin_url": "/api/admin/core/decision/batch-correct-amounts/",
+                    "view_only": True,
+                },
             ],
         }
         app_list.append(decision_mgmt_app)

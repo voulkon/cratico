@@ -1,0 +1,93 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block extrahead %}
+  {{ block.super }}
+  {% if job.is_active %}
+    <meta http-equiv="refresh" content="4">
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <h1>
+    {% if job.dry_run %}🧪{% else %}⚙️{% endif %}
+    Correction Job
+    <code style="font-size:14px;">{{ job.job_id }}</code>
+  </h1>
+
+  <p>
+    <strong>Status:</strong>
+    {% if job.status == 'completed' %}<span style="color:#155724;">✓ completed</span>
+    {% elif job.status == 'failed' %}<span style="color:#721c24;">✗ failed</span>
+    {% elif job.status == 'running' %}<span style="color:#856404;">▶ running…</span>
+    {% else %}{{ job.status }}{% endif %}
+    &nbsp;·&nbsp; threshold €{{ job.threshold }}
+    &nbsp;·&nbsp; {% if job.dry_run %}dry-run{% else %}applying corrections{% endif %}
+    &nbsp;·&nbsp; read-if-missing {% if job.read_if_missing %}on{% else %}off{% endif %}
+  </p>
+
+  {% if job.is_active %}
+  <p style="color:#666;"><em>Page refreshes automatically every 4s while running.</em></p>
+  {% endif %}
+
+  <!-- Progress bar -->
+  <div style="background:#e9ecef;border-radius:6px;overflow:hidden;height:26px;margin:12px 0;max-width:640px;">
+    <div style="background:#417690;height:100%;width:{{ job.progress_percentage }}%;
+                color:#fff;text-align:center;line-height:26px;font-size:13px;">
+      {{ job.processed_count }}/{{ job.total_candidates }}
+    </div>
+  </div>
+
+  <div style="background:#f8f9fa;border:1px solid #dee2e6;border-radius:6px;padding:14px;margin-bottom:18px;max-width:640px;">
+    <strong style="color:#155724;">{{ job.corrected }} corrected</strong> ·
+    {{ job.consistent }} consistent ·
+    {{ job.no_text }} no text ·
+    {{ job.skipped }} skipped ·
+    <strong style="color:#721c24;">{{ job.errors }} errors</strong>
+    {% if job.last_error %}<div style="color:#721c24;margin-top:6px;">{{ job.last_error }}</div>{% endif %}
+  </div>
+
+  {% if results %}
+  <table style="width:100%;border-collapse:collapse;">
+    <thead>
+      <tr style="background:#417690;color:#fff;text-align:left;">
+        <th style="padding:8px;">ADA</th>
+        <th style="padding:8px;">Subject</th>
+        <th style="padding:8px;">Status</th>
+        <th style="padding:8px;">Corrections</th>
+        <th style="padding:8px;">Frontend</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in results %}
+      <tr style="border-bottom:1px solid #eee;{% if r.status == 'corrected' or r.status == 'would_correct' %}background:#f0fff4;{% elif r.status == 'error' %}background:#fff5f5;{% endif %}">
+        <td style="padding:8px;white-space:nowrap;">{{ r.ada }}</td>
+        <td style="padding:8px;max-width:260px;">{{ r.subject|truncatewords:12 }}</td>
+        <td style="padding:8px;">
+          {{ r.status }}{% if r.group_correction %}<span title="group correction" style="color:#856404;">⚑</span>{% endif %}
+        </td>
+        <td style="padding:8px;">
+          {% for c in r.corrections %}
+            <div style="font-size:12px;"><code>{{ c.source_field }}</code>:
+              €{{ c.db_amount }} → <strong>€{{ c.corrected_to }}</strong> (×{{ c.clone_factor }})</div>
+          {% empty %}
+            <span style="color:#999;">{% if r.reason %}{{ r.reason }}{% else %}—{% endif %}</span>
+          {% endfor %}
+        </td>
+        <td style="padding:8px;"><a href="{{ r.frontend_url }}" target="_blank">view →</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <div style="margin-top:20px;">
+    <a href="../../" class="button">← Decision list</a>
+    <a href="../../batch-correct-amounts/" class="button" style="margin-left:8px;">New job</a>
+    <a href="../../corrected-amounts-pool/" class="button" style="margin-left:8px;">Corrected pool</a>
+  </div>
+</div>
+{% endblock %}

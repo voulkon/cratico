@@ -117,9 +117,9 @@ const DecisionDetailPage = () => {
     };
   }, [docStatus, fetchDocumentContent]);
 
-  const fetchDecisionData = useCallback(async () => {
+  const fetchDecisionData = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
 
       const decisionResponse = await apiClient.get(`/decisions/${id}/`);
       setDecision(decisionResponse.data);
@@ -142,7 +142,7 @@ const DecisionDetailPage = () => {
     fetchDecisionData();
   }, [fetchDecisionData]);
 
-  const { aiAnalyses, requestExtraction, requestAISummary } = useDecisionAI(decision, fetchDecisionData);
+  const { aiAnalyses, requestExtraction, requestAISummary, requestAmountVerification } = useDecisionAI(decision, fetchDecisionData);
 
   const {
     viewMode, setViewMode,
@@ -211,6 +211,42 @@ const DecisionDetailPage = () => {
       alert(typeof err === 'string' ? err : t('decisionDetail.aiSummaryFailed'));
     } finally {
       setAiRequesting(false);
+    }
+  };
+
+  // ── Amount verification ──────────────────────────────────────────
+  const [verifyingAmount, setVerifyingAmount] = useState(false);
+  const [verifyResult, setVerifyResult] = useState(null); // 'corrected' | 'ok' | null
+
+  const handleVerifyAmount = async () => {
+    try {
+      setVerifyingAmount(true);
+      setVerifyResult(null);
+      await requestAmountVerification(false);
+
+      // Poll silently (no full-page spinner). Stop as soon as we see the
+      // corrected state change, otherwise after a few attempts report "ok".
+      const hadCorrection = !!decision?.has_corrected_amounts;
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts += 1;
+        const resp = await apiClient.get(`/decisions/${id}/`);
+        const d = resp.data;
+        if (d.has_corrected_amounts && !hadCorrection) {
+          clearInterval(poll);
+          setDecision(d);
+          setVerifyResult('corrected');
+          setVerifyingAmount(false);
+        } else if (attempts >= 6) {
+          clearInterval(poll);
+          setDecision(d);
+          setVerifyResult('ok');
+          setVerifyingAmount(false);
+        }
+      }, 2500);
+    } catch (err) {
+      setVerifyingAmount(false);
+      alert(typeof err === 'string' ? err : 'Amount verification failed');
     }
   };
 
@@ -451,6 +487,47 @@ const DecisionDetailPage = () => {
               )}
             </div>
           )}
+
+          {/* Corrected-total badge (from persisted verified_amount) */}
+          {decision.has_corrected_amounts && decision.corrected_amount != null && (
+            <div className="amount-discrepancy-banner">
+              <div className="amount-discrepancy-header">
+                <span className="amount-discrepancy-icon">✓</span>
+                <span>Amount corrected from document text</span>
+              </div>
+              <div className="amount-discrepancy-corrected">
+                <span className="amount-discrepancy-label">Corrected total:</span>
+                <strong className="amount-discrepancy-value">
+                  {formatAmount(decision.corrected_amount)}
+                </strong>
+              </div>
+            </div>
+          )}
+
+          {/* Verify-amount knob */}
+          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              className="document-link"
+              onClick={handleVerifyAmount}
+              disabled={verifyingAmount}
+              title="Check the metadata amounts against the document text and correct any decimal-shift typo"
+            >
+              {verifyingAmount
+                ? <LoaderIcon className="spinner" size={14} />
+                : <SearchIcon size={14} />}
+              {' '}{verifyingAmount ? 'Verifying…' : 'Verify amount'}
+            </button>
+            {verifyResult === 'ok' && !decision.has_corrected_amounts && (
+              <span style={{ color: '#155724', fontSize: 13 }}>
+                ✓ No discrepancy found — amounts match the document.
+              </span>
+            )}
+            {verifyResult === 'corrected' && (
+              <span style={{ color: '#155724', fontSize: 13 }}>
+                ✓ Corrected from document text.
+              </span>
+            )}
+          </div>
         </div>
       )}
 

@@ -148,6 +148,19 @@ def decision_detail(request, decision_id):
             "thematic_category_ids": decision.thematic_category_ids,
         }
 
+        # Amount-correction state — powers the "verify amount" button and
+        # surfaces any corrected (verified) total.
+        from core.models.entities import DecisionAmountField
+        corrected_fields = list(
+            DecisionAmountField.objects.filter(
+                decision=decision, verified_amount__isnull=False
+            ).values_list("verified_amount", flat=True)
+        )
+        decision_data["has_corrected_amounts"] = bool(corrected_fields)
+        decision_data["corrected_amount"] = (
+            float(sum(corrected_fields)) if corrected_fields else None
+        )
+
         return pydantic_response(DecisionDetailResponse(**decision_data))
 
     except Decision.DoesNotExist:
