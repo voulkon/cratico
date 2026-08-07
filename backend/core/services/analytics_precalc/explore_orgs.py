@@ -10,6 +10,8 @@ from datetime import date
 
 from django.db import models
 
+from core.services.decision_facets import effective_amount_max, effective_amount_sum
+
 from ._helpers import _make_aware_start, _make_aware_end, _validate_dates, parse_date
 
 __all__ = [
@@ -53,11 +55,10 @@ def compute_explore_orgs(
         decisions_qs.values("organization__uid", "organization__label")
         .annotate(
             count=models.Count("id", distinct=True),
-            total_amount=models.Sum(
-                "amount_fields__amount",
+            total_amount=effective_amount_sum(
                 filter=models.Q(amount_fields__associated_relationship__isnull=False),
             ),
-            max_amount=models.Max("amount"),
+            max_amount=effective_amount_max(),
         )
         .filter(organization__uid__isnull=False)
         .order_by("-count")[offset : offset + limit + 1]
