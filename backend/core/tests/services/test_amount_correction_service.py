@@ -216,12 +216,67 @@ class TestGroupCorrection:
         assert result["status"] == "consistent"
 
     def test_no_correction_without_text(self, decision_with_amounts):
-        """Without document text, correction should be skipped."""
+        """Without document text (and reading disabled), correction skips."""
         svc = AmountCorrectionService(threshold=Decimal("0"))
-        result = svc.correct_decision(decision_with_amounts)
+        result = svc.correct_decision(
+            decision_with_amounts, read_if_missing=False
+        )
 
         assert result["status"] == "skipped"
         assert result["reason"] == "no_text"
+
+    def test_read_if_missing_triggers_extraction(self, db):
+        """
+        With read_if_missing=True (default), a decision without extracted
+        text has its document read first, then correction proceeds.
+        """
+        from unittest.mock import patch
+
+        act_type, _ = ActType.objects.get_or_create(
+            uid="Β.2.2", defaults={"label": "Ανάθεση"}
+        )
+        decision = Decision.objects.create(
+            ada="TEST-READ-001",
+            version_id="v1",
+            subject="Read document before correcting",
+            issue_date=timezone.now(),
+            submission_timestamp=timezone.now(),
+            decision_type=act_type,
+            status="PUBLISHED",
+        )
+        DecisionAmountField.objects.create(
+            decision=decision,
+            parent_key_path="sponsor[0].expenseAmount",
+            source_field_name="expenseAmount",
+            amount=Decimal("30000.00"),
+        )
+
+        # No DocumentExtraction exists yet — the service must read it.
+        def fake_extract(decision_id, provider=None):
+            d = Decision.objects.get(id=decision_id)
+            DocumentExtraction.objects.create(
+                decision=d,
+                extraction_status=ProcessingStatus.COMPLETED,
+                raw_text="Εγκρίνεται η καταβολή δαπάνης ύψους 300,00 €.",
+            )
+            return {"status": "extracted"}
+
+        with patch(
+            "core.tasks.tasks_decision_ai.extract_decision_text",
+            side_effect=fake_extract,
+        ) as mock_extract:
+            svc = AmountCorrectionService(threshold=Decimal("0"))
+            result = svc.correct_decision(decision)
+
+        # Extraction was triggered AND the field got corrected (30.000,00 → 300,00)
+        mock_extract.assert_called_once()
+        assert result["status"] == "corrected"
+        assert result["fields_corrected"] == 1
+
+        decision.refresh_from_db()
+        field = decision.amount_fields.first()
+        assert field.verified_amount == Decimal("300.00")
+        assert field.amount_verified_at is not None
 
     def test_batch_correction(self, decision_with_text):
         """Batch correction should find and fix the decision."""

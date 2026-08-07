@@ -11,6 +11,11 @@ document text, detects what amounts are written there, and — when an
 individual ``DecisionAmountField.amount`` disagrees with the text — stores
 the corrected value in ``DecisionAmountField.verified_amount``.
 
+If a decision has no extracted text yet, the service reads the document
+first (download + extract) before attempting correction — pass
+``read_if_missing=False`` to skip that and only process already-extracted
+decisions.
+
 All downstream consumers use ``effective_amount_sum()`` (which sums
 ``COALESCE(verified_amount, amount)``) so corrected values automatically
 override the erroneous metadata amounts everywhere — no model bloat
@@ -19,7 +24,7 @@ needed.
 Usage:
     svc = AmountCorrectionService()
 
-    # Correct a single decision:
+    # Correct a single decision (reads the document first if needed):
     result = svc.correct_decision(decision)
 
     # Batch-correct high-value decisions:
@@ -41,7 +46,7 @@ from django.utils import timezone
 from loguru import logger
 
 from core.models.decisions import Decision
-from core.models.document_analysis import ProcessingStatus
+from core.models.document_analysis import DocumentExtraction, ProcessingStatus
 from core.models.entities import DecisionAmountField
 from core.services.grouped_amount_detection import (
     verify_amounts_against_grouped,
@@ -75,6 +80,7 @@ class AmountCorrectionService:
         decision: Decision,
         *,
         dry_run: bool = False,
+        read_if_missing: bool = True,
     ) -> dict[str, Any]:
         """
         Run cents-based detection and correct individual amount fields.
@@ -86,12 +92,20 @@ class AmountCorrectionService:
         Args:
             decision: The Decision to check.
             dry_run: If True, report without saving.
+            read_if_missing: If True (default) and the decision has no
+                completed text extraction yet, read the document first
+                (download + extract) before attempting correction.
 
         Returns:
             Dict with status, per-field corrections, and details.
         """
         # ── Get the document text ──────────────────────────────────
+        # If no completed extraction exists, read the document on the spot
+        # (download + extract) so we can still attempt correction.
         text = self._get_text(decision)
+        if not text and read_if_missing:
+            extraction = self._ensure_text_extraction(decision)
+            text = extraction.raw_text if extraction else None
         if not text:
             return {"status": "skipped", "reason": "no_text"}
 
@@ -281,6 +295,7 @@ class AmountCorrectionService:
         end_date: date | None = None,
         limit: int | None = None,
         dry_run: bool = False,
+        read_if_missing: bool = True,
     ) -> dict[str, Any]:
         """
         Find all decisions whose computed total exceeds *threshold* and
@@ -295,6 +310,9 @@ class AmountCorrectionService:
             end_date: Optional issue-date upper bound.
             limit: Optional cap on how many decisions to process.
             dry_run: If True, only report what would be corrected.
+            read_if_missing: If True (default), read the document first
+                (download + extract) for any candidate decision that has
+                no completed text extraction yet.
 
         Returns:
             Summary dict with counts.
@@ -350,10 +368,13 @@ class AmountCorrectionService:
         skipped = 0
         no_text = 0
         errors = 0
+        results: list[dict[str, Any]] = []
 
         for decision in candidates:
             try:
-                result = self.correct_decision(decision, dry_run=dry_run)
+                result = self.correct_decision(
+                    decision, dry_run=dry_run, read_if_missing=read_if_missing
+                )
                 status = result["status"]
                 if status in ("corrected", "would_correct"):
                     corrected += 1
@@ -363,12 +384,32 @@ class AmountCorrectionService:
                     no_text += 1
                 else:
                     skipped += 1
+                results.append({
+                    "decision_id": decision.id,
+                    "ada": decision.ada,
+                    "subject": decision.subject,
+                    "status": status,
+                    "frontend_url": self.frontend_url(decision),
+                    "corrections": result.get("corrections", []),
+                    "group_correction": result.get("group_correction", False),
+                    "reason": result.get("reason", ""),
+                })
             except Exception as exc:
                 logger.error(
                     f"AmountCorrection failed for decision {decision.id}: {exc}",
                     exc_info=True,
                 )
                 errors += 1
+                results.append({
+                    "decision_id": decision.id,
+                    "ada": decision.ada,
+                    "subject": decision.subject,
+                    "status": "error",
+                    "frontend_url": self.frontend_url(decision),
+                    "corrections": [],
+                    "group_correction": False,
+                    "reason": str(exc),
+                })
 
         summary = {
             "total_candidates": total_candidates,
@@ -378,6 +419,8 @@ class AmountCorrectionService:
             "skipped": skipped,
             "errors": errors,
             "dry_run": dry_run,
+            "read_if_missing": read_if_missing,
+            "results": results,
         }
         logger.info(f"AmountCorrection batch complete: {summary}")
         return summary
@@ -385,6 +428,18 @@ class AmountCorrectionService:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def frontend_url(decision: Decision) -> str:
+        """Return the frontend page URL for a decision."""
+        from django.conf import settings
+
+        base = (
+            settings.FRONTEND_DOMAINS_clean[0]
+            if getattr(settings, "FRONTEND_DOMAINS_clean", None)
+            else "http://localhost:3000"
+        )
+        return f"{base}/decision/{decision.id}"
 
     @staticmethod
     def _get_text(decision: Decision) -> str | None:
@@ -397,6 +452,43 @@ class AmountCorrectionService:
         ):
             return extraction.raw_text
         return None
+
+    @staticmethod
+    def _ensure_text_extraction(
+        decision: Decision,
+    ) -> DocumentExtraction | None:
+        """
+        Get or trigger text extraction for a decision.
+
+        If the decision already has a completed extraction with text, return
+        it.  Otherwise read the document synchronously (download + extract,
+        via ``extract_decision_text``) and return the new extraction — or the
+        previous (incomplete) extraction if reading failed.
+        """
+        extraction = getattr(decision, "text_extraction", None)
+        if (
+            extraction
+            and extraction.extraction_status == ProcessingStatus.COMPLETED
+            and extraction.raw_text
+        ):
+            return extraction
+
+        # Trigger extraction synchronously (same pattern as
+        # AmountVerificationService._ensure_text_extraction)
+        try:
+            from core.tasks.tasks_decision_ai import extract_decision_text
+
+            result = extract_decision_text(decision.id)
+            if result.get("status") in ("extracted", "already_extracted"):
+                decision.refresh_from_db()
+                return getattr(decision, "text_extraction", None)
+        except Exception as exc:
+            logger.warning(
+                f"AmountCorrection: text extraction failed for "
+                f"decision {decision.id}: {exc}"
+            )
+
+        return extraction
 
 
 # Singleton instance for easy importing

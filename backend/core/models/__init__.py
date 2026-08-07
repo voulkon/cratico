@@ -49,3 +49,4 @@ from .terms import LegalDocument
 from .types import ActType, ActTypeHelp, ExtraField
 from .user_ai_model_preference import UserAIModelPreference
 from .user_ai_settings import UserAISettings
+from .amount_correction_job import AmountCorrectionJob, AmountCorrectionJobResult
