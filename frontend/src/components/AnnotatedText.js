@@ -5,152 +5,190 @@ import './AnnotatedText.css';
  * Render document text with highlighted spans from text processes.
  *
  * Props:
- *   rawText    — the full document text
- *   runs       — [{ process, method, version, status, spans: [...] }, ...]
- *   visible    — set of process slugs to overlay (default: all completed)
- *   onSpanClick(span, run) — optional click callback
+ *   rawText         — the full document text
+ *   runs            — [{ process, method, version, status, spans: [...] }, ...]
+ *   activeProcesses — Set of process slugs to overlay
+ *   processList     — [{ slug, name, description, color, methods }, ...]
+ *                       colors come from the backend — no hardcoding
+ *   onSpanClick(region) — optional click callback
  *
- * The splitter sorts all visible spans by start, resolves overlaps by a
- * fixed label priority, and emits <mark> nodes with CSS class
- * `text-span--{label}`.
+ * Uses character-level process tracking so overlapping spans from
+ * different processes coexist.  Multi-process overlap regions get a
+ * special combined style.
  */
 
-// Priority ordering: lower index = higher priority (wins when spans overlap).
-// "chosen" variants within a label are rendered via the `value.chosen` flag,
-// not as separate labels.
-const LABEL_PRIORITY = [
-  'amount',
-  'date',
-  'subject',
-  'main_point',
-  'signer',
-  'entity',
-  'boilerplate',
-  'useless',
-];
+// ── helpers ──────────────────────────────────────────────────────────
 
-// Span labels → human-readable names (for the legend)
-const LABEL_NAMES = {
-  amount: 'Amount',
-  date: 'Date',
-  subject: 'Subject / Title',
-  main_point: 'Main Point',
-  signer: 'Signer',
-  entity: 'Entity',
-  boilerplate: 'Boilerplate',
-  useless: 'Low-value region',
-};
+/** "ff9800" | "#FF9800" → "rgba(255, 152, 0, α)" */
+function hexToRgba(hex, alpha) {
+  hex = hex.replace(/^#/, '');
+  if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
-// Colors are defined in CSS — this just maps for the legend swatches
-const LABEL_CLASSES = Object.keys(LABEL_NAMES).reduce((acc, l) => {
-  acc[l] = `text-span--${l}`;
-  return acc;
-}, {});
+function getColor(slug, processMap) {
+  return processMap[slug]?.color || '#757575';
+}
 
 /**
- * Build a flattened & deduped list of visible spans, resolving overlaps by
- * priority.  Each span gets a CSS modifier class derived from its value
- * (e.g. `text-span--amount-chosen`, `text-span--date`).
+ * Build a character-level map: for each index in rawText, which process
+ * slugs have a span covering that position (only active, completed runs).
  */
-function resolveSpans(runs, visibleSet) {
-  const activeRuns = runs.filter(
-    r => r.status === 'COMPLETED' && (!visibleSet || visibleSet.has(r.process))
-  );
-  const flat = [];
-  for (const run of activeRuns) {
+function buildCharProcessMap(rawText, runs, activeProcesses) {
+  const len = rawText.length;
+  const map = new Array(len);
+  for (let i = 0; i < len; i++) map[i] = new Set();
+
+  for (const run of runs) {
+    if (run.status !== 'COMPLETED') continue;
+    if (!activeProcesses.has(run.process)) continue;
     for (const span of run.spans || []) {
-      flat.push({ ...span, _process: run.process });
+      const from = Math.max(0, span.start);
+      const to = Math.min(len, span.end);
+      for (let i = from; i < to; i++) map[i].add(run.process);
     }
   }
-  flat.sort((a, b) => a.start - b.start || a.end - b.end);
+  return map;
+}
 
-  // Greedy resolve overlaps: when two spans overlap, the one with higher
-  // label priority wins.  Non-overlapping spans coexist.
-  const resolved = [];
-  for (const span of flat) {
-    // Check overlap with the last resolved span
-    const prev = resolved[resolved.length - 1];
-    if (prev && span.start < prev.end) {
-      const priA = LABEL_PRIORITY.indexOf(span.label);
-      const priB = LABEL_PRIORITY.indexOf(prev.label);
-      if (priA < priB) {
-        // Current span wins — replace last
-        resolved[resolved.length - 1] = span;
-      }
-      // else skip current span (prev wins)
-    } else {
-      resolved.push(span);
+function charMapToRegions(charMap) {
+  const regions = [];
+  let i = 0;
+  const len = charMap.length;
+  while (i < len) {
+    const procs = charMap[i];
+    let j = i + 1;
+    while (j < len && setsEqual(charMap[j], procs)) j++;
+    if (procs.size > 0) {
+      regions.push({ from: i, to: j, processes: new Set(procs) });
     }
+    i = j;
   }
-  return resolved;
+  return regions;
 }
 
-function spanClassName(span) {
-  const base = LABEL_CLASSES[span.label] || 'text-span--unknown';
-  if (span.value?.chosen) return `${base} text-span--chosen`;
-  if (span.value?.clone_of) return `${base} text-span--clone`;
-  return base;
+function setsEqual(a, b) {
+  if (a.size !== b.size) return false;
+  for (const x of a) if (!b.has(x)) return false;
+  return true;
 }
 
-export default function AnnotatedText({ rawText, runs, visible, onSpanClick }) {
-  const visibleSet = useMemo(() => (visible ? new Set(visible) : null), [visible]);
-  const resolved = useMemo(() => resolveSpans(runs, visibleSet), [runs, visibleSet]);
+// ── component ────────────────────────────────────────────────────────
 
-  // Determine which labels appear in the resolved spans (for the legend)
-  const usedLabels = useMemo(() => {
+export default function AnnotatedText({ rawText, runs, activeProcesses, processList, onSpanClick }) {
+  const activeSet = useMemo(
+    () => (activeProcesses ? new Set(activeProcesses) : new Set()),
+    [activeProcesses]
+  );
+
+  // slug → { name, description, color }
+  const processMap = useMemo(() => {
+    const m = {};
+    for (const p of processList || []) m[p.slug] = p;
+    return m;
+  }, [processList]);
+
+  const regions = useMemo(() => {
+    const charMap = buildCharProcessMap(rawText, runs, activeSet);
+    return charMapToRegions(charMap);
+  }, [rawText, runs, activeSet]);
+
+  // Determine which slugs appear (for the legend)
+  const activeSlugs = useMemo(() => {
     const set = new Set();
-    for (const s of resolved) set.add(s.label);
-    return [...set];
-  }, [resolved]);
+    for (const r of regions) for (const s of r.processes) set.add(s);
+    return [...set].sort();
+  }, [regions]);
 
-  // Build the interleaved text + marks
+  // Build interleaved text + marks
   const nodes = [];
   let cursor = 0;
-  for (let i = 0; i < resolved.length; i++) {
-    const span = resolved[i];
-    if (span.start > cursor) {
+  for (let i = 0; i < regions.length; i++) {
+    const r = regions[i];
+    if (r.from > cursor) {
       nodes.push(
-        <span key={`g-${i}`}>{rawText.slice(cursor, span.start)}</span>
+        <span key={`g-${i}`}>{rawText.slice(cursor, r.from)}</span>
       );
     }
+
+    const slugs = [...r.processes].sort();
+    const tooltipLines = slugs.map(s => {
+      const info = processMap[s];
+      if (info?.description) return `${info.name}: ${info.description}`;
+      return info?.name || s;
+    });
+
+    // Build dynamic style based on how many processes matched
+    let style = {};
+    if (slugs.length === 1) {
+      const c = getColor(slugs[0], processMap);
+      style = {
+        backgroundColor: hexToRgba(c, 0.25),
+        borderBottom: `2px solid ${hexToRgba(c, 0.90)}`,
+      };
+    } else if (slugs.length === 2) {
+      const c1 = getColor(slugs[0], processMap);
+      const c2 = getColor(slugs[1], processMap);
+      style = {
+        background: `repeating-linear-gradient(-45deg, ${hexToRgba(c1, 0.18)} 0px, ${hexToRgba(c1, 0.18)} 4px, ${hexToRgba(c2, 0.15)} 4px, ${hexToRgba(c2, 0.15)} 8px)`,
+        borderBottom: `2px solid ${hexToRgba(c1, 0.85)}`,
+        boxShadow: `0 3px 0 -1px ${hexToRgba(c2, 0.85)}`,
+        paddingBottom: 2,
+      };
+    } else {
+      // 3+ — hatched neutral
+      style = {
+        background: `repeating-linear-gradient(-45deg, rgba(180,180,180,0.20) 0px, rgba(180,180,180,0.20) 4px, rgba(180,180,180,0.10) 4px, rgba(180,180,180,0.10) 8px)`,
+        border: '1px dashed rgba(180,180,180,0.6)',
+      };
+    }
+
     nodes.push(
       <mark
         key={`s-${i}`}
-        className={spanClassName(span)}
-        title={JSON.stringify(span.value, null, 2)}
-        onClick={onSpanClick ? () => onSpanClick(span, span._process) : undefined}
+        className={slugs.length > 1 ? 'annot-mark annot-mark--multi' : 'annot-mark'}
+        style={style}
+        title={tooltipLines.join('\n\n')}
+        onClick={onSpanClick ? () => onSpanClick(r) : undefined}
       >
-        {rawText.slice(span.start, span.end)}
+        {rawText.slice(r.from, r.to)}
       </mark>
     );
-    cursor = span.end;
+    cursor = r.to;
   }
   if (cursor < rawText.length) {
     nodes.push(
-      <span key={`g-end`}>{rawText.slice(cursor)}</span>
+      <span key="g-end">{rawText.slice(cursor)}</span>
     );
   }
 
   return (
     <div className="annotated-text">
-      <Legend labels={usedLabels} />
+      <Legend slugs={activeSlugs} processMap={processMap} />
       <pre className="annotated-text-content">{nodes}</pre>
     </div>
   );
 }
 
-function Legend({ labels }) {
-  if (!labels.length) return null;
+function Legend({ slugs, processMap }) {
+  if (!slugs.length) return null;
   return (
     <div className="text-span-legend">
-      {labels.map(l => (
-        <span key={l} className="legend-item">
-          <span className={`legend-swatch ${LABEL_CLASSES[l] || ''}`} />
-          {LABEL_NAMES[l] || l}
-        </span>
-      ))}
+      {slugs.map(slug => {
+        const c = getColor(slug, processMap);
+        return (
+          <span key={slug} className="legend-item" title={processMap[slug]?.description || ''}>
+            <span
+              className="legend-swatch"
+              style={{ backgroundColor: hexToRgba(c, 0.90) }}
+            />
+            {processMap[slug]?.name || slug}
+          </span>
+        );
+      })}
     </div>
   );
 }
-
-export { LABEL_NAMES, LABEL_CLASSES };

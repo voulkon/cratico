@@ -36,93 +36,23 @@
   flex-shrink: 0;
 }
 
-/* ── Span base styles ────────────────────────────────────────────────── */
-mark[class*="text-span--"] {
+/* ── Span structural styles (colors are inline via style prop) ────────── */
+.annot-mark {
   border-radius: 3px;
   padding: 0 1px;
   cursor: default;
 }
 
-/* ── Color palette ───────────────────────────────────────────────────── */
-/* amount */
-.text-span--amount,
-.legend-swatch.text-span--amount {
-  background: var(--annot-amount-bg);
-  border-bottom: 2px solid var(--annot-amount-accent);
-  color: inherit;
-}
-.text-span--amount.text-span--chosen {
-  background: var(--annot-amount-chosen-bg);
-  border-bottom: 2px solid var(--annot-amount-chosen-accent);
-}
-.text-span--amount.text-span--clone {
-  background: var(--annot-amount-clone-bg);
-  border-bottom: 2px solid var(--annot-amount-clone-accent);
+.annot-mark--multi {
+  position: relative;
 }
 
-/* date */
-.text-span--date,
-.legend-swatch.text-span--date {
-  background: var(--annot-date-bg);
-  border-bottom: 2px solid var(--annot-date-accent);
-  color: inherit;
+.annot-mark:hover {
+  filter: brightness(1.15);
+  cursor: help;
 }
 
-/* subject */
-.text-span--subject,
-.legend-swatch.text-span--subject {
-  background: var(--annot-subject-bg);
-  border-bottom: 2px solid var(--annot-subject-accent);
-  color: inherit;
-}
-
-/* main_point */
-.text-span--main_point,
-.legend-swatch.text-span--main_point {
-  background: var(--annot-main-point-bg);
-  border-bottom: 2px solid var(--annot-main-point-accent);
-  color: inherit;
-}
-
-/* signer */
-.text-span--signer,
-.legend-swatch.text-span--signer {
-  background: var(--annot-signer-bg);
-  border-bottom: 2px solid var(--annot-signer-accent);
-  color: inherit;
-}
-
-/* entity */
-.text-span--entity,
-.legend-swatch.text-span--entity {
-  background: var(--annot-entity-bg);
-  border-bottom: 2px solid var(--annot-entity-accent);
-  color: inherit;
-}
-
-/* boilerplate */
-.text-span--boilerplate,
-.legend-swatch.text-span--boilerplate {
-  background: var(--annot-boilerplate-bg);
-  border-bottom: 2px solid var(--annot-boilerplate-accent);
-  color: inherit;
-}
-
-/* useless */
-.text-span--useless,
-.legend-swatch.text-span--useless {
-  background: var(--annot-useless-bg);
-  border-bottom: 1px dashed var(--annot-useless-accent);
-  color: inherit;
-}
-
-/* hover effect for clickable spans */
-mark[class*="text-span--"]:hover {
-  filter: brightness(1.2);
-  cursor: pointer;
-}
-
-/* ── Process controls (in doc-content card) ─────────────────────────── */
+/* ── Process toggle buttons ───────────────────────────────────────────── */
 .process-controls {
   display: flex;
   align-items: center;
@@ -130,29 +60,77 @@ mark[class*="text-span--"]:hover {
   margin-bottom: 10px;
   flex-wrap: wrap;
 }
-.process-trigger-btn {
+
+.process-toggle-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 4px 12px;
+  gap: 6px;
+  padding: 3px 10px;
   font-size: var(--font-xs);
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
   background: var(--surface-secondary);
-  color: var(--text-color);
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: background var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+  white-space: nowrap;
+  user-select: none;
 }
-.process-trigger-btn:hover:not(:disabled) {
+.process-toggle-btn:hover:not(:disabled) {
+  border-color: var(--text-secondary);
+}
+
+.process-toggle-btn--on {
+  border-color: var(--accent-color);
+  color: var(--text-color);
+  font-weight: var(--font-medium);
+}
+
+.process-toggle-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.process-toggle-run {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted-text);
+  cursor: pointer;
+  margin-left: 2px;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+.process-toggle-run:hover {
+  color: var(--accent-color);
   background: var(--hover-bg);
 }
-.process-trigger-btn:disabled {
-  opacity: 0.5;
+.process-toggle-run:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
 }
-.process-trigger-btn.process-trigger-btn--primary {
-  border-color: var(--accent-color);
-  color: var(--accent-color);
+
+.process-toggle-spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--accent-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .view-toggle {

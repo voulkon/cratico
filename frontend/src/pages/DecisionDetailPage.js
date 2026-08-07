@@ -147,9 +147,10 @@ const DecisionDetailPage = () => {
   const {
     viewMode, setViewMode,
     processRuns, setProcessRuns,
-    setProcessResolution,
-    processList, selectedProcess, setSelectedProcess,
-    processRunning, handleRunProcess,
+    processResolution, setProcessResolution,
+    processList,
+    activeProcesses, toggleProcess,
+    handleRunProcess,
   } = useTextProcesses(id, fetchDocumentContent);
 
   // Model selection for AI summarization
@@ -430,6 +431,26 @@ const DecisionDetailPage = () => {
               <span>{t('decisionDetail.financialYear')} {decision.financial_year}</span>
             )}
           </div>
+          {/* Discrepancy banner — shown when amount verification found a mismatch */}
+          {processResolution?.has_discrepancy && (
+            <div className="amount-discrepancy-banner">
+              <div className="amount-discrepancy-header">
+                <span className="amount-discrepancy-icon">⚠️</span>
+                <span>Amount Discrepancy Detected</span>
+              </div>
+              {processResolution.value?.amount && (
+                <div className="amount-discrepancy-corrected">
+                  <span className="amount-discrepancy-label">Corrected amount (from document text):</span>
+                  <strong className="amount-discrepancy-value">
+                    {formatAmount(parseFloat(processResolution.value.amount))}
+                  </strong>
+                </div>
+              )}
+              {processResolution.note && (
+                <div className="amount-discrepancy-note">{processResolution.note}</div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -525,38 +546,48 @@ const DecisionDetailPage = () => {
               </button>
             </div>
 
-            {/* Process controls — only shown in annotated mode */}
+            {/* Process controls — per-process toggle buttons */}
             {viewMode === 'annotated' && (
               <div className="process-controls">
-                <select
-                  value={selectedProcess}
-                  onChange={e => setSelectedProcess(e.target.value)}
-                  style={{ fontSize: 12, padding: '3px 6px', borderRadius: 4, border: '1px solid var(--border-color, #444)', background: 'var(--surface, #1e1e1e)', color: 'var(--text-primary, #e0e0e0)' }}
-                >
-                  <option value="">-- Run a process --</option>
-                  {processList.map(p => (
-                    <option key={p.slug} value={p.slug}>{p.name}</option>
-                  ))}
-                </select>
-                <button
-                  className="process-trigger-btn process-trigger-btn--primary"
-                  disabled={!selectedProcess || processRunning}
-                  onClick={() => handleRunProcess()}
-                >
-                  {processRunning ? <LoaderIcon className="spinner" size={12} /> : <SparklesIcon size={12} />}
-                  {' '}Run
-                </button>
-                {/* Quick-run buttons for common processes */}
-                {processList.filter(p => !processRuns.some(r => r.process === p.slug && r.status === 'COMPLETED')).slice(0, 2).map(p => (
-                  <button
-                    key={p.slug}
-                    className="process-trigger-btn"
-                    disabled={processRunning}
-                    onClick={() => handleRunProcess(p.slug)}
-                  >
-                    Detect {p.name}
-                  </button>
-                ))}
+                {processList.map(p => {
+                  const hasRun = processRuns.some(
+                    r => r.process === p.slug && r.status === 'COMPLETED'
+                  );
+                  const isRunning = processRuns.some(
+                    r => r.process === p.slug && (r.status === 'PENDING' || r.status === 'RUNNING')
+                  );
+                  const isOn = activeProcesses.has(p.slug);
+                  const swatchColor = p.color || '#757575';
+
+                  return (
+                    <button
+                      key={p.slug}
+                      className={`process-toggle-btn${isOn ? ' process-toggle-btn--on' : ''}`}
+                      onClick={() => {
+                        if (!hasRun && !isRunning) {
+                          handleRunProcess(p.slug);
+                        } else if (hasRun) {
+                          toggleProcess(p.slug);
+                        }
+                      }}
+                      disabled={isRunning}
+                      title={p.description || p.name}
+                    >
+                      <span
+                        className="process-toggle-swatch"
+                        style={{ backgroundColor: swatchColor }}
+                      />
+                      {p.name}
+                      {isRunning ? (
+                        <span className="process-toggle-spinner" />
+                      ) : !hasRun ? (
+                        <span className="process-toggle-run" title={`Run ${p.name}`}>
+                          <SparklesIcon size={10} />
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
               </div>
             )}
 
@@ -565,6 +596,8 @@ const DecisionDetailPage = () => {
               <AnnotatedText
                 rawText={docContent}
                 runs={processRuns}
+                activeProcesses={activeProcesses}
+                processList={processList}
               />
             ) : (
               <div className="document-content-body">

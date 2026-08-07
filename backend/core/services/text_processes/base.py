@@ -49,6 +49,13 @@ class BaseTextProcess:
     description: str = ""
     #: Which execution methods this process supports ("regex", "ai").
     methods: tuple[str, ...] = ("regex",)
+    #: Methods that must run asynchronously on a Celery worker (e.g. AI/LLM).
+    #: Methods NOT listed here run synchronously in the API process.
+    async_methods: tuple[str, ...] = ()
+    #: CSS color (hex) for UI rendering — used by the frontend for spans,
+    #: toggle buttons, and legend swatches.  Each registered process MUST
+    #: define a distinct, accessible color.
+    color: str = "#757575"  # grey fallback
 
     def detect(self, text: str, method: str = "regex", **params) -> TextProcessResult:
         raise NotImplementedError

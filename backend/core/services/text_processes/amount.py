@@ -23,6 +23,8 @@ class AmountProcess(BaseTextProcess):
         "numbers with optional currency markers)."
     )
     methods = ("regex", "ai")
+    async_methods = ("ai",)  # LLM calls run on Celery worker
+    color = "#FF9800"  # amber
 
     def detect(self, text: str, method: str = "regex", **params) -> TextProcessResult:
         detected = extract_amounts(text)

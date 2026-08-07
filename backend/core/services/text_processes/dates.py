@@ -73,6 +73,7 @@ class DateProcess(BaseTextProcess):
         "(12 Μαΐου 2024) forms. Normalized to ISO in span value."
     )
     methods = ("regex",)
+    color = "#1976D2"  # blue
 
     def detect(self, text: str, method: str = "regex", **params) -> TextProcessResult:
         if not text:
