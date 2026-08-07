@@ -66,6 +66,12 @@ from .tasks_import_validation import (
     validate_single_day,
 )
 from .tasks_misc import ping, say_hi, test_tracing
+from .tasks_amount_correction import (
+    correct_single_decision,
+    daily_amount_correction,
+    finalize_amount_correction_job,
+    run_amount_correction_job,
+)
 from .tasks_opensearch import (
     bulk_reindex_missing_documents,
     check_opensearch_sync,

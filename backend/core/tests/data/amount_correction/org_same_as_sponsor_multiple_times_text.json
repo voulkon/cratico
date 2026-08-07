@@ -1,0 +1,7 @@
+{
+    "ada": "ΨΤ78ΟΞΧΔ-04Δ",
+    "description": "Text for the org_same_as_sponsor_multiple_times test case. The 21 amounts in the DB were each typed ×100 too high. The document text mentions the correct total.",
+    "document_text": "Εγκρίνεται η καταβολή δαπάνης συνολικού ύψους 9.999,97 € προς το ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΕΙΡΑΙΑ ΤΖΑΝΕΙΟ για κτιριακές υποδομές.",
+    "expected_group_correction": true,
+    "expected_corrected_total": "9999.97"
+}

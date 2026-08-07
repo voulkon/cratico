@@ -267,4 +267,10 @@ app.conf.beat_schedule = {
         "task": "core.tasks.tasks_auto_import.trigger_next_company_gemi_batch",
         "schedule": crontab(hour=2, minute=0),
     },
+    # Daily amount correction — APPLIES corrections (dry_run=False) over
+    # high-value decisions.  Runs on the worker; progress visible in admin.
+    "daily-amount-correction": {
+        "task": "core.tasks.tasks_amount_correction.daily_amount_correction",
+        "schedule": crontab(hour=3, minute=30),
+    },
 }

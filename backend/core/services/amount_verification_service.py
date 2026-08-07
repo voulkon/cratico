@@ -50,6 +50,10 @@ from core.services.amount_text_detection import (
     verify_amounts_in_text,
 )
 from core.services.financial_calculation_service import financial_service
+from core.services.grouped_amount_detection import (
+    GroupedAmount,
+    verify_amounts_against_grouped,
+)
 from core.services.text_process_service import TextProcessService
 from core.services.text_processes.base import TextSpanData
 from loguru import logger
@@ -504,14 +508,216 @@ class AmountVerificationService:
             has_discrepancy = True
             success = verified_amount is not None
 
+        # --- Cross-check with cents-based detector ---
+        # The cents-based detector is more conservative (only matches amounts
+        # with 2 decimal places — the defining signal of money in Greek docs).
+        # If it finds a discrepancy that the broad detector missed, upgrade
+        # the confidence.
+        grouped_result = verify_amounts_against_grouped(text, db_amounts)
+        grouped_primary = grouped_result.primary_grouped_amount
+        grouped_has_discrepancy = (
+            not grouped_result.all_found if grouped_result.matches else False
+        )
+
+        # If cents detector found amounts, prefer its primary as it's more
+        # reliable (no false positives from bare integers like protocol numbers)
+        if grouped_primary is not None and (
+            grouped_has_discrepancy or has_discrepancy
+        ):
+            verified_amount = grouped_primary
+            has_discrepancy = True
+            raw_response += (
+                f"\n[CENTS] Detected {len(grouped_result.grouped_amounts)} "
+                f"cents-bearing amounts: "
+                f"{[str(g.amount) for g in grouped_result.grouped_amounts]}\n"
+            )
+            raw_response += "\n".join(
+                f"  Grouped vs DB {m.db_amount}: "
+                + ("FOUND" if m.found_exact else (
+                    f"CLONE {m.matched_text_amount} (×{m.clone_factor})"
+                    if m.clone_factor else "NOT FOUND"
+                ))
+                for m in grouped_result.matches
+            )
+
+        # Merge grouped candidates into the candidates list for span rendering
+        all_candidates = list(result.detected_amounts)
+        seen_amounts = {d.amount for d in all_candidates}
+        for g in grouped_result.grouped_amounts:
+            if g.amount not in seen_amounts:
+                all_candidates.append(
+                    DetectedAmount(
+                        amount=g.amount,
+                        raw=g.raw,
+                        position=g.position,
+                        near_keyword=g.near_keyword,
+                    )
+                )
+                seen_amounts.add(g.amount)
+
         return {
             "raw_response": raw_response,
             "amount": verified_amount,
-            "candidates": result.detected_amounts,
+            "candidates": all_candidates,
             "input_tokens": None,
             "output_tokens": None,
             "cost_usd": None,
             "success": success,
+            "has_discrepancy": has_discrepancy,
+        }
+
+    # ------------------------------------------------------------------
+    # Cents-based verification (high-precision discrepancy detection)
+    # ------------------------------------------------------------------
+
+    def verify_with_grouped(
+        self,
+        decision: Decision,
+        version: str = "1.0",
+    ) -> dict[str, Any]:
+        """
+        Verify using *only* the cents-based detector.
+
+        Because this detector only matches amounts with 2 decimal places
+        (cents — the defining signal of monetary values in Greek documents),
+        false positives are near-zero.  A cents-bearing amount in the text
+        that does NOT match the DB is almost certainly a data-entry error.
+
+        Returns the same dict shape as ``verify_decision()``.
+        """
+        extraction = self._ensure_text_extraction(decision)
+        if not extraction or not extraction.raw_text:
+            return {"status": "skipped", "reason": "no_text"}
+
+        calculated_amount = financial_service.get_decision_total_amount(
+            decision, include_unlinked=True
+        )
+        raw_amount = decision.amount
+        text = extraction.raw_text
+
+        db_amounts = [
+            f.amount
+            for f in decision.amount_fields.all()
+            if f.amount is not None and f.amount > 0
+        ]
+
+        if not db_amounts:
+            return {
+                "status": "skipped",
+                "reason": "no_db_amounts",
+            }
+
+        grouped_result = verify_amounts_against_grouped(text, db_amounts)
+        grouped_primary = grouped_result.primary_grouped_amount
+
+        audit_lines = [
+            f"DB amount: {m.db_amount} → "
+            + (
+                "FOUND"
+                if m.found_exact
+                else (
+                    f"CLONE {m.matched_text_amount} (×{m.clone_factor})"
+                    if m.clone_factor
+                    else "NOT FOUND"
+                )
+            )
+            for m in grouped_result.matches
+        ]
+        raw_response = (
+            f"[CENTS-ONLY] Detected {len(grouped_result.grouped_amounts)} "
+            f"cents-bearing amounts in text: "
+            f"{[str(g.amount) for g in grouped_result.grouped_amounts]}\n"
+            + "\n".join(audit_lines)
+        )
+
+        if grouped_result.all_found:
+            verified_amount = calculated_amount
+            has_discrepancy = False
+            success = True
+        elif grouped_result.any_clone:
+            verified_amount = grouped_primary
+            has_discrepancy = True
+            success = True
+        else:
+            verified_amount = grouped_primary
+            has_discrepancy = True
+            success = verified_amount is not None
+
+        # Convert GroupedAmount → DetectedAmount for span persistence
+        candidates = [
+            DetectedAmount(
+                amount=g.amount,
+                raw=g.raw,
+                position=g.position,
+                near_keyword=g.near_keyword,
+            )
+            for g in grouped_result.grouped_amounts
+        ]
+
+        # Persist as a text process run + resolution
+        spans = self._candidates_to_spans(candidates)
+        run, _ = TextProcessRun.objects.get_or_create(
+            extraction=extraction,
+            process=PROCESS_SLUG,
+            method="regex",
+            provider="REGEX",
+            model="cents-amount-v1",
+            version=version,
+            defaults={"status": TextProcessStatus.PENDING},
+        )
+
+        run.meta = {
+            "raw_amount": str(raw_amount) if raw_amount is not None else None,
+            "calculated_amount": str(calculated_amount)
+            if calculated_amount is not None
+            else None,
+            "raw_response": raw_response,
+            "has_discrepancy": has_discrepancy,
+            "detector": "cents-based",
+        }
+        TextProcessService()._save_spans(run, spans)
+
+        discrepancy_note = self._build_discrepancy_note(
+            text_amount=verified_amount or Decimal("0"),
+            calculated_amount=calculated_amount,
+            raw_amount=raw_amount,
+        ) if has_discrepancy else None
+
+        if success:
+            run.status = TextProcessStatus.COMPLETED
+        else:
+            run.status = TextProcessStatus.FAILED
+            run.error_message = "No grouped-thousands amounts found in text"
+        run.save()
+
+        # Upsert resolution (only on success)
+        resolution_id = None
+        if run.status == TextProcessStatus.COMPLETED and verified_amount is not None:
+            chosen_span = (
+                TextSpan.objects.filter(
+                    run=run, value__amount=str(verified_amount)
+                ).first()
+            )
+            resolution, _ = TextProcessResolution.objects.update_or_create(
+                decision=decision,
+                process=PROCESS_SLUG,
+                defaults={
+                    "winning_run": run,
+                    "chosen_span": chosen_span,
+                    "value": {"amount": str(verified_amount)},
+                    "has_discrepancy": has_discrepancy,
+                    "note": discrepancy_note,
+                },
+            )
+            resolution_id = resolution.id
+
+        return {
+            "status": "completed" if success else "failed",
+            "run_id": run.id,
+            "resolution_id": resolution_id,
+            "ai_amount": str(verified_amount) if verified_amount else None,
+            "calculated_amount": str(calculated_amount),
+            "raw_amount": str(raw_amount) if raw_amount else None,
             "has_discrepancy": has_discrepancy,
         }
 

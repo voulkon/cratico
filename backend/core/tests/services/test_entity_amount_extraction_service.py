@@ -47,6 +47,10 @@ def load_extraction_test_cases(test_data_dir: Path) -> list:
         with open(json_file, "r", encoding="utf-8") as f:
             data = json.load(f)
 
+        # Skip files that aren't extraction test cases (e.g. text sidecars)
+        if "expected" not in data:
+            continue
+
         # Get optional total_amount (None if not present)
         expected_total_amount = data["expected"].get("total_amount", None)
 

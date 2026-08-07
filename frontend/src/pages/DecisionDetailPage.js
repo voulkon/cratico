@@ -117,9 +117,9 @@ const DecisionDetailPage = () => {
     };
   }, [docStatus, fetchDocumentContent]);
 
-  const fetchDecisionData = useCallback(async () => {
+  const fetchDecisionData = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
 
       const decisionResponse = await apiClient.get(`/decisions/${id}/`);
       setDecision(decisionResponse.data);
@@ -142,14 +142,15 @@ const DecisionDetailPage = () => {
     fetchDecisionData();
   }, [fetchDecisionData]);
 
-  const { aiAnalyses, requestExtraction, requestAISummary } = useDecisionAI(decision, fetchDecisionData);
+  const { aiAnalyses, requestExtraction, requestAISummary, requestAmountVerification } = useDecisionAI(decision, fetchDecisionData);
 
   const {
     viewMode, setViewMode,
     processRuns, setProcessRuns,
-    setProcessResolution,
-    processList, selectedProcess, setSelectedProcess,
-    processRunning, handleRunProcess,
+    processResolution, setProcessResolution,
+    processList,
+    activeProcesses, toggleProcess,
+    handleRunProcess,
   } = useTextProcesses(id, fetchDocumentContent);
 
   // Model selection for AI summarization
@@ -210,6 +211,42 @@ const DecisionDetailPage = () => {
       alert(typeof err === 'string' ? err : t('decisionDetail.aiSummaryFailed'));
     } finally {
       setAiRequesting(false);
+    }
+  };
+
+  // ── Amount verification ──────────────────────────────────────────
+  const [verifyingAmount, setVerifyingAmount] = useState(false);
+  const [verifyResult, setVerifyResult] = useState(null); // 'corrected' | 'ok' | null
+
+  const handleVerifyAmount = async () => {
+    try {
+      setVerifyingAmount(true);
+      setVerifyResult(null);
+      await requestAmountVerification(false);
+
+      // Poll silently (no full-page spinner). Stop as soon as we see the
+      // corrected state change, otherwise after a few attempts report "ok".
+      const hadCorrection = !!decision?.has_corrected_amounts;
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts += 1;
+        const resp = await apiClient.get(`/decisions/${id}/`);
+        const d = resp.data;
+        if (d.has_corrected_amounts && !hadCorrection) {
+          clearInterval(poll);
+          setDecision(d);
+          setVerifyResult('corrected');
+          setVerifyingAmount(false);
+        } else if (attempts >= 6) {
+          clearInterval(poll);
+          setDecision(d);
+          setVerifyResult('ok');
+          setVerifyingAmount(false);
+        }
+      }, 2500);
+    } catch (err) {
+      setVerifyingAmount(false);
+      alert(typeof err === 'string' ? err : 'Amount verification failed');
     }
   };
 
@@ -430,6 +467,67 @@ const DecisionDetailPage = () => {
               <span>{t('decisionDetail.financialYear')} {decision.financial_year}</span>
             )}
           </div>
+          {/* Discrepancy banner — shown when amount verification found a mismatch */}
+          {processResolution?.has_discrepancy && (
+            <div className="amount-discrepancy-banner">
+              <div className="amount-discrepancy-header">
+                <span className="amount-discrepancy-icon">⚠️</span>
+                <span>Amount Discrepancy Detected</span>
+              </div>
+              {processResolution.value?.amount && (
+                <div className="amount-discrepancy-corrected">
+                  <span className="amount-discrepancy-label">Corrected amount (from document text):</span>
+                  <strong className="amount-discrepancy-value">
+                    {formatAmount(parseFloat(processResolution.value.amount))}
+                  </strong>
+                </div>
+              )}
+              {processResolution.note && (
+                <div className="amount-discrepancy-note">{processResolution.note}</div>
+              )}
+            </div>
+          )}
+
+          {/* Corrected-total badge (from persisted verified_amount) */}
+          {decision.has_corrected_amounts && decision.corrected_amount != null && (
+            <div className="amount-discrepancy-banner">
+              <div className="amount-discrepancy-header">
+                <span className="amount-discrepancy-icon">✓</span>
+                <span>Amount corrected from document text</span>
+              </div>
+              <div className="amount-discrepancy-corrected">
+                <span className="amount-discrepancy-label">Corrected total:</span>
+                <strong className="amount-discrepancy-value">
+                  {formatAmount(decision.corrected_amount)}
+                </strong>
+              </div>
+            </div>
+          )}
+
+          {/* Verify-amount knob */}
+          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              className="document-link"
+              onClick={handleVerifyAmount}
+              disabled={verifyingAmount}
+              title="Check the metadata amounts against the document text and correct any decimal-shift typo"
+            >
+              {verifyingAmount
+                ? <LoaderIcon className="spinner" size={14} />
+                : <SearchIcon size={14} />}
+              {' '}{verifyingAmount ? 'Verifying…' : 'Verify amount'}
+            </button>
+            {verifyResult === 'ok' && !decision.has_corrected_amounts && (
+              <span style={{ color: '#155724', fontSize: 13 }}>
+                ✓ No discrepancy found — amounts match the document.
+              </span>
+            )}
+            {verifyResult === 'corrected' && (
+              <span style={{ color: '#155724', fontSize: 13 }}>
+                ✓ Corrected from document text.
+              </span>
+            )}
+          </div>
         </div>
       )}
 
@@ -525,38 +623,48 @@ const DecisionDetailPage = () => {
               </button>
             </div>
 
-            {/* Process controls — only shown in annotated mode */}
+            {/* Process controls — per-process toggle buttons */}
             {viewMode === 'annotated' && (
               <div className="process-controls">
-                <select
-                  value={selectedProcess}
-                  onChange={e => setSelectedProcess(e.target.value)}
-                  style={{ fontSize: 12, padding: '3px 6px', borderRadius: 4, border: '1px solid var(--border-color, #444)', background: 'var(--surface, #1e1e1e)', color: 'var(--text-primary, #e0e0e0)' }}
-                >
-                  <option value="">-- Run a process --</option>
-                  {processList.map(p => (
-                    <option key={p.slug} value={p.slug}>{p.name}</option>
-                  ))}
-                </select>
-                <button
-                  className="process-trigger-btn process-trigger-btn--primary"
-                  disabled={!selectedProcess || processRunning}
-                  onClick={() => handleRunProcess()}
-                >
-                  {processRunning ? <LoaderIcon className="spinner" size={12} /> : <SparklesIcon size={12} />}
-                  {' '}Run
-                </button>
-                {/* Quick-run buttons for common processes */}
-                {processList.filter(p => !processRuns.some(r => r.process === p.slug && r.status === 'COMPLETED')).slice(0, 2).map(p => (
-                  <button
-                    key={p.slug}
-                    className="process-trigger-btn"
-                    disabled={processRunning}
-                    onClick={() => handleRunProcess(p.slug)}
-                  >
-                    Detect {p.name}
-                  </button>
-                ))}
+                {processList.map(p => {
+                  const hasRun = processRuns.some(
+                    r => r.process === p.slug && r.status === 'COMPLETED'
+                  );
+                  const isRunning = processRuns.some(
+                    r => r.process === p.slug && (r.status === 'PENDING' || r.status === 'RUNNING')
+                  );
+                  const isOn = activeProcesses.has(p.slug);
+                  const swatchColor = p.color || '#757575';
+
+                  return (
+                    <button
+                      key={p.slug}
+                      className={`process-toggle-btn${isOn ? ' process-toggle-btn--on' : ''}`}
+                      onClick={() => {
+                        if (!hasRun && !isRunning) {
+                          handleRunProcess(p.slug);
+                        } else if (hasRun) {
+                          toggleProcess(p.slug);
+                        }
+                      }}
+                      disabled={isRunning}
+                      title={p.description || p.name}
+                    >
+                      <span
+                        className="process-toggle-swatch"
+                        style={{ backgroundColor: swatchColor }}
+                      />
+                      {p.name}
+                      {isRunning ? (
+                        <span className="process-toggle-spinner" />
+                      ) : !hasRun ? (
+                        <span className="process-toggle-run" title={`Run ${p.name}`}>
+                          <SparklesIcon size={10} />
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
               </div>
             )}
 
@@ -565,6 +673,8 @@ const DecisionDetailPage = () => {
               <AnnotatedText
                 rawText={docContent}
                 runs={processRuns}
+                activeProcesses={activeProcesses}
+                processList={processList}
               />
             ) : (
               <div className="document-content-body">

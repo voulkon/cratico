@@ -32,6 +32,7 @@ def get_available_processes() -> list[dict[str, Any]]:
             "name": cls.name,
             "description": cls.description,
             "methods": list(cls.methods),
+            "color": cls.color,
         }
         for cls in TEXT_PROCESSES.values()
     ]
@@ -55,6 +56,10 @@ class TextProcessService:
     ) -> TextProcessRun:
         """
         Run *process_slug* over *extraction* and persist spans.
+
+        - Regex methods run **synchronously** (return completed run).
+        - AI methods run **asynchronously** via Celery (return PENDING run;
+          frontend polls ``/decisions/<id>/content/?include=spans``).
 
         Idempotent: an existing COMPLETED run for the same
         (extraction, process, method, provider, model, version) is returned
@@ -88,6 +93,26 @@ class TextProcessService:
             )
             return run
 
+        # --- Async path: dispatch to Celery worker ---
+        if method in process_cls.async_methods:
+            from core.tasks.tasks_text_processes import execute_text_process
+
+            run.status = TextProcessStatus.RUNNING
+            run.save(update_fields=["status", "updated_at"])
+
+            execute_text_process.delay(
+                run_id=run.id,
+                process_slug=process_slug,
+                method=method,
+                params=params or {},
+            )
+            logger.info(
+                f"{process_slug} run {run.id} dispatched to Celery "
+                f"({method=})"
+            )
+            return run
+
+        # --- Sync path: run inline ---
         text = extraction.raw_text or ""
         process = process_cls()
 

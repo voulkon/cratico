@@ -521,23 +521,33 @@ def trigger_check_all_subscriptions(reference_date_str: str | None = None):
 @shared_task
 def verify_high_value_amounts(reference_date_str: str | None = None):
     """
-    Verify monetary amounts for decisions exceeding the high-value threshold
-    by reading the actual document text (regex-first, optional AI).
+    Verify AND correct monetary amounts for decisions exceeding the
+    high-value threshold by reading the actual document text.
+
+    Two-phase pipeline:
+      1. Verification (AmountVerificationService): runs regex/AI detection
+         and persists TextProcessRun + TextProcessResolution records for
+         audit trail.
+      2. Correction (AmountCorrectionService): runs the cents-based detector
+         and — when the text has a clear different amount with a ×100/÷100
+         decimal-shift — stores the corrected value on each affected
+         ``DecisionAmountField.verified_amount`` so all downstream consumers
+         (via ``COALESCE(verified_amount, amount)``) use the corrected value.
 
     Catches data-entry errors where decimal separators are misplaced
     (e.g. €30,000.00 recorded as €3,000,000 in Diavgeia).
 
     This task is idempotent — it skips decisions that have already been
-    verified.  It runs as a standalone @shared_task so it can also be
-    triggered manually via the Django admin or management command.
+    verified/corrected.  It runs as a standalone @shared_task so it can
+    also be triggered manually via the Django admin or management command.
 
     Args:
         reference_date_str: ISO-format date string.  Currently informational;
-                            the verification runs on ALL unverified decisions
-                            above the threshold regardless of date.
+                            the verification/correction runs on ALL unverified
+                            decisions above the threshold regardless of date.
 
     Returns:
-        Dict with batch summary (total_candidates, verified, skipped, etc.).
+        Dict with batch summary from both phases.
     """
     if not feature_flags.is_enabled("POST_IMPORT_AMOUNT_VERIFICATION_ENABLED"):
         logger.debug(
@@ -546,6 +556,7 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
         return {"status": "skipped", "reason": "feature_flag_disabled"}
 
     from core.services.amount_verification_service import AmountVerificationService
+    from core.services.amount_correction_service import AmountCorrectionService
 
     ref = (
         date.fromisoformat(reference_date_str)
@@ -554,19 +565,32 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
     )
 
     logger.info(
-        f"Starting amount verification batch (reference date: {ref})"
+        f"Starting amount verification + correction batch (reference date: {ref})"
     )
 
-    service = AmountVerificationService()
-    result = service.verify_high_value_decisions()
+    # ── Phase 1: Verification (audit trail + discrepancy detection) ───
+    verify_service = AmountVerificationService()
+    verify_result = verify_service.verify_high_value_decisions()
 
     logger.info(
-        f"Amount verification batch complete: {result['verified']} verified, "
-        f"{result['discrepancies']} discrepancies found"
+        f"Amount verification complete: {verify_result['verified']} verified, "
+        f"{verify_result['discrepancies']} discrepancies found"
+    )
+
+    # ── Phase 2: Correction (cents-based, updates Decision model) ────
+    correction_service = AmountCorrectionService()
+    correct_result = correction_service.correct_high_value_decisions()
+
+    logger.info(
+        f"Amount correction complete: {correct_result['corrected']} corrected, "
+        f"{correct_result['consistent']} consistent, "
+        f"{correct_result['no_text']} no text, "
+        f"{correct_result['errors']} errors"
     )
 
     return {
         "status": "completed",
         "reference_date": str(ref),
-        **result,
+        "verification": verify_result,
+        "correction": correct_result,
     }

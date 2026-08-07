@@ -11,6 +11,7 @@ from datetime import date, datetime
 from django.db import models
 
 from core.models.decisions import Decision
+from core.services.decision_facets import effective_amount_sum
 from core.services.decision_projections import paginate_decisions
 
 from ._helpers import _make_aware_start, _make_aware_end, _validate_dates, parse_date
@@ -47,8 +48,7 @@ def compute_top_direct_assignments(
             classification__is_direct_assignment=True,
         )
         .annotate(
-            calculated_amount=models.Sum(
-                "amount_fields__amount",
+            calculated_amount=effective_amount_sum(
                 filter=models.Q(amount_fields__associated_relationship__isnull=False),
             )
         )

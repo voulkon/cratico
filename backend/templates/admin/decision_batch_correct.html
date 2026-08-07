@@ -1,0 +1,71 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <h1>🔍 Batch Amount Correction</h1>
+  <p>
+    Run the <strong>cents-based detector</strong> on high-value decisions to find
+    and correct the classic Diavgeia comma-drop typo
+    (e.g. <code>30.000,00</code> typed as <code>3.000.000</code>).
+  </p>
+
+  <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 16px; margin-bottom: 20px;">
+    <strong>Current status:</strong>
+    {{ already_corrected }} decisions have corrected amount fields
+    ({{ total_fields_corrected }} fields total),
+    out of {{ total_decisions }} decisions overall.
+  </div>
+
+  <form method="post" style="max-width: 600px;">
+    {% csrf_token %}
+    <fieldset class="module aligned">
+      {% for field in form %}
+        <div class="form-row">
+          <div>
+            {{ field.errors }}
+            <label for="{{ field.id_for_label }}">{{ field.label }}:</label>
+            {{ field }}
+            {% if field.help_text %}
+              <div class="help" style="color: #666; font-size: 12px; margin-top: 4px;">
+                {{ field.help_text }}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </fieldset>
+
+    <div class="submit-row" style="margin-top: 20px;">
+      <input type="submit" value="Run Correction" class="default" style="background: #417690;">
+      <a href="../" class="button cancel-link" style="margin-left: 8px;">Cancel</a>
+    </div>
+  </form>
+
+  <hr style="margin: 24px 0;">
+
+  <h2>What this does</h2>
+  <ol>
+    <li>Finds all decisions whose computed total exceeds the threshold.</li>
+    <li>Reads the actual document text for each decision — if a decision has
+        no extracted text yet and <strong>“Read if missing”</strong> is checked,
+        the document is downloaded and extracted first.</li>
+    <li>Uses the <strong>cents-based detector</strong> to find monetary amounts
+        in the text (numbers ending with <code>,00</code>, <code>,50</code>, etc. —
+        the defining signal of money in Greek documents).</li>
+    <li>For each <code>DecisionAmountField</code> row whose value is NOT found
+        verbatim in the text but HAS a ×100 or ÷100 clone, stores the corrected
+        value in <code>verified_amount</code>.</li>
+    <li>All downstream consumers use <code>COALESCE(verified_amount, amount)</code>
+        so corrected values automatically override the erroneous metadata
+        everywhere — API filtering, pre-calc rankings, statistics.</li>
+  </ol>
+
+  <p style="color: #856404; background: #fff3cd; padding: 12px; border-radius: 4px;">
+    ⚠️ <strong>Tip:</strong> Use <strong>Dry Run</strong> first to preview what
+    would be corrected before making changes.
+  </p>
+</div>
+{% endblock %}

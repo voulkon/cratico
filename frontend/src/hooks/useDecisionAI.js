@@ -45,9 +45,23 @@ export function useDecisionAI(decision, onRefresh) {
     }
   }, [id, onRefresh]);
 
+  const requestAmountVerification = useCallback(async (dryRun = false) => {
+    if (!id) return;
+    try {
+      const response = await apiClient.post(
+        `/ai/decisions/${id}/verify-amount/`,
+        dryRun ? { dry_run: true } : {}
+      );
+      return response.data;
+    } catch (err) {
+      throw err.response?.data?.error || err;
+    }
+  }, [id]);
+
   return {
     aiAnalyses,
     requestExtraction,
     requestAISummary,
+    requestAmountVerification,
   };
 }

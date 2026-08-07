@@ -25,6 +25,7 @@ from typing import Optional, Tuple
 
 from django.db import models
 from django.db.models import Q, QuerySet, Sum
+from django.db.models.functions import Coalesce
 from django.utils.dateparse import parse_date
 from rest_framework.response import Response
 
@@ -39,10 +40,56 @@ from rest_framework.response import Response
 # unrelated budget figures.
 
 def amount_sum_excluding_kae():
-    """Return a Sum expression that excludes amountWithKae* rows."""
+    """Return a Sum expression that excludes amountWithKae* rows.
+
+    Uses ``COALESCE(verified_amount, amount)`` so corrected values take
+    precedence, consistent with :func:`effective_amount_sum`.
+    """
     return Sum(
-        "amount_fields__amount",
+        Coalesce("amount_fields__verified_amount", "amount_fields__amount"),
         filter=~Q(amount_fields__parent_key_path__startswith="amountWithKae"),
+    )
+
+
+def effective_amount_sum_excluding_kae():
+    """Verified-aware sum excluding KAE rows (combines both helpers)."""
+    return effective_amount_sum(
+        filter=~Q(amount_fields__parent_key_path__startswith="amountWithKae")
+    )
+
+
+def effective_amount_max(filter=None):
+    """Max of ``COALESCE(verified_amount, amount)`` — verified-aware."""
+    return models.Max(
+        Coalesce("amount_fields__verified_amount", "amount_fields__amount"),
+        filter=filter,
+    )
+
+
+def effective_amount_sum(filter=None):
+    """
+    Return a Sum expression that uses the verified amount when available.
+
+    Each ``DecisionAmountField`` may have a ``verified_amount`` set by the
+    cents-based detector.  This expression sums ``COALESCE(verified_amount,
+    amount)`` so corrected values automatically take precedence in every
+    aggregation — no Decision-model bloat needed.
+
+    Usage in pre-calc modules (replaces every raw ``Sum("amount_fields__amount")``)::
+
+        .annotate(
+            calculated_amount=effective_amount_sum(
+                filter=Q(amount_fields__associated_relationship__isnull=False)
+            )
+        )
+
+    Or without a filter::
+
+        .annotate(total=effective_amount_sum())
+    """
+    return Sum(
+        Coalesce("amount_fields__verified_amount", "amount_fields__amount"),
+        filter=filter,
     )
 
 

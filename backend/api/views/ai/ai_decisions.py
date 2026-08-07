@@ -137,6 +137,45 @@ def request_summary(request, decision_id: int):
     return Response(result, status=http_status)
 
 
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def request_amount_verification(request, decision_id: int):
+    """
+    Verify / correct a decision's amounts against its document text.
+
+    Single point of work: dispatches the shared
+    ``amount_correction.correct_single`` Celery task (which fetches the
+    extraction if missing, detects, and corrects).  Returns 202 immediately;
+    the frontend re-fetches the decision to surface the result.
+
+    Pass ``{"dry_run": true}`` to only check without persisting a correction.
+    """
+    try:
+        decision = Decision.objects.get(id=decision_id)
+    except Decision.DoesNotExist:
+        return Response({"error": "Decision not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    dry_run = bool(request.data.get("dry_run", False))
+
+    from core.tasks.tasks_amount_correction import correct_single_decision
+
+    task = correct_single_decision.delay(
+        decision_id=decision.id,
+        dry_run=dry_run,
+        read_if_missing=True,
+    )
+
+    return Response(
+        {
+            "decision_id": decision_id,
+            "status": "dispatched",
+            "dry_run": dry_run,
+            "task_id": task.id,
+        },
+        status=status.HTTP_202_ACCEPTED,
+    )
+
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_analysis(request, decision_id: int):

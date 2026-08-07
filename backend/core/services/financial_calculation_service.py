@@ -298,12 +298,13 @@ class FinancialCalculationService:
             granularity = "year"
 
         # Accurate total on only this entity's decisions (small subset)
+        from django.db.models.functions import Coalesce
         decision_ids = qs.values_list("decision_id", flat=True).distinct()
         accurate_total = (
             DecisionAmountField.objects.filter(
                 decision_id__in=decision_ids,
                 associated_relationship__isnull=False,
-            ).aggregate(total=Sum("amount"))["total"]
+            ).aggregate(total=Sum(Coalesce("verified_amount", "amount")))["total"]
             or Decimal("0.00")
         )
 
@@ -738,6 +739,11 @@ class FinancialCalculationService:
             List of OrganizationAmountSummary Pydantic models, ordered by
             decision count descending.
         """
+        from core.services.decision_facets import (
+            effective_amount_max,
+            effective_amount_sum,
+        )
+
         qs = Decision.objects.all()
         if start_date:
             qs = qs.filter(issue_date_day__gte=start_date)
@@ -748,11 +754,10 @@ class FinancialCalculationService:
             qs.values("organization__uid", "organization__label")
             .annotate(
                 count=Count("id", distinct=True),
-                total_amount=Sum(
-                    "amount_fields__amount",
+                total_amount=effective_amount_sum(
                     filter=Q(amount_fields__associated_relationship__isnull=False),
                 ),
-                max_amount=Max("amount"),
+                max_amount=effective_amount_max(),
             )
             .filter(organization__uid__isnull=False)
             .order_by("-count")[:limit]
@@ -784,6 +789,11 @@ class FinancialCalculationService:
         """
         Get total amount for a specific decision from all amounts.
 
+        Each ``DecisionAmountField`` may carry a ``verified_amount`` (set by
+        the cents-based amount correction service).  The total sums
+        ``COALESCE(verified_amount, amount)`` so corrected values take
+        precedence automatically.
+
         Args:
             decision: The decision to calculate for
             include_unlinked: If True (default), includes amounts not linked to entities.
@@ -792,12 +802,16 @@ class FinancialCalculationService:
         Returns:
             Total amount as Decimal
         """
+        from django.db.models.functions import Coalesce
+
         qs = DecisionAmountField.objects.filter(decision=decision)
 
         if not include_unlinked:
             qs = qs.filter(associated_relationship__isnull=False)
 
-        result = qs.aggregate(total=Sum("amount"))
+        result = qs.aggregate(
+            total=Sum(Coalesce("verified_amount", "amount"))
+        )
         return result["total"] or Decimal("0.00")
 
     def get_decision_entity_amounts(self, decision: Decision) -> list[EntityAmount]:
@@ -938,15 +952,19 @@ class FinancialCalculationService:
             List of DecisionTypeBreakdown Pydantic models, ordered by decision
             count descending.
         """
+        from core.services.decision_facets import (
+            effective_amount_max,
+            effective_amount_sum,
+        )
+
         decision_types = (
             decisions_qs.values("decision_type__uid", "decision_type__label")
             .annotate(
                 count=Count("id", distinct=True),
-                total_amount=Sum(
-                    "amount_fields__amount",
+                total_amount=effective_amount_sum(
                     filter=Q(amount_fields__associated_relationship__isnull=False),
                 ),
-                max_amount=Max("amount"),
+                max_amount=effective_amount_max(),
             )
             .filter(decision_type__uid__isnull=False)
             .order_by("-count")
@@ -1151,12 +1169,13 @@ class FinancialCalculationService:
             "year": "issue_date_year",
         }.get(granularity, "issue_date_month")
 
+        from core.services.decision_facets import effective_amount_sum
+
         # Annotate each decision with accurate total from linked amounts
         timeline = (
             qs.annotate(period=F(period_column))
             .annotate(
-                accurate_total=Sum(
-                    "amount_fields__amount",
+                accurate_total=effective_amount_sum(
                     filter=Q(amount_fields__associated_relationship__isnull=False),
                 )
             )
