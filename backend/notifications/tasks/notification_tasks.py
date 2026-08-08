@@ -837,12 +837,21 @@ def send_consolidated_email_for_user(*args, user_id=None):
     User = get_user_model()
 
     # Extract batch IDs from the chord header results.
-    # If we have them (even an empty list), only act on those batches.
-    # Fall back to the old behaviour (all un-emailed) only when the
-    # callback is invoked without chord header results.
-    batch_ids_from_run = None
-    if args and isinstance(args[0], dict) and "batch_ids" in args[0]:
-        batch_ids_from_run = args[0]["batch_ids"]
+    # Celery delivers chord header results as a LIST of per-task results,
+    # even when the header is a single task — so unwrap one level when the
+    # first element is a list.  Fall back to the old behaviour (all
+    # un-emailed) only when no usable result is present at all.
+    header_result = None
+    if args:
+        candidate = args[0]
+        if isinstance(candidate, (list, tuple)) and len(candidate) == 1:
+            candidate = candidate[0]
+        if isinstance(candidate, dict) and "batch_ids" in candidate:
+            header_result = candidate
+
+    batch_ids_from_run = (
+        header_result["batch_ids"] if header_result is not None else None
+    )
 
     if batch_ids_from_run is not None:
         if not batch_ids_from_run:
@@ -862,14 +871,19 @@ def send_consolidated_email_for_user(*args, user_id=None):
             .order_by("-created_at")
         )
     else:
-        # Fallback: no batch IDs from header — query all un-emailed
-        # (preserves behaviour for any callers that don't use the chord)
+        # Fallback: no batch IDs from header — query recent un-emailed
+        # batches only.  Batches older than 2h are from previous runs and
+        # must NOT be emailed here (prevents stale batches leaking into
+        # every subsequent day's email when the fallback fires).
         logger.warning(
             f"User {user_id}: no batch_ids from chord header, "
-            f"falling back to all un-emailed batches"
+            f"falling back to recent un-emailed batches"
         )
+        recent_cutoff = timezone.now() - timedelta(hours=2)
         unemailed_batches = (
-            NotificationBatch.objects.filter(email_sent=False, user_id=user_id)
+            NotificationBatch.objects.filter(
+                email_sent=False, user_id=user_id, created_at__gte=recent_cutoff
+            )
             .select_related("subscription__organization", "subscription__entity")
             .order_by("-created_at")
         )
