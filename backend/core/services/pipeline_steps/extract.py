@@ -58,17 +58,63 @@ class ExtractStep:
         )
 
     def _get_decision_text(self, decision, re_extract: bool = False) -> str:
-        """Get the raw text for a single decision."""
+        """Get the raw text for a single decision.
+
+        Resolution order:
+        1. Cached ``DocumentExtraction.raw_text`` (unless ``re_extract``)
+        2. On-demand extraction via ``DocumentAnalysisService``
+        3. Decision subject as a clearly-marked last resort
+        """
         # Handle dict-like decisions (from serialized contexts)
         if isinstance(decision, dict):
             return decision.get("raw_text", "") or decision.get("text", "") or ""
 
-        # Try cached DocumentExtraction first
+        # 1. Try cached DocumentExtraction first
         if not re_extract:
             extraction = getattr(decision, "text_extraction", None)
             if extraction and extraction.raw_text:
                 return extraction.raw_text
 
-        # Fallback: use subject + extra_data if no extraction
+        # 2. No cached text — extract on demand so we never summarize a title
+        text = self._extract_on_demand(decision)
+        if text:
+            return text
+
+        # 3. Last resort: subject, clearly marked so downstream steps (and
+        #    readers of the summary) know this was not the full document.
         subject = getattr(decision, "subject", "") or ""
-        return subject
+        logger.warning(
+            f"ExtractStep: no extractable text for decision "
+            f"{getattr(decision, 'pk', '?')} — falling back to subject"
+        )
+        return f"[EXTRACTION_UNAVAILABLE] {subject}"
+
+    def _extract_on_demand(self, decision) -> str:
+        """Attempt synchronous extraction for a decision missing cached text."""
+        try:
+            from core.services.document_processor import DocumentAnalysisService
+
+            if not getattr(decision, "document_url_or_fallback", None):
+                return ""
+            result = DocumentAnalysisService().process_decision(decision)
+            if not result.get("success"):
+                logger.warning(
+                    f"ExtractStep: on-demand extraction failed for decision "
+                    f"{decision.pk}: {result.get('error')}"
+                )
+                return ""
+            extraction = getattr(decision, "text_extraction", None)
+            # text_extraction may be a stale cached relation — refetch
+            if extraction is None or not extraction.raw_text:
+                from core.models.document_analysis import DocumentExtraction
+
+                extraction = DocumentExtraction.objects.filter(
+                    decision=decision
+                ).first()
+            return extraction.raw_text if extraction and extraction.raw_text else ""
+        except Exception as exc:
+            logger.error(
+                f"ExtractStep: on-demand extraction error for decision "
+                f"{getattr(decision, 'pk', '?')}: {exc}"
+            )
+            return ""

@@ -41,6 +41,15 @@ class AmountCorrectionJob(models.Model):
     limit = models.PositiveIntegerField(null=True, blank=True)
     dry_run = models.BooleanField(default=False)
     read_if_missing = models.BooleanField(default=True)
+    imported_since = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Only process decisions imported (Decision.created_at) at/after "
+            "this point — scopes the job to recent imports instead of the "
+            "whole historical backlog."
+        ),
+    )
 
     # ── Status / progress ─────────────────────────────────────────
     status = models.CharField(

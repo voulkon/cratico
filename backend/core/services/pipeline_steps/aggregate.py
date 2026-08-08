@@ -66,6 +66,11 @@ class AggregateStep:
         ai_call = AICallStep()
         rendered = ai_call._render_prompt(merge_template, items_text, context, step)
 
+        # Resolve model with the same precedence as AICallStep
+        # (per-run override → user preference → step config → system default)
+        model_name = ai_call._resolve_model(context, model_name)
+        context.metadata["model_used"] = model_name
+
         # Resolve API key
         api_key = ai_call._resolve_api_key(context.user)
         provider = get_provider(provider_name, model_name, api_key=api_key)

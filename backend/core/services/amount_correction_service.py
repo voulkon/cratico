@@ -296,6 +296,8 @@ class AmountCorrectionService:
         limit: int | None = None,
         dry_run: bool = False,
         read_if_missing: bool = True,
+        imported_since=None,
+        imported_until=None,
     ) -> dict[str, Any]:
         """
         Find all decisions whose computed total exceeds *threshold* and
@@ -313,6 +315,11 @@ class AmountCorrectionService:
             read_if_missing: If True (default), read the document first
                 (download + extract) for any candidate decision that has
                 no completed text extraction yet.
+            imported_since: Optional date/datetime — only decisions *imported*
+                (``Decision.created_at``) on/after this point. This scopes the
+                post-import run to newly imported decisions instead of the
+                entire historical backlog.
+            imported_until: Optional date/datetime upper bound for created_at.
 
         Returns:
             Summary dict with counts.
@@ -351,6 +358,11 @@ class AmountCorrectionService:
                 datetime.combine(end_date, datetime.max.time())
             )
             candidates = candidates.filter(issue_date_day__lte=end_dt)
+
+        if imported_since is not None:
+            candidates = candidates.filter(created_at__gte=imported_since)
+        if imported_until is not None:
+            candidates = candidates.filter(created_at__lt=imported_until)
 
         candidates = candidates.order_by("-calc_total")
 
