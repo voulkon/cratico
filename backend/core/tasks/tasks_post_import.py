@@ -542,9 +542,12 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
     also be triggered manually via the Django admin or management command.
 
     Args:
-        reference_date_str: ISO-format date string.  Currently informational;
-                            the verification/correction runs on ALL unverified
-                            decisions above the threshold regardless of date.
+        reference_date_str: ISO-format date string of the import day.  Only
+            decisions *imported* on that day (``Decision.created_at`` within
+            [ref 00:00, ref+1 00:00)) are processed — so a daily post-import
+            run never fans out over the entire historical backlog.  Pass a
+            past date to backfill a specific import day.  If omitted,
+            defaults to today.
 
     Returns:
         Dict with batch summary from both phases.
@@ -555,6 +558,10 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
         )
         return {"status": "skipped", "reason": "feature_flag_disabled"}
 
+    from datetime import timedelta
+
+    from django.utils import timezone as dj_timezone
+
     from core.services.amount_verification_service import AmountVerificationService
     from core.services.amount_correction_service import AmountCorrectionService
 
@@ -564,13 +571,26 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
         else date.today()
     )
 
+    # Scope to decisions IMPORTED on the reference day — not issue_date, so
+    # old decisions (e.g. 2021) that were only imported today are included,
+    # while the historical backlog is never re-scanned.
+    imported_since = dj_timezone.make_aware(
+        datetime.combine(ref, datetime.min.time())
+    )
+    imported_until = imported_since + timedelta(days=1)
+
     logger.info(
-        f"Starting amount verification + correction batch (reference date: {ref})"
+        f"Starting amount verification + correction batch "
+        f"(decisions imported on {ref})"
     )
 
     # ── Phase 1: Verification (audit trail + discrepancy detection) ───
     verify_service = AmountVerificationService()
-    verify_result = verify_service.verify_high_value_decisions()
+    verify_result = verify_service.verify_high_value_decisions(
+        imported_since=imported_since,
+        imported_until=imported_until,
+        limit=500,
+    )
 
     logger.info(
         f"Amount verification complete: {verify_result['verified']} verified, "
@@ -579,7 +599,11 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
 
     # ── Phase 2: Correction (cents-based, updates Decision model) ────
     correction_service = AmountCorrectionService()
-    correct_result = correction_service.correct_high_value_decisions()
+    correct_result = correction_service.correct_high_value_decisions(
+        imported_since=imported_since,
+        imported_until=imported_until,
+        limit=500,
+    )
 
     logger.info(
         f"Amount correction complete: {correct_result['corrected']} corrected, "

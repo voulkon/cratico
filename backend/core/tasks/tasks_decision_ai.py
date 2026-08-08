@@ -149,16 +149,38 @@ def extract_decision_text(self, decision_id: int, provider: str = None):
     # Get the extraction record
     extraction = DocumentExtraction.objects.filter(decision=decision).first()
 
+    # Do NOT report success unless a completed extraction with text actually
+    # exists — process_decision() can return success while the row is stuck
+    # in PROCESSING/empty (e.g. stale PROCESSING row short-circuits the
+    # extractor), which previously produced the misleading
+    # "text extracted (None chars, provider=None)" log line.
+    if (
+        not extraction
+        or extraction.extraction_status != ProcessingStatus.COMPLETED
+        or not extraction.raw_text
+    ):
+        status = extraction.extraction_status if extraction else "no_record"
+        logger.warning(
+            f"Decision {decision_id}: extraction did not produce text "
+            f"(extraction_status={status})"
+        )
+        return {
+            "decision_id": decision_id,
+            "status": "failed",
+            "error": f"extraction incomplete (status={status})",
+            "extraction_id": extraction.id if extraction else None,
+        }
+
     logger.info(
         f"Decision {decision_id}: text extracted "
-        f"({extraction.character_count if extraction else 0} chars, provider={extraction.extraction_provider if extraction else 'unknown'})"
+        f"({extraction.character_count} chars, provider={extraction.extraction_provider})"
     )
     return {
         "decision_id": decision_id,
         "status": "extracted",
-        "extraction_id": extraction.id if extraction else None,
-        "character_count": extraction.character_count if extraction else 0,
-        "extraction_provider": extraction.extraction_provider if extraction else None,
+        "extraction_id": extraction.id,
+        "character_count": extraction.character_count,
+        "extraction_provider": extraction.extraction_provider,
     }
 
 

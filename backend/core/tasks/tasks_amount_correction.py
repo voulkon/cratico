@@ -163,6 +163,8 @@ def run_amount_correction_job(self, job_id: str) -> dict[str, Any]:
             candidates = candidates.filter(issue_date_day__gte=job.start_date)
         if job.end_date:
             candidates = candidates.filter(issue_date_day__lte=job.end_date)
+        if job.imported_since is not None:
+            candidates = candidates.filter(created_at__gte=job.imported_since)
         candidates = candidates.order_by("-calc_total")
         if job.limit:
             candidates = candidates[: job.limit]
@@ -236,7 +238,15 @@ def daily_amount_correction() -> dict[str, Any]:
     """
     Scheduled daily run — creates a job that APPLIES corrections
     (dry_run=False) over high-value decisions and runs it.
+
+    Scoped to decisions imported in the last 2 days (created_at) so the
+    daily job covers yesterday's + today's imports without re-scanning the
+    entire historical backlog.
     """
+    from datetime import timedelta
+
+    from django.utils import timezone as dj_timezone
+
     from core.models.amount_correction_job import AmountCorrectionJob
     from core.services.amount_correction_service import (
         DEFAULT_CORRECTION_THRESHOLD,
@@ -247,6 +257,7 @@ def daily_amount_correction() -> dict[str, Any]:
         dry_run=False,          # apply corrections
         read_if_missing=True,
         limit=500,
+        imported_since=dj_timezone.now() - timedelta(days=2),
     )
     run_amount_correction_job.delay(job_id=str(job.job_id))
     logger.info(f"Daily amount correction job {job.job_id} created")

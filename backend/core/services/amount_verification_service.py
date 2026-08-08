@@ -115,6 +115,8 @@ class AmountVerificationService:
         provider: str = "OPENROUTER",
         model: str = "qwen/qwen3.7-flash",
         limit: int | None = None,
+        imported_since=None,
+        imported_until=None,
     ) -> dict[str, Any]:
         """
         Find all decisions whose calculated total exceeds the threshold
@@ -125,6 +127,11 @@ class AmountVerificationService:
             provider: AI provider (only used when method="ai").
             model: Model name (only used when method="ai").
             limit: Optional cap on how many decisions to verify (for cost control).
+            imported_since: Optional date/datetime — only decisions *imported*
+                (``Decision.created_at``) on/after this point. This is what
+                scopes the post-import run to "today's new decisions" instead
+                of the entire historical backlog.
+            imported_until: Optional date/datetime upper bound for created_at.
 
         Returns:
             Summary dict with counts.
@@ -148,6 +155,11 @@ class AmountVerificationService:
             )
             .order_by("-calc_total")
         )
+
+        if imported_since is not None:
+            candidates = candidates.filter(created_at__gte=imported_since)
+        if imported_until is not None:
+            candidates = candidates.filter(created_at__lt=imported_until)
 
         total_candidates = candidates.count()
         logger.info(
