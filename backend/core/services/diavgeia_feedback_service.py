@@ -25,6 +25,7 @@ from __future__ import annotations
 import re
 from datetime import date
 from typing import Any
+from urllib.parse import quote
 
 import requests
 from django.conf import settings
@@ -162,6 +163,12 @@ class DiavgeiaFeedbackService:
 
         # ── Send the request ──────────────────────────────────────────
         try:
+            # NB: headers are encoded as latin-1 by http.client, so the ADA
+            # (which may contain Greek letters, e.g. "62ΧΘ469069-3ΨΨ") MUST be
+            # percent-encoded in the Referer — exactly like the browser does
+            # (https://diavgeia.gov.gr/decision/view/62%CE%A7%CE%98469069-3%CE%A8%CE%A8).
+            # The JSON body is UTF-8, so documentId stays raw.
+            referer = f"https://diavgeia.gov.gr/decision/view/{quote(decision.ada)}"
             resp = requests.post(
                 self.base_url,
                 json=payload,
@@ -170,7 +177,7 @@ class DiavgeiaFeedbackService:
                     "Accept": "application/json, text/plain, */*",
                     "Content-Type": "application/json;charset=utf-8",
                     "Origin": "https://diavgeia.gov.gr",
-                    "Referer": f"https://diavgeia.gov.gr/decision/view/{decision.ada}",
+                    "Referer": referer,
                     "User-Agent": (
                         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; "
                         "rv:153.0) Gecko/20100101 Firefox/153.0"

@@ -5,6 +5,7 @@ from django.shortcuts import redirect, render
 from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.html import format_html
+from loguru import logger
 
 
 class ImportDecisionsForm(forms.Form):
@@ -781,7 +782,20 @@ class DecisionAdmin(admin.ModelAdmin):
         from core.services.diavgeia_feedback_service import DiavgeiaFeedbackService
 
         decision = get_object_or_404(Decision, id=decision_id)
-        result = DiavgeiaFeedbackService().report_decision(decision)
+        try:
+            result = DiavgeiaFeedbackService().report_decision(decision)
+        except Exception as exc:
+            logger.exception(
+                f"report_decision_view failed for {decision.ada}: {exc}"
+            )
+            messages.error(
+                request,
+                f"Unexpected error reporting {decision.ada}: {exc}",
+            )
+            referer = request.META.get("HTTP_REFERER")
+            if referer and "feedback-pool" in referer:
+                return redirect(referer)
+            return redirect(reverse("admin:decision_feedback_pool"))
 
         if result["status"] == "reported":
             messages.success(
