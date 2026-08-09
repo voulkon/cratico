@@ -5,7 +5,7 @@
 
 {% block content %}
 <div id="content-main">
-  <h1>📮 Diavgeia Feedback Pool ({{ total }})</h1>
+  <h1>📮 Diavgeia Feedback Pool ({% if is_estimate %}&asymp;{% endif %}{{ total }})</h1>
   <p>
     Decisions whose metadata amounts were <strong>corrected</strong> against the
     document text (<code>verified_amount</code> set — i.e. wrong amounts detected).
@@ -116,7 +116,7 @@
   <!-- Pagination -->
   <div style="margin-top:16px;">
     <span style="margin-right:10px;color:var(--body-quiet-color);">
-      Page {{ page_obj.number }} of {{ paginator.num_pages }} ({{ paginator.count }} decisions)
+      Page {{ page_obj.number }} of {{ paginator.num_pages }} ({% if is_estimate %}&asymp;{% endif %}{{ paginator.count }} decisions)
     </span>
     {% if page_obj.has_previous %}
       <a href="?page={{ page_obj.previous_page_number }}{% if pagination_qs %}&{{ pagination_qs }}{% endif %}" class="button">← Prev</a>
