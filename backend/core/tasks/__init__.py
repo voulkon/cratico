@@ -72,6 +72,11 @@ from .tasks_amount_correction import (
     finalize_amount_correction_job,
     run_amount_correction_job,
 )
+from .tasks_diavgeia_feedback import (
+    finalize_feedback_job,
+    report_single_decision_feedback,
+    run_feedback_job,
+)
 from .tasks_opensearch import (
     bulk_reindex_missing_documents,
     check_opensearch_sync,

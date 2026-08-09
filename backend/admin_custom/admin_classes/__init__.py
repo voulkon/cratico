@@ -15,6 +15,11 @@ from .analytics import (
 )
 from .backup import BackupAdmin
 from .classification_jobs import ClassificationJobAdmin
+from .feedback_jobs import (
+    DiavgeiaFeedbackJobAdmin,
+    DiavgeiaFeedbackJobResultAdmin,
+    DiavgeiaFeedbackReportAdmin,
+)
 from .decisions import (
     AttachmentAdmin,
     DecisionAdmin,

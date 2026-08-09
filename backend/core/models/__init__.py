@@ -50,3 +50,8 @@ from .types import ActType, ActTypeHelp, ExtraField
 from .user_ai_model_preference import UserAIModelPreference
 from .user_ai_settings import UserAISettings
 from .amount_correction_job import AmountCorrectionJob, AmountCorrectionJobResult
+from .diavgeia_feedback_job import (
+    DiavgeiaFeedbackJob,
+    DiavgeiaFeedbackJobResult,
+)
+from .diavgeia_feedback_report import DiavgeiaFeedbackReport

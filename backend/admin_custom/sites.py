@@ -378,6 +378,18 @@ class CustomAdminSite(admin.AdminSite):
                     "admin_url": "/api/admin/core/decision/batch-correct-amounts/",
                     "view_only": True,
                 },
+                {
+                    "name": "Diavgeia Feedback Pool",
+                    "object_name": "DiavgeiaFeedbackPool",
+                    "admin_url": "/api/admin/core/decision/feedback-pool/",
+                    "view_only": True,
+                },
+                {
+                    "name": "Batch Diavgeia Feedback",
+                    "object_name": "BatchDiavgeiaFeedback",
+                    "admin_url": "/api/admin/core/decision/feedback-batch/",
+                    "view_only": True,
+                },
             ],
         }
         app_list.append(decision_mgmt_app)
@@ -553,6 +565,9 @@ def register_all_models():
         DecisionAdmin,
         DecisionHealthCheckAdmin,
         DecisionHealthSummaryAdmin,
+        DiavgeiaFeedbackJobAdmin,
+        DiavgeiaFeedbackJobResultAdmin,
+        DiavgeiaFeedbackReportAdmin,
         DocumentAnalysisAdmin,
         DocumentEmbeddingAdmin,
         DocumentExtractionAdmin,
@@ -680,6 +695,17 @@ def register_all_models():
 
     # Note: SearchSuggestion uses custom manager interface, not default admin
     admin_site.register(NotificationBatchDecision, NotificationBatchDecisionAdmin)
+
+    # Register Diavgeia Feedback job models
+    from core.models.diavgeia_feedback_job import (
+        DiavgeiaFeedbackJob,
+        DiavgeiaFeedbackJobResult,
+    )
+    from core.models.diavgeia_feedback_report import DiavgeiaFeedbackReport
+
+    admin_site.register(DiavgeiaFeedbackJob, DiavgeiaFeedbackJobAdmin)
+    admin_site.register(DiavgeiaFeedbackJobResult, DiavgeiaFeedbackJobResultAdmin)
+    admin_site.register(DiavgeiaFeedbackReport, DiavgeiaFeedbackReportAdmin)
 
     # Register django-celery-beat models for periodic task management
     from django_celery_beat.admin import (
