@@ -52,6 +52,81 @@ class AmountCorrectionForm(forms.Form):
     )
 
 
+def _corrected_fields_count() -> int:
+    """Count amount-field rows that have a verified (corrected) amount.
+
+    Uses the partial index ``idx_daf_verified_amounts`` so this is an
+    index-only scan instead of a full table scan (the table has millions
+    of rows).
+    """
+    from core.models.entities import DecisionAmountField
+
+    return (
+        DecisionAmountField.objects
+        .filter(verified_amount__isnull=False)
+        .count()
+    )
+
+
+def _corrected_decisions_count() -> int:
+    """Count distinct decisions that have at least one corrected amount.
+
+    Counts ``decision_id`` directly on the amount-field table rather than
+    joining ``Decision`` and doing ``SELECT DISTINCT`` of every column, then
+    counting the subquery — a fraction of the work. Backed by the same
+    partial index (index-only scan).
+    """
+    from core.models.entities import DecisionAmountField
+
+    return (
+        DecisionAmountField.objects
+        .filter(verified_amount__isnull=False)
+        .values("decision_id")
+        .distinct()
+        .count()
+    )
+
+
+def _approximate_table_count(model) -> int:
+    """Near-instant row estimate from the Postgres catalog (pg_class.reltuples).
+
+    Falls back to a real ``COUNT(*)`` only if the estimate is unavailable.
+    """
+    from django.db import connection
+
+    with connection.cursor() as cur:
+        cur.execute(
+            "SELECT reltuples::bigint FROM pg_class WHERE relname = %s",
+            [model._meta.db_table],
+        )
+        row = cur.fetchone()
+    if row and row[0]:
+        return int(row[0])
+    return model.objects.count()
+
+
+def _get_cached_stats(cache_key, compute, timeout=300):
+    """Return stats from the Redis cache, computing them on a miss.
+
+    Redis failures are swallowed so a cache outage never blocks the admin
+    page — we simply recompute the stats.
+    """
+    from django.core.cache import cache
+
+    try:
+        stats = cache.get(cache_key)
+        if stats is not None:
+            return stats
+    except Exception:
+        pass
+    stats = compute()
+    try:
+        cache.set(cache_key, stats, timeout)
+    except Exception:
+        pass
+    return stats
+
+
 class HasCorrectedAmountsFilter(admin.SimpleListFilter):
     """Filter decisions that have at least one corrected (verified) amount."""
 
@@ -361,24 +436,38 @@ class DecisionAdmin(admin.ModelAdmin):
         else:
             form = AmountCorrectionForm()
 
-        # Show current stats
-        from core.models.entities import DecisionAmountField
+        # Show current stats — computed lazily and cached briefly.
+        #
+        # These three numbers used to run full-table scans on EVERY page load:
+        #   * already_corrected was a JOIN + SELECT DISTINCT of all columns + a
+        #     COUNT over the subquery (the slowest of the three),
+        #   * total_fields_corrected scanned the whole (millions-of-rows)
+        #     DecisionAmountField table with no index on verified_amount,
+        #   * total_decisions was a full COUNT(*) over millions of decisions.
+        #
+        # Now: corrected-amount counts hit the partial index
+        # idx_daf_verified_amounts (index-only scan, DISTINCT on decision_id
+        # only), total_decisions uses Postgres' catalog estimate, and all
+        # three are cached in Redis for 5 minutes.
         from core.models.decisions import Decision
-        already_corrected = Decision.objects.filter(
-            amount_fields__verified_amount__isnull=False
-        ).distinct().count()
-        total_fields_corrected = DecisionAmountField.objects.filter(
-            verified_amount__isnull=False
-        ).count()
-        total_decisions = Decision.objects.count()
+
+        stats = _get_cached_stats(
+            "admin:batch_correct_amounts:stats:v1",
+            lambda: {
+                "already_corrected": _corrected_decisions_count(),
+                "total_fields_corrected": _corrected_fields_count(),
+                "total_decisions": _approximate_table_count(Decision),
+            },
+            timeout=300,
+        )
 
         context = {
             **self.admin_site.each_context(request),
             "title": "Batch Amount Correction",
             "form": form,
-            "already_corrected": already_corrected,
-            "total_fields_corrected": total_fields_corrected,
-            "total_decisions": total_decisions,
+            "already_corrected": stats["already_corrected"],
+            "total_fields_corrected": stats["total_fields_corrected"],
+            "total_decisions": stats["total_decisions"],
             "opts": self.model._meta,
         }
         return render(request, "admin/decision_batch_correct.html", context)
