@@ -53,8 +53,13 @@ class RateLimitMiddleware:
             response = self.get_response(request)
             return self.add_cors_headers(response)
 
-        # Skip rate limiting in development or for staff users
-        if settings.DEBUG or (request.user.is_authenticated and request.user.is_staff):
+        # Skip rate limiting in development, for staff users, or local/private IPs
+        client_ip = get_client_ip(request)
+        if (
+            settings.DEBUG
+            or (request.user.is_authenticated and request.user.is_staff)
+            or (client_ip and client_ip.startswith(("127.", "10.", "172.", "192.168.")))
+        ):
             return self.get_response(request)
 
         if request.user.is_authenticated:
