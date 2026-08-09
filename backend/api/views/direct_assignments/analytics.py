@@ -29,7 +29,7 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from loguru import logger
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from api.permissions import AuthenticatedOrDebug
 from rest_framework.response import Response
 
 @swagger_auto_schema(
@@ -116,7 +116,7 @@ from rest_framework.response import Response
     end_date_param="end_date",
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 @monitor_query_performance(operation="direct_assignments_top_recipients_by_org")
 def organization_direct_assignment_top_recipients(request, organization_uid):
     """
@@ -286,7 +286,7 @@ def organization_direct_assignment_top_recipients(request, organization_uid):
     end_date_param="end_date",
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 @monitor_query_performance(operation="direct_assignments_top_organizations_by_entity")
 def entity_direct_assignment_top_organizations(request, afm):
     """
@@ -459,7 +459,7 @@ def entity_direct_assignment_top_organizations(request, afm):
     defer_on_miss=True,
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 @monitor_query_performance(operation="direct_assignments_top_pairs_global")
 def direct_assignment_top_pairs_global(request):
     """
@@ -554,7 +554,7 @@ def direct_assignment_top_pairs_global(request):
     defer_on_miss=True,
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 @monitor_query_performance(operation="direct_assignments_top_entities_global")
 def direct_assignment_top_entities_global(request):
     """
@@ -651,7 +651,7 @@ def direct_assignment_top_entities_global(request):
     defer_on_miss=True,
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 @monitor_query_performance(operation="direct_assignments_top_organizations_global")
 def direct_assignment_top_organizations_global(request):
     """
@@ -709,7 +709,7 @@ def direct_assignment_top_organizations_global(request):
     ttl=60 * 10,  # 10 minutes fixed TTL for stats
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def direct_assignment_stats(request):
     """
     Get overall statistics about direct assignment classifications.

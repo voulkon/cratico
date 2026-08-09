@@ -10,8 +10,9 @@ from django.utils.dateparse import parse_date
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from api.permissions import AuthenticatedOrDebug
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
 
 
 def get_entity_decisions_queryset(entity_type, entity_id):
@@ -89,7 +90,7 @@ def get_entity_decisions_queryset(entity_type, entity_id):
     ],
 )
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def document_search_api(request):
     """Enhanced API endpoint for document search with OpenSearch"""
     query = request.GET.get("q", "")
@@ -219,14 +220,14 @@ def document_search_api(request):
 
 # Keep your existing APIs with minimal changes
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def document_search_api_dev(request):
     """Development version of document search API"""
     return document_search_api(request)  # Just delegate to the main API
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def document_search_options_api(request):
     """Get available filter options for document search"""
     search_service = SearchService()
@@ -236,7 +237,7 @@ def document_search_options_api(request):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def document_search_options_api_dev(request):
     """Development version - Get available filter options for document search"""
     search_service = SearchService()
@@ -284,7 +285,7 @@ def document_search_options_api_dev(request):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def entity_search_documents_api_dev(request, entity_type, entity_id):
     """Search documents for a specific entity"""
     start_date_str = request.GET.get("start_date")

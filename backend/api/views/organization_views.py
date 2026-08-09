@@ -3,8 +3,9 @@ from django.conf import settings
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from api.permissions import AuthenticatedOrDebug
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny, IsAuthenticated
 
 
 def get_organization_chart_data_for_api(org_uid, limit=100):
@@ -20,7 +21,7 @@ def get_organization_chart_data_for_api(org_uid, limit=100):
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def organization_chart_api(request):
     """API endpoint for organization chart data"""
     org_uid = request.GET.get("org_uid")
@@ -40,7 +41,7 @@ def organization_chart_api(request):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def organization_chart_api_dev(request):
     """Development version of the organization chart API"""
     org_uid = request.GET.get("org_uid")
