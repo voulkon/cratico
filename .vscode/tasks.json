@@ -51,6 +51,12 @@
             "problemMatcher": []
         },
         {
+            "label": "Docker Compose (with DB) Restart",
+            "type": "shell",
+            "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets down && docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets up -d",
+            "problemMatcher": []
+        },
+        {
             "label": "SSH in vm",
             "type": "shell",
             "command": "source .env_files/.env.local.secrets && ssh -i ~/.ssh/id_ed25519 root@$VM_IP",
