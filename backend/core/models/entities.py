@@ -204,6 +204,15 @@ class DecisionAmountField(models.Model):
                 condition=models.Q(associated_relationship__isnull=False),
                 name="idx_linked_amounts_only",
             ),
+            # Partial index for corrected (verified) amounts: powers the admin
+            # "corrected amounts" counts (and the admin list filter) as an
+            # index-only scan instead of scanning the whole table on millions
+            # of rows.
+            models.Index(
+                fields=["decision", "verified_amount"],
+                condition=models.Q(verified_amount__isnull=False),
+                name="idx_daf_verified_amounts",
+            ),
         ]
 
     def __str__(self):
