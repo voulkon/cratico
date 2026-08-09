@@ -1,0 +1,137 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <h1>📮 Diavgeia Feedback Pool ({{ total }})</h1>
+  <p>
+    Decisions whose metadata amounts were <strong>corrected</strong> against the
+    document text (<code>verified_amount</code> set — i.e. wrong amounts detected).
+    Use this panel to report them back to the Diavgeia admins via the feedback API
+    (<code>POST /luminapi/api/feedback/new</code>).
+  </p>
+
+  <!-- Stats -->
+  <div style="background:var(--darkened-bg);border:1px solid var(--border-color);border-radius:6px;padding:14px;margin-bottom:18px;">
+    <strong style="color:var(--body-loud-color);">{{ total_pending }} pending</strong> (not yet reported) ·
+    <strong style="color:var(--body-loud-color);">{{ total_reported }} reported</strong> ·
+    {{ total }} total decisions with corrected amounts
+  </div>
+
+  <!-- Filters -->
+  <form method="get" style="background:var(--darkened-bg);border:1px solid var(--border-color);border-radius:6px;padding:14px;margin-bottom:18px;">
+    <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;">
+      <div>
+        <label for="id_reported" style="font-size:12px;color:var(--body-quiet-color);">Reported</label><br>
+        <select name="reported" id="id_reported">
+          <option value="no" {% if filters.reported == 'no' %}selected{% endif %}>Unreported</option>
+          <option value="yes" {% if filters.reported == 'yes' %}selected{% endif %}>Reported</option>
+          <option value="all" {% if filters.reported == 'all' %}selected{% endif %}>All</option>
+        </select>
+      </div>
+      <div>
+        <label for="id_start_date" style="font-size:12px;color:var(--body-quiet-color);">From</label><br>
+        <input type="date" name="start_date" id="id_start_date" value="{{ filters.start_date }}">
+      </div>
+      <div>
+        <label for="id_end_date" style="font-size:12px;color:var(--body-quiet-color);">To</label><br>
+        <input type="date" name="end_date" id="id_end_date" value="{{ filters.end_date }}">
+      </div>
+      <div>
+        <label for="id_q" style="font-size:12px;color:var(--body-quiet-color);">Search (ADA / subject)</label><br>
+        <input type="text" name="q" id="id_q" value="{{ filters.q }}" style="min-width:220px;">
+      </div>
+      <div>
+        <input type="submit" value="Apply" class="default" style="background:var(--primary);">
+        <a href="." class="button" style="margin-left:6px;">Reset</a>
+      </div>
+    </div>
+  </form>
+
+  <div style="margin-bottom:18px;">
+    <a href="{{ batch_url }}" class="button"
+       style="background:var(--primary);color:var(--primary-fg);padding:6px 14px;text-decoration:none;border-radius:4px;">
+      🚀 Report all pending (background job)
+    </a>
+  </div>
+
+  {% if rows %}
+  <table style="width:100%;border-collapse:collapse;">
+    <thead>
+      <tr style="background:var(--primary);color:var(--primary-fg);text-align:left;">
+        <th style="padding:8px;">ADA</th>
+        <th style="padding:8px;">Subject</th>
+        <th style="padding:8px;">Issue date</th>
+        <th style="padding:8px;">Corrected fields</th>
+        <th style="padding:8px;">Status</th>
+        <th style="padding:8px;">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      {% with d=row.decision report=d.diavgeia_feedback_report %}
+      <tr style="border-bottom:1px solid var(--border-color);{% if report.reported %}background:var(--darkened-bg);{% else %}background:var(--body-bg);{% endif %}">
+        <td style="padding:8px;white-space:nowrap;"><code>{{ d.ada }}</code></td>
+        <td style="padding:8px;max-width:280px;">{{ d.subject|truncatewords:14 }}</td>
+        <td style="padding:8px;white-space:nowrap;">{{ d.issue_date|date:"Y-m-d" }}</td>
+        <td style="padding:8px;">
+          {% for f in row.verified_fields %}
+            <div style="font-size:12px;">
+              <code>{{ f.source_field_name }}</code>: €{{ f.amount }} →
+              <strong>€{{ f.verified_amount }}</strong>
+            </div>
+          {% empty %}
+            <span style="color:var(--body-quiet-color);">—</span>
+          {% endfor %}
+        </td>
+        <td style="padding:8px;white-space:nowrap;">
+          {% if report.reported %}
+            <span style="background:var(--darkened-bg);color:var(--body-fg);padding:2px 8px;border-radius:10px;">
+              ✓ {{ report.reported_at|date:"Y-m-d H:i" }}
+              {% if report.reference %}<br><code style="font-size:11px;">{{ report.reference }}</code>{% endif %}
+            </span>
+          {% else %}
+            <span style="background:var(--message-warning-bg);color:var(--body-fg);padding:2px 8px;border-radius:10px;">pending</span>
+          {% endif %}
+        </td>
+        <td style="padding:8px;white-space:nowrap;">
+          <a href="{{ row.frontend_url }}" target="_blank">view →</a>
+          {% if not report.reported %}
+            <form method="post" action="{{ report_url }}{{ d.id }}/" style="display:inline;margin-left:8px;">
+              {% csrf_token %}
+              <input type="submit" value="Report" class="button"
+                     style="background:var(--close-button-bg);color:var(--primary-fg);border:none;padding:3px 10px;border-radius:4px;cursor:pointer;"
+                     onclick="return confirm('Report {{ d.ada }} to Diavgeia?');">
+            </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endwith %}
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Pagination -->
+  <div style="margin-top:16px;">
+    <span style="margin-right:10px;color:var(--body-quiet-color);">
+      Page {{ page_obj.number }} of {{ paginator.num_pages }} ({{ paginator.count }} decisions)
+    </span>
+    {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}{% if pagination_qs %}&{{ pagination_qs }}{% endif %}" class="button">← Prev</a>
+    {% endif %}
+    {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}{% if pagination_qs %}&{{ pagination_qs }}{% endif %}" class="button">Next →</a>
+    {% endif %}
+  </div>
+  {% else %}
+  <p style="color:var(--body-quiet-color);">No decisions match the current filters.</p>
+  {% endif %}
+
+  <div style="margin-top:20px;">
+    <a href="../" class="button">← Decision list</a>
+    <a href="../batch-correct-amounts/" class="button" style="margin-left:8px;">Run amount correction</a>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <h1>🚀 Batch Diavgeia Feedback</h1>
+  <p>
+    Create a background job that reports all <strong>pending</strong> decisions
+    (corrected amounts, not yet reported) to the Diavgeia feedback API.
+  </p>
+
+  <div style="background:var(--darkened-bg);border:1px solid var(--border-color);border-radius:6px;padding:16px;margin-bottom:20px;">
+    <strong>Currently pending:</strong> {{ total_pending }} decisions
+    (see the <a href="{% url 'admin:decision_feedback_pool' %}">Feedback Pool</a>).
+  </div>
+
+  <form method="post" style="max-width:600px;">
+    {% csrf_token %}
+    <fieldset class="module aligned">
+      {% for field in form %}
+        <div class="form-row">
+          <div>
+            {{ field.errors }}
+            <label for="{{ field.id_for_label }}">{{ field.label }}:</label>
+            {{ field }}
+            {% if field.help_text %}
+              <div class="help" style="color:var(--body-quiet-color);font-size:12px;margin-top:4px;">
+                {{ field.help_text }}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </fieldset>
+
+    <div class="submit-row" style="margin-top:20px;">
+      <input type="submit" value="Start Feedback Job" class="default" style="background:var(--primary);">
+      <a href="{% url 'admin:decision_feedback_pool' %}" class="button cancel-link" style="margin-left:8px;">Cancel</a>
+    </div>
+  </form>
+
+  <hr style="margin:24px 0;">
+
+  <h2>What this does</h2>
+  <ol>
+    <li>Finds all decisions with corrected amounts that have <strong>not</strong> been reported yet.</li>
+    <li>For each, POSTs to
+        <code>https://diavgeia.gov.gr/luminapi/api/feedback/new</code> with
+        <code>documentId</code> = the decision's ADA.</li>
+    <li>Stores the returned reference number and the raw response on a
+        <code>DiavgeiaFeedbackReport</code> row (one per decision —
+        <code>reported</code>, <code>reported_at</code>, <code>reference</code>).</li>
+    <li>Progress is tracked on a job row and visible on the job status page
+        (auto-refreshes while running).</li>
+  </ol>
+
+  <p style="color:var(--body-fg);background:var(--message-warning-bg);padding:12px;border-radius:4px;">
+    ⚠️ <strong>Tip:</strong> Use <strong>Dry Run</strong> first to preview what
+    would be sent without making any API calls.
+  </p>
+</div>
+{% endblock %}

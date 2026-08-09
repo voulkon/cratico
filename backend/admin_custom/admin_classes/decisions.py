@@ -52,6 +52,39 @@ class AmountCorrectionForm(forms.Form):
     )
 
 
+class DiavgeiaFeedbackForm(forms.Form):
+    """Form for batch Diavgeia feedback reporting with configurable parameters."""
+
+    reporter_email = forms.EmailField(
+        required=False,
+        help_text="Email to report from (blank uses the configured default).",
+    )
+    feedback_errors = forms.CharField(
+        required=False,
+        initial="FE_1",
+        help_text="Comma-separated feedback error codes (e.g. FE_1).",
+    )
+    limit = forms.IntegerField(
+        required=False,
+        initial=500,
+        min_value=1,
+        help_text="Max number of unreported decisions to process (default 500).",
+    )
+    dry_run = forms.BooleanField(
+        required=False,
+        initial=False,
+        help_text="If checked, only report what WOULD be sent (no API calls).",
+    )
+    start_date = forms.DateField(
+        required=False,
+        help_text="Optional: only report decisions issued on/after this date.",
+    )
+    end_date = forms.DateField(
+        required=False,
+        help_text="Optional: only report decisions issued on/before this date.",
+    )
+
+
 def _corrected_fields_count() -> int:
     """Count amount-field rows that have a verified (corrected) amount.
 
@@ -152,16 +185,41 @@ class HasCorrectedAmountsFilter(admin.SimpleListFilter):
         return queryset
 
 
+class ReportedStatusFilter(admin.SimpleListFilter):
+    """Filter decisions by whether they've been reported to Diavgeia."""
+
+    title = "reported to Diavgeia"
+    parameter_name = "reported_status"
+
+    def lookups(self, request, model_admin):
+        return (
+            ("yes", "Reported"),
+            ("no", "Not reported"),
+        )
+
+    def queryset(self, request, queryset):
+        from core.models.diavgeia_feedback_report import DiavgeiaFeedbackReport
+
+        reported = DiavgeiaFeedbackReport.objects.filter(
+            decision=OuterRef("pk"), reported=True
+        )
+        if self.value() == "yes":
+            return queryset.filter(Exists(reported))
+        if self.value() == "no":
+            return queryset.filter(~Exists(reported))
+        return queryset
+
+
 class DecisionAdmin(admin.ModelAdmin):
     """Admin interface for Decision model"""
 
     list_display = (
         "ada", "subject", "organization", "issue_date", "status",
-        "corrected_amounts_link",
+        "corrected_amounts_link", "reported_status",
     )
     list_filter = (
         "status", "decision_type", "has_private_data",
-        HasCorrectedAmountsFilter,
+        HasCorrectedAmountsFilter, ReportedStatusFilter,
     )
     search_fields = ("ada", "subject", "protocol_number")
     date_hierarchy = "issue_date"
@@ -173,6 +231,8 @@ class DecisionAdmin(admin.ModelAdmin):
         "fix_common_issues",
         "correct_amounts",
         "clear_verified_amounts",
+        "report_feedback",
+        "reset_feedback_reports",
     ]
 
     def changelist_view(self, request, extra_context=None):
@@ -183,7 +243,29 @@ class DecisionAdmin(admin.ModelAdmin):
         extra_context["corrected_pool_url"] = reverse(
             "admin:decision_corrected_amounts_pool"
         )
+        extra_context["feedback_pool_url"] = reverse(
+            "admin:decision_feedback_pool"
+        )
         return super().changelist_view(request, extra_context)
+
+    @admin.display(description="Reported")
+    def reported_status(self, obj):
+        """Badge + reference when this decision was reported to Diavgeia."""
+        report = getattr(obj, "diavgeia_feedback_report", None)
+        if not report or not report.reported:
+            return "—"
+        when = (
+            report.reported_at.strftime("%Y-%m-%d %H:%M")
+            if report.reported_at
+            else ""
+        )
+        ref = f"<code>{report.reference}</code>" if report.reference else ""
+        return format_html(
+            '<span style="background:#d1ecf1;color:#0c5460;padding:2px 8px;'
+            'border-radius:10px;">✓ {} {}</span>',
+            when,
+            ref,
+        )
 
     @admin.display(description="Corrected")
     def corrected_amounts_link(self, obj):
@@ -291,6 +373,68 @@ class DecisionAdmin(admin.ModelAdmin):
         from core.services.response_cache_service import response_cache
         response_cache.invalidate_prefix("top_")
 
+    # ── Feedback reporting actions ───────────────────────────────────
+
+    @admin.action(description="[FEEDBACK] Report corrected amounts to Diavgeia")
+    def report_feedback(self, request, queryset):
+        """
+        Report selected decisions' corrected (wrong) amounts to the Diavgeia
+        feedback API.  Skips decisions already reported.
+        """
+        from django.db.models import Exists, OuterRef
+
+        from core.models.diavgeia_feedback_report import DiavgeiaFeedbackReport
+        from core.services.diavgeia_feedback_service import DiavgeiaFeedbackService
+
+        svc = DiavgeiaFeedbackService()
+
+        already_reported = Exists(
+            DiavgeiaFeedbackReport.objects.filter(
+                decision=OuterRef("pk"), reported=True
+            )
+        )
+        already = queryset.filter(already_reported).count()
+        decisions = list(queryset.exclude(already_reported))
+
+        if len(decisions) > 50:
+            messages.warning(
+                request,
+                f"Feedback limited to 50 decisions (selected {len(decisions)})",
+            )
+            decisions = decisions[:50]
+
+        reported = 0
+        errors = 0
+        for decision in decisions:
+            result = svc.report_decision(decision)
+            if result["status"] == "reported":
+                reported += 1
+            else:
+                errors += 1
+
+        if reported:
+            messages.success(
+                request, f"Reported {reported} decision(s) to Diavgeia."
+            )
+        if already:
+            messages.info(request, f"{already} selected decision(s) already reported.")
+        if errors:
+            messages.error(request, f"{errors} decision(s) failed to report.")
+
+    @admin.action(description="[FEEDBACK] Reset reported flags (re-test)")
+    def reset_feedback_reports(self, request, queryset):
+        """Delete the DiavgeiaFeedbackReport rows for selected decisions."""
+        from core.models.diavgeia_feedback_report import DiavgeiaFeedbackReport
+
+        count, _ = (
+            DiavgeiaFeedbackReport.objects
+            .filter(decision__in=queryset)
+            .delete()
+        )
+        messages.success(
+            request, f"Reset feedback reports on {count} decision(s)."
+        )
+
     # ── Custom admin view: batch amount correction ──────────────────
 
     def get_urls(self):
@@ -310,6 +454,27 @@ class DecisionAdmin(admin.ModelAdmin):
                 "correction-job/<uuid:job_id>/",
                 self.admin_site.admin_view(self.correction_job_status_view),
                 name="decision_correction_job_status",
+            ),
+            # ── Diavgeia feedback (wrong-amount reporting) ────────────
+            path(
+                "feedback-pool/",
+                self.admin_site.admin_view(self.feedback_pool_view),
+                name="decision_feedback_pool",
+            ),
+            path(
+                "feedback-report/<int:decision_id>/",
+                self.admin_site.admin_view(self.report_decision_view),
+                name="decision_feedback_report",
+            ),
+            path(
+                "feedback-batch/",
+                self.admin_site.admin_view(self.feedback_batch_view),
+                name="decision_feedback_batch",
+            ),
+            path(
+                "feedback-job/<uuid:job_id>/",
+                self.admin_site.admin_view(self.feedback_job_status_view),
+                name="decision_feedback_job_status",
             ),
         ]
         return custom_urls + urls
@@ -471,6 +636,260 @@ class DecisionAdmin(admin.ModelAdmin):
             "opts": self.model._meta,
         }
         return render(request, "admin/decision_batch_correct.html", context)
+
+    # ── Custom admin views: Diavgeia feedback (wrong-amount reports) ──
+
+    def feedback_pool_view(self, request):
+        """
+        Control panel for wrong-amount feedback reporting.
+
+        Lists every decision with corrected amounts (verified_amount set),
+        paginated, and filterable by:
+          - reported status (reported / unreported / all)
+          - issue-date range
+          - free-text search (ADA / subject)
+
+        Unreported rows get a one-click “Report” button; a “Report all
+        pending” button creates a background batch job.
+        """
+        from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
+        from django.db.models import Exists, OuterRef, Prefetch, Q
+
+        from core.models.decisions import Decision
+        from core.models.diavgeia_feedback_report import DiavgeiaFeedbackReport
+        from core.models.entities import DecisionAmountField
+        from core.services.diavgeia_feedback_service import DiavgeiaFeedbackService
+
+        has_corrected = Exists(
+            DecisionAmountField.objects.filter(
+                decision=OuterRef("pk"), verified_amount__isnull=False
+            )
+        )
+        already_reported = Exists(
+            DiavgeiaFeedbackReport.objects.filter(
+                decision=OuterRef("pk"), reported=True
+            )
+        )
+
+        # ── Global stats (independent of the active filters) ─────────
+        all_corrected = Decision.objects.filter(has_corrected)
+        total_pending = all_corrected.exclude(already_reported).count()
+        total_reported = all_corrected.filter(already_reported).count()
+
+        # ── Build the filtered queryset ──────────────────────────────
+        qs = all_corrected
+
+        reported = request.GET.get("reported", "no")
+        if reported == "yes":
+            qs = qs.filter(already_reported)
+        elif reported == "no":
+            qs = qs.exclude(already_reported)
+
+        start_date = request.GET.get("start_date", "").strip()
+        end_date = request.GET.get("end_date", "").strip()
+        if start_date:
+            qs = qs.filter(issue_date_day__gte=start_date)
+        if end_date:
+            qs = qs.filter(issue_date_day__lte=end_date)
+
+        q = request.GET.get("q", "").strip()
+        if q:
+            qs = qs.filter(Q(ada__icontains=q) | Q(subject__icontains=q))
+
+        qs = (
+            qs.order_by("-issue_date")
+            .select_related("organization", "diavgeia_feedback_report")
+            .prefetch_related(
+                Prefetch(
+                    "amount_fields",
+                    queryset=DecisionAmountField.objects.filter(
+                        verified_amount__isnull=False
+                    ).only("id", "source_field_name", "amount", "verified_amount"),
+                    to_attr="verified_fields",
+                )
+            )
+        )
+
+        # ── Pagination ───────────────────────────────────────────────
+        per_page = 25
+        paginator = Paginator(qs, per_page)
+        page = request.GET.get("page", "1")
+        try:
+            page_obj = paginator.page(page)
+        except PageNotAnInteger:
+            page_obj = paginator.page(1)
+        except EmptyPage:
+            page_obj = paginator.page(paginator.num_pages)
+
+        rows = [
+            {
+                "decision": d,
+                "verified_fields": getattr(d, "verified_fields", []),
+                "frontend_url": DiavgeiaFeedbackService.frontend_url(d),
+            }
+            for d in page_obj.object_list
+        ]
+
+        # Query string that preserves the active filters across pagination.
+        from urllib.parse import urlencode
+
+        pagination_qs = urlencode(
+            {
+                k: v
+                for k, v in {
+                    "reported": reported,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "q": q,
+                }.items()
+                if v not in (None, "", "all")
+            }
+        )
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Diavgeia Feedback Pool",
+            "rows": rows,
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "total_pending": total_pending,
+            "total_reported": total_reported,
+            "total": total_pending + total_reported,
+            "filters": {
+                "reported": reported,
+                "start_date": start_date,
+                "end_date": end_date,
+                "q": q,
+            },
+            "pagination_qs": pagination_qs,
+            "report_url": reverse(
+                "admin:decision_feedback_report", kwargs={"decision_id": 0}
+            )[:-2],  # strip trailing "0/" — template appends the real ID
+            "batch_url": reverse("admin:decision_feedback_batch"),
+            "opts": self.model._meta,
+        }
+        return render(request, "admin/decision_feedback_pool.html", context)
+
+    def report_decision_view(self, request, decision_id):
+        """
+        Report a single decision to the Diavgeia feedback API and redirect
+        back to the feedback pool (preserving filters).
+        """
+        from django.shortcuts import get_object_or_404
+
+        from core.models.decisions import Decision
+        from core.services.diavgeia_feedback_service import DiavgeiaFeedbackService
+
+        decision = get_object_or_404(Decision, id=decision_id)
+        result = DiavgeiaFeedbackService().report_decision(decision)
+
+        if result["status"] == "reported":
+            messages.success(
+                request,
+                f"Reported {decision.ada} to Diavgeia "
+                f"(reference: {result.get('reference') or 'n/a'}).",
+            )
+        elif result["status"] == "already_reported":
+            messages.info(request, f"{decision.ada} was already reported.")
+        else:
+            messages.error(
+                request,
+                f"Failed to report {decision.ada}: {result.get('reason')}",
+            )
+
+        referer = request.META.get("HTTP_REFERER")
+        if referer and "feedback-pool" in referer:
+            return redirect(referer)
+        return redirect(reverse("admin:decision_feedback_pool"))
+
+    def feedback_batch_view(self, request):
+        """
+        Create a background Diavgeia feedback job over all pending
+        (unreported, corrected) decisions.
+        """
+        if request.method == "POST":
+            form = DiavgeiaFeedbackForm(request.POST)
+            if form.is_valid():
+                from core.models.diavgeia_feedback_job import DiavgeiaFeedbackJob
+                from core.tasks.tasks_diavgeia_feedback import run_feedback_job
+
+                errors_raw = form.cleaned_data["feedback_errors"] or "FE_1"
+                feedback_errors = [
+                    e.strip() for e in errors_raw.split(",") if e.strip()
+                ]
+
+                job = DiavgeiaFeedbackJob.objects.create(
+                    created_by=(
+                        request.user if request.user.is_authenticated else None
+                    ),
+                    reporter_email=form.cleaned_data["reporter_email"] or "",
+                    feedback_errors=feedback_errors,
+                    limit=form.cleaned_data["limit"],
+                    dry_run=form.cleaned_data["dry_run"],
+                    start_date=form.cleaned_data["start_date"],
+                    end_date=form.cleaned_data["end_date"],
+                )
+                run_feedback_job.delay(job_id=str(job.job_id))
+
+                messages.info(
+                    request,
+                    f"Feedback job {job.job_id} dispatched to worker "
+                    f"({'dry-run' if job.dry_run else 'sending reports'}).",
+                )
+                return redirect(
+                    reverse(
+                        "admin:decision_feedback_job_status",
+                        args=[job.job_id],
+                    )
+                )
+        else:
+            form = DiavgeiaFeedbackForm()
+
+        from core.services.diavgeia_feedback_service import DiavgeiaFeedbackService
+
+        svc = DiavgeiaFeedbackService()
+        total_pending = svc.pending_decisions().count()
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Batch Diavgeia Feedback",
+            "form": form,
+            "total_pending": total_pending,
+            "opts": self.model._meta,
+        }
+        return render(request, "admin/decision_feedback_batch.html", context)
+
+    def feedback_job_status_view(self, request, job_id):
+        """Live progress / results page for a feedback job (auto-refresh)."""
+        from core.models.diavgeia_feedback_job import (
+            DiavgeiaFeedbackJob,
+            DiavgeiaFeedbackJobResult,
+        )
+
+        job = DiavgeiaFeedbackJob.objects.get(job_id=job_id)
+        job.finalize_if_done()
+        job.refresh_from_db()
+
+        results = [
+            {
+                "ada": r.decision.ada,
+                "subject": r.decision.subject,
+                "status": r.status,
+                "reason": r.reason,
+                "reference": r.reference,
+                "response": r.response,
+            }
+            for r in job.results.select_related("decision").all()
+        ]
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": f"Feedback Job {job.job_id}",
+            "job": job,
+            "results": results,
+            "opts": self.model._meta,
+        }
+        return render(request, "admin/diavgeia_feedback_job.html", context)
 
     # ── Existing actions ─────────────────────────────────────────────
 
