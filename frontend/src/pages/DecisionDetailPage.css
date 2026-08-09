@@ -200,15 +200,6 @@
   text-align: center;
 }
 
-.amount-hero-value {
-  font-size: var(--font-xxxl, 2.5rem);
-  font-weight: var(--font-bold);
-  color: var(--palette-secondary);
-  letter-spacing: -0.02em;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-
 .amount-hero-meta {
   display: flex;
   gap: var(--spacing-md);
@@ -216,56 +207,75 @@
   color: var(--muted-text);
 }
 
-/* ---------- Amount discrepancy banner ---------- */
-.amount-discrepancy-banner {
-  margin-top: var(--spacing-md);
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: rgba(255, 152, 0, 0.08);
-  border: 1px solid rgba(255, 152, 0, 0.25);
-  border-radius: var(--radius-md);
-  text-align: left;
-  max-width: 480px;
-  width: 100%;
+/* ---------- Amount corrected badge (inline in hero value) ---------- */
+.amount-hero-value {
+  font-size: var(--font-xxxl, 2.5rem);
+  font-weight: var(--font-bold);
+  color: var(--palette-secondary);
+  letter-spacing: -0.02em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
 }
 
-.amount-discrepancy-header {
+.amount-corrected-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--palette-primary);
+  color: var(--text-on-primary);
+  cursor: pointer;
+  font-size: 12px;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.amount-corrected-badge:hover,
+.amount-corrected-badge:focus {
+  background: var(--palette-secondary);
+}
+
+.amount-corrected-popover {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--card-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-sm);
+  font-weight: var(--font-normal);
+  white-space: nowrap;
+  box-shadow: var(--card-shadow);
+  z-index: 100;
+  line-height: 1.6;
+}
+
+.amount-corrected-badge:hover .amount-corrected-popover,
+.amount-corrected-badge:focus .amount-corrected-popover {
+  display: block;
+}
+
+/* ---------- Verify-amount row ---------- */
+.verify-amount-row {
+  margin-top: var(--spacing-sm);
   display: flex;
   align-items: center;
-  gap: var(--spacing-xs);
-  font-size: var(--font-sm);
-  font-weight: var(--font-semibold);
-  color: var(--palette-warning, #e6a817);
-  margin-bottom: var(--spacing-xs);
+  gap: var(--spacing-sm);
 }
 
-.amount-discrepancy-icon {
-  font-size: var(--font-md);
-}
-
-.amount-discrepancy-corrected {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-bottom: var(--spacing-xs);
-}
-
-.amount-discrepancy-label {
-  font-size: var(--font-xs);
+.verify-result-text {
   color: var(--muted-text);
-}
-
-.amount-discrepancy-value {
-  font-size: var(--font-lg);
-  color: var(--palette-secondary);
-  font-variant-numeric: tabular-nums;
-}
-
-.amount-discrepancy-note {
   font-size: var(--font-xs);
-  color: var(--muted-text);
-  line-height: 1.5;
-  padding-top: var(--spacing-xs);
-  border-top: 1px solid rgba(255, 152, 0, 0.15);
 }
 
 /* ---------- Core facts strip (replaces the bulky stats grid) ---------- */

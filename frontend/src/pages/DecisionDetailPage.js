@@ -458,7 +458,27 @@ const DecisionDetailPage = () => {
       {/* Hero amount */}
       {decision.amount != null && (
         <div className="amount-hero">
-          <div className="amount-hero-value">{formatAmount(decision.amount)}</div>
+          <div className="amount-hero-value">
+            {decision.has_corrected_amounts && decision.corrected_amount != null
+              ? formatAmount(decision.corrected_amount)
+              : formatAmount(decision.amount)
+            }
+            {decision.has_corrected_amounts && decision.corrected_amount != null && (
+              <span
+                className="amount-corrected-badge"
+                tabIndex={0}
+                aria-label={t('decisionDetail.amountCorrected')}
+              >
+                <InfoIcon size={14} />
+                <div className="amount-corrected-popover">
+                  {t('decisionDetail.amountCorrectedHint', {
+                    original: formatAmount(decision.amount),
+                    corrected: formatAmount(decision.corrected_amount),
+                  })}
+                </div>
+              </span>
+            )}
+          </div>
           <div className="amount-hero-meta">
             {decision.currency && decision.currency !== 'EUR' && (
               <span>{decision.currency}</span>
@@ -467,64 +487,28 @@ const DecisionDetailPage = () => {
               <span>{t('decisionDetail.financialYear')} {decision.financial_year}</span>
             )}
           </div>
-          {/* Discrepancy banner — shown when amount verification found a mismatch */}
-          {processResolution?.has_discrepancy && (
-            <div className="amount-discrepancy-banner">
-              <div className="amount-discrepancy-header">
-                <span className="amount-discrepancy-icon">⚠️</span>
-                <span>Amount Discrepancy Detected</span>
-              </div>
-              {processResolution.value?.amount && (
-                <div className="amount-discrepancy-corrected">
-                  <span className="amount-discrepancy-label">Corrected amount (from document text):</span>
-                  <strong className="amount-discrepancy-value">
-                    {formatAmount(parseFloat(processResolution.value.amount))}
-                  </strong>
-                </div>
-              )}
-              {processResolution.note && (
-                <div className="amount-discrepancy-note">{processResolution.note}</div>
-              )}
-            </div>
-          )}
-
-          {/* Corrected-total badge (from persisted verified_amount) */}
-          {decision.has_corrected_amounts && decision.corrected_amount != null && (
-            <div className="amount-discrepancy-banner">
-              <div className="amount-discrepancy-header">
-                <span className="amount-discrepancy-icon">✓</span>
-                <span>Amount corrected from document text</span>
-              </div>
-              <div className="amount-discrepancy-corrected">
-                <span className="amount-discrepancy-label">Corrected total:</span>
-                <strong className="amount-discrepancy-value">
-                  {formatAmount(decision.corrected_amount)}
-                </strong>
-              </div>
-            </div>
-          )}
 
           {/* Verify-amount knob */}
-          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div className="verify-amount-row">
             <button
               className="document-link"
               onClick={handleVerifyAmount}
               disabled={verifyingAmount}
-              title="Check the metadata amounts against the document text and correct any decimal-shift typo"
+              title={t('decisionDetail.verifyAmount')}
             >
               {verifyingAmount
                 ? <LoaderIcon className="spinner" size={14} />
                 : <SearchIcon size={14} />}
-              {' '}{verifyingAmount ? 'Verifying…' : 'Verify amount'}
+              {' '}{verifyingAmount ? t('decisionDetail.verifying') : t('decisionDetail.verifyAmount')}
             </button>
             {verifyResult === 'ok' && !decision.has_corrected_amounts && (
-              <span style={{ color: '#155724', fontSize: 13 }}>
-                ✓ No discrepancy found — amounts match the document.
+              <span className="verify-result-text">
+                {t('decisionDetail.verifyNoDiscrepancy')}
               </span>
             )}
             {verifyResult === 'corrected' && (
-              <span style={{ color: '#155724', fontSize: 13 }}>
-                ✓ Corrected from document text.
+              <span className="verify-result-text">
+                {t('decisionDetail.verifyCorrected')}
               </span>
             )}
           </div>
