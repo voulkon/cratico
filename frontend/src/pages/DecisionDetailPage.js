@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -250,6 +250,32 @@ const DecisionDetailPage = () => {
     }
   };
 
+  // ── Compute main recipient from entity relationships ──────────
+  // Roles that mark the entity actually receiving funds (as opposed to a
+  // generic counterparty). Ranked: listed roles first, then by amount desc.
+  const MAIN_RECIPIENT_ROLES = ['sponsor', 'creditor'];
+
+  const mainRecipient = useMemo(() => {
+    if (!entityRelationships || !entityRelationships.length) return null;
+
+    const candidates = entityRelationships.filter((rel) => {
+      const role = (rel.role || '').toLowerCase();
+      return role !== 'org' && (rel.total_amount || 0) > 0;
+    });
+    if (!candidates.length) return null;
+
+    const roleRank = (rel) => {
+      const role = (rel.role || '').toLowerCase();
+      return MAIN_RECIPIENT_ROLES.some((r) => role.includes(r)) ? 0 : 1;
+    };
+
+    return [...candidates].sort(
+      (a, b) =>
+        roleRank(a) - roleRank(b) ||
+        (b.total_amount || 0) - (a.total_amount || 0)
+    )[0];
+  }, [entityRelationships]);
+
   if (loading) {
     return (
       <>
@@ -487,6 +513,25 @@ const DecisionDetailPage = () => {
               <span>{t('decisionDetail.financialYear')} {decision.financial_year}</span>
             )}
           </div>
+
+          {/* Main recipient (counterpart entity receiving the funds) */}
+          {mainRecipient?.entity?.name && (
+            <div className="amount-hero-recipient">
+              <span className="recipient-arrow">→</span>
+              <button
+                className="recipient-name"
+                onClick={() => navigate(`/entity/afm/${mainRecipient.entity.afm}`)}
+                title={t('decisionDetail.viewEntityDetails')}
+              >
+                {mainRecipient.entity.name}
+              </button>
+              {mainRecipient.total_amount > 0 && (
+                <span className="recipient-amount">
+                  {formatAmount(mainRecipient.total_amount)}
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Verify-amount knob */}
           <div className="verify-amount-row">
