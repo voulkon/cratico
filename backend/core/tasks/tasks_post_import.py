@@ -558,7 +558,7 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
         )
         return {"status": "skipped", "reason": "feature_flag_disabled"}
 
-    from datetime import timedelta
+    from datetime import datetime, timedelta
 
     from django.utils import timezone as dj_timezone
 
