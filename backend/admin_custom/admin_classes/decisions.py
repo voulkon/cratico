@@ -161,6 +161,48 @@ def _get_cached_stats(cache_key, compute, timeout=300):
     return stats
 
 
+class EstimatedCountPaginator:
+    """Paginator that uses Postgres catalog estimates instead of COUNT(*).
+
+    Replaces Django's ``django.core.paginator.Paginator`` for large tables
+    where an exact ``COUNT(*)`` — especially one carrying ``EXISTS``
+    subqueries — is prohibitively slow.  The estimate comes from
+    ``pg_class.reltuples`` and is labelled "≈" in the template.
+    """
+
+    def __init__(self, queryset, per_page=25, orphans=0):
+        self.queryset = queryset
+        self.per_page = per_page
+        self.orphans = orphans
+        self._count = None  # cached estimate
+
+    def page(self, number):
+        """Return a single page, computing an estimated count on first call."""
+        from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
+
+        if self._count is None:
+            self._count = _approximate_table_count(self.queryset.model)
+        # Build a real Paginator just for slicing (its .page() only slices,
+        # it doesn't re-count because we pass the count directly).
+        paginator = Paginator(self.queryset, self.per_page, orphans=self.orphans)
+        paginator._count = self._count
+        return paginator.page(number)
+
+    @property
+    def count(self):
+        if self._count is None:
+            self._count = _approximate_table_count(self.queryset.model)
+        return self._count
+
+    @property
+    def num_pages(self):
+        if self._count is None:
+            self._count = _approximate_table_count(self.queryset.model)
+        if self._count == 0:
+            return 1
+        return (self._count + self.per_page - 1) // self.per_page
+
+
 class HasCorrectedAmountsFilter(admin.SimpleListFilter):
     """Filter decisions that have at least one corrected (verified) amount."""
 
@@ -653,8 +695,9 @@ class DecisionAdmin(admin.ModelAdmin):
         Unreported rows get a one-click “Report” button; a “Report all
         pending” button creates a background batch job.
         """
-        from django.core.paginator import EmptyPage, PageNotAnInteger, Paginator
-        from django.db.models import Exists, OuterRef, Prefetch, Q
+        from django.db.models import Count, Exists, OuterRef, Prefetch, Q, Value
+        from django.db.models.functions import Coalesce
+        from urllib.parse import urlencode
 
         from core.models.decisions import Decision
         from core.models.diavgeia_feedback_report import DiavgeiaFeedbackReport
@@ -672,10 +715,17 @@ class DecisionAdmin(admin.ModelAdmin):
             )
         )
 
-        # ── Global stats (independent of the active filters) ─────────
+        # ── Global stats: single query with conditional aggregation ──
+        #
+        # Instead of two separate COUNT(*) queries (one for pending, one
+        # for reported), we compute both in one pass over the index.
         all_corrected = Decision.objects.filter(has_corrected)
-        total_pending = all_corrected.exclude(already_reported).count()
-        total_reported = all_corrected.filter(already_reported).count()
+        aggs = all_corrected.aggregate(
+            total_pending=Coalesce(Count("pk", filter=~already_reported), Value(0)),
+            total_reported=Coalesce(Count("pk", filter=already_reported), Value(0)),
+        )
+        total_pending = aggs["total_pending"]
+        total_reported = aggs["total_reported"]
 
         # ── Build the filtered queryset ──────────────────────────────
         qs = all_corrected
@@ -711,16 +761,14 @@ class DecisionAdmin(admin.ModelAdmin):
             )
         )
 
-        # ── Pagination ───────────────────────────────────────────────
+        # ── Pagination (estimated count — no expensive COUNT(*)) ─────
         per_page = 25
-        paginator = Paginator(qs, per_page)
+        paginator = EstimatedCountPaginator(qs, per_page)
         page = request.GET.get("page", "1")
         try:
             page_obj = paginator.page(page)
-        except PageNotAnInteger:
+        except Exception:
             page_obj = paginator.page(1)
-        except EmptyPage:
-            page_obj = paginator.page(paginator.num_pages)
 
         rows = [
             {
@@ -730,9 +778,6 @@ class DecisionAdmin(admin.ModelAdmin):
             }
             for d in page_obj.object_list
         ]
-
-        # Query string that preserves the active filters across pagination.
-        from urllib.parse import urlencode
 
         pagination_qs = urlencode(
             {
@@ -756,6 +801,7 @@ class DecisionAdmin(admin.ModelAdmin):
             "total_pending": total_pending,
             "total_reported": total_reported,
             "total": total_pending + total_reported,
+            "is_estimate": True,
             "filters": {
                 "reported": reported,
                 "start_date": start_date,
