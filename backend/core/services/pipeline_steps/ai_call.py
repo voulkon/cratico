@@ -7,7 +7,7 @@ Config:
     prompt_template: Jinja2 template for the user message
     system_prompt: optional system message
     temperature: 0.3 (default)
-    max_tokens: 1000 (default)
+    max_tokens: optional per-step override — falls back to DEFAULT_MAX_TOKENS
     map_over_items: true (default) — if true, run once per decision;
                     if false, run once on the joined text
 """
@@ -19,6 +19,11 @@ from core.models.pipeline import PipelineStepRun, RunStatus
 from core.services.cost_ledger_service import CostLedgerService
 from core.services.pipeline_engine import PipelineContext
 from loguru import logger
+
+# Code-level default for max_tokens.  Only persist an override in step config
+# when you need a non-default budget — scalar defaults stay in code so tuning
+# them is a code change, not a data migration.
+DEFAULT_MAX_TOKENS = 2000
 
 # Jinja2 sandboxed environment for prompt rendering
 try:
@@ -43,7 +48,7 @@ class AICallStep:
         prompt_template = config.get("prompt_template", "Summarize: {{ text }}")
         system_prompt = config.get("system_prompt", "")
         temperature = config.get("temperature", 0.3)
-        max_tokens = config.get("max_tokens", 1000)
+        max_tokens = self._resolve_max_tokens(context, config)
         map_over_items = config.get("map_over_items", True)
 
         # Resolve API key from user's AI settings
@@ -72,14 +77,17 @@ class AICallStep:
                 )
                 self._log_interaction(result, context, run, step_run, item_id=item_id)
 
-                if result.get("success"):
-                    results[item_id] = result.get("text", "")
-                    total_input += result["input_tokens"]
-                    total_output += result["output_tokens"]
-                    total_cost += result.get("actual_cost_usd", Decimal("0"))
-                else:
-                    results[item_id] = f"[ERROR: {result.get('error', 'unknown')}]"
-                    logger.warning(f"AICallStep failed for item {item_id}: {result.get('error')}")
+                # Fail loudly on any failure OR a "success" with empty text —
+                # an empty summary silently poisons the downstream merge step.
+                if not result.get("success") or not (result.get("text") or "").strip():
+                    error = result.get("error") or "empty response text"
+                    logger.error(f"AICallStep failed for item {item_id}: {error}")
+                    raise RuntimeError(f"AI call failed for item {item_id}: {error}")
+
+                results[item_id] = result.get("text", "")
+                total_input += result["input_tokens"]
+                total_output += result["output_tokens"]
+                total_cost += result.get("actual_cost_usd", Decimal("0"))
 
             context.per_item_outputs = results
             context.steps_output[step.order] = "\n---\n".join(results.values())
@@ -98,14 +106,15 @@ class AICallStep:
             )
             self._log_interaction(result, context, run, step_run)
 
-            if result.get("success"):
-                context.steps_output[step.order] = result.get("text", "")
-                total_input = result["input_tokens"]
-                total_output = result["output_tokens"]
-                total_cost = result.get("actual_cost_usd", Decimal("0"))
-            else:
-                context.steps_output[step.order] = f"[ERROR: {result.get('error')}]"
-                raise RuntimeError(f"AI call failed: {result.get('error')}")
+            # Fail loudly on any failure OR a "success" with empty text.
+            if not result.get("success") or not (result.get("text") or "").strip():
+                error = result.get("error") or "empty response text"
+                raise RuntimeError(f"AI call failed: {error}")
+
+            context.steps_output[step.order] = result.get("text", "")
+            total_input = result["input_tokens"]
+            total_output = result["output_tokens"]
+            total_cost = result.get("actual_cost_usd", Decimal("0"))
 
         step_run.input_tokens = total_input
         step_run.output_tokens = total_output
@@ -168,6 +177,28 @@ class AICallStep:
         from django.conf import settings
 
         return getattr(settings, "AI_DEFAULT_MODEL", "deepseek/deepseek-v4-flash")
+
+    def _resolve_max_tokens(self, context, config: dict) -> int:
+        """
+        Resolve the output-token budget.
+
+        Precedence (mirrors ``_resolve_model``):
+            0. ``context.metadata["max_tokens_override"]`` — explicit per-run
+               override (e.g. caller knows this batch needs a longer budget)
+            1. per-step ``config["max_tokens"]`` — persisted pipeline override
+            2. ``DEFAULT_MAX_TOKENS`` — code-level default
+
+        A per-user slot (e.g. a ``max_tokens`` ceiling on ``UserAISettings``)
+        slots in at 1.5 when built — likely as a *cap* via ``min()`` so a user
+        preference can't silently inflate a system pipeline's budget.
+        """
+        # 0. Explicit per-run override
+        override = context.metadata.get("max_tokens_override")
+        if override:
+            return override
+
+        # 1. Per-step persisted override, else code default
+        return config.get("max_tokens") or DEFAULT_MAX_TOKENS
 
     def _render_prompt(self, template_str, text, context: PipelineContext, step):
         """Render a Jinja2 prompt template with available variables."""

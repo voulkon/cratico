@@ -4,7 +4,8 @@ AggregateStep — merges per-item outputs into a single result.
 Config:
     strategy: "concat" (default) or "summarize_each_then_merge"
     merge_prompt_template: Jinja2 template for the merge AI call
-    max_tokens: 1000 (default, for the merge call)
+    max_tokens: optional per-step override for the merge call —
+                falls back to ai_call.DEFAULT_MAX_TOKENS
     provider: "OPENROUTER" (default, for merge call)
     model: model ID (for merge call)
 """
@@ -54,16 +55,24 @@ class AggregateStep:
             "merge_prompt_template",
             "Synthesize a single summary of these decision summaries:\n{{ text }}",
         )
-        max_tokens = config.get("max_tokens", 1000)
         temperature = config.get("temperature", 0.3)
 
         # Build the text from per-item outputs
         items_text = "\n---\n".join(context.per_item_outputs.values())
 
+        # Nothing to synthesize — fail loudly instead of calling the model with
+        # an empty prompt (which produces a garbage "no summaries" reply).
+        if not items_text.strip():
+            raise RuntimeError(
+                "AggregateStep: no per-item summaries to merge — "
+                "map step produced empty output"
+            )
+
         # Render the merge prompt
         from core.services.pipeline_steps.ai_call import AICallStep
 
         ai_call = AICallStep()
+        max_tokens = ai_call._resolve_max_tokens(context, config)
         rendered = ai_call._render_prompt(merge_template, items_text, context, step)
 
         # Resolve model with the same precedence as AICallStep
@@ -100,11 +109,14 @@ class AggregateStep:
             pipeline_step_run=step_run,
         )
 
-        if result.get("success"):
+        if result.get("success") and (result.get("text") or "").strip():
             context.steps_output[step.order] = result["text"]
             step_run.input_tokens = result["input_tokens"]
             step_run.output_tokens = result["output_tokens"]
             step_run.cost_usd = Decimal(str(result.get("actual_cost_usd", 0)))
             step_run.input_preview = rendered[:5000]
+            step_run.output_text = (result.get("text") or "")[:5000]
+            step_run.save()
         else:
-            raise RuntimeError(f"Aggregate merge call failed: {result.get('error')}")
+            error = result.get("error") or "empty response text"
+            raise RuntimeError(f"Aggregate merge call failed: {error}")
