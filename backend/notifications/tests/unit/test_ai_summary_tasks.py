@@ -351,6 +351,25 @@ class TestDefaultPipelineCreation:
         assert steps[2].step_type == "AGGREGATE"
         assert steps[2].order == 3
 
+    def test_default_steps_do_not_persist_max_tokens(self):
+        """Scalar budget defaults live in code, not in step config rows.
+
+        Omitting ``max_tokens`` keeps the step config clean and lets the
+        code-level default (``ai_call.DEFAULT_MAX_TOKENS``) apply — future
+        tuning of the default becomes a code change, not a data migration.
+        """
+        from core.models.pipeline import PipelineDefinition
+        from notifications.tasks.ai_summary_tasks import _get_or_create_default_pipeline
+
+        PipelineDefinition.objects.filter(
+            name="notification_batch_summary_v1"
+        ).delete()
+
+        pipeline = _get_or_create_default_pipeline()
+
+        for step in pipeline.steps.filter(step_type__in=("AI_CALL", "AGGREGATE")):
+            assert "max_tokens" not in step.config
+
     def test_returns_existing_pipeline(self):
         """Calling _get_or_create_default_pipeline twice returns the same pipeline."""
         from core.models.pipeline import PipelineDefinition
