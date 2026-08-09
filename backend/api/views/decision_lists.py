@@ -49,7 +49,7 @@ from django.utils.dateparse import parse_date
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from api.permissions import AuthenticatedOrDebug
 from rest_framework.response import Response
 
 from datetime import datetime
@@ -143,7 +143,7 @@ _DATE_PARAMS = [
     end_date_param="end_date",
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def top_payments_api(request):
     """
     Return the highest-amount payment (Β.2.2) decisions in a date range.
@@ -186,7 +186,7 @@ def top_payments_api(request):
     end_date_param="end_date",
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def top_direct_assignments_api(request):
     """
     Return the highest-amount direct-assignment decisions in a date range.
@@ -229,7 +229,7 @@ def top_direct_assignments_api(request):
     end_date_param="end_date",
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def top_by_amount_api(request):
     """
     Return the highest-amount decisions (all types) in a date range.

@@ -8,7 +8,7 @@ from django.conf import settings
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from api.permissions import AuthenticatedOrDebug
 from rest_framework.response import Response
 
 
@@ -36,7 +36,7 @@ from rest_framework.response import Response
     log_cache_operations=True,
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 @monitor_query_performance(operation="temporal_date_range_global")
 def explore_date_range_api_dev(request):
     """Get the global date range and activity overview for temporal exploration.
@@ -100,7 +100,7 @@ def explore_date_range_api_dev(request):
     defer_on_miss=True,
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 @monitor_query_performance(operation="temporal_statistics_global")
 def explore_statistics_api_dev(request):
     """Get statistics for temporal exploration across all organizations"""
@@ -208,7 +208,7 @@ def explore_statistics_api_dev(request):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 @monitor_query_performance(operation="temporal_decisions_search")
 def explore_decisions_api_dev(request):
     """Get paginated decisions for temporal exploration across all organizations.
@@ -329,7 +329,7 @@ def explore_decisions_api_dev(request):
     defer_on_miss=True,
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 @monitor_query_performance(operation="temporal_decision_types")
 def explore_decision_types_api_dev(request):
     """Get available decision types for temporal exploration"""
@@ -394,7 +394,7 @@ def explore_decision_types_api_dev(request):
     defer_on_miss=True,
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 @monitor_query_performance(operation="temporal_organizations")
 def explore_organizations_api_dev(request):
     """Get organizations with decision activity for temporal exploration"""

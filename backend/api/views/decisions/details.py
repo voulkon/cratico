@@ -8,12 +8,12 @@ from api.utils.response import pydantic_response
 from django.conf import settings
 from django.db.models import Count, F, Q, Sum
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from api.permissions import AuthenticatedOrDebug
 from rest_framework.response import Response
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def decision_detail(request, decision_id):
     """Get detailed decision information with all relationships."""
     try:
@@ -170,7 +170,7 @@ def decision_detail(request, decision_id):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def decision_entities(request, decision_id):
     """
     Return entity relationships for a decision with the **total amount per entity**
@@ -269,7 +269,7 @@ def decision_entities(request, decision_id):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def decision_companies(request, decision_id):
     """Get all companies associated with a decision."""
     try:
@@ -383,7 +383,7 @@ def decision_companies(request, decision_id):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def decision_related(request, decision_id):
     """Get related decisions based on organization, amount, type, etc."""
     try:

@@ -16,7 +16,7 @@ from django.utils import timezone
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from api.permissions import AuthenticatedOrDebug
 from rest_framework.response import Response
 
 from .base import (
@@ -50,7 +50,7 @@ from .base import (
     ],
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 @monitor_query_performance(include_context=True)
 def entity_statistics_api_dev(request, entity_type, entity_id):
     """Get statistics for a specific entity using the enhanced financial service."""
@@ -392,7 +392,7 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def entity_decisions_api_dev(request, entity_type, entity_id):
     """Get paginated decisions for a specific entity"""
     start_date_str = request.GET.get("start_date")
@@ -589,7 +589,7 @@ def entity_decisions_api_dev(request, entity_type, entity_id):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def entity_timeline_api_dev(request, entity_type, entity_id):
     """Get timeline data for a specific entity"""
     granularity = request.GET.get(
@@ -709,7 +709,7 @@ def entity_timeline_api_dev(request, entity_type, entity_id):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def entity_decision_types_api_dev(request, entity_type, entity_id):
     """Get available decision types for a specific entity"""
     start_dt, end_dt, err = _parse_optional_date_range(request)
@@ -761,7 +761,7 @@ def entity_decision_types_api_dev(request, entity_type, entity_id):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def entity_date_range_api_dev(request, entity_type, entity_id):
     """Get the available date range and activity overview for an entity"""
     try:

@@ -82,7 +82,7 @@
     "averageAmount": "Μέσος Όρος Ποσού",
     "period": "Περίοδος",
     "days": "{count} ημέρες",
-    "amountDiscrepancy": "⚠️ Εντοπίστηκε ασυμφωνία ποσού ({percentage}%)",
+    "amountDiscrepancy": "Εντοπίστηκε ασυμφωνία ποσού ({percentage}%)",
     "organizationsCount": "Οργανισμοί",
     "loadError": "Αδυναμία φόρτωσης στατιστικών"
   },
@@ -390,7 +390,13 @@
     "documentContentExtractionFailed": "Η εξαγωγή κειμένου απέτυχε: {error}",
     "documentContentRequestExtraction": "Αίτημα Εξαγωγής Κειμένου",
     "documentContentMeta": "{chars} χαρακτήρες · {pages} σελίδες · εξαγωγή μέσω {provider}",
-    "documentContentNotRequested": "Δεν έχει ζητηθεί εξαγωγή κειμένου για αυτή την απόφαση."
+    "documentContentNotRequested": "Δεν έχει ζητηθεί εξαγωγή κειμένου για αυτή την απόφαση.",
+    "amountCorrected": "Διορθώθηκε το ποσό",
+    "amountCorrectedHint": "Αρχικά δηλώθηκε ως {original}. Διορθώθηκε από το κείμενο σε {corrected}.",
+    "verifyAmount": "Επαλήθευση ποσού",
+    "verifying": "Επαλήθευση…",
+    "verifyNoDiscrepancy": "Δεν βρέθηκε ασυμφωνία — τα ποσά συμφωνούν με το έγγραφο.",
+    "verifyCorrected": "Διορθώθηκε από το κείμενο του εγγράφου."
   },
   "afmEntityDetail": {
     "loadingEntity": "Φόρτωση οντότητας ΑΦΜ {afm}...",

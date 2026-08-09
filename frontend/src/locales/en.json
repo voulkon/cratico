@@ -82,7 +82,7 @@
     "averageAmount": "Average Amount",
     "period": "Period",
     "days": "{count} days",
-    "amountDiscrepancy": "⚠️ Amount discrepancy detected ({percentage}%)",
+    "amountDiscrepancy": "Amount discrepancy detected ({percentage}%)",
     "organizationsCount": "Organizations",
     "loadError": "Could not load statistics"
   },
@@ -390,7 +390,13 @@
     "documentContentExtractionFailed": "Text extraction failed: {error}",
     "documentContentRequestExtraction": "Request Text Extraction",
     "documentContentMeta": "{chars} characters · {pages} pages · extracted via {provider}",
-    "documentContentNotRequested": "Document text has not been extracted for this decision."
+    "documentContentNotRequested": "Document text has not been extracted for this decision.",
+    "amountCorrected": "Amount corrected",
+    "amountCorrectedHint": "Originally reported as {original}. Corrected from document to {corrected}.",
+    "verifyAmount": "Verify amount",
+    "verifying": "Verifying…",
+    "verifyNoDiscrepancy": "No discrepancy found — amounts match the document.",
+    "verifyCorrected": "Corrected from document text."
   },
   "afmEntityDetail": {
     "loadingEntity": "Loading entity AFM {afm}...",

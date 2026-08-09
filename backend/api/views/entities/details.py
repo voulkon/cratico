@@ -12,12 +12,13 @@ from django.utils.dateparse import parse_date
 from django_redis import get_redis_connection
 from loguru import logger
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from api.permissions import AuthenticatedOrDebug
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny, IsAuthenticated
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 @monitor_query_performance(include_context=True)
 def afm_entity_detail(request, afm):
     """Get AFM entity metadata with optional company info."""
@@ -79,7 +80,7 @@ def afm_entity_detail(request, afm):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 @monitor_query_performance(include_context=True)
 def afm_entity_decisions(request, afm):
     """Get decisions related to an AFM entity."""
@@ -315,7 +316,7 @@ def afm_entity_decisions(request, afm):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def afm_entity_decision_types(request, afm):
     """
     Get available decision types for an AFM entity.
@@ -346,7 +347,7 @@ def afm_entity_decision_types(request, afm):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def afm_entity_statistics(request, afm):
     """
     Get summary statistics for an AFM entity.
@@ -386,7 +387,7 @@ def afm_entity_statistics(request, afm):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def afm_entity_date_range(request, afm):
     """
     Get date range and activity overview for an AFM entity.

@@ -7,12 +7,12 @@ from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.db.models import Count, F, Sum
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from api.permissions import AuthenticatedOrDebug
 from rest_framework.response import Response
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def company_transactions_summary(request, afm):
     """
     Get summary of all transactions (money received) for a company identified by AFM.
@@ -141,7 +141,7 @@ def company_transactions_summary(request, afm):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def organization_expenditures_summary(request, organization_uid):
     """
     Get summary of all expenditures from an organization to various companies.
@@ -276,7 +276,7 @@ def organization_expenditures_summary(request, organization_uid):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([AuthenticatedOrDebug])
 def top_transactions(request):
     """
     Get top transactions (highest amounts) between organizations and companies.
