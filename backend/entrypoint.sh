@@ -43,6 +43,10 @@ python manage.py create_superuser
 echo "Initializing feature flags..."
 python manage.py initialize_feature_flags
 
+# Collect static files (needed for admin CSS/JS in production when DEBUG=False)
+echo "Collecting static files..."
+python manage.py collectstatic --noinput
+
 # Run the server
 if [ "$DEBUG" = "True" ]; then
     echo "Starting in debug mode on port ${DJANGO_DEBUG_PORT:-8002}..."
