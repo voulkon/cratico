@@ -23,7 +23,13 @@ from loguru import logger
 # Code-level default for max_tokens.  Only persist an override in step config
 # when you need a non-default budget — scalar defaults stay in code so tuning
 # them is a code change, not a data migration.
-DEFAULT_MAX_TOKENS = 2000
+DEFAULT_MAX_TOKENS = 3000
+
+# Hard ceiling applied to *user-supplied* budgets (per-run override or the
+# per-user preference).  Reasoning models bill "thinking" tokens at completion
+# rates, so a typo like 500000 would be expensive.  Operator-set step config is
+# trusted and left unclamped.
+MAX_USER_MAX_TOKENS = 16000
 
 # Jinja2 sandboxed environment for prompt rendering
 try:
@@ -185,20 +191,36 @@ class AICallStep:
         Precedence (mirrors ``_resolve_model``):
             0. ``context.metadata["max_tokens_override"]`` — explicit per-run
                override (e.g. caller knows this batch needs a longer budget)
-            1. per-step ``config["max_tokens"]`` — persisted pipeline override
-            2. ``DEFAULT_MAX_TOKENS`` — code-level default
+            1. per-user ``UserAIModelPreference.max_tokens`` — user-set budget
+            2. per-step ``config["max_tokens"]`` — persisted pipeline override
+            3. ``DEFAULT_MAX_TOKENS`` — code-level default
 
-        A per-user slot (e.g. a ``max_tokens`` ceiling on ``UserAISettings``)
-        slots in at 1.5 when built — likely as a *cap* via ``min()`` so a user
-        preference can't silently inflate a system pipeline's budget.
+        User-supplied values (override and preference) are clamped to
+        ``MAX_USER_MAX_TOKENS``; operator-set step config is trusted.
         """
         # 0. Explicit per-run override
         override = context.metadata.get("max_tokens_override")
         if override:
-            return override
+            return min(int(override), MAX_USER_MAX_TOKENS)
 
-        # 1. Per-step persisted override, else code default
+        # 1. Per-user preference (if set)
+        user_tokens = self._resolve_user_max_tokens(context.user)
+        if user_tokens:
+            return min(int(user_tokens), MAX_USER_MAX_TOKENS)
+
+        # 2. Per-step persisted override, else code default
         return config.get("max_tokens") or DEFAULT_MAX_TOKENS
+
+    def _resolve_user_max_tokens(self, user) -> int | None:
+        """Return the user's preferred ``max_tokens``, or ``None`` if unset."""
+        if user is None:
+            return None
+        try:
+            from core.models.user_ai_model_preference import UserAIModelPreference
+
+            return UserAIModelPreference.get_preferred_max_tokens(user)
+        except Exception:
+            return None
 
     def _render_prompt(self, template_str, text, context: PipelineContext, step):
         """Render a Jinja2 prompt template with available variables."""

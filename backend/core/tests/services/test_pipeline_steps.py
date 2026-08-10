@@ -411,6 +411,71 @@ class TestAICallStep:
 
         assert mock_provider.invoke.call_args.kwargs["max_tokens"] == 4567
 
+    def test_max_tokens_user_preference_wins(self):
+        """A per-user max_tokens preference beats both step config and code default."""
+        from conftest import UserFactory
+        from core.models.user_ai_model_preference import UserAIModelPreference
+        from core.services.pipeline_steps.ai_call import AICallStep
+
+        user = UserFactory()
+        UserAIModelPreference.objects.create(user=user, max_tokens=5000)
+
+        pipeline_def = PipelineDefinitionFactory()
+        step = PipelineStepFactory(
+            pipeline=pipeline_def, order=2, step_type=StepType.AI_CALL,
+            name="Summarize",
+            config={"map_over_items": True, "max_tokens": 123},
+        )
+        context = _make_context(per_item_outputs={"A": "Text A"})
+        context.user = user
+        run = _make_run(pipeline_def)
+        step_run = _make_step_run(run, step)
+
+        with patch(
+            "core.services.pipeline_steps.ai_call.get_provider"
+        ) as mock_get_provider:
+            mock_provider = MagicMock()
+            mock_provider.invoke.return_value = self._success_result("S")
+            mock_get_provider.return_value = mock_provider
+
+            AICallStep().execute(step, step_run, context, run)
+
+        assert mock_provider.invoke.call_args.kwargs["max_tokens"] == 5000
+
+    def test_max_tokens_user_preference_clamped(self):
+        """An absurd per-user max_tokens is clamped to MAX_USER_MAX_TOKENS."""
+        from conftest import UserFactory
+        from core.models.user_ai_model_preference import UserAIModelPreference
+        from core.services.pipeline_steps.ai_call import (
+            AICallStep,
+            MAX_USER_MAX_TOKENS,
+        )
+
+        user = UserFactory()
+        UserAIModelPreference.objects.create(user=user, max_tokens=999999)
+
+        pipeline_def = PipelineDefinitionFactory()
+        step = PipelineStepFactory(
+            pipeline=pipeline_def, order=2, step_type=StepType.AI_CALL,
+            name="Summarize",
+            config={"map_over_items": True},
+        )
+        context = _make_context(per_item_outputs={"A": "Text A"})
+        context.user = user
+        run = _make_run(pipeline_def)
+        step_run = _make_step_run(run, step)
+
+        with patch(
+            "core.services.pipeline_steps.ai_call.get_provider"
+        ) as mock_get_provider:
+            mock_provider = MagicMock()
+            mock_provider.invoke.return_value = self._success_result("S")
+            mock_get_provider.return_value = mock_provider
+
+            AICallStep().execute(step, step_run, context, run)
+
+        assert mock_provider.invoke.call_args.kwargs["max_tokens"] == MAX_USER_MAX_TOKENS
+
     def test_map_mode_accumulates_tokens_and_cost(self):
         """Multiple calls sum tokens and cost on the step run."""
         from core.services.pipeline_steps.ai_call import AICallStep
