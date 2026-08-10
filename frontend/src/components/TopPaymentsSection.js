@@ -137,6 +137,9 @@ const TopPaymentsSection = ({
                   </div>
                   <div className="dashboard-item-subtitle">
                     {decision.organization?.label}
+                    {decision.main_recipient?.name && (
+                      <> → {decision.main_recipient.name}</>
+                    )}
                   </div>
                 </div>
                 <span className="dashboard-item-amount">{formatCompactAmount(decision.amount)}</span>

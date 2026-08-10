@@ -44,8 +44,22 @@ class RateLimitMiddleware:
         if request.path.startswith("/api/"):
             self.record_api_request(request)
 
-        # Skip rate limiting in development or for staff users
-        if settings.DEBUG or (request.user.is_authenticated and request.user.is_staff):
+        # ── Always allow rate-limit management & auth endpoints ──────────
+        # Users who have hit their limit still need to log in and request resets.
+        if (
+            "/system/rate-limit/" in request.path
+            or request.path.startswith("/api/auth/")
+        ):
+            response = self.get_response(request)
+            return self.add_cors_headers(response)
+
+        # Skip rate limiting in development, for staff users, or local/private IPs
+        client_ip = get_client_ip(request)
+        if (
+            settings.DEBUG
+            or (request.user.is_authenticated and request.user.is_staff)
+            or (client_ip and client_ip.startswith(("127.", "10.", "172.", "192.168.")))
+        ):
             return self.get_response(request)
 
         if request.user.is_authenticated:

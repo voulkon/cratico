@@ -849,6 +849,18 @@
     "acceptSystemKey": "I Understand, Use System Key",
     "systemKeyAccepted": "You have accepted using the system key."
   },
+  "rateLimit": {
+    "title": "Rate Limit Exceeded",
+    "resetInMinutes": "Your limit will reset in approximately {minutes} minutes.",
+    "resetRequestSent": "✓ Reset request sent! An admin will review it shortly.",
+    "loginRequired": "Please log in first to request a rate limit reset.",
+    "requestFailed": "Could not send reset request. Please contact support.",
+    "upgradeSubscription": "Upgrade Subscription",
+    "sending": "Sending…",
+    "requestSent": "Request Sent",
+    "requestAdminReset": "Request Admin Reset",
+    "continue": "Continue"
+  },
   "aiInteractions": {
     "title": "AI Interactions",
     "totalSpend": "Total Spend (This Month)",
