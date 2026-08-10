@@ -18,10 +18,12 @@ from core.services.response_cache_service import response_cache
 
 @pytest.fixture(autouse=True)
 def _clear_browse_cache():
-    """Isolate browse cache across tests — LocMemCache is process-wide."""
+    """Isolate browse cache across tests."""
     response_cache.invalidate_prefix("browse")
+    response_cache.invalidate_browse_available_letters()
     yield
     response_cache.invalidate_prefix("browse")
+    response_cache.invalidate_browse_available_letters()
 
 
 # ============================================================================

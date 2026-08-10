@@ -471,8 +471,12 @@ def invalidate_browse_cache():
     from core.services.response_cache_service import response_cache
 
     count = response_cache.invalidate_prefix("browse")
-    logger.info(f"[invalidate_browse_cache] Invalidated {count} browse cache keys")
-    return {"status": "completed", "keys_invalidated": count}
+    letters_count = response_cache.invalidate_browse_available_letters()
+    logger.info(
+        f"[invalidate_browse_cache] Invalidated {count} browse cache keys "
+        f"and {letters_count} available_letters keys"
+    )
+    return {"status": "completed", "keys_invalidated": count + letters_count}
 
 
 # ── Notifications — Bulk check all active subscriptions ──────────────────
