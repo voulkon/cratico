@@ -214,16 +214,16 @@ class TestSubscriptionHistoryAPI:
             f"/api/notifications/subscriptions/{notification_subscription.id}/all-decisions/?sort=amount_desc"
         )
         assert response.status_code == status.HTTP_200_OK
-        assert response.data["results"][0]["decision"]["amount"] == "15000.00"
-        assert response.data["results"][2]["decision"]["amount"] == "5000.00"
+        assert response.data["results"][0]["decision"]["amount"] == 15000.0
+        assert response.data["results"][2]["decision"]["amount"] == 5000.0
 
         # Test sort by amount_asc
         response = authenticated_client.get(
             f"/api/notifications/subscriptions/{notification_subscription.id}/all-decisions/?sort=amount_asc"
         )
         assert response.status_code == status.HTTP_200_OK
-        assert response.data["results"][0]["decision"]["amount"] == "5000.00"
-        assert response.data["results"][2]["decision"]["amount"] == "15000.00"
+        assert response.data["results"][0]["decision"]["amount"] == 5000.0
+        assert response.data["results"][2]["decision"]["amount"] == 15000.0
 
     def test_all_decisions_viewed_filter(
         self, authenticated_client, user, notification_subscription
