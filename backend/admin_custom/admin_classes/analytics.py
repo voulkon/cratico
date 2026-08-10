@@ -59,7 +59,14 @@ class EndpointStatsAdmin(admin.ModelAdmin):
 class EndpointAccessLogAdmin(admin.ModelAdmin):
     """Admin interface for forensic endpoint access logs."""
 
+    # Admin API paths require authentication — the admin's own browsing is
+    # never an attack probe, so exclude them from suspicious classification.
+    _ADMIN_API_PREFIX = "/api/admin/"
+
     # ── Suspicious endpoint patterns for automatic classification ──────
+    # NOTE: matching is substring-based (icontains), so keep patterns long
+    # enough to avoid false positives.  e.g. "/api/endpoint/" (with the
+    # trailing slash) so it does NOT match "/api/endpointaccesslog/".
     _SUSPICIOUS_ENDPOINT_PATTERNS = (
         "/.env",
         "/.git/",
@@ -70,7 +77,7 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
         "/actuator",
         "/api/test",
         "/api/[[...slug]]",
-        "/api/endpoint",
+        "/api/endpoint/",
         "/cgi-bin/",
         "/.aws/",
         "/config",
@@ -205,10 +212,13 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
                 round(stat["notfound_count"] / total * 100, 1) if total else 0
             )
 
-            # Count suspicious endpoint hits
+            # Count suspicious endpoint hits.  Admin API paths are excluded
+            # because they require authentication and are the admin's own
+            # browsing, not an attack probe.
             suspicious_q = Q()
             for pat in self._SUSPICIOUS_ENDPOINT_PATTERNS:
                 suspicious_q |= Q(endpoint__icontains=pat)
+            suspicious_q &= ~Q(endpoint__startswith=self._ADMIN_API_PREFIX)
             stat["suspicious_hits"] = self.model.objects.filter(
                 ip_address=ip
             ).filter(suspicious_q).count()
@@ -305,9 +315,14 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
                 round(stat["error_count"] / total * 100, 1) if total else 0
             )
 
-            # Is this a suspicious endpoint?
-            stat["is_suspicious"] = any(
-                pat in endpoint for pat in self._SUSPICIOUS_ENDPOINT_PATTERNS
+            # Is this a suspicious endpoint?  Admin API paths are excluded
+            # because they require authentication and are the admin's own
+            # browsing, not an attack probe.
+            stat["is_suspicious"] = (
+                not endpoint.startswith(self._ADMIN_API_PREFIX)
+                and any(
+                    pat in endpoint for pat in self._SUSPICIOUS_ENDPOINT_PATTERNS
+                )
             )
 
             # Top IPs hitting this endpoint
