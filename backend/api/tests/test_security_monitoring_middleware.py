@@ -91,11 +91,13 @@ class TestFeatureFlagGating:
             f"{FF_PATH}.is_enabled",
             side_effect=_flags_enabled("SECURITY_MONITORING_ENABLED"),
         ):
-            # Hit admin login — it does NOT start with /api/
+            # Hit a path that does NOT start with /api/. There is no such
+            # route in the URLconf, so Django returns 404 — but the middleware
+            # must not block it (a block would be 403).
             response = client.get("/admin/login/")
 
         # Should not be blocked regardless of security state
-        assert response.status_code in [200, 301, 302], (
+        assert response.status_code != 403, (
             f"Non-API path was blocked: {response.status_code}"
         )
 
@@ -206,7 +208,8 @@ class TestAutoBan:
                 "api.middleware.security_monitoring.security_service.ban_ip"
             ) as mock_ban,
             patch(
-                "api.middleware.security_monitoring.security_service.redis"
+                "api.middleware.security_monitoring.security_service._redis",
+                MagicMock(),
             ) as mock_redis,
             patch(
                 "api.middleware.security_monitoring.security_service.is_flagged_for_forensics",
@@ -215,7 +218,9 @@ class TestAutoBan:
             patch(TASK_PATH),
         ):
             mock_redis.get.return_value = b"150"
-            response = client.get(API_PATH)
+            # Use a truly public endpoint (AllowAny) so the view returns 200
+            # and the middleware can overwrite it with 403 on auto-ban.
+            response = client.get("/api/system/config/auth/")
 
         assert response.status_code == 403
         body = response.json()
