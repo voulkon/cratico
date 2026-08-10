@@ -177,7 +177,7 @@ class TestMultipleSubscriptionTypes:
         sub.save()
 
         # Create matching decision
-        DecisionFactory(organization=organization)
+        DecisionFactory(organization=organization, publish_timestamp=timezone.now())
 
         # Check subscription
         result = check_single_subscription(sub.id)
@@ -199,7 +199,7 @@ class TestMultipleSubscriptionTypes:
         # Create decision with entity relationship
         from core.models.entities import DecisionEntityRelationship, EntityRole
 
-        decision = DecisionFactory()
+        decision = DecisionFactory(publish_timestamp=timezone.now())
         DecisionEntityRelationship.objects.create(
             decision=decision,
             entity=afm_entity,
@@ -232,12 +232,16 @@ class TestMultipleSubscriptionTypes:
 
         # Create matching decision
         matching_decision = DecisionFactory(
-            organization=organization, subject="Urgent contract renewal needed"
+            organization=organization,
+            subject="Urgent contract renewal needed",
+            publish_timestamp=timezone.now(),
         )
 
         # Create non-matching decision
         non_matching_decision = DecisionFactory(
-            organization=organization, subject="Regular administrative note"
+            organization=organization,
+            subject="Regular administrative note",
+            publish_timestamp=timezone.now(),
         )
 
         # Check subscription
