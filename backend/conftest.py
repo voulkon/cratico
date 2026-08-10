@@ -607,3 +607,26 @@ def celery_eager_mode(settings):
     settings.CELERY_TASK_ALWAYS_EAGER = True
     settings.CELERY_TASK_EAGER_PROPAGATES = True
     return settings
+
+
+# ============================================================================
+# Module-identity safeguard for `from conftest import ...`
+# ============================================================================
+# pytest imports every conftest.py in its default "prepend" mode under the bare
+# module name ``conftest``. When several of these exist (e.g.
+# gemi/tests/conftest.py, pothen/tests/conftest.py), the last one imported wins
+# ``sys.modules["conftest"]``. That breaks the widespread deferred pattern
+# ``from conftest import <Factory>`` used inside test bodies, which then
+# resolves to the wrong conftest (and raises ImportError).
+#
+# Re-register this (root) module under ``conftest`` once collection has
+# finished and right before tests start running, so all deferred imports in
+# test bodies keep pointing at the factories defined here.
+
+import sys as _sys
+
+_CONFTEST_MODULE = _sys.modules.get(__name__)  # captured at import time
+
+
+def pytest_sessionstart(session):
+    _sys.modules["conftest"] = _CONFTEST_MODULE
