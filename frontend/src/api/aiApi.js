@@ -82,10 +82,14 @@ export const getModelPreference = async () => {
   return response.data;
 };
 
-export const updateModelPreference = async (preferredModel) => {
-  const response = await apiClient.put(`${AI_BASE}/model-preference/`, {
+export const updateModelPreference = async (preferredModel, maxTokens) => {
+  const payload = {
     preferred_model: preferredModel,
-  });
+  };
+  if (maxTokens !== undefined) {
+    payload.max_tokens = maxTokens;
+  }
+  const response = await apiClient.put(`${AI_BASE}/model-preference/`, payload);
   return response.data;
 };
 

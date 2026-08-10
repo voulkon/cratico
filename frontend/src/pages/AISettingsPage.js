@@ -43,6 +43,8 @@ const AISettingsPage = () => {
   const [systemKeyAccepted, setSystemKeyAccepted] = useState(false);
   const [keyMode, setKeyMode] = useState('SYSTEM'); // BYOK | SYSTEM
   const [preferredModel, setPreferredModel] = useState(null); // user's model choice (independent of key)
+  const [maxTokens, setMaxTokens] = useState(null);           // user's output-token budget (independent of key)
+  const [maxTokensDraft, setMaxTokensDraft] = useState('');   // draft value for the token input
 
   // ---------- inline "add / edit" form state ----------
   const [editingRow, setEditingRow] = useState(null); // null | row-id | 'new'
@@ -66,6 +68,8 @@ const AISettingsPage = () => {
       try {
         const pref = await getModelPreference();
         setPreferredModel(pref.preferred_model || null);
+        setMaxTokens(pref.max_tokens ?? null);
+        setMaxTokensDraft(pref.max_tokens ?? '');
       } catch {
         // non-critical — model preference might not be available yet
       }
@@ -111,6 +115,27 @@ const AISettingsPage = () => {
     try {
       await updateModelPreference(modelId || null);
       setPreferredModel(modelId || null);
+      setSuccess(t('aiSettings.saved'));
+    } catch (err) {
+      setError(err.response?.data?.error || t('aiSettings.saveError'));
+    }
+  };
+  const handleMaxTokensSave = async () => {
+    clearMessages();
+    let parsed = null;
+    const raw = String(maxTokensDraft).trim();
+    if (raw !== '') {
+      parsed = Number(raw);
+      if (!Number.isInteger(parsed) || parsed <= 0) {
+        setError(t('aiSettings.maxTokensInvalid'));
+        setMaxTokensDraft(maxTokens ?? '');
+        return;
+      }
+    }
+    try {
+      await updateModelPreference(preferredModel || null, parsed);
+      setMaxTokens(parsed);
+      setMaxTokensDraft(parsed ?? '');
       setSuccess(t('aiSettings.saved'));
     } catch (err) {
       setError(err.response?.data?.error || t('aiSettings.saveError'));
@@ -311,6 +336,30 @@ const AISettingsPage = () => {
               </span>
             )}
           </div>
+          <div className="ai-model-preference-row ai-max-tokens-row">
+            <label className="ai-max-tokens-label" htmlFor="max-tokens-input">
+              {t('aiSettings.maxTokens')}
+            </label>
+            <input
+              id="max-tokens-input"
+              className="ai-max-tokens-input"
+              type="number"
+              min="1"
+              step="100"
+              value={maxTokensDraft}
+              onChange={(e) => setMaxTokensDraft(e.target.value)}
+              onBlur={handleMaxTokensSave}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleMaxTokensSave();
+                }
+              }}
+              placeholder={t('aiSettings.maxTokensPlaceholder')}
+              disabled={disabled}
+            />
+          </div>
+          <p className="ai-card-desc">{t('aiSettings.maxTokensDesc')}</p>
         </div>
 
         {/* ================================================================ */}
