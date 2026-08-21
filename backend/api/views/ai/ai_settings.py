@@ -251,25 +251,49 @@ def sync_models(request):
 @permission_classes([IsAuthenticated])
 def model_preference(request):
     """
-    Get or update the current user's preferred AI model.
+    Get or update the current user's preferred AI model and output-token budget.
 
     This is independent of the user's API key — a user can choose a model
     even when using the system key.
 
-    GET  → ``{"preferred_model": "openai/gpt-4o" | null}``
-    PUT  → ``{"preferred_model": "openai/gpt-4o"}`` or ``{"preferred_model": null}``
+    GET  → ``{"preferred_model": "openai/gpt-4o" | null, "max_tokens": 3000 | null}``
+    PUT  → ``{"preferred_model": "openai/gpt-4o", "max_tokens": 3000}``
+           (``max_tokens`` is optional; omit it to leave it unchanged, or pass
+           ``null``/``""`` to clear back to the code default)
     """
     pref, _created = UserAIModelPreference.objects.get_or_create(
         user=request.user,
     )
 
     if request.method == "GET":
-        return Response({"preferred_model": pref.preferred_model})
+        return Response({
+            "preferred_model": pref.preferred_model,
+            "max_tokens": pref.max_tokens,
+        })
 
     # PUT
     model = request.data.get("preferred_model")
     if model == "":
         model = None
     pref.preferred_model = model
-    pref.save(update_fields=["preferred_model", "updated_at"])
-    return Response({"preferred_model": pref.preferred_model})
+
+    update_fields = ["preferred_model", "updated_at"]
+    if "max_tokens" in request.data:
+        raw = request.data.get("max_tokens")
+        if raw in ("", None):
+            pref.max_tokens = None
+        else:
+            try:
+                pref.max_tokens = int(raw)
+            except (TypeError, ValueError):
+                return Response(
+                    {"error": "max_tokens must be an integer"},
+                    status=400,
+                )
+        update_fields.append("max_tokens")
+
+    pref.save(update_fields=update_fields)
+    return Response({
+        "preferred_model": pref.preferred_model,
+        "max_tokens": pref.max_tokens,
+    })

@@ -1,5 +1,7 @@
 import time
 
+from loguru import logger
+
 from api.redis_keys import (
     DAILY_STATS,
     HOURLY_STATS,
@@ -55,40 +57,29 @@ class RateLimitMiddleware:
 
         # Skip rate limiting in development, for staff users, or local/private IPs
         client_ip = get_client_ip(request)
-        if (
-            settings.DEBUG
-            or (request.user.is_authenticated and request.user.is_staff)
-            or (client_ip and client_ip.startswith(("127.", "10.", "172.", "192.168.")))
-        ):
+        remote_addr = request.META.get("REMOTE_ADDR", "")
+        local_ips = ("127.", "10.", "172.", "192.168.", "::1", "localhost")
+        is_local = (client_ip and client_ip.startswith(local_ips)) or remote_addr.startswith(local_ips)
+        is_staff_user = request.user.is_authenticated and request.user.is_staff
+        if settings.DEBUG or is_staff_user or is_local:
             return self.get_response(request)
+
+        # ── Diagnostic log (remove once confirmed working) ────────────────
+        logger.warning(
+            "RateLimitMiddleware applying limit: path={} user={} is_staff={} "
+            "client_ip={} remote_addr={}",
+            request.path,
+            getattr(request.user, "username", "anonymous"),
+            request.user.is_staff if request.user.is_authenticated else False,
+            client_ip,
+            remote_addr,
+        )
 
         if request.user.is_authenticated:
             key = get_user_ratelimit_key(request.user.id)
-            daily_count = int(self.redis.get(key) or 0)
 
-            # Check if user has exceeded their subscription limit
-            if daily_count >= request.user.daily_request_limit:
-                security_tracer.log_security_event(
-                    "rate_limit.exceeded",
-                    {
-                        "limit_type": "daily",
-                        "count": daily_count,
-                        "limit": request.user.daily_request_limit,
-                        "path": request.path,
-                    },
-                    user=request.user,
-                    ip=get_client_ip(request),
-                    severity="WARNING",
-                )
-                response = JsonResponse(
-                    {"error": "Daily API request limit exceeded for your subscription"},
-                    status=429,
-                )
-                response["X-RateLimit-Limit"] = request.user.daily_request_limit
-                response["X-RateLimit-Remaining"] = 0
-                response["X-RateLimit-Reset"] = int(time.time() + 86400)
-                return self.add_cors_headers(response)
-
+            # Read usage from Django cache (NOT raw redis — cache adds a
+            # ":1:" version prefix, so raw redis reads always miss).
             usage = cache.get(key, {"count": 0, "reset_time": time.time() + 86400})
 
             # Get user's limit from their subscription

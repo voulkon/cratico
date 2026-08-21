@@ -33,6 +33,16 @@ class UserAIModelPreference(models.Model):
         ),
     )
 
+    max_tokens = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=_(
+            "User-set output-token budget for AI pipeline calls. "
+            "Leave blank to use the code-level default. Clamped to a safe "
+            "ceiling at call time."
+        ),
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -57,5 +67,21 @@ class UserAIModelPreference(models.Model):
         try:
             pref = cls.objects.filter(user=user).only("preferred_model").first()
             return pref.preferred_model if pref else None
+        except cls.DoesNotExist:
+            return None
+
+    @classmethod
+    def get_preferred_max_tokens(cls, user) -> int | None:
+        """
+        Return the user's preferred ``max_tokens``, or ``None`` if unset.
+
+        Returns ``None`` when *user* is ``None`` or has no preference,
+        signalling the caller to fall back to the code-level default.
+        """
+        if user is None:
+            return None
+        try:
+            pref = cls.objects.filter(user=user).only("max_tokens").first()
+            return pref.max_tokens if pref and pref.max_tokens else None
         except cls.DoesNotExist:
             return None

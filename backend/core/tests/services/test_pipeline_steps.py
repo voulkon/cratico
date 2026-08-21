@@ -150,7 +150,11 @@ class TestExtractStep:
 
     @pytest.mark.django_db
     def test_falls_back_to_subject(self, decision_type):
-        """Decision without extraction falls back to ``subject``."""
+        """Decision with no extractable text falls back to a marked ``subject``.
+
+        On-demand extraction is mocked to return nothing so the test is fast
+        and offline — the real path would attempt a network download.
+        """
         from conftest import DecisionFactory
         from core.services.pipeline_steps.extract import ExtractStep
 
@@ -168,9 +172,13 @@ class TestExtractStep:
         run = _make_run(pipeline_def)
         step_run = _make_step_run(run, step)
 
-        ExtractStep().execute(step, step_run, context, run)
+        with patch.object(ExtractStep, "_extract_on_demand", return_value=""):
+            ExtractStep().execute(step, step_run, context, run)
 
-        assert context.per_item_outputs[str(decision.id)] == "Subject only text."
+        assert (
+            context.per_item_outputs[str(decision.id)]
+            == "[EXTRACTION_UNAVAILABLE] Subject only text."
+        )
 
 
 # ============================================================================
@@ -325,6 +333,149 @@ class TestAICallStep:
         assert context.per_item_outputs["A"] == "Summary A"
         assert context.per_item_outputs["B"] == "Summary B"
 
+    def test_max_tokens_falls_back_to_code_default(self):
+        """Omitting max_tokens in config makes the provider receive DEFAULT_MAX_TOKENS."""
+        from core.services.pipeline_steps.ai_call import AICallStep, DEFAULT_MAX_TOKENS
+
+        pipeline_def = PipelineDefinitionFactory()
+        step = PipelineStepFactory(
+            pipeline=pipeline_def, order=2, step_type=StepType.AI_CALL,
+            name="Summarize",
+            config={"map_over_items": True},  # no max_tokens key
+        )
+        context = _make_context(per_item_outputs={"A": "Text A"})
+        run = _make_run(pipeline_def)
+        step_run = _make_step_run(run, step)
+
+        with patch(
+            "core.services.pipeline_steps.ai_call.get_provider"
+        ) as mock_get_provider:
+            mock_provider = MagicMock()
+            mock_provider.invoke.return_value = self._success_result("S")
+            mock_get_provider.return_value = mock_provider
+
+            AICallStep().execute(step, step_run, context, run)
+
+        assert mock_provider.invoke.call_args.kwargs["max_tokens"] == DEFAULT_MAX_TOKENS
+
+    def test_max_tokens_config_override_wins(self):
+        """An explicit max_tokens in config overrides the code default."""
+        from core.services.pipeline_steps.ai_call import AICallStep, DEFAULT_MAX_TOKENS
+
+        pipeline_def = PipelineDefinitionFactory()
+        step = PipelineStepFactory(
+            pipeline=pipeline_def, order=2, step_type=StepType.AI_CALL,
+            name="Summarize",
+            config={"map_over_items": True, "max_tokens": 123},
+        )
+        context = _make_context(per_item_outputs={"A": "Text A"})
+        run = _make_run(pipeline_def)
+        step_run = _make_step_run(run, step)
+
+        with patch(
+            "core.services.pipeline_steps.ai_call.get_provider"
+        ) as mock_get_provider:
+            mock_provider = MagicMock()
+            mock_provider.invoke.return_value = self._success_result("S")
+            mock_get_provider.return_value = mock_provider
+
+            AICallStep().execute(step, step_run, context, run)
+
+        actual = mock_provider.invoke.call_args.kwargs["max_tokens"]
+        assert actual == 123
+        assert actual != DEFAULT_MAX_TOKENS
+
+    def test_max_tokens_per_run_override_wins(self):
+        """context.metadata['max_tokens_override'] beats both config and code default."""
+        from core.services.pipeline_steps.ai_call import AICallStep
+
+        pipeline_def = PipelineDefinitionFactory()
+        step = PipelineStepFactory(
+            pipeline=pipeline_def, order=2, step_type=StepType.AI_CALL,
+            name="Summarize",
+            config={"map_over_items": True, "max_tokens": 123},
+        )
+        context = _make_context(per_item_outputs={"A": "Text A"})
+        context.metadata["max_tokens_override"] = 4567
+        run = _make_run(pipeline_def)
+        step_run = _make_step_run(run, step)
+
+        with patch(
+            "core.services.pipeline_steps.ai_call.get_provider"
+        ) as mock_get_provider:
+            mock_provider = MagicMock()
+            mock_provider.invoke.return_value = self._success_result("S")
+            mock_get_provider.return_value = mock_provider
+
+            AICallStep().execute(step, step_run, context, run)
+
+        assert mock_provider.invoke.call_args.kwargs["max_tokens"] == 4567
+
+    def test_max_tokens_user_preference_wins(self):
+        """A per-user max_tokens preference beats both step config and code default."""
+        from conftest import UserFactory
+        from core.models.user_ai_model_preference import UserAIModelPreference
+        from core.services.pipeline_steps.ai_call import AICallStep
+
+        user = UserFactory()
+        UserAIModelPreference.objects.create(user=user, max_tokens=5000)
+
+        pipeline_def = PipelineDefinitionFactory()
+        step = PipelineStepFactory(
+            pipeline=pipeline_def, order=2, step_type=StepType.AI_CALL,
+            name="Summarize",
+            config={"map_over_items": True, "max_tokens": 123},
+        )
+        context = _make_context(per_item_outputs={"A": "Text A"})
+        context.user = user
+        run = _make_run(pipeline_def)
+        step_run = _make_step_run(run, step)
+
+        with patch(
+            "core.services.pipeline_steps.ai_call.get_provider"
+        ) as mock_get_provider:
+            mock_provider = MagicMock()
+            mock_provider.invoke.return_value = self._success_result("S")
+            mock_get_provider.return_value = mock_provider
+
+            AICallStep().execute(step, step_run, context, run)
+
+        assert mock_provider.invoke.call_args.kwargs["max_tokens"] == 5000
+
+    def test_max_tokens_user_preference_clamped(self):
+        """An absurd per-user max_tokens is clamped to MAX_USER_MAX_TOKENS."""
+        from conftest import UserFactory
+        from core.models.user_ai_model_preference import UserAIModelPreference
+        from core.services.pipeline_steps.ai_call import (
+            AICallStep,
+            MAX_USER_MAX_TOKENS,
+        )
+
+        user = UserFactory()
+        UserAIModelPreference.objects.create(user=user, max_tokens=999999)
+
+        pipeline_def = PipelineDefinitionFactory()
+        step = PipelineStepFactory(
+            pipeline=pipeline_def, order=2, step_type=StepType.AI_CALL,
+            name="Summarize",
+            config={"map_over_items": True},
+        )
+        context = _make_context(per_item_outputs={"A": "Text A"})
+        context.user = user
+        run = _make_run(pipeline_def)
+        step_run = _make_step_run(run, step)
+
+        with patch(
+            "core.services.pipeline_steps.ai_call.get_provider"
+        ) as mock_get_provider:
+            mock_provider = MagicMock()
+            mock_provider.invoke.return_value = self._success_result("S")
+            mock_get_provider.return_value = mock_provider
+
+            AICallStep().execute(step, step_run, context, run)
+
+        assert mock_provider.invoke.call_args.kwargs["max_tokens"] == MAX_USER_MAX_TOKENS
+
     def test_map_mode_accumulates_tokens_and_cost(self):
         """Multiple calls sum tokens and cost on the step run."""
         from core.services.pipeline_steps.ai_call import AICallStep
@@ -360,8 +511,9 @@ class TestAICallStep:
         assert step_run.output_tokens == 40  # 20 + 20
         assert step_run.cost_usd == Decimal("0.0002")  # 0.0001 + 0.0001
 
-    def test_map_mode_failed_item_gets_error_placeholder(self):
-        """A failed item is replaced with an error placeholder."""
+    def test_map_mode_failed_item_raises(self):
+        """A failed item fails the whole step loudly instead of leaving a
+        placeholder that would poison the downstream merge."""
         from core.services.pipeline_steps.ai_call import AICallStep
 
         pipeline_def = PipelineDefinitionFactory()
@@ -386,11 +538,36 @@ class TestAICallStep:
             ]
             mock_get_provider.return_value = mock_provider
 
-            AICallStep().execute(step, step_run, context, run)
+            with pytest.raises(RuntimeError, match="item B"):
+                AICallStep().execute(step, step_run, context, run)
 
-        assert "Summary A" == context.per_item_outputs["A"]
-        assert "[ERROR:" in context.per_item_outputs["B"]
-        assert "timeout" in context.per_item_outputs["B"]
+    def test_map_mode_empty_text_raises(self):
+        """A 'success' with empty text is treated as a failure."""
+        from core.services.pipeline_steps.ai_call import AICallStep
+
+        pipeline_def = PipelineDefinitionFactory()
+        step = PipelineStepFactory(
+            pipeline=pipeline_def, order=2, step_type=StepType.AI_CALL,
+            name="Summarize",
+            config={"map_over_items": True},
+        )
+        context = _make_context(per_item_outputs={"A": "Text A"})
+        run = _make_run(pipeline_def)
+        step_run = _make_step_run(run, step)
+
+        with patch(
+            "core.services.pipeline_steps.ai_call.get_provider"
+        ) as mock_get_provider:
+            mock_provider = MagicMock()
+            # success=True but empty text — the exact failure mode we hit
+            mock_provider.invoke.return_value = {
+                **self._success_result(""),
+                "output_tokens": 500,
+            }
+            mock_get_provider.return_value = mock_provider
+
+            with pytest.raises(RuntimeError, match="empty response text"):
+                AICallStep().execute(step, step_run, context, run)
 
     def test_single_mode_one_call(self):
         """``map_over_items=False`` makes a single AI call."""
@@ -449,6 +626,32 @@ class TestAICallStep:
             mock_get_provider.return_value = mock_provider
 
             with pytest.raises(RuntimeError, match="AI call failed"):
+                AICallStep().execute(step, step_run, context, run)
+
+    def test_single_mode_empty_text_raises(self):
+        """A single-mode 'success' with empty text fails loudly."""
+        from core.services.pipeline_steps.ai_call import AICallStep
+
+        pipeline_def = PipelineDefinitionFactory()
+        step = PipelineStepFactory(
+            pipeline=pipeline_def, order=2, step_type=StepType.AI_CALL,
+            name="Summarize",
+            config={"map_over_items": False},
+        )
+        context = _make_context(
+            per_item_outputs={"A": "One"},
+        )
+        run = _make_run(pipeline_def)
+        step_run = _make_step_run(run, step)
+
+        with patch(
+            "core.services.pipeline_steps.ai_call.get_provider"
+        ) as mock_get_provider:
+            mock_provider = MagicMock()
+            mock_provider.invoke.return_value = self._success_result("")
+            mock_get_provider.return_value = mock_provider
+
+            with pytest.raises(RuntimeError, match="empty response text"):
                 AICallStep().execute(step, step_run, context, run)
 
     def test_jinja2_rendering(self):
@@ -576,8 +779,46 @@ class TestAggregateStep:
         mock_provider.invoke.assert_called_once()
         assert context.steps_output[3] == "Merged summary"
 
-    def test_summarize_merge_fallback_on_ai_failure(self):
-        """When the merge AI call fails, fall back to concatenated text."""
+    def test_summarize_merge_max_tokens_falls_back_to_code_default(self):
+        """Merge step with no max_tokens in config passes DEFAULT_MAX_TOKENS to the provider."""
+        from core.services.pipeline_steps.aggregate import AggregateStep
+        from core.services.pipeline_steps.ai_call import DEFAULT_MAX_TOKENS
+
+        pipeline_def = PipelineDefinitionFactory()
+        step = PipelineStepFactory(
+            pipeline=pipeline_def, order=3, step_type=StepType.AGGREGATE,
+            name="Merge",
+            config={
+                "strategy": "summarize_each_then_merge",
+                # max_tokens intentionally omitted
+            },
+        )
+        context = _make_context(per_item_outputs={"A": "S1", "B": "S2"})
+        run = _make_run(pipeline_def)
+        step_run = _make_step_run(run, step)
+
+        with patch(
+            "core.services.pipeline_steps.aggregate.get_provider"
+        ) as mock_get_provider:
+            mock_provider = MagicMock()
+            mock_provider.invoke.return_value = {
+                "success": True,
+                "text": "Merged",
+                "input_tokens": 30,
+                "output_tokens": 15,
+                "actual_cost_usd": Decimal("0.00005"),
+                "latency_ms": 100,
+                "provider": "OPENROUTER",
+                "model": "test/model",
+            }
+            mock_get_provider.return_value = mock_provider
+
+            AggregateStep().execute(step, step_run, context, run)
+
+        assert mock_provider.invoke.call_args.kwargs["max_tokens"] == DEFAULT_MAX_TOKENS
+
+    def test_summarize_merge_ai_failure_raises(self):
+        """When the merge AI call fails, the step fails loudly."""
         from core.services.pipeline_steps.aggregate import AggregateStep
 
         pipeline_def = PipelineDefinitionFactory()
@@ -612,10 +853,62 @@ class TestAggregateStep:
             }
             mock_get_provider.return_value = mock_provider
 
+            with pytest.raises(RuntimeError, match="Aggregate merge call failed"):
+                AggregateStep().execute(step, step_run, context, run)
+
+    def test_summarize_merge_empty_items_raises(self):
+        """No per-item summaries → fail loudly instead of calling the model."""
+        from core.services.pipeline_steps.aggregate import AggregateStep
+
+        pipeline_def = PipelineDefinitionFactory()
+        step = PipelineStepFactory(
+            pipeline=pipeline_def, order=3, step_type=StepType.AGGREGATE,
+            name="Merge",
+            config={"strategy": "summarize_each_then_merge"},
+        )
+        context = _make_context(per_item_outputs={"A": ""})
+        run = _make_run(pipeline_def)
+        step_run = _make_step_run(run, step)
+
+        with pytest.raises(RuntimeError, match="no per-item summaries"):
             AggregateStep().execute(step, step_run, context, run)
 
-        # Should contain the concatenated fallback
-        assert "S1\n---\nS2" in (context.steps_output[3] or "")
+    def test_summarize_merge_empty_result_raises(self):
+        """A merge 'success' with empty text fails loudly."""
+        from core.services.pipeline_steps.aggregate import AggregateStep
+
+        pipeline_def = PipelineDefinitionFactory()
+        step = PipelineStepFactory(
+            pipeline=pipeline_def, order=3, step_type=StepType.AGGREGATE,
+            name="Merge",
+            config={
+                "strategy": "summarize_each_then_merge",
+                "provider": "OPENROUTER",
+                "model": "test/model",
+            },
+        )
+        context = _make_context(per_item_outputs={"A": "S1"})
+        run = _make_run(pipeline_def)
+        step_run = _make_step_run(run, step)
+
+        with patch(
+            "core.services.pipeline_steps.aggregate.get_provider"
+        ) as mock_get_provider:
+            mock_provider = MagicMock()
+            mock_provider.invoke.return_value = {
+                "success": True,
+                "text": "",
+                "input_tokens": 30,
+                "output_tokens": 15,
+                "actual_cost_usd": Decimal("0.00005"),
+                "latency_ms": 100,
+                "provider": "OPENROUTER",
+                "model": "test/model",
+            }
+            mock_get_provider.return_value = mock_provider
+
+            with pytest.raises(RuntimeError, match="empty response text"):
+                AggregateStep().execute(step, step_run, context, run)
 
     def test_unknown_strategy_raises(self):
         """An unknown strategy raises ``ValueError``."""

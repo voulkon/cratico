@@ -466,3 +466,22 @@
   border-radius: 4px;
   white-space: nowrap;
 }
+
+.ai-max-tokens-row {
+  margin-top: var(--spacing-md);
+}
+
+.ai-max-tokens-label {
+  font-size: var(--font-sm);
+  font-weight: var(--font-semibold);
+}
+
+.ai-max-tokens-input {
+  width: 140px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  color: var(--text-color);
+  font-size: var(--font-xs);
+}

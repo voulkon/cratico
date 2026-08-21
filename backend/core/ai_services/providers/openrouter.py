@@ -149,10 +149,13 @@ class OpenRouterProvider(BaseLLMProvider):
             data = resp.json()
             choices = data.get("choices", [])
             generated_text = ""
+            finish_reason = None
             if choices:
+                choice = choices[0]
                 # .get() returns None when the key exists but has a null value,
                 # so use `or ""` to fall back to an empty string in that case.
-                generated_text = choices[0].get("message", {}).get("content") or ""
+                generated_text = choice.get("message", {}).get("content") or ""
+                finish_reason = choice.get("finish_reason")
 
             usage = data.get("usage", {})
             input_tokens = usage.get("prompt_tokens", 0)
@@ -163,6 +166,33 @@ class OpenRouterProvider(BaseLLMProvider):
             # match what OpenRouter actually charged.
             raw_cost = usage.get("cost")
             cost_from_provider = Decimal(str(raw_cost)) if raw_cost is not None else None
+
+            metadata = {
+                "id": data.get("id"),
+                "model": data.get("model"),
+                "finish_reason": finish_reason,
+            }
+
+            # A 200 response with empty content is still a failure: a reasoning
+            # model can burn its whole token budget on "thinking" and never emit
+            # an answer (content=null, completion_tokens>0).  Fail loudly instead
+            # of letting an empty string silently propagate downstream.
+            if not generated_text.strip():
+                error_msg = (
+                    f"OpenRouter returned empty content for model={self.model_name} "
+                    f"(finish_reason={finish_reason}, output_tokens={output_tokens})"
+                )
+                logger.error(error_msg)
+                return self._standardize_response(
+                    success=False,
+                    text=None,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    latency_ms=latency_ms,
+                    error=error_msg,
+                    metadata=metadata,
+                    cost_from_provider=cost_from_provider,
+                )
 
             logger.info(
                 f"OpenRouter call ok: model={self.model_name} "
@@ -176,7 +206,7 @@ class OpenRouterProvider(BaseLLMProvider):
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
                 latency_ms=latency_ms,
-                metadata={"id": data.get("id"), "model": data.get("model")},
+                metadata=metadata,
                 cost_from_provider=cost_from_provider,
             )
 

@@ -160,7 +160,10 @@ def _get_or_create_default_pipeline():
                 "system_prompt": "You are a legal analyst. Summarize the key points of this government decision concisely.",
                 "prompt_template": "Summarize this decision:\n{{ text }}",
                 "temperature": 0.3,
-                "max_tokens": 500,
+                # max_tokens intentionally omitted: only persist a step config
+                # value when overriding the code-level default
+                # (ai_call.DEFAULT_MAX_TOKENS).  Tuning the default is a
+                # code change, not a data migration.
             },
         )
         PipelineStep.objects.create(
@@ -174,7 +177,7 @@ def _get_or_create_default_pipeline():
                 "system_prompt": "You are a legal analyst. Synthesize the provided decision summaries into a single coherent overview.",
                 "merge_prompt_template": "Synthesize a single summary of these decision summaries:\n{{ text }}",
                 "temperature": 0.3,
-                "max_tokens": 1000,
+                # max_tokens intentionally omitted — see AI_CALL step above.
             },
         )
         logger.info("Created default notification_batch_summary_v1 pipeline")

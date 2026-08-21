@@ -383,7 +383,10 @@ def _get_or_create_simple_summary_pipeline():
                 ),
                 "prompt_template": "Summarize this decision:\n{{ text }}",
                 "temperature": 0.3,
-                "max_tokens": 1000,
+                # max_tokens intentionally omitted: only persist a step config
+                # value when overriding the code-level default
+                # (ai_call.DEFAULT_MAX_TOKENS).  Tuning the default is a
+                # code change, not a data migration.
             },
         )
         logger.info("Created default simple_summary_v1 pipeline")
