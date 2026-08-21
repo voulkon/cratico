@@ -4,6 +4,7 @@ from notifications.models import (
     NotificationBatchDecision,
     NotificationSubscription,
 )
+from notifications.serializers.decision_nested import DecisionNestedFieldsMixin
 from rest_framework import serializers
 
 
@@ -32,7 +33,9 @@ class SubscriptionNestedForBatchSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class DecisionNestedForBatchSerializer(serializers.ModelSerializer):
+class DecisionNestedForBatchSerializer(
+    DecisionNestedFieldsMixin, serializers.ModelSerializer
+):
     """
     Enhanced serializer for nested decision details in batch decisions.
     Includes all fields needed by DecisionCard component in the frontend.
@@ -96,24 +99,6 @@ class DecisionNestedForBatchSerializer(serializers.ModelSerializer):
     def get_amount(self, obj):
         """Convert DecimalField amount to float for consistency with other API endpoints."""
         return float(obj.amount) if obj.amount else None
-
-    def get_organization(self, obj):
-        """Return organization as nested object."""
-        if obj.organization:
-            return {
-                "uid": obj.organization.uid,
-                "label": obj.organization.label,
-            }
-        return None
-
-    def get_decision_type(self, obj):
-        """Return decision_type as nested object."""
-        if obj.decision_type:
-            return {
-                "uid": obj.decision_type.uid,
-                "label": obj.decision_type.label,
-            }
-        return None
 
     def get_signers(self, obj):
         """Return signers array with uid, first_name, last_name."""
