@@ -64,13 +64,19 @@ class TestAFMEntityStatistics:
     """Tests for ``afm_entity_statistics``."""
 
     def test_returns_statistics(self, decision_type, afm_entity):
-        from conftest import DecisionFactory, DecisionEntityRelationshipFactory
+        from conftest import (
+            DecisionAmountFieldFactory,
+            DecisionEntityRelationshipFactory,
+            DecisionFactory,
+        )
 
         entity = afm_entity
         entity.afm = "222222222"
         entity.save()
-        d1 = DecisionFactory(ada="A1", decision_type=decision_type, amount=100)
-        d2 = DecisionFactory(ada="A2", decision_type=decision_type, amount=300)
+        d1 = DecisionFactory(ada="A1", decision_type=decision_type)
+        DecisionAmountFieldFactory(decision=d1, amount=100)
+        d2 = DecisionFactory(ada="A2", decision_type=decision_type)
+        DecisionAmountFieldFactory(decision=d2, amount=300)
         DecisionEntityRelationshipFactory(decision=d1, entity=entity)
         DecisionEntityRelationshipFactory(decision=d2, entity=entity)
 
@@ -187,7 +193,11 @@ class TestRelationshipDecisions:
 
     def test_facets_applied(self, decision_type, afm_entity, organization):
         """Date/amount/search facets work on the relationship decisions endpoint."""
-        from conftest import DecisionFactory, DecisionEntityRelationshipFactory
+        from conftest import (
+            DecisionAmountFieldFactory,
+            DecisionEntityRelationshipFactory,
+            DecisionFactory,
+        )
         from datetime import datetime, timezone
 
         entity = afm_entity
@@ -198,13 +208,15 @@ class TestRelationshipDecisions:
         org.save()
 
         d1 = DecisionFactory(
-            ada="MATCH_LOW", organization=org, decision_type=decision_type, amount=50,
+            ada="MATCH_LOW", organization=org, decision_type=decision_type,
             issue_date=datetime(2024, 3, 1, tzinfo=timezone.utc),
         )
+        DecisionAmountFieldFactory(decision=d1, amount=50)
         d2 = DecisionFactory(
-            ada="MATCH_HIGH", organization=org, decision_type=decision_type, amount=5000,
+            ada="MATCH_HIGH", organization=org, decision_type=decision_type,
             issue_date=datetime(2024, 6, 1, tzinfo=timezone.utc),
         )
+        DecisionAmountFieldFactory(decision=d2, amount=5000)
         DecisionEntityRelationshipFactory(decision=d1, entity=entity)
         DecisionEntityRelationshipFactory(decision=d2, entity=entity)
 

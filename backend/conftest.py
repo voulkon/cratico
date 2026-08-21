@@ -55,6 +55,16 @@ def clear_rate_limit_cache(db):
         for key in redis.scan_iter("ratelimit:*"):
             redis.delete(key)
 
+        # Clear cached API view responses so stale data (e.g. from a
+        # previous test run) doesn't leak into the current test.
+        cache.delete_pattern("api_cache:*")
+        for key in redis.scan_iter("api_cache:*"):
+            redis.delete(key)
+
+        # Clear warmup-status keys used by @cached_view(defer_on_miss=True).
+        for key in redis.scan_iter("warmup:*"):
+            redis.delete(key)
+
         # Clear all security-related keys (velocity, strikes, errors,
         # scan detection, banned set, flagged set) so tests that use
         # the real SecurityService don't leak state into other tests.
