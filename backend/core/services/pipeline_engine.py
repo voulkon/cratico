@@ -43,6 +43,14 @@ class PipelineEngine:
 
         Returns the completed ``PipelineRun``.
         """
+        # Every run must be attributable to a user for billing / recharging,
+        # even when the system fallback key is used (``billed_to == "SYSTEM"``).
+        if context.user is None:
+            raise ValueError(
+                "pipeline runs require a user for billing attribution; "
+                "set context.user"
+            )
+
         run = PipelineRun.objects.create(
             pipeline=pipeline_def,
             status=RunStatus.RUNNING,
@@ -52,7 +60,7 @@ class PipelineEngine:
             started_at=timezone.now(),
         )
 
-        # Determine billing attribution from user's AI settings
+        # Determine which key was used (user's own vs system fallback).
         run.billed_to = self._resolve_billed_to(context.user)
         run.save(update_fields=["billed_to"])
 
@@ -82,7 +90,9 @@ class PipelineEngine:
     def _resolve_billed_to(self, user) -> str:
         """Return 'USER' or 'SYSTEM' based on user's AI settings.
 
-        Raises ValueError if *user* is None — billing must be explicit.
+        *user* must not be ``None`` — ``run`` validates attribution first.
+        ``"SYSTEM"`` means the system fallback key was used (the user is still
+        recorded on the run for recharging).
         """
         if user is None:
             raise ValueError(
@@ -93,9 +103,9 @@ class PipelineEngine:
             from core.models.user_ai_settings import UserAISettings
 
             ai_settings = UserAISettings.get_default_for_user(user)
-            return ai_settings.billed_to if ai_settings else "USER"
+            return ai_settings.billed_to if ai_settings else "SYSTEM"
         except Exception:
-            return "USER"
+            return "SYSTEM"
 
     def _execute_step(self, step, context: PipelineContext, run: PipelineRun):
         """Dispatch a single step to its executor."""

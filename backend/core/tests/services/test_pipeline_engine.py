@@ -59,10 +59,10 @@ def _make_step(pipeline, order, step_type, name=None, config=None, is_active=Tru
 class TestSuccessfulRun:
     """Happy-path pipeline execution."""
 
-    def test_empty_steps_completes_immediately(self, pipeline_definition):
+    def test_empty_steps_completes_immediately(self, pipeline_definition, user):
         """Pipeline with no active steps → COMPLETED."""
         engine = PipelineEngine()
-        context = _make_context(decisions=[{"id": "X"}])
+        context = _make_context(decisions=[{"id": "X"}], user=user)
         run = engine.run(pipeline_definition, context)
 
         assert run.status == RunStatus.COMPLETED
@@ -70,7 +70,7 @@ class TestSuccessfulRun:
         assert run.total_output_tokens == 0
         assert run.total_cost_usd == 0
 
-    def test_run_creates_pipeline_run_record(self, pipeline_definition):
+    def test_run_creates_pipeline_run_record(self, pipeline_definition, user):
         """A run creates a ``PipelineRun`` in the database."""
         step = _make_step(pipeline_definition, 0, StepType.EXTRACT)
 
@@ -79,7 +79,7 @@ class TestSuccessfulRun:
             PipelineEngine, "_execute_step", return_value=None
         ):
             engine = PipelineEngine()
-            context = _make_context(decisions=[{"id": "X"}])
+            context = _make_context(decisions=[{"id": "X"}], user=user)
             run = engine.run(pipeline_definition, context)
 
         assert PipelineRun.objects.filter(id=run.id).exists()
@@ -88,11 +88,11 @@ class TestSuccessfulRun:
         assert run.started_at is not None
         assert run.completed_at is not None
 
-    def test_trigger_and_ref_stored(self, pipeline_definition):
+    def test_trigger_and_ref_stored(self, pipeline_definition, user):
         """Custom trigger and trigger_ref are persisted."""
         with patch.object(PipelineEngine, "_execute_step", return_value=None):
             engine = PipelineEngine()
-            context = _make_context()
+            context = _make_context(user=user)
             run = engine.run(
                 pipeline_definition, context,
                 trigger="batch_summary",
@@ -111,7 +111,7 @@ class TestSuccessfulRun:
 class TestFailedRun:
     """Error handling in pipeline execution."""
 
-    def test_failed_step_marks_run_failed(self, pipeline_definition):
+    def test_failed_step_marks_run_failed(self, pipeline_definition, user):
         """When a step raises, the run status is FAILED."""
         _make_step(pipeline_definition, 0, StepType.EXTRACT)
 
@@ -120,13 +120,13 @@ class TestFailedRun:
 
         with patch.object(PipelineEngine, "_execute_step", side_effect=_raise):
             engine = PipelineEngine()
-            context = _make_context(decisions=[{"id": "X"}])
+            context = _make_context(decisions=[{"id": "X"}], user=user)
             run = engine.run(pipeline_definition, context)
 
         assert run.status == RunStatus.FAILED
         assert "Boom!" in (run.error_message or "")
 
-    def test_remaining_steps_skipped_on_failure(self, pipeline_definition):
+    def test_remaining_steps_skipped_on_failure(self, pipeline_definition, user):
         """When step 0 fails, step 1 is never executed."""
         _make_step(pipeline_definition, 0, StepType.EXTRACT)
         _make_step(pipeline_definition, 1, StepType.PREPROCESS)
@@ -140,7 +140,7 @@ class TestFailedRun:
 
         with patch.object(PipelineEngine, "_execute_step", _record_execution):
             engine = PipelineEngine()
-            context = _make_context(decisions=[{"id": "X"}])
+            context = _make_context(decisions=[{"id": "X"}], user=user)
             engine.run(pipeline_definition, context)
 
         assert executed == [0]
@@ -154,9 +154,20 @@ class TestFailedRun:
 class TestBilledTo:
     """``_resolve_billed_to`` logic."""
 
-    def test_no_user_defaults_to_system(self):
+    def test_no_user_raises(self):
         engine = PipelineEngine()
-        assert engine._resolve_billed_to(None) == "SYSTEM"
+        with pytest.raises(ValueError, match="user is required"):
+            engine._resolve_billed_to(None)
+
+    def test_run_requires_user(self, pipeline_definition):
+        """``run`` refuses to start without a user to attribute billing to."""
+        engine = PipelineEngine()
+        context = _make_context(decisions=[{"id": "X"}])
+
+        with pytest.raises(ValueError, match="require a user"):
+            engine.run(pipeline_definition, context)
+
+        assert not PipelineRun.objects.exists()
 
     def test_user_with_settings(self, user):
         """User with own API key → 'USER' (billed_to is a computed property)."""
@@ -192,11 +203,11 @@ class TestBilledTo:
 class TestRollUpTotals:
     """``_roll_up_totals`` aggregates step-run metrics."""
 
-    def test_sums_tokens_and_cost(self, pipeline_definition):
+    def test_sums_tokens_and_cost(self, pipeline_definition, user):
         """Total input/output tokens and cost are summed from step runs."""
         with patch.object(PipelineEngine, "_execute_step", return_value=None):
             engine = PipelineEngine()
-            context = _make_context()
+            context = _make_context(user=user)
             run = engine.run(pipeline_definition, context)
 
         # Create step runs manually to test roll-up
@@ -243,13 +254,13 @@ class TestStepDispatch:
         with pytest.raises(ValueError, match="No executor registered"):
             engine._execute_step(step, context, run)
 
-    def test_inactive_steps_skipped(self, pipeline_definition):
+    def test_inactive_steps_skipped(self, pipeline_definition, user):
         """Inactive steps are not dispatched."""
         _make_step(pipeline_definition, 0, StepType.EXTRACT, is_active=False)
         _make_step(pipeline_definition, 1, StepType.EXTRACT, is_active=True)
 
         engine = PipelineEngine()
-        context = _make_context(decisions=[{"id": "X"}])
+        context = _make_context(decisions=[{"id": "X"}], user=user)
 
         with patch.object(PipelineEngine, "_execute_step") as mock_exec:
             engine.run(pipeline_definition, context)
