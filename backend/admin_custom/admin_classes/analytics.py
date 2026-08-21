@@ -93,10 +93,11 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
         "response_time_ms",
         "is_flagged",
         "flag_reason",
-        "user",
+        "user_link",
     )
     list_filter = (
         "ip_address",
+        ("user", admin.RelatedOnlyFieldListFilter),
         "is_flagged",
         "flag_reason",
         "method",
@@ -144,10 +145,24 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
             display,
         )
 
+    @admin.display(description="User")
+    def user_link(self, obj):
+        """Render the user as a link that filters the changelist to that user.
+
+        Clicking a user drills into only that user's access logs. The sidebar
+        "By user" filter (RelatedOnlyFieldListFilter) lists every unique user
+        that has at least one entry in this table.
+        """
+        if obj.user_id is None:
+            return "-"
+        filter_url = reverse("admin:api_endpointaccesslog_changelist")
+        filter_url += "?" + urlencode({"user__id__exact": obj.user_id})
+        return format_html('<a href="{}">{}</a>', filter_url, obj.user)
+
     def get_queryset(self, request):
         # Default: show all entries. The is_flagged filter in the sidebar lets
         # the user drill down to only flagged entries when investigating.
-        return super().get_queryset(request)
+        return super().get_queryset(request).select_related("user")
 
     def get_urls(self):
         """Add custom URLs for IP summary and endpoint summary views."""
