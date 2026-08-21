@@ -106,11 +106,10 @@ def a_test_diavgeia_fetcher() -> DiavgeiaFetcher:
 
 @pytest.fixture
 def a_test_decision_service(
-    mock_diavgeia_fetcher: DiavgeiaFetcher,
+    a_test_diavgeia_fetcher: DiavgeiaFetcher,
 ) -> DecisionIngestionService:
-    """Provides an instance of the service with a mocked fetcher and zero delay."""
-    # Use delay=0 for tests to avoid actual sleeping
-    return DecisionIngestionService(mock_diavgeia_fetcher, delay_seconds=20)
+    """Provides an instance of the service with a real fetcher for VCR-backed tests."""
+    return DecisionIngestionService(a_test_diavgeia_fetcher, delay_seconds=20)
 
 
 # ============================================================================
