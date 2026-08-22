@@ -1,6 +1,6 @@
 from datetime import date, timedelta
 from typing import List, Dict, Optional
-from holidayfyi import get_upcoming_holidays, holidays_on_date
+from holidayfyi import holidays_on_date
 
 
 class PublicHolidayDetectionService:
@@ -82,23 +82,18 @@ class PublicHolidayDetectionService:
             - observed_date: The observed holiday date (with weekend adjustments)
             - is_weekend_adjusted: Whether the observed date differs from actual
         """
-        # Get holidays throughout the year by checking each month
-        holidays_map = {}
+        import holidays as holidays_lib
         
-        # Check the first day of each month to get upcoming holidays
-        for month in range(1, 13):
-            check_date = date(year, month, 1)
-            upcoming = get_upcoming_holidays(PublicHolidayDetectionService.COUNTRY_CODE, n=10)
-            
-            for holiday in upcoming:
-                holiday_date = date.fromisoformat(holiday['date'])
-                if holiday_date.year == year and holiday.get('is_public', False):
-                    if holiday_date not in holidays_map:
-                        holidays_map[holiday_date] = holiday['name']
+        try:
+            yearly_holidays = holidays_lib.country_holidays(
+                PublicHolidayDetectionService.COUNTRY_CODE, years=year
+            )
+        except NotImplementedError:
+            return []
         
         # Build the result with observed dates
         result = []
-        for actual_date, name in sorted(holidays_map.items()):
+        for actual_date, name in sorted(yearly_holidays.items()):
             observed_date = actual_date
             is_weekend_adjusted = False
             
