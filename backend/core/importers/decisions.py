@@ -778,16 +778,23 @@ class DecisionImporter(BaseImporter):
             )
 
     @transaction.atomic  # Ensure all operations for a batch succeed or fail together
-    def import_many(self, dtos: Iterable[DecisionDTO]) -> int:
+    def import_many(
+        self, dtos: Iterable[DecisionDTO], *, defaults: dict[str, Any] | None = None
+    ) -> int:
         """
         Imports multiple Decision DTOs, handling relations and promoted fields.
         Now also extracts AFM entities and triggers company data fetching.
+
+        Args:
+            dtos: Decision DTOs to import.
+            defaults: Optional extra values merged into each decision (e.g. import_job).
 
         Returns:
             int: The number of *new* Decision objects created.
         """
         # Reset org_cache for each batch to prevent extremely large caches across batches
         self.org_cache = {}
+        external_defaults = defaults or {}
 
         created_count = 0
         processed_count = 0
@@ -811,9 +818,9 @@ class DecisionImporter(BaseImporter):
                 )
 
                 # 2. Prepare direct fields and promoted fields for the Decision model
-                defaults = self._to_defaults(dto)
+                dto_defaults = self._to_defaults(dto)
                 promoted_fields = self._extract_promoted_fields(dto)
-                defaults.update(promoted_fields)
+                dto_defaults.update(promoted_fields)
 
                 # Handle organization - this is required in the model, so we skip if missing
                 if org_uid is None:
@@ -823,19 +830,22 @@ class DecisionImporter(BaseImporter):
                     skipped_count += 1
                     continue
 
-                defaults["organization_id"] = org_uid
+                dto_defaults["organization_id"] = org_uid
 
                 # Add the decision type FK - use the new field name
                 if decision_type_uid:
-                    defaults["decision_type_id"] = decision_type_uid
+                    dto_defaults["decision_type_id"] = decision_type_uid
+
+                # Apply caller-supplied defaults (e.g. import_job)
+                dto_defaults.update(external_defaults)
 
                 # Truncate any varchar fields that exceed their column limits
                 # (e.g. organizations stuffing the subject into protocolNumber).
-                self._truncate_long_string_fields(defaults, dto.ada)
+                self._truncate_long_string_fields(dto_defaults, dto.ada)
 
                 # 3. Create or Update the main Decision object
                 decision_instance, created = self.model.objects.update_or_create(
-                    ada=dto.ada, defaults=defaults
+                    ada=dto.ada, defaults=dto_defaults
                 )
                 if created:
                     created_count += 1
