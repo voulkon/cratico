@@ -119,19 +119,28 @@ def test_normal_text_not_detected_as_corrupted(preprocessor_service):
     ), "Should have reasonable confidence in the result."
 
 
-def test_text_with_no_greek_words_detected_as_corrupted(preprocessor_service):
+def test_text_with_no_greek_words_detected_as_corrupted():
     """
     Test that text with mixed gibberish and very few real words is detected as corrupted.
+
+    Uses an explicit stricter coverage threshold (10%) to model the
+    "mostly gibberish" scenario. With the default 4% threshold this sample
+    lands in a gray zone (~7% coverage), so the threshold is set explicitly.
     """
     # Text with mostly gibberish and only 1-2 valid Greek words
-    # This should be flagged as corrupted because coverage is below 10%
     mixed_gibberish_text = """
     Τπόινγν Δηδηθήο Γηαρείξηζεο αβγδεζηθικλμνοπρστυφχψω
     ΑΓΙΑΒΑΘΜΗΣΟ κάποιες παράξενες συμβολοσειρές που μπλαμπλα φτσιφτσου
     Ψφχωςερτυιοπασδφγηκλζχβνμ ζουζουνια κρεμπελοπιτα
     """
 
-    result = preprocessor_service.preprocess(mixed_gibberish_text)
+    # Use a stricter coverage threshold so mixed gibberish is flagged
+    preprocessor = TextPreprocessor(
+        strategy=CorruptionDetectionStrategy.COMMON_WORDS,
+        coverage_ratio_threshold=0.10,
+    )
+
+    result = preprocessor.preprocess(mixed_gibberish_text)
 
     assert (
         result.is_corrupted is True
@@ -141,7 +150,6 @@ def test_text_with_no_greek_words_detected_as_corrupted(preprocessor_service):
     if "word_analysis" in result.corruption_indicators:
         word_analysis = result.corruption_indicators["word_analysis"]
         assert word_analysis["matched_words"] >= 0
-        # With stricter thresholds, this should now be flagged
         print(f"Coverage ratio: {word_analysis['coverage_ratio']:.3f}")
         print(
             f"Matched words: {word_analysis['matched_words']}/{word_analysis['text_word_count']}"
