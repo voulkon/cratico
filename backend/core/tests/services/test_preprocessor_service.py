@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,35 @@ from core.services.text_preprocessor import (
     CorruptionDetectionStrategy,
     TextPreprocessor,
 )
+
+
+def _is_light_worker_mode() -> bool:
+    """Return True when running in light-worker mode, where Docling is unavailable."""
+    env_value = os.getenv("LIGHT_WORKER", "")
+    if env_value:
+        return env_value.lower() in ("true", "1", "t", "yes", "on")
+    try:
+        from core.services.feature_flag_service import feature_flags
+
+        return feature_flags.is_enabled("LIGHT_WORKER")
+    except Exception:
+        return False
+
+
+def _get_extractor(
+    processor_service: TextExtractionProcessor, provider: ProcessingProvider
+):
+    """Resolve an extractor for a provider, handling Docling's lazy loading.
+
+    In LIGHT_WORKER mode Docling is disabled (not installed), so DOCLING is
+    skipped. In full mode Docling is loaded lazily via the processor's
+    accessor instead of direct dict access.
+    """
+    if provider == ProcessingProvider.DOCLING:
+        if _is_light_worker_mode():
+            pytest.skip("Docling is disabled in LIGHT_WORKER mode")
+        return processor_service._get_docling_extractor()
+    return processor_service.extractors[provider]
 
 
 @pytest.fixture
@@ -238,10 +268,8 @@ def test_threshold_sensitivity_on_corrupted_appearing_doc(
         coverage_ratio_threshold=coverage_threshold,
     )
 
-    # Use Docling extractor
-    from core.models.document_analysis import ProcessingProvider
-
-    extractor = processor_service.extractors[ProcessingProvider.DOCLING]
+    # Use Docling extractor (skipped in LIGHT_WORKER mode where it's unavailable)
+    extractor = _get_extractor(processor_service, ProcessingProvider.DOCLING)
 
     # Extract text
     extraction_result = extractor.extract_text(not_corrupted_file_path)
@@ -339,8 +367,8 @@ def test_corruption_detection_regression_suite(
     # Get the file path from the fixture name
     file_path = request.getfixturevalue(file_fixture)
 
-    # Extract text using specified provider
-    extractor = processor_service.extractors[provider]
+    # Extract text using specified provider (skips DOCLING in LIGHT_WORKER mode)
+    extractor = _get_extractor(processor_service, provider)
     extraction_result = extractor.extract_text(file_path)
     text = extraction_result.text
 
