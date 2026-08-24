@@ -1,7 +1,6 @@
 from datetime import timedelta
 
 from celery import chord, shared_task
-from diavgeia_project.settings.base import FRONTEND_DOMAINS_clean
 from django.conf import settings
 from django.utils import timezone
 from loguru import logger
@@ -146,11 +145,9 @@ def check_single_subscription(
                     }
 
                     # Send email
-                    frontend_url = (
-                        FRONTEND_DOMAINS_clean[0]
-                        if FRONTEND_DOMAINS_clean
-                        else "https://crati.co"
-                    )
+                    from core.services.frontend_url import frontend_base_url
+
+                    frontend_url = frontend_base_url()
                     # TODO: Remove this log
                     logger.debug("Using frontend URL for email links: {}", frontend_url)
                     batch_data["app_url"] = frontend_url

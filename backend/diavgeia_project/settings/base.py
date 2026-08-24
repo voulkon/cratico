@@ -46,6 +46,12 @@ FRONTEND_HOSTNAMES = [
     urlparse(d).netloc for d in FRONTEND_DOMAINS_clean if urlparse(d).netloc
 ]
 
+# Last-resort fallback origins used by core.services.frontend_url when no
+# FRONTEND_DOMAINS are configured. Overridable via env for local workflows
+# (e.g. FRONTEND_DEV_BASE=http://localhost when the frontend runs on port 80).
+FRONTEND_DEV_BASE = os.getenv("FRONTEND_DEV_BASE", "http://localhost:3000")
+FRONTEND_PROD_BASE = os.getenv("FRONTEND_PROD_BASE", "https://crati.co")
+
 # Start with frontend hostnames
 ALLOWED_HOSTS = FRONTEND_HOSTNAMES.copy()
 
