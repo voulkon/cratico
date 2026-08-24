@@ -716,6 +716,16 @@ class DecisionAdmin(admin.ModelAdmin):
                 decision=OuterRef("pk"), reported=True
             )
         )
+        # Same condition correlated on DecisionAmountField.decision_id, for
+        # the index-backed pagination count below.  A plain
+        # ``exclude(decision__diavgeia_feedback_report__reported=True)`` there
+        # would drop decisions with no report row (Django's NULL-exclude
+        # behaviour), undercounting "unreported" to zero.
+        already_reported_daf = Exists(
+            DiavgeiaFeedbackReport.objects.filter(
+                decision=OuterRef("decision"), reported=True
+            )
+        )
 
         # ── Parse filters first (used by stats and pagination) ──────
         reported = request.GET.get("reported", "no")
@@ -813,13 +823,9 @@ class DecisionAdmin(admin.ModelAdmin):
         else:
             count_qs = DecisionAmountField.objects.filter(verified_amount__isnull=False)
             if reported == "yes":
-                count_qs = count_qs.filter(
-                    decision__diavgeia_feedback_report__reported=True
-                )
+                count_qs = count_qs.filter(already_reported_daf)
             elif reported == "no":
-                count_qs = count_qs.exclude(
-                    decision__diavgeia_feedback_report__reported=True
-                )
+                count_qs = count_qs.exclude(already_reported_daf)
             if start_date:
                 count_qs = count_qs.filter(decision__issue_date_day__gte=start_date)
             if end_date:
