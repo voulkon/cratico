@@ -699,8 +699,11 @@ class DecisionAdmin(admin.ModelAdmin):
         Unreported rows get a one-click “Report” button; a “Report all
         pending” button creates a background batch job.
         """
+        import time
+
         from django.core.paginator import Paginator
         from django.db.models import Exists, OuterRef, Prefetch, Q
+        from loguru import logger
         from urllib.parse import urlencode
 
         from core.models.decisions import Decision
@@ -708,11 +711,6 @@ class DecisionAdmin(admin.ModelAdmin):
         from core.models.entities import DecisionAmountField
         from core.services.diavgeia_feedback_service import DiavgeiaFeedbackService
 
-        has_corrected = Exists(
-            DecisionAmountField.objects.filter(
-                decision=OuterRef("pk"), verified_amount__isnull=False
-            )
-        )
         already_reported = Exists(
             DiavgeiaFeedbackReport.objects.filter(
                 decision=OuterRef("pk"), reported=True
@@ -732,6 +730,7 @@ class DecisionAdmin(admin.ModelAdmin):
         # of this page.  Corrected-amount counts now hit the partial index
         # idx_daf_verified_amounts (index-only scan), and the reported count
         # reads the tiny DiavgeiaFeedbackReport table.
+        _t_stats = time.perf_counter()
         total = _corrected_decisions_count()
         reported_ids = DiavgeiaFeedbackReport.objects.filter(
             reported=True
@@ -744,9 +743,21 @@ class DecisionAdmin(admin.ModelAdmin):
             .count()
         )
         total_pending = total - total_reported
+        _t_stats = time.perf_counter() - _t_stats
 
         # ── Build the filtered queryset ──────────────────────────────
-        qs = Decision.objects.filter(has_corrected)
+        #
+        # Start from the set of decisions that actually have corrected
+        # amounts (derived from the amount-field table via its partial
+        # index) instead of a correlated EXISTS over the whole Decision
+        # table — that EXISTS forced PostgreSQL to probe every decision
+        # row while hunting for the first page of matches.
+        corrected_ids = (
+            DecisionAmountField.objects
+            .filter(verified_amount__isnull=False)
+            .values("decision_id")
+        )
+        qs = Decision.objects.filter(id__in=corrected_ids)
 
         if reported == "yes":
             qs = qs.filter(already_reported)
@@ -781,34 +792,61 @@ class DecisionAdmin(admin.ModelAdmin):
         # subqueries, so we count distinct decision_id directly on the
         # amount-field table (partial index, index-only) with the same
         # filters applied, then seed Paginator's cached count.
-        count_qs = DecisionAmountField.objects.filter(verified_amount__isnull=False)
-        if reported == "yes":
-            count_qs = count_qs.filter(
-                decision__diavgeia_feedback_report__reported=True
-            )
-        elif reported == "no":
-            count_qs = count_qs.exclude(
-                decision__diavgeia_feedback_report__reported=True
-            )
-        if start_date:
-            count_qs = count_qs.filter(decision__issue_date_day__gte=start_date)
-        if end_date:
-            count_qs = count_qs.filter(decision__issue_date_day__lte=end_date)
-        if q:
-            count_qs = count_qs.filter(
-                Q(decision__ada__icontains=q) | Q(decision__subject__icontains=q)
-            )
-        filtered_total = count_qs.values("decision_id").distinct().count()
+        _t_count = time.perf_counter()
+        if not (start_date or end_date or q):
+            # No date/search filters — the pagination count is exactly one of
+            # the global stats already computed above.
+            if reported == "yes":
+                filtered_total = total_reported
+            elif reported == "no":
+                filtered_total = total_pending
+            else:
+                filtered_total = total
+        else:
+            count_qs = DecisionAmountField.objects.filter(verified_amount__isnull=False)
+            if reported == "yes":
+                count_qs = count_qs.filter(
+                    decision__diavgeia_feedback_report__reported=True
+                )
+            elif reported == "no":
+                count_qs = count_qs.exclude(
+                    decision__diavgeia_feedback_report__reported=True
+                )
+            if start_date:
+                count_qs = count_qs.filter(decision__issue_date_day__gte=start_date)
+            if end_date:
+                count_qs = count_qs.filter(decision__issue_date_day__lte=end_date)
+            if q:
+                count_qs = count_qs.filter(
+                    Q(decision__ada__icontains=q) | Q(decision__subject__icontains=q)
+                )
+            filtered_total = count_qs.values("decision_id").distinct().count()
+        _t_count = time.perf_counter() - _t_count
 
         per_page = 25
         paginator = Paginator(qs, per_page)
         # Seed Paginator's cached count so page()/num_pages never run COUNT(*).
         paginator.__dict__["count"] = filtered_total
         page = request.GET.get("page", "1")
+        _t_page = time.perf_counter()
         try:
             page_obj = paginator.page(page)
         except Exception:
             page_obj = paginator.page(1)
+        _t_page = time.perf_counter() - _t_page
+
+        logger.info(
+            "feedback_pool_view timing: stats={:.3f}s count={:.3f}s "
+            "page={:.3f}s (reported={!r}, start_date={!r}, end_date={!r}, "
+            "q={!r})",
+            _t_stats,
+            _t_count,
+            _t_page,
+            reported,
+            start_date,
+            end_date,
+            q,
+        )
 
         rows = []
         for d in page_obj.object_list:
