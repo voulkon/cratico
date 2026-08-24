@@ -5,7 +5,7 @@ from django.shortcuts import redirect, render
 from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.html import format_html
-
+from api.redis_keys import ADMIN_FEEDBACK_POOL_CORRECTED_DECISIONS_KEY
 
 class ImportDecisionsForm(forms.Form):
     """Form for importing decisions"""
@@ -731,7 +731,15 @@ class DecisionAdmin(admin.ModelAdmin):
         # idx_daf_verified_amounts (index-only scan), and the reported count
         # reads the tiny DiavgeiaFeedbackReport table.
         _t_stats = time.perf_counter()
-        total = _corrected_decisions_count()
+        # The corrected-decision count only changes when a correction batch
+        # runs (not when reporting), so cache it briefly.  reported/pending
+        # are computed live below so the header still updates instantly
+        # after each report.
+        total = _get_cached_stats(
+            ADMIN_FEEDBACK_POOL_CORRECTED_DECISIONS_KEY,
+            _corrected_decisions_count,
+            timeout=300,
+        )
         reported_ids = DiavgeiaFeedbackReport.objects.filter(
             reported=True
         ).values_list("decision_id", flat=True)
