@@ -509,6 +509,11 @@ class DecisionAdmin(admin.ModelAdmin):
                 name="decision_feedback_report",
             ),
             path(
+                "feedback-report-selected/",
+                self.admin_site.admin_view(self.report_selected_view),
+                name="decision_feedback_report_selected",
+            ),
+            path(
                 "feedback-batch/",
                 self.admin_site.admin_view(self.feedback_batch_view),
                 name="decision_feedback_batch",
@@ -805,14 +810,22 @@ class DecisionAdmin(admin.ModelAdmin):
         except Exception:
             page_obj = paginator.page(1)
 
-        rows = [
-            {
-                "decision": d,
-                "verified_fields": getattr(d, "verified_fields", []),
-                "frontend_url": DiavgeiaFeedbackService.frontend_url(d),
-            }
-            for d in page_obj.object_list
-        ]
+        rows = []
+        for d in page_obj.object_list:
+            report = getattr(d, "diavgeia_feedback_report", None)
+            activation_url = None
+            if report and report.reported and report.reference:
+                activation_url = DiavgeiaFeedbackService.activation_url(
+                    report.reference
+                )
+            rows.append(
+                {
+                    "decision": d,
+                    "verified_fields": getattr(d, "verified_fields", []),
+                    "frontend_url": DiavgeiaFeedbackService.frontend_url(d),
+                    "activation_url": activation_url,
+                }
+            )
 
         pagination_qs = urlencode(
             {
@@ -848,6 +861,9 @@ class DecisionAdmin(admin.ModelAdmin):
                 "admin:decision_feedback_report", kwargs={"decision_id": 0}
             )[:-2],  # strip trailing "0/" — template appends the real ID
             "batch_url": reverse("admin:decision_feedback_batch"),
+            "report_selected_url": reverse(
+                "admin:decision_feedback_report_selected"
+            ),
             "opts": self.model._meta,
         }
         return render(request, "admin/decision_feedback_pool.html", context)
@@ -879,6 +895,58 @@ class DecisionAdmin(admin.ModelAdmin):
                 f"Report for {decision.ada} queued — it will be sent in the "
                 "background. Refresh in a few seconds to see the result.",
             )
+
+        referer = request.META.get("HTTP_REFERER")
+        if referer and "feedback-pool" in referer:
+            return redirect(referer)
+        return redirect(reverse("admin:decision_feedback_pool"))
+
+    def report_selected_view(self, request):
+        """
+        Queue several decisions for Diavgeia feedback reporting in one go.
+
+        Each selected decision is enqueued as its own background task (the
+        same path as the single “Report” button), so the request returns
+        immediately.
+        """
+        from core.models.diavgeia_feedback_report import DiavgeiaFeedbackReport
+        from core.tasks.tasks_diavgeia_feedback import (
+            report_single_decision_feedback,
+        )
+
+        if request.method != "POST":
+            return redirect(reverse("admin:decision_feedback_pool"))
+
+        ids = []
+        for raw in request.POST.getlist("decision_ids"):
+            try:
+                ids.append(int(raw))
+            except (TypeError, ValueError):
+                continue
+        if not ids:
+            messages.warning(request, "No decisions selected.")
+            return redirect(reverse("admin:decision_feedback_pool"))
+
+        already = set(
+            DiavgeiaFeedbackReport.objects
+            .filter(decision_id__in=ids, reported=True)
+            .values_list("decision_id", flat=True)
+        )
+        queued = 0
+        for decision_id in ids:
+            if decision_id in already:
+                continue
+            report_single_decision_feedback.delay(decision_id=decision_id)
+            queued += 1
+
+        if queued:
+            messages.info(
+                request,
+                f"{queued} report(s) queued for background processing.",
+            )
+        skipped = len(ids) - queued
+        if skipped:
+            messages.info(request, f"{skipped} already reported — skipped.")
 
         referer = request.META.get("HTTP_REFERER")
         if referer and "feedback-pool" in referer:

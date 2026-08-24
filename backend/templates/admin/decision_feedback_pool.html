@@ -50,17 +50,26 @@
     </div>
   </form>
 
-  <div style="margin-bottom:18px;">
+  <div style="margin-bottom:18px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
     <a href="{{ batch_url }}" class="button"
        style="background:var(--primary);color:var(--primary-fg);padding:6px 14px;text-decoration:none;border-radius:4px;">
       🚀 Report all pending (background job)
     </a>
+    <form id="feedback-bulk-form" method="post" action="{{ report_selected_url }}" style="margin:0;">
+      {% csrf_token %}
+      <input type="submit" value="Report selected (background)"
+             class="button"
+             style="background:var(--primary);color:var(--primary-fg);border:none;padding:6px 14px;border-radius:4px;cursor:pointer;"
+             onclick="return confirm('Queue the selected decisions for reporting?');">
+    </form>
   </div>
 
   {% if rows %}
   <table style="width:100%;border-collapse:collapse;">
     <thead>
       <tr style="background:var(--primary);color:var(--primary-fg);text-align:left;">
+        <th style="padding:8px;"><input type="checkbox" title="Select all"
+            onclick="document.querySelectorAll('input.fb-check').forEach(c => c.checked = this.checked);"></th>
         <th style="padding:8px;">ADA</th>
         <th style="padding:8px;">Subject</th>
         <th style="padding:8px;">Issue date</th>
@@ -73,6 +82,11 @@
       {% for row in rows %}
       {% with d=row.decision report=d.diavgeia_feedback_report %}
       <tr style="border-bottom:1px solid var(--border-color);{% if report.reported %}background:var(--darkened-bg);{% else %}background:var(--body-bg);{% endif %}">
+        <td style="padding:8px;">
+          {% if not report.reported %}
+            <input type="checkbox" class="fb-check" name="decision_ids" value="{{ d.id }}" form="feedback-bulk-form">
+          {% endif %}
+        </td>
         <td style="padding:8px;white-space:nowrap;"><code>{{ d.ada }}</code></td>
         <td style="padding:8px;max-width:280px;">{{ d.subject|truncatewords:14 }}</td>
         <td style="padding:8px;white-space:nowrap;">{{ d.issue_date|date:"Y-m-d" }}</td>
@@ -90,7 +104,12 @@
           {% if report.reported %}
             <span style="background:var(--darkened-bg);color:var(--body-fg);padding:2px 8px;border-radius:10px;">
               ✓ {{ report.reported_at|date:"Y-m-d H:i" }}
-              {% if report.reference %}<br><code style="font-size:11px;">{{ report.reference }}</code>{% endif %}
+              {% if row.activation_url %}
+                <br>
+                <a href="{{ row.activation_url }}" target="_blank"
+                   style="font-size:11px;color:var(--link-fg,#417690);">activate →</a>
+                <code style="font-size:11px;">{{ report.reference }}</code>
+              {% endif %}
             </span>
           {% else %}
             <span style="background:var(--message-warning-bg);color:var(--body-fg);padding:2px 8px;border-radius:10px;">pending</span>
