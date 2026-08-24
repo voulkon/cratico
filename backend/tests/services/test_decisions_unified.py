@@ -127,10 +127,12 @@ class TestUnifiedEndpoint:
 
     def test_view_statistics(self, decision_type):
         """view=statistics returns summary stats."""
-        from conftest import DecisionFactory
+        from conftest import DecisionAmountFieldFactory, DecisionFactory
 
-        DecisionFactory(amount=100, decision_type=decision_type)
-        DecisionFactory(amount=300, decision_type=decision_type)
+        d1 = DecisionFactory(decision_type=decision_type)
+        DecisionAmountFieldFactory(decision=d1, amount=100)
+        d2 = DecisionFactory(decision_type=decision_type)
+        DecisionAmountFieldFactory(decision=d2, amount=300)
 
         factory = RequestFactory()
         req = factory.get("/", {
@@ -216,11 +218,14 @@ class TestUnifiedEndpoint:
 
     def test_amount_filter(self, decision_type):
         """Amount range filtering."""
-        from conftest import DecisionFactory
+        from conftest import DecisionAmountFieldFactory, DecisionFactory
 
-        DecisionFactory(ada="LOW", amount=50, decision_type=decision_type)
-        DecisionFactory(ada="MID", amount=500, decision_type=decision_type)
-        DecisionFactory(ada="HIGH", amount=5000, decision_type=decision_type)
+        d_low = DecisionFactory(ada="LOW", decision_type=decision_type)
+        DecisionAmountFieldFactory(decision=d_low, amount=50)
+        d_mid = DecisionFactory(ada="MID", decision_type=decision_type)
+        DecisionAmountFieldFactory(decision=d_mid, amount=500)
+        d_high = DecisionFactory(ada="HIGH", decision_type=decision_type)
+        DecisionAmountFieldFactory(decision=d_high, amount=5000)
 
         factory = RequestFactory()
         req = factory.get("/", {

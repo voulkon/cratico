@@ -21,7 +21,6 @@ import requests
 from core.constants.decision_import_constants import (
     DIAVGEIA_OFFICIAL_COUNTS_URL,
     DiavgeiaSearchFields,
-    get_api_date_fields,
 )
 from core.fetchers.diavgeia_fetcher import DiavgeiaFetcher
 from diavgeia_api.models.decisions import Decision
@@ -63,10 +62,22 @@ class DecisionFetchReconcileService:
         """
         Get the appropriate date field names based on configuration.
 
+        Respects the instance's ``use_submission_date`` setting so explicit
+        callers (e.g. tests or coverage backfill) control date semantics,
+        while the default still resolves from the global configuration.
+
         Returns:
             Tuple of (from_field, to_field) field names
         """
-        return get_api_date_fields()
+        if self.use_submission_date:
+            return (
+                DiavgeiaSearchFields.FROM_DATE,
+                DiavgeiaSearchFields.TO_DATE,
+            )
+        return (
+            DiavgeiaSearchFields.FROM_ISSUE_DATE,
+            DiavgeiaSearchFields.TO_ISSUE_DATE,
+        )
 
     def build_search_params(
         self,

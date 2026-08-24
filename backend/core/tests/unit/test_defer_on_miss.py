@@ -268,11 +268,15 @@ class TestHandleDeferOnMiss:
         assert mock_warmup.call_count == 1
 
     def test_does_not_dispatch_when_warmup_already_ready(self):
-        """When warmup status is 'ready', should return 202 WITHOUT re-dispatching.
+        """When warmup status is 'ready', fall through WITHOUT re-dispatching.
 
         This is the critical fix: a completed warmup that produced no cache
         entries (e.g. empty date window) must NOT trigger an infinite
         dispatch loop.
+
+        The handler returns None to signal the decorator to execute the view
+        synchronously (and cache the result), rather than returning 202 and
+        trapping the frontend in a polling loop.
         """
         request = make_get_request(
             {"start_date": "2025-01-01", "end_date": "2025-01-01"}
@@ -295,13 +299,14 @@ class TestHandleDeferOnMiss:
             log_cache_operations=True,
         )
 
-        # Should return 202…
-        assert response.status_code == 202
+        # Should signal fall-through to synchronous execution…
+        assert response is None
 
         # …but should NOT dispatch the warmup task again
         mock_warmup.assert_not_called()
 
-        # The view should not have been executed either
+        # The handler itself does not execute the view — it returns None and
+        # the decorator runs the view synchronously.
         mock_view.assert_not_called()
 
     def test_both_calls_return_202(self):

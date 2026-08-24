@@ -12,11 +12,11 @@ pytestmark = pytest.mark.django_db
 
 
 class TestSubscriptionMetadataEndpoint:
-    """Test /api/notifications-meta/metadata/ endpoint."""
+    """Test /api/notifications/meta/metadata/ endpoint."""
 
     def test_metadata_returns_subscription_types(self, authenticated_client):
         """Should return all 6 subscription types with details."""
-        response = authenticated_client.get("/api/notifications-meta/metadata/")
+        response = authenticated_client.get("/api/notifications/meta/metadata/")
 
         assert response.status_code == status.HTTP_200_OK
 
@@ -39,7 +39,7 @@ class TestSubscriptionMetadataEndpoint:
 
     def test_metadata_includes_filter_parameters(self, authenticated_client):
         """Should include details about filter parameters."""
-        response = authenticated_client.get("/api/notifications-meta/metadata/")
+        response = authenticated_client.get("/api/notifications/meta/metadata/")
 
         filter_params = response.data["filter_parameters"]
 
@@ -55,7 +55,7 @@ class TestSubscriptionMetadataEndpoint:
 
     def test_metadata_includes_check_frequency_options(self, authenticated_client):
         """Should include check frequency options."""
-        response = authenticated_client.get("/api/notifications-meta/metadata/")
+        response = authenticated_client.get("/api/notifications/meta/metadata/")
 
         options = response.data["check_frequency_options"]
 
@@ -64,7 +64,7 @@ class TestSubscriptionMetadataEndpoint:
 
     def test_metadata_includes_endpoint_urls(self, authenticated_client):
         """Should include relevant endpoint URLs."""
-        response = authenticated_client.get("/api/notifications-meta/metadata/")
+        response = authenticated_client.get("/api/notifications/meta/metadata/")
 
         endpoints = response.data["endpoints"]
 
@@ -74,17 +74,17 @@ class TestSubscriptionMetadataEndpoint:
 
     def test_metadata_requires_authentication(self, api_client):
         """Should require authentication."""
-        response = api_client.get("/api/notifications-meta/metadata/")
+        response = api_client.get("/api/notifications/meta/metadata/")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
 class TestDecisionTypesListEndpoint:
-    """Test /api/notifications-meta/metadata/decision-types/ endpoint."""
+    """Test /api/notifications/meta/metadata/decision-types/ endpoint."""
 
     def test_returns_decision_types(self, authenticated_client, decision_type):
         """Should return list of decision types."""
         response = authenticated_client.get(
-            "/api/notifications-meta/metadata/decision-types/"
+            "/api/notifications/meta/metadata/decision-types/"
         )
 
         assert response.status_code == status.HTTP_200_OK
@@ -100,7 +100,7 @@ class TestDecisionTypesListEndpoint:
     def test_decision_type_structure(self, authenticated_client, decision_type):
         """Should return properly structured decision type objects."""
         response = authenticated_client.get(
-            "/api/notifications-meta/metadata/decision-types/"
+            "/api/notifications/meta/metadata/decision-types/"
         )
 
         types = response.data["decision_types"]
@@ -123,7 +123,7 @@ class TestDecisionTypesListEndpoint:
         DecisionTypeFactory(uid="TEST2", label="Διορισμοί")
 
         response = authenticated_client.get(
-            "/api/notifications-meta/metadata/decision-types/?search=Προμήθ"
+            "/api/notifications/meta/metadata/decision-types/?search=Προμήθ"
         )
 
         types = response.data["decision_types"]
@@ -135,7 +135,7 @@ class TestDecisionTypesListEndpoint:
     def test_limit_parameter(self, authenticated_client):
         """Should respect limit parameter."""
         response = authenticated_client.get(
-            "/api/notifications-meta/metadata/decision-types/?limit=5"
+            "/api/notifications/meta/metadata/decision-types/?limit=5"
         )
 
         types = response.data["decision_types"]
@@ -151,7 +151,7 @@ class TestDecisionTypesListEndpoint:
 
         # Default should be allowed_only=true
         response = authenticated_client.get(
-            "/api/notifications-meta/metadata/decision-types/"
+            "/api/notifications/meta/metadata/decision-types/"
         )
 
         types = response.data["decision_types"]
@@ -162,7 +162,7 @@ class TestDecisionTypesListEndpoint:
 
         # Explicitly request all types
         response = authenticated_client.get(
-            "/api/notifications-meta/metadata/decision-types/?allowed_only=false"
+            "/api/notifications/meta/metadata/decision-types/?allowed_only=false"
         )
 
         types = response.data["decision_types"]
@@ -172,7 +172,7 @@ class TestDecisionTypesListEndpoint:
 
 
 class TestPopularDecisionTypesEndpoint:
-    """Test /api/notifications-meta/metadata/popular-decision-types/ endpoint."""
+    """Test /api/notifications/meta/metadata/popular-decision-types/ endpoint."""
 
     def test_returns_popular_types(self, authenticated_client, decision_type):
         """Should return decision types ordered by usage."""
@@ -183,7 +183,7 @@ class TestPopularDecisionTypesEndpoint:
             DecisionFactory(decision_type=decision_type)
 
         response = authenticated_client.get(
-            "/api/notifications-meta/metadata/popular-decision-types/"
+            "/api/notifications/meta/metadata/popular-decision-types/"
         )
 
         assert response.status_code == status.HTTP_200_OK
@@ -200,7 +200,7 @@ class TestPopularDecisionTypesEndpoint:
         DecisionFactory(decision_type=decision_type)
 
         response = authenticated_client.get(
-            "/api/notifications-meta/metadata/popular-decision-types/"
+            "/api/notifications/meta/metadata/popular-decision-types/"
         )
 
         types = response.data["popular_types"]
@@ -228,7 +228,7 @@ class TestPopularDecisionTypesEndpoint:
             DecisionFactory(decision_type=type2)
 
         response = authenticated_client.get(
-            "/api/notifications-meta/metadata/popular-decision-types/?limit=10"
+            "/api/notifications/meta/metadata/popular-decision-types/?limit=10"
         )
 
         types = response.data["popular_types"]
@@ -247,7 +247,7 @@ class TestPopularDecisionTypesEndpoint:
             DecisionFactory(decision_type=dt)
 
         response = authenticated_client.get(
-            "/api/notifications-meta/metadata/popular-decision-types/?limit=5"
+            "/api/notifications/meta/metadata/popular-decision-types/?limit=5"
         )
 
         types = response.data["popular_types"]

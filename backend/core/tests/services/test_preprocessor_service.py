@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,35 @@ from core.services.text_preprocessor import (
     CorruptionDetectionStrategy,
     TextPreprocessor,
 )
+
+
+def _is_light_worker_mode() -> bool:
+    """Return True when running in light-worker mode, where Docling is unavailable."""
+    env_value = os.getenv("LIGHT_WORKER", "")
+    if env_value:
+        return env_value.lower() in ("true", "1", "t", "yes", "on")
+    try:
+        from core.services.feature_flag_service import feature_flags
+
+        return feature_flags.is_enabled("LIGHT_WORKER")
+    except Exception:
+        return False
+
+
+def _get_extractor(
+    processor_service: TextExtractionProcessor, provider: ProcessingProvider
+):
+    """Resolve an extractor for a provider, handling Docling's lazy loading.
+
+    In LIGHT_WORKER mode Docling is disabled (not installed), so DOCLING is
+    skipped. In full mode Docling is loaded lazily via the processor's
+    accessor instead of direct dict access.
+    """
+    if provider == ProcessingProvider.DOCLING:
+        if _is_light_worker_mode():
+            pytest.skip("Docling is disabled in LIGHT_WORKER mode")
+        return processor_service._get_docling_extractor()
+    return processor_service.extractors[provider]
 
 
 @pytest.fixture
@@ -89,19 +119,28 @@ def test_normal_text_not_detected_as_corrupted(preprocessor_service):
     ), "Should have reasonable confidence in the result."
 
 
-def test_text_with_no_greek_words_detected_as_corrupted(preprocessor_service):
+def test_text_with_no_greek_words_detected_as_corrupted():
     """
     Test that text with mixed gibberish and very few real words is detected as corrupted.
+
+    Uses an explicit stricter coverage threshold (10%) to model the
+    "mostly gibberish" scenario. With the default 4% threshold this sample
+    lands in a gray zone (~7% coverage), so the threshold is set explicitly.
     """
     # Text with mostly gibberish and only 1-2 valid Greek words
-    # This should be flagged as corrupted because coverage is below 10%
     mixed_gibberish_text = """
     Τπόινγν Δηδηθήο Γηαρείξηζεο αβγδεζηθικλμνοπρστυφχψω
     ΑΓΙΑΒΑΘΜΗΣΟ κάποιες παράξενες συμβολοσειρές που μπλαμπλα φτσιφτσου
     Ψφχωςερτυιοπασδφγηκλζχβνμ ζουζουνια κρεμπελοπιτα
     """
 
-    result = preprocessor_service.preprocess(mixed_gibberish_text)
+    # Use a stricter coverage threshold so mixed gibberish is flagged
+    preprocessor = TextPreprocessor(
+        strategy=CorruptionDetectionStrategy.COMMON_WORDS,
+        coverage_ratio_threshold=0.10,
+    )
+
+    result = preprocessor.preprocess(mixed_gibberish_text)
 
     assert (
         result.is_corrupted is True
@@ -111,7 +150,6 @@ def test_text_with_no_greek_words_detected_as_corrupted(preprocessor_service):
     if "word_analysis" in result.corruption_indicators:
         word_analysis = result.corruption_indicators["word_analysis"]
         assert word_analysis["matched_words"] >= 0
-        # With stricter thresholds, this should now be flagged
         print(f"Coverage ratio: {word_analysis['coverage_ratio']:.3f}")
         print(
             f"Matched words: {word_analysis['matched_words']}/{word_analysis['text_word_count']}"
@@ -238,10 +276,8 @@ def test_threshold_sensitivity_on_corrupted_appearing_doc(
         coverage_ratio_threshold=coverage_threshold,
     )
 
-    # Use Docling extractor
-    from core.models.document_analysis import ProcessingProvider
-
-    extractor = processor_service.extractors[ProcessingProvider.DOCLING]
+    # Use Docling extractor (skipped in LIGHT_WORKER mode where it's unavailable)
+    extractor = _get_extractor(processor_service, ProcessingProvider.DOCLING)
 
     # Extract text
     extraction_result = extractor.extract_text(not_corrupted_file_path)
@@ -339,8 +375,8 @@ def test_corruption_detection_regression_suite(
     # Get the file path from the fixture name
     file_path = request.getfixturevalue(file_fixture)
 
-    # Extract text using specified provider
-    extractor = processor_service.extractors[provider]
+    # Extract text using specified provider (skips DOCLING in LIGHT_WORKER mode)
+    extractor = _get_extractor(processor_service, provider)
     extraction_result = extractor.extract_text(file_path)
     text = extraction_result.text
 

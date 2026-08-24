@@ -5,7 +5,6 @@ from django.shortcuts import redirect, render
 from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.html import format_html
-from loguru import logger
 
 
 class ImportDecisionsForm(forms.Form):
@@ -510,6 +509,11 @@ class DecisionAdmin(admin.ModelAdmin):
                 name="decision_feedback_report",
             ),
             path(
+                "feedback-report-selected/",
+                self.admin_site.admin_view(self.report_selected_view),
+                name="decision_feedback_report_selected",
+            ),
+            path(
                 "feedback-batch/",
                 self.admin_site.admin_view(self.feedback_batch_view),
                 name="decision_feedback_batch",
@@ -695,8 +699,8 @@ class DecisionAdmin(admin.ModelAdmin):
         Unreported rows get a one-click “Report” button; a “Report all
         pending” button creates a background batch job.
         """
-        from django.db.models import Count, Exists, OuterRef, Prefetch, Q, Value
-        from django.db.models.functions import Coalesce
+        from django.core.paginator import Paginator
+        from django.db.models import Exists, OuterRef, Prefetch, Q
         from urllib.parse import urlencode
 
         from core.models.decisions import Decision
@@ -715,35 +719,45 @@ class DecisionAdmin(admin.ModelAdmin):
             )
         )
 
-        # ── Global stats: single query with conditional aggregation ──
+        # ── Parse filters first (used by stats and pagination) ──────
+        reported = request.GET.get("reported", "no")
+        start_date = request.GET.get("start_date", "").strip()
+        end_date = request.GET.get("end_date", "").strip()
+        q = request.GET.get("q", "").strip()
+
+        # ── Global stats: cheap, index-backed counts ──────────────────
         #
-        # Instead of two separate COUNT(*) queries (one for pending, one
-        # for reported), we compute both in one pass over the index.
-        all_corrected = Decision.objects.filter(has_corrected)
-        aggs = all_corrected.aggregate(
-            total_pending=Coalesce(Count("pk", filter=~already_reported), Value(0)),
-            total_reported=Coalesce(Count("pk", filter=already_reported), Value(0)),
+        # The old implementation ran COUNT(*) over the whole Decision table
+        # with two correlated EXISTS subqueries per row — the dominant cost
+        # of this page.  Corrected-amount counts now hit the partial index
+        # idx_daf_verified_amounts (index-only scan), and the reported count
+        # reads the tiny DiavgeiaFeedbackReport table.
+        total = _corrected_decisions_count()
+        reported_ids = DiavgeiaFeedbackReport.objects.filter(
+            reported=True
+        ).values_list("decision_id", flat=True)
+        total_reported = (
+            DecisionAmountField.objects
+            .filter(verified_amount__isnull=False, decision_id__in=reported_ids)
+            .values("decision_id")
+            .distinct()
+            .count()
         )
-        total_pending = aggs["total_pending"]
-        total_reported = aggs["total_reported"]
+        total_pending = total - total_reported
 
         # ── Build the filtered queryset ──────────────────────────────
-        qs = all_corrected
+        qs = Decision.objects.filter(has_corrected)
 
-        reported = request.GET.get("reported", "no")
         if reported == "yes":
             qs = qs.filter(already_reported)
         elif reported == "no":
             qs = qs.exclude(already_reported)
 
-        start_date = request.GET.get("start_date", "").strip()
-        end_date = request.GET.get("end_date", "").strip()
         if start_date:
             qs = qs.filter(issue_date_day__gte=start_date)
         if end_date:
             qs = qs.filter(issue_date_day__lte=end_date)
 
-        q = request.GET.get("q", "").strip()
         if q:
             qs = qs.filter(Q(ada__icontains=q) | Q(subject__icontains=q))
 
@@ -761,23 +775,57 @@ class DecisionAdmin(admin.ModelAdmin):
             )
         )
 
-        # ── Pagination (estimated count — no expensive COUNT(*)) ─────
+        # ── Pagination with an accurate, index-backed count ───────────
+        #
+        # A plain COUNT(*) over ``qs`` would re-run the correlated EXISTS
+        # subqueries, so we count distinct decision_id directly on the
+        # amount-field table (partial index, index-only) with the same
+        # filters applied, then seed Paginator's cached count.
+        count_qs = DecisionAmountField.objects.filter(verified_amount__isnull=False)
+        if reported == "yes":
+            count_qs = count_qs.filter(
+                decision__diavgeia_feedback_report__reported=True
+            )
+        elif reported == "no":
+            count_qs = count_qs.exclude(
+                decision__diavgeia_feedback_report__reported=True
+            )
+        if start_date:
+            count_qs = count_qs.filter(decision__issue_date_day__gte=start_date)
+        if end_date:
+            count_qs = count_qs.filter(decision__issue_date_day__lte=end_date)
+        if q:
+            count_qs = count_qs.filter(
+                Q(decision__ada__icontains=q) | Q(decision__subject__icontains=q)
+            )
+        filtered_total = count_qs.values("decision_id").distinct().count()
+
         per_page = 25
-        paginator = EstimatedCountPaginator(qs, per_page)
+        paginator = Paginator(qs, per_page)
+        # Seed Paginator's cached count so page()/num_pages never run COUNT(*).
+        paginator.__dict__["count"] = filtered_total
         page = request.GET.get("page", "1")
         try:
             page_obj = paginator.page(page)
         except Exception:
             page_obj = paginator.page(1)
 
-        rows = [
-            {
-                "decision": d,
-                "verified_fields": getattr(d, "verified_fields", []),
-                "frontend_url": DiavgeiaFeedbackService.frontend_url(d),
-            }
-            for d in page_obj.object_list
-        ]
+        rows = []
+        for d in page_obj.object_list:
+            report = getattr(d, "diavgeia_feedback_report", None)
+            activation_url = None
+            if report and report.reported and report.reference:
+                activation_url = DiavgeiaFeedbackService.activation_url(
+                    report.reference
+                )
+            rows.append(
+                {
+                    "decision": d,
+                    "verified_fields": getattr(d, "verified_fields", []),
+                    "frontend_url": DiavgeiaFeedbackService.frontend_url(d),
+                    "activation_url": activation_url,
+                }
+            )
 
         pagination_qs = urlencode(
             {
@@ -800,8 +848,8 @@ class DecisionAdmin(admin.ModelAdmin):
             "paginator": paginator,
             "total_pending": total_pending,
             "total_reported": total_reported,
-            "total": total_pending + total_reported,
-            "is_estimate": True,
+            "total": total,
+            "is_estimate": False,
             "filters": {
                 "reported": reported,
                 "start_date": start_date,
@@ -813,49 +861,92 @@ class DecisionAdmin(admin.ModelAdmin):
                 "admin:decision_feedback_report", kwargs={"decision_id": 0}
             )[:-2],  # strip trailing "0/" — template appends the real ID
             "batch_url": reverse("admin:decision_feedback_batch"),
+            "report_selected_url": reverse(
+                "admin:decision_feedback_report_selected"
+            ),
             "opts": self.model._meta,
         }
         return render(request, "admin/decision_feedback_pool.html", context)
 
     def report_decision_view(self, request, decision_id):
         """
-        Report a single decision to the Diavgeia feedback API and redirect
-        back to the feedback pool (preserving filters).
+        Queue a single decision for Diavgeia feedback reporting.
+
+        Reporting is a network call to the Diavgeia feedback API, so it runs
+        on a worker instead of blocking this admin request.  Previously the
+        browser sat loading until the API responded (up to ``timeout``
+        seconds), which is what made the “Report” button feel slow.
         """
         from django.shortcuts import get_object_or_404
 
         from core.models.decisions import Decision
-        from core.services.diavgeia_feedback_service import DiavgeiaFeedbackService
+        from core.tasks.tasks_diavgeia_feedback import (
+            report_single_decision_feedback,
+        )
 
         decision = get_object_or_404(Decision, id=decision_id)
-        try:
-            result = DiavgeiaFeedbackService().report_decision(decision)
-        except Exception as exc:
-            logger.exception(
-                f"report_decision_view failed for {decision.ada}: {exc}"
-            )
-            messages.error(
-                request,
-                f"Unexpected error reporting {decision.ada}: {exc}",
-            )
-            referer = request.META.get("HTTP_REFERER")
-            if referer and "feedback-pool" in referer:
-                return redirect(referer)
-            return redirect(reverse("admin:decision_feedback_pool"))
-
-        if result["status"] == "reported":
-            messages.success(
-                request,
-                f"Reported {decision.ada} to Diavgeia "
-                f"(reference: {result.get('reference') or 'n/a'}).",
-            )
-        elif result["status"] == "already_reported":
+        report = getattr(decision, "diavgeia_feedback_report", None)
+        if report and report.reported:
             messages.info(request, f"{decision.ada} was already reported.")
         else:
-            messages.error(
+            report_single_decision_feedback.delay(decision_id=decision.id)
+            messages.info(
                 request,
-                f"Failed to report {decision.ada}: {result.get('reason')}",
+                f"Report for {decision.ada} queued — it will be sent in the "
+                "background. Refresh in a few seconds to see the result.",
             )
+
+        referer = request.META.get("HTTP_REFERER")
+        if referer and "feedback-pool" in referer:
+            return redirect(referer)
+        return redirect(reverse("admin:decision_feedback_pool"))
+
+    def report_selected_view(self, request):
+        """
+        Queue several decisions for Diavgeia feedback reporting in one go.
+
+        Each selected decision is enqueued as its own background task (the
+        same path as the single “Report” button), so the request returns
+        immediately.
+        """
+        from core.models.diavgeia_feedback_report import DiavgeiaFeedbackReport
+        from core.tasks.tasks_diavgeia_feedback import (
+            report_single_decision_feedback,
+        )
+
+        if request.method != "POST":
+            return redirect(reverse("admin:decision_feedback_pool"))
+
+        ids = []
+        for raw in request.POST.getlist("decision_ids"):
+            try:
+                ids.append(int(raw))
+            except (TypeError, ValueError):
+                continue
+        if not ids:
+            messages.warning(request, "No decisions selected.")
+            return redirect(reverse("admin:decision_feedback_pool"))
+
+        already = set(
+            DiavgeiaFeedbackReport.objects
+            .filter(decision_id__in=ids, reported=True)
+            .values_list("decision_id", flat=True)
+        )
+        queued = 0
+        for decision_id in ids:
+            if decision_id in already:
+                continue
+            report_single_decision_feedback.delay(decision_id=decision_id)
+            queued += 1
+
+        if queued:
+            messages.info(
+                request,
+                f"{queued} report(s) queued for background processing.",
+            )
+        skipped = len(ids) - queued
+        if skipped:
+            messages.info(request, f"{skipped} already reported — skipped.")
 
         referer = request.META.get("HTTP_REFERER")
         if referer and "feedback-pool" in referer:

@@ -335,6 +335,11 @@ class DiavgeiaFeedbackService:
         return f"{base}/decision/{decision.id}"
 
     @staticmethod
+    def activation_url(reference: str) -> str:
+        """Build the activation URL Diavgeia emails after a report."""
+        return f"https://www.diavgeia.gov.gr/feedback/activate/{reference}"
+
+    @staticmethod
     def _extract_reference(msg: str) -> str:
         """
         Pull the reference number out of the API message.

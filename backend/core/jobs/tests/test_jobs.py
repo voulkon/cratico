@@ -93,8 +93,8 @@ class TestDailySummaryJob(TestCase):
 
         assert self.job.should_process_item(item) is True
 
-    @patch("core.jobs.daily_summary.invoke_bedrock_model")
-    def test_process_item_dry_run(self, mock_invoke):
+    @patch("core.jobs.daily_summary.get_provider")
+    def test_process_item_dry_run(self, mock_get_provider):
         """Test process_item in dry run mode (no API call)"""
         item = {
             "content": "Test content " * 100,
@@ -111,8 +111,8 @@ class TestDailySummaryJob(TestCase):
             dry_run=True,
         )
 
-        # Should not call API in dry run
-        mock_invoke.assert_not_called()
+        # Should not call the provider in dry run
+        mock_get_provider.assert_not_called()
 
         # Should return valid result structure
         assert result["success"] is True
@@ -120,17 +120,21 @@ class TestDailySummaryJob(TestCase):
         assert "output_tokens" in result
         assert "estimated_cost_usd" in result
 
-    @patch("core.jobs.daily_summary.invoke_bedrock_model")
-    def test_process_item_actual_run(self, mock_invoke):
+    @patch("core.jobs.daily_summary.DocumentAnalysis.objects.create")
+    @patch("core.jobs.daily_summary.get_provider")
+    def test_process_item_actual_run(self, mock_get_provider, mock_create):
         """Test process_item with actual API call (mocked)"""
-        # Mock API response
-        mock_invoke.return_value = {
+        # Mock provider and API response
+        mock_provider = Mock()
+        mock_provider.invoke.return_value = {
             "success": True,
             "text": "Generated summary",
             "input_tokens": 1000,
             "output_tokens": 200,
             "actual_cost_usd": Decimal("0.001"),
         }
+        mock_get_provider.return_value = mock_provider
+        mock_create.return_value = Mock()
 
         mock_extraction = Mock()
         mock_extraction.decision = Mock()
@@ -151,7 +155,7 @@ class TestDailySummaryJob(TestCase):
         )
 
         # Should call API
-        mock_invoke.assert_called_once()
+        mock_provider.invoke.assert_called_once()
 
         # Should return valid result
         assert result["success"] is True
@@ -249,8 +253,8 @@ class TestJobExecution(TestCase):
         # Skipped for now - implement when you have test data
 
     @pytest.mark.django_db
-    @patch("core.jobs.daily_summary.invoke_bedrock_model")
-    def test_full_job_execution_with_mock(self, mock_invoke):
+    @patch("core.jobs.daily_summary.get_provider")
+    def test_full_job_execution_with_mock(self, mock_get_provider):
         """Test complete job execution with mocked API"""
         # This would test the full execute() method
         # Skipped for now - implement when you have test data

@@ -39,9 +39,10 @@ class TestPipelineOrchestratorLongFields:
     Uses VCR to record/replay API responses (cassettes in fixtures/vcr_cassettes/).
     """
 
-    @pytest.mark.vcr()
     @pytest.mark.parametrize("ada", PROBLEMATIC_DECISION_ADAS)
-    def test_decision_with_long_fields(self, ada, orchestrator, fetcher):
+    def test_decision_with_long_fields(
+        self, ada, orchestrator, fetcher, daily_decisions_vcr_cassette
+    ):
         """
         Test decision import with fields exceeding varchar(255) limit.
 
@@ -50,24 +51,25 @@ class TestPipelineOrchestratorLongFields:
 
         Fetches real decision from API (or VCR cassette) and attempts full pipeline.
         """
-        # Fetch real decision from API (VCR records/replays)
-        decision_dto = fetcher.fetch_a_decision(ada)
-        assert decision_dto is not None, f"Failed to fetch decision {ada}"
+        cassette = f"test_decision_with_long_fields_{ada}.yaml"
+        with daily_decisions_vcr_cassette(cassette):
+            # Fetch real decision from API (VCR records/replays)
+            decision_dto = fetcher.fetch_a_decision(ada)
+            assert decision_dto is not None, f"Failed to fetch decision {ada}"
 
-        # Run through pipeline - will currently fail with DataError
-        health_check = orchestrator.run_pipeline(
-            decision_ada=decision_dto.ada,
-            decision_dto=decision_dto,
-            skip_opensearch=True,
-        )
+            # Run through pipeline - will currently fail with DataError
+            health_check = orchestrator.run_pipeline(
+                decision_ada=decision_dto.ada,
+                decision_dto=decision_dto,
+                skip_opensearch=True,
+            )
 
-        # After fix: verify decision imported successfully
-        decision = Decision.objects.get(ada=ada)
-        assert decision is not None
-        assert health_check.import_status == HealthStatus.HEALTHY
+            # After fix: verify decision imported successfully
+            decision = Decision.objects.get(ada=ada)
+            assert decision is not None
+            assert health_check.import_status == HealthStatus.HEALTHY
 
-    @pytest.mark.vcr()
-    def test_identify_problematic_fields(self, fetcher):
+    def test_identify_problematic_fields(self, fetcher, daily_decisions_vcr_cassette):
         """
         Diagnostic test: identify which fields exceed varchar(255) limit.
 
@@ -75,7 +77,10 @@ class TestPipelineOrchestratorLongFields:
         Use this info to decide on truncation vs field widening.
         """
         ada = PROBLEMATIC_DECISION_ADAS[0]
-        decision_dto = fetcher.fetch_a_decision(ada)
+        with daily_decisions_vcr_cassette(
+            "test_identify_problematic_fields.yaml"
+        ):
+            decision_dto = fetcher.fetch_a_decision(ada)
         assert decision_dto is not None
 
         # Analyze field lengths

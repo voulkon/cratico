@@ -59,7 +59,14 @@ class EndpointStatsAdmin(admin.ModelAdmin):
 class EndpointAccessLogAdmin(admin.ModelAdmin):
     """Admin interface for forensic endpoint access logs."""
 
+    # Admin API paths require authentication — the admin's own browsing is
+    # never an attack probe, so exclude them from suspicious classification.
+    _ADMIN_API_PREFIX = "/api/admin/"
+
     # ── Suspicious endpoint patterns for automatic classification ──────
+    # NOTE: matching is substring-based (icontains), so keep patterns long
+    # enough to avoid false positives.  e.g. "/api/endpoint/" (with the
+    # trailing slash) so it does NOT match "/api/endpointaccesslog/".
     _SUSPICIOUS_ENDPOINT_PATTERNS = (
         "/.env",
         "/.git/",
@@ -70,7 +77,7 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
         "/actuator",
         "/api/test",
         "/api/[[...slug]]",
-        "/api/endpoint",
+        "/api/endpoint/",
         "/cgi-bin/",
         "/.aws/",
         "/config",
@@ -86,10 +93,11 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
         "response_time_ms",
         "is_flagged",
         "flag_reason",
-        "user",
+        "user_link",
     )
     list_filter = (
         "ip_address",
+        ("user", admin.RelatedOnlyFieldListFilter),
         "is_flagged",
         "flag_reason",
         "method",
@@ -137,10 +145,24 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
             display,
         )
 
+    @admin.display(description="User")
+    def user_link(self, obj):
+        """Render the user as a link that filters the changelist to that user.
+
+        Clicking a user drills into only that user's access logs. The sidebar
+        "By user" filter (RelatedOnlyFieldListFilter) lists every unique user
+        that has at least one entry in this table.
+        """
+        if obj.user_id is None:
+            return "-"
+        filter_url = reverse("admin:api_endpointaccesslog_changelist")
+        filter_url += "?" + urlencode({"user__id__exact": obj.user_id})
+        return format_html('<a href="{}">{}</a>', filter_url, obj.user)
+
     def get_queryset(self, request):
         # Default: show all entries. The is_flagged filter in the sidebar lets
         # the user drill down to only flagged entries when investigating.
-        return super().get_queryset(request)
+        return super().get_queryset(request).select_related("user")
 
     def get_urls(self):
         """Add custom URLs for IP summary and endpoint summary views."""
@@ -205,10 +227,13 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
                 round(stat["notfound_count"] / total * 100, 1) if total else 0
             )
 
-            # Count suspicious endpoint hits
+            # Count suspicious endpoint hits.  Admin API paths are excluded
+            # because they require authentication and are the admin's own
+            # browsing, not an attack probe.
             suspicious_q = Q()
             for pat in self._SUSPICIOUS_ENDPOINT_PATTERNS:
                 suspicious_q |= Q(endpoint__icontains=pat)
+            suspicious_q &= ~Q(endpoint__startswith=self._ADMIN_API_PREFIX)
             stat["suspicious_hits"] = self.model.objects.filter(
                 ip_address=ip
             ).filter(suspicious_q).count()
@@ -305,9 +330,14 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
                 round(stat["error_count"] / total * 100, 1) if total else 0
             )
 
-            # Is this a suspicious endpoint?
-            stat["is_suspicious"] = any(
-                pat in endpoint for pat in self._SUSPICIOUS_ENDPOINT_PATTERNS
+            # Is this a suspicious endpoint?  Admin API paths are excluded
+            # because they require authentication and are the admin's own
+            # browsing, not an attack probe.
+            stat["is_suspicious"] = (
+                not endpoint.startswith(self._ADMIN_API_PREFIX)
+                and any(
+                    pat in endpoint for pat in self._SUSPICIOUS_ENDPOINT_PATTERNS
+                )
             )
 
             # Top IPs hitting this endpoint

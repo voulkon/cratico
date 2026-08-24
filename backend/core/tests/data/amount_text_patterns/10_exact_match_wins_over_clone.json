@@ -1,9 +1,9 @@
 {
-  "id": "exact_match_wins_over_clone",
+  "id": "discrepancy_when_db_amount_explicitly_disclaimed",
   "text_content": "Εγκρίνεται η δαπάνη ποσού 10.000,00 € (δέκα χιλιάδες ευρώ) με ΦΠΑ. Σημειώνεται ότι σε προηγούμενη εγκύκλιο αναγραφόταν λανθασμένα το ποσό 1.000.000.",
   "db_amounts": ["1000000.00"],
   "expected_status": "completed",
-  "expected_has_discrepancy": false,
-  "expected_verified_amount": "1000000.00",
-  "notes": "Both the real 10.000,00 and the ×100 clone 1.000.000 appear in the text. The DB amount (1.000.000) is found verbatim → exact match wins, no discrepancy. Regression against treating the larger figure as a typo."
+  "expected_has_discrepancy": true,
+  "expected_verified_amount": "10000.00",
+  "notes": "The document's real amount is 10.000,00 €; the DB recorded 1.000.000, which the text itself disclaims as 'wrongly written in a previous circular' (αναγραφόταν λανθασμένα). This is the classic ×100 decimal-shift typo the service exists to catch. Although 1.000.000 appears verbatim in the text, the cents-based cross-check must flag the discrepancy and report the smaller amount."
 }

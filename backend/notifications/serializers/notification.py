@@ -1,17 +1,14 @@
 from core.models.decisions import Decision
 from notifications.models import Notification, NotificationSubscription
+from notifications.serializers.decision_nested import DecisionNestedFieldsMixin
 from rest_framework import serializers
 
 
-class DecisionNestedSerializer(serializers.ModelSerializer):
+class DecisionNestedSerializer(DecisionNestedFieldsMixin, serializers.ModelSerializer):
     """Lightweight serializer for nested decision details in notifications."""
 
-    organization_label = serializers.CharField(
-        source="organization.label", read_only=True
-    )
-    decision_type_label = serializers.CharField(
-        source="decision_type.label", read_only=True
-    )
+    organization = serializers.SerializerMethodField()
+    decision_type = serializers.SerializerMethodField()
 
     class Meta:
         model = Decision
@@ -21,8 +18,8 @@ class DecisionNestedSerializer(serializers.ModelSerializer):
             "subject",
             "protocol_number",
             "issue_date",
-            "organization_label",
-            "decision_type_label",
+            "organization",
+            "decision_type",
         ]
         read_only_fields = fields
 
@@ -119,19 +116,11 @@ class SubscriptionDetailSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class DecisionDetailSerializer(serializers.ModelSerializer):
+class DecisionDetailSerializer(DecisionNestedFieldsMixin, serializers.ModelSerializer):
     """More detailed decision serializer for notification detail view."""
 
-    organization_label = serializers.CharField(
-        source="organization.label", read_only=True
-    )
-    organization_uid = serializers.CharField(source="organization.uid", read_only=True)
-    decision_type_label = serializers.CharField(
-        source="decision_type.label", read_only=True
-    )
-    decision_type_code = serializers.CharField(
-        source="decision_type.uid", read_only=True
-    )
+    organization = serializers.SerializerMethodField()
+    decision_type = serializers.SerializerMethodField()
 
     class Meta:
         model = Decision
@@ -142,10 +131,8 @@ class DecisionDetailSerializer(serializers.ModelSerializer):
             "protocol_number",
             "issue_date",
             "submission_timestamp",
-            "organization_label",
-            "organization_uid",
-            "decision_type_label",
-            "decision_type_code",
+            "organization",
+            "decision_type",
             "has_private_data",
         ]
         read_only_fields = fields

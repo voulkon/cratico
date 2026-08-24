@@ -253,8 +253,12 @@ class TestNotificationBatchSerializers:
         decision_data = data["decision"]
         assert "ada" in decision_data
         assert "subject" in decision_data
-        assert "organization_label" in decision_data
-        assert "organization_uid" in decision_data
+        assert "organization" in decision_data
+        assert decision_data["organization"]["uid"]
+        assert decision_data["organization"]["label"]
+        assert "decision_type" in decision_data
+        assert decision_data["decision_type"]["uid"]
+        assert decision_data["decision_type"]["label"]
 
     def test_serialize_decision_nested_for_batch(self, decision):
         """Test nested decision serializer for batches"""
@@ -269,9 +273,12 @@ class TestNotificationBatchSerializers:
         assert "protocol_number" in data
         assert "issue_date" in data
         assert "publish_timestamp" in data
-        assert "organization_label" in data
-        assert "organization_uid" in data
-        assert "decision_type_label" in data
+        assert "organization" in data
+        assert data["organization"]["uid"] == decision.organization.uid
+        assert data["organization"]["label"] == decision.organization.label
+        assert "decision_type" in data
+        assert data["decision_type"]["uid"] == decision.decision_type.uid
+        assert data["decision_type"]["label"] == decision.decision_type.label
         assert "amount" in data
 
 
