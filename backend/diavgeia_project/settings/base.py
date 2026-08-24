@@ -38,6 +38,8 @@ STEALTH_ALLOWLIST = os.getenv("STEALTH_ALLOWLIST", "False").lower() in (
 FRONTEND_DOMAINS: list[str] = os.getenv(
     "FRONTEND_DOMAINS", "http://localhost:3000"
 ).split(",")
+# Importable from this module, but NOT exposed as settings.FRONTEND_DOMAINS_clean:
+# Django only copies all-uppercase module attributes into the settings object.
 FRONTEND_DOMAINS_clean: list[str] = [d.strip() for d in FRONTEND_DOMAINS]
 
 if not FRONTEND_DOMAINS_clean and not DEBUG:

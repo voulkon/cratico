@@ -10,8 +10,9 @@ need to know which settings attribute holds the origin or fall back
 differently in different places.
 
 Precedence for the base URL:
-    1. ``settings.FRONTEND_DOMAINS_clean[0]`` — full origin with scheme
+    1. ``settings.FRONTEND_DOMAINS[0]`` — full origin with scheme
        (e.g. ``https://crati.co``). This is the canonical setting.
+       Values are whitespace-trimmed (mirrors FRONTEND_DOMAINS_clean).
     2. ``settings.FRONTEND_HOSTNAMES[0]`` — hostname only (no scheme), so
        we prepend ``https://``. Kept for backwards compatibility with
        deployments that only set ``ALLOWED_HOSTS``-style hostnames.
@@ -31,7 +32,14 @@ _DEFAULT_DEV_BASE = "http://localhost:3000"
 
 def frontend_base_url() -> str:
     """Return the canonical frontend origin (scheme + host, no trailing slash)."""
-    domains = getattr(settings, "FRONTEND_DOMAINS_clean", None)
+    # Django only exposes all-uppercase module attributes via ``settings.X``,
+    # so ``FRONTEND_DOMAINS_clean`` (lowercase "clean") is NOT reachable here.
+    # Read ``FRONTEND_DOMAINS`` and trim in the same way ``_clean`` does.
+    domains = [
+        domain.strip()
+        for domain in getattr(settings, "FRONTEND_DOMAINS", [])
+        if domain.strip()
+    ]
     if domains:
         return domains[0].rstrip("/")
 
