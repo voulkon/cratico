@@ -307,10 +307,21 @@ class TestListModels:
             assert resp.status_code == 502
             assert "Failed to fetch models" in resp.json()["error"]
 
-    def test_requires_authentication(self, api_client):
-        """Unauthenticated users cannot list models."""
-        resp = api_client.get(_url("models_list"))
-        assert resp.status_code == 401
+    def test_public_access(self, api_client):
+        """Models list is public — no authentication required."""
+        from django.core.cache import cache
+
+        cache.delete("openrouter_models_v1")
+
+        with patch(
+            "api.views.ai.ai_settings.OpenRouterProvider.list_models",
+            return_value=self._SAMPLE_MODELS,
+        ):
+            resp = api_client.get(_url("models_list"))
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["cached"] is False
+            assert data["models"] == self._SAMPLE_MODELS
 
 
 # ============================================================================

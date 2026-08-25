@@ -50,26 +50,70 @@ export const deleteAISettingsRow = async (id) => {
 // ---------------------------------------------------------------------------
 
 // Client-side cache: models rarely change, so avoid redundant fetches on
-// every page navigation.  Invalidate after 5 minutes or on sync.
-let _modelsCache = null;
-let _modelsCacheAt = 0;
-const _MODELS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
+// every page navigation.  The list is fetched from 3 places (AI settings,
+// decision detail, and once per DecisionCard), so we need to dedupe both
+// concurrent callers and full page reloads.
+//
+// - `_modelsPromise` dedupes in-flight requests: N components mounting at the
+//   same time (e.g. a list of decision cards) share ONE network request.
+// - `sessionStorage` survives full page reloads (per tab).
+// - TTL matches the backend cache (1h).
+const _MODELS_CACHE_KEY = 'ai_models_cache_v1';
+const _MODELS_CACHE_TTL_MS = 60 * 60 * 1000; // 1h (matches backend)
+let _modelsPromise = null; // in-flight request, shared by concurrent callers
+
+const _readModelsCache = () => {
+  try {
+    const raw = sessionStorage.getItem(_MODELS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !parsed.at || (Date.now() - parsed.at) >= _MODELS_CACHE_TTL_MS) {
+      sessionStorage.removeItem(_MODELS_CACHE_KEY);
+      return null;
+    }
+    return parsed.data;
+  } catch {
+    return null;
+  }
+};
+
+const _writeModelsCache = (data) => {
+  try {
+    sessionStorage.setItem(
+      _MODELS_CACHE_KEY,
+      JSON.stringify({ at: Date.now(), data }),
+    );
+  } catch {
+    // ignore (e.g. storage disabled / quota exceeded)
+  }
+};
 
 export const getAIModels = async () => {
-  const now = Date.now();
-  if (_modelsCache && (now - _modelsCacheAt) < _MODELS_CACHE_TTL_MS) {
-    return _modelsCache;
-  }
-  const response = await apiClient.get(`${AI_BASE}/models/`);
-  _modelsCache = response.data;
-  _modelsCacheAt = now;
-  return _modelsCache;
+  const cached = _readModelsCache();
+  if (cached) return cached;
+  if (_modelsPromise) return _modelsPromise;
+
+  _modelsPromise = apiClient
+    .get(`${AI_BASE}/models/`)
+    .then((response) => {
+      _writeModelsCache(response.data);
+      return response.data;
+    })
+    .finally(() => {
+      _modelsPromise = null;
+    });
+
+  return _modelsPromise;
 };
 
 export const syncAIModels = async () => {
   const response = await apiClient.post(`${AI_BASE}/models/sync/`);
-  _modelsCache = null; // invalidate client cache after sync
-  _modelsCacheAt = 0;
+  // Invalidate caches so the next list reflects new prices
+  try {
+    sessionStorage.removeItem(_MODELS_CACHE_KEY);
+  } catch {
+    // ignore
+  }
   return response.data;
 };
 
