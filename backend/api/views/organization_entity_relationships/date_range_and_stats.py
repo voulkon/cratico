@@ -17,7 +17,7 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from loguru import logger
 from rest_framework.decorators import api_view, permission_classes
-from api.permissions import AuthenticatedOrDebug
+from api.permissions import PublicReadOnly
 from rest_framework.response import Response
 
 
@@ -39,7 +39,7 @@ def _get_relationship_decisions_qs(afm: str, org_uid: str):
     manual_parameters=[],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def relationship_date_range_api(request, afm, orgUid):
     """
     Get the available date range and activity overview for a specific
@@ -104,7 +104,7 @@ def relationship_date_range_api(request, afm, orgUid):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def relationship_statistics_api(request, afm, orgUid):
     """
     Get server-computed statistics for a specific AFM↔Organization
@@ -200,7 +200,7 @@ def relationship_statistics_api(request, afm, orgUid):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def relationship_decision_types_api(request, afm, orgUid):
     """
     Get unique decision types with counts and financial data for an
@@ -304,7 +304,7 @@ def relationship_decision_types_api(request, afm, orgUid):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def relationship_decisions_api(request, afm, orgUid):
     """
     Get paginated decisions for an AFM↔Organization relationship.

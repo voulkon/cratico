@@ -8,7 +8,7 @@ from django.conf import settings
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import api_view, permission_classes
-from api.permissions import AuthenticatedOrDebug
+from api.permissions import PublicReadOnly
 from rest_framework.response import Response
 
 
@@ -31,7 +31,7 @@ from rest_framework.response import Response
     ],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 @cached_view(
     cache_prefix="explore_date_range",
     ttl=60 * 60,  # 1 hour — global date boundaries rarely change
@@ -94,7 +94,7 @@ def explore_date_range_api_dev(request):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 @cached_view(
     cache_prefix="explore_statistics",
     cache_params=["start_date", "end_date"],
@@ -208,7 +208,7 @@ def explore_statistics_api_dev(request):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 @monitor_query_performance(operation="temporal_decisions_search")
 def explore_decisions_api_dev(request):
     """Get paginated decisions for temporal exploration across all organizations.
@@ -323,7 +323,7 @@ def explore_decisions_api_dev(request):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 @cached_view(
     cache_prefix="explore_decision_types",
     cache_params=["start_date", "end_date"],
@@ -388,7 +388,7 @@ def explore_decision_types_api_dev(request):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 @cached_view(
     cache_prefix="explore_orgs",
     cache_params=["start_date", "end_date", "limit", "offset"],

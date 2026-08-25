@@ -13,19 +13,19 @@ from core.services.text_process_service import (
 )
 from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
-from api.permissions import AuthenticatedOrDebug
+from api.permissions import PublicReadOnly
 from rest_framework.response import Response
 
 
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def list_text_processes(request):
     """List all registered text processes (for the UI dropdown)."""
     return Response({"processes": get_available_processes()})
 
 
 @api_view(["POST"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def run_text_process(request, decision_id):
     """
     Run a text process over a decision's extracted text.

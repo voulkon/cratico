@@ -8,12 +8,12 @@ from core.utils.performance_monitoring import monitor_query_performance
 from django.conf import settings
 from django.db.models import Count, Max, Min
 from rest_framework.decorators import api_view, permission_classes
-from api.permissions import AuthenticatedOrDebug
+from api.permissions import PublicReadOnly
 from rest_framework.response import Response
 
 
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def company_detail(request, company_id):
     """Get detailed company information."""
     # Check if company enrichment is enabled
@@ -105,7 +105,7 @@ def company_detail(request, company_id):
 
 
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def company_by_afm(request, afm):
     """Get company data for a given AFM, preferring non-branch but falling back to branches."""
 
@@ -193,7 +193,7 @@ def company_by_afm(request, afm):
 
 
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def person_companies(request, person_name):
     """Get all companies where a person (by name) is involved."""
     try:
@@ -237,7 +237,7 @@ def person_companies(request, person_name):
 
 
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 @monitor_query_performance(include_context=True)
 def company_decisions(request, company_id):
     """Get all decisions related to a specific company."""
@@ -379,7 +379,7 @@ def company_decisions(request, company_id):
 
 
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 @monitor_query_performance(include_context=True)
 def company_decision_stats(request, company_id):
     """Get comprehensive decision statistics for a company using the financial service."""
@@ -472,7 +472,7 @@ def company_decision_stats(request, company_id):
 
 
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 @monitor_query_performance(include_context=True)
 def company_financial_timeline(request, company_id):
     """Get financial timeline for a company using the financial service."""

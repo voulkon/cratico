@@ -10,7 +10,7 @@ from django.utils.dateparse import parse_date
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import api_view, permission_classes
-from api.permissions import AuthenticatedOrDebug
+from api.permissions import PublicReadOnly
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 
@@ -220,7 +220,7 @@ def document_search_api(request):
 
 # Keep your existing APIs with minimal changes
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def document_search_api_dev(request):
     """Development version of document search API"""
     return document_search_api(request)  # Just delegate to the main API
@@ -237,7 +237,7 @@ def document_search_options_api(request):
 
 
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def document_search_options_api_dev(request):
     """Development version - Get available filter options for document search"""
     search_service = SearchService()
@@ -285,7 +285,7 @@ def document_search_options_api_dev(request):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def entity_search_documents_api_dev(request, entity_type, entity_id):
     """Search documents for a specific entity"""
     start_date_str = request.GET.get("start_date")

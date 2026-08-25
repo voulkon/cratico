@@ -6,12 +6,12 @@ from core.models.organizations import Organization
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
-from api.permissions import AuthenticatedOrDebug
+from api.permissions import PublicReadOnly
 from rest_framework.response import Response
 
 
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def organization_entity_transactions(request, organization_uid, afm=None):
     """
     Get detailed transaction history between an organization and an entity (company).
