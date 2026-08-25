@@ -30,13 +30,13 @@ from rest_framework.response import Response
         ),
     ],
 )
+@api_view(["GET"])
+@permission_classes([AuthenticatedOrDebug])
 @cached_view(
     cache_prefix="explore_date_range",
     ttl=60 * 60,  # 1 hour — global date boundaries rarely change
     log_cache_operations=True,
 )
-@api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
 @monitor_query_performance(operation="temporal_date_range_global")
 def explore_date_range_api_dev(request):
     """Get the global date range and activity overview for temporal exploration.
@@ -93,14 +93,14 @@ def explore_date_range_api_dev(request):
         ),
     ],
 )
+@api_view(["GET"])
+@permission_classes([AuthenticatedOrDebug])
 @cached_view(
     cache_prefix="explore_statistics",
     cache_params=["start_date", "end_date"],
     end_date_param="end_date",
     defer_on_miss=True,
 )
-@api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
 @monitor_query_performance(operation="temporal_statistics_global")
 def explore_statistics_api_dev(request):
     """Get statistics for temporal exploration across all organizations"""
@@ -322,14 +322,14 @@ def explore_decisions_api_dev(request):
         ),
     ],
 )
+@api_view(["GET"])
+@permission_classes([AuthenticatedOrDebug])
 @cached_view(
     cache_prefix="explore_decision_types",
     cache_params=["start_date", "end_date"],
     end_date_param="end_date",
     defer_on_miss=True,
 )
-@api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
 @monitor_query_performance(operation="temporal_decision_types")
 def explore_decision_types_api_dev(request):
     """Get available decision types for temporal exploration"""
@@ -387,14 +387,14 @@ def explore_decision_types_api_dev(request):
         ),
     ],
 )
+@api_view(["GET"])
+@permission_classes([AuthenticatedOrDebug])
 @cached_view(
     cache_prefix="explore_orgs",
     cache_params=["start_date", "end_date", "limit", "offset"],
     end_date_param="end_date",
     defer_on_miss=True,
 )
-@api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
 @monitor_query_performance(operation="temporal_organizations")
 def explore_organizations_api_dev(request):
     """Get organizations with decision activity for temporal exploration"""

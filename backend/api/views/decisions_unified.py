@@ -237,6 +237,8 @@ def _should_cache_unified(request) -> bool:
         ),
     ],
 )
+@api_view(["GET"])
+@permission_classes([AuthenticatedOrDebug])
 @cached_view(
     cache_prefix="unified",
     cache_params=["source", "view", "start_date", "end_date"],
@@ -246,8 +248,6 @@ def _should_cache_unified(request) -> bool:
     defer_on_miss=True,
     defer_retry_after=30,
 )
-@api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
 def decisions_unified_api(request):
     """
     Unified decisions endpoint.

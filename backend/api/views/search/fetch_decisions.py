@@ -98,6 +98,8 @@ from rest_framework.response import Response
         ),
     ],
 )
+@api_view(["GET"])
+@permission_classes([AuthenticatedOrDebug])
 @cached_view(
     cache_prefix="explore_decisions",
     cache_params=[
@@ -124,8 +126,6 @@ from rest_framework.response import Response
     ),
     defer_on_miss=True,
 )
-@api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
 def explore_decisions_optimized_api(request):
     """
     OPTIMIZED: Get paginated decisions with entity amounts included upfront.
