@@ -21,7 +21,7 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from loguru import logger
 from rest_framework.decorators import api_view, permission_classes
-from api.permissions import AuthenticatedOrDebug
+from api.permissions import PublicReadOnly
 from rest_framework.response import Response
 
 @swagger_auto_schema(
@@ -69,7 +69,7 @@ from rest_framework.response import Response
     ],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 @monitor_query_performance(operation="organization_top_counterparts")
 def organization_top_counterparts_api(
     request, organization_uid
@@ -195,7 +195,7 @@ def organization_top_counterparts_api(
     ],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 @monitor_query_performance(operation="entity_top_organizations")
 def entity_top_organizations_api(request, afm):
     """
@@ -305,7 +305,7 @@ def entity_top_organizations_api(request, afm):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 @monitor_query_performance(operation="temporal_top_relationships")
 def temporal_top_relationship_pairs_api(request):
     """

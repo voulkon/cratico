@@ -19,7 +19,7 @@ from django.http import StreamingHttpResponse
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import api_view, permission_classes
-from api.permissions import AuthenticatedOrDebug
+from api.permissions import PublicReadOnly
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 
@@ -368,7 +368,7 @@ def get_default_suggestions_for_api():
     ],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def entities_fast_search_api(request):
     """
     Fast entity-only search API
@@ -438,7 +438,7 @@ def entities_fast_search_api(request):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def search_stream_api(request):
     """
     SSE (Server-Sent Events) streaming search API
@@ -516,7 +516,7 @@ def search_stream_api(request):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def autocomplete_suggestions_api(request):
     """
     Autocomplete suggestions API
@@ -662,7 +662,7 @@ def universal_search_api(request):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def universal_search_api_dev(request):
     """
     Development version of universal search API
@@ -795,7 +795,7 @@ def company_person_only_search_api(request):
 
 
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def company_and_persons_search_api(request):
     """Search companies and company persons together"""
     query = request.GET.get("q", "")
@@ -825,7 +825,7 @@ def company_and_persons_search_api(request):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def default_suggestions_api(request):
     """
     Get default search suggestions to show when user focuses on search box.
@@ -860,7 +860,7 @@ def default_suggestions_api(request):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def super_search_api(request):
     """
     Super search API that searches across ALL entity types and documents:

@@ -49,7 +49,7 @@ from django.utils.dateparse import parse_date
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import api_view, permission_classes
-from api.permissions import AuthenticatedOrDebug
+from api.permissions import PublicReadOnly
 from rest_framework.response import Response
 
 from datetime import datetime
@@ -137,13 +137,13 @@ _DATE_PARAMS = [
     operation_description="Top payment (Β.2.2) decisions sorted by amount desc",
     manual_parameters=_DATE_PARAMS,
 )
+@api_view(["GET"])
+@permission_classes([PublicReadOnly])
 @cached_view(
     cache_prefix="top_payments",
     cache_params=["start_date", "end_date", "limit", "offset"],
     end_date_param="end_date",
 )
-@api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
 def top_payments_api(request):
     """
     Return the highest-amount payment (Β.2.2) decisions in a date range.
@@ -180,13 +180,13 @@ def top_payments_api(request):
     operation_description="Top direct-assignment decisions sorted by amount desc",
     manual_parameters=_DATE_PARAMS,
 )
+@api_view(["GET"])
+@permission_classes([PublicReadOnly])
 @cached_view(
     cache_prefix="top_direct_assignments",
     cache_params=["start_date", "end_date", "limit", "offset"],
     end_date_param="end_date",
 )
-@api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
 def top_direct_assignments_api(request):
     """
     Return the highest-amount direct-assignment decisions in a date range.
@@ -223,13 +223,13 @@ def top_direct_assignments_api(request):
     operation_description="Highest-amount decisions (all types) sorted by amount desc",
     manual_parameters=_DATE_PARAMS,
 )
+@api_view(["GET"])
+@permission_classes([PublicReadOnly])
 @cached_view(
     cache_prefix="top_by_amount",
     cache_params=["start_date", "end_date", "limit", "offset"],
     end_date_param="end_date",
 )
-@api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
 def top_by_amount_api(request):
     """
     Return the highest-amount decisions (all types) in a date range.

@@ -8,6 +8,7 @@ Provides endpoints for:
 
 from core.models.decisions import Decision
 from core.models.entities import DecisionEntityRelationship
+from core.services.decision_facets import amount_sum_excluding_kae
 from core.services.financial_calculation_service import financial_service
 from django.conf import settings
 from django.db import models
@@ -16,7 +17,7 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from loguru import logger
 from rest_framework.decorators import api_view, permission_classes
-from api.permissions import AuthenticatedOrDebug
+from api.permissions import PublicReadOnly
 from rest_framework.response import Response
 
 
@@ -38,7 +39,7 @@ def _get_relationship_decisions_qs(afm: str, org_uid: str):
     manual_parameters=[],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def relationship_date_range_api(request, afm, orgUid):
     """
     Get the available date range and activity overview for a specific
@@ -103,7 +104,7 @@ def relationship_date_range_api(request, afm, orgUid):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def relationship_statistics_api(request, afm, orgUid):
     """
     Get server-computed statistics for a specific AFM↔Organization
@@ -133,31 +134,35 @@ def relationship_statistics_api(request, afm, orgUid):
         # Apply date filter via shared facet (supports partial ranges)
         decisions_qs = apply_date_range(decisions_qs, start_dt=start_dt, end_dt=end_dt)
 
-        # Use financial service for accurate calculations
+        # Use financial service for accurate calculations (verified-aware)
         try:
             financial_summary = financial_service.get_global_financial_summary(
                 decisions_queryset=decisions_qs
             )
             total_amount = financial_summary.total_amount
         except Exception:
-            # Fall back to simple aggregation
+            # Fall back to verified-aware aggregation over amount fields
             total_amount = float(
-                decisions_qs.aggregate(total=models.Sum("amount"))["total"] or 0
+                decisions_qs.annotate(acc_total=amount_sum_excluding_kae())
+                .aggregate(total=models.Sum("acc_total"))["total"]
+                or 0
             )
 
         stats = decisions_qs.aggregate(
             total_decisions=models.Count("id"),
-            avg_amount=models.Avg("amount"),
             decisions_with_amounts=models.Count(
                 "id", filter=models.Q(amount__isnull=False, amount__gt=0)
             ),
         )
 
+        total_decisions = stats["total_decisions"] or 0
+        avg_amount = (float(total_amount) / total_decisions) if total_decisions else 0
+
         return Response(
             {
-                "total_decisions": stats["total_decisions"] or 0,
+                "total_decisions": total_decisions,
                 "total_amount": float(total_amount),
-                "avg_amount": float(stats["avg_amount"] or 0),
+                "avg_amount": avg_amount,
                 "decisions_with_amounts": stats["decisions_with_amounts"] or 0,
             }
         )
@@ -195,7 +200,7 @@ def relationship_statistics_api(request, afm, orgUid):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def relationship_decision_types_api(request, afm, orgUid):
     """
     Get unique decision types with counts and financial data for an
@@ -299,7 +304,7 @@ def relationship_decision_types_api(request, afm, orgUid):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def relationship_decisions_api(request, afm, orgUid):
     """
     Get paginated decisions for an AFM↔Organization relationship.

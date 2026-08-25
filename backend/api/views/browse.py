@@ -6,28 +6,14 @@ Covers all 6 browsable entity types: organization, unit, signer, company,
 companyperson, afmentity.
 """
 
+from api.permissions import PublicReadOnly
 from core.constants.search_service import BROWSABLE_ENTITY_TYPES
 from core.services.browse_service import BrowseService
 from core.decorators.cache_decorator import cached_view
-from django.conf import settings
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
-from rest_framework import permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-
-
-class _BrowsePermission(permissions.BasePermission):
-    """Allow anonymous access in DEBUG mode, require auth otherwise.
-
-    Evaluated per request so toggling settings.DEBUG takes effect without
-    a process reload.
-    """
-
-    def has_permission(self, request, view):
-        if settings.DEBUG:
-            return True
-        return request.user and request.user.is_authenticated
 
 
 @swagger_auto_schema(
@@ -78,14 +64,14 @@ class _BrowsePermission(permissions.BasePermission):
         ),
     ],
 )
+@api_view(["GET"])
+@permission_classes([PublicReadOnly])
 @cached_view(
     cache_prefix="browse",
     cache_params=None,  # include all present query params in cache key
     ttl=60 * 60 * 24,  # 24h — data only changes on daily import
     should_cache_fn=lambda req: not req.GET.get("q"),  # skip free-text searches
 )
-@api_view(["GET"])
-@permission_classes([_BrowsePermission])
 def browse_entities_api(request):
     """
     Browse entities alphabetically with letter filtering and pagination.

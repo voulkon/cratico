@@ -3,7 +3,7 @@ from django.conf import settings
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import api_view, permission_classes
-from api.permissions import AuthenticatedOrDebug
+from api.permissions import PublicReadOnly
 from rest_framework.response import Response
 
 
@@ -20,7 +20,7 @@ from rest_framework.response import Response
     ],
 )
 @api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
+@permission_classes([PublicReadOnly])
 def get_document_content_api_dev(request, decision_id):
     """Get document content / extraction status for a specific decision by ID.
 

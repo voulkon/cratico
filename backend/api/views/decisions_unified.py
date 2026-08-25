@@ -27,7 +27,7 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from loguru import logger
 from rest_framework.decorators import api_view, permission_classes
-from api.permissions import AuthenticatedOrDebug
+from api.permissions import PublicReadOnly
 from rest_framework.response import Response
 
 from api.views.search.base import get_entity_info
@@ -237,6 +237,8 @@ def _should_cache_unified(request) -> bool:
         ),
     ],
 )
+@api_view(["GET"])
+@permission_classes([PublicReadOnly])
 @cached_view(
     cache_prefix="unified",
     cache_params=["source", "view", "start_date", "end_date"],
@@ -246,8 +248,6 @@ def _should_cache_unified(request) -> bool:
     defer_on_miss=True,
     defer_retry_after=30,
 )
-@api_view(["GET"])
-@permission_classes([AuthenticatedOrDebug])
 def decisions_unified_api(request):
     """
     Unified decisions endpoint.
