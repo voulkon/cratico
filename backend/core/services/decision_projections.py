@@ -24,9 +24,13 @@ from typing import Any, Dict, List, Optional
 
 from django.core.paginator import Paginator
 from django.db import models
-from django.db.models import QuerySet, Sum
+from django.db.models import QuerySet
 
-from core.services.decision_facets import amount_sum_excluding_kae
+from core.services.decision_facets import (
+    amount_sum_excluding_kae,
+    effective_amount_max,
+    effective_linked_amount_sum,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -85,7 +89,7 @@ def paginate_decisions(
     entity_relationships_qs = (
         DecisionEntityRelationship.objects.filter(decision_id__in=decision_ids)
         .select_related("entity")
-        .annotate(total_amount=Sum("linked_amounts__amount"))
+        .annotate(total_amount=effective_linked_amount_sum())
     )
 
     relationships_by_decision: dict = {}
@@ -160,7 +164,7 @@ def aggregate_decision_types(qs: QuerySet) -> Dict[str, Any]:
         .annotate(
             count=models.Count("id"),
             total_amount=amount_sum_excluding_kae(),
-            max_amount=models.Max("amount_fields__amount"),
+            max_amount=effective_amount_max(),
             label=models.Max("decision_type__label"),
         )
         .filter(decision_type__uid__isnull=False)

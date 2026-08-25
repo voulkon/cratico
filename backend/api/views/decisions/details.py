@@ -4,9 +4,10 @@ from core.models.decisions import Decision
 from core.models.document_analysis import DocumentExtraction, ProcessingStatus
 from core.models.entities import DecisionEntityRelationship
 from core.schemas.decision_detail import DecisionDetailResponse
+from core.services.decision_facets import effective_linked_amount_sum
 from api.utils.response import pydantic_response
 from django.conf import settings
-from django.db.models import Count, F, Q, Sum
+from django.db.models import Count, F, Q
 from rest_framework.decorators import api_view, permission_classes
 from api.permissions import AuthenticatedOrDebug
 from rest_framework.response import Response
@@ -149,16 +150,31 @@ def decision_detail(request, decision_id):
         }
 
         # Amount-correction state — powers the "verify amount" button and
-        # surfaces any corrected (verified) total.
+        # surfaces the corrected (verified) total.  Once any amount field has
+        # been verified/corrected, the effective total sums
+        # COALESCE(verified_amount, amount) so partially-corrected decisions
+        # still report the full true total (not just the corrected subset).
         from core.models.entities import DecisionAmountField
-        corrected_fields = list(
-            DecisionAmountField.objects.filter(
-                decision=decision, verified_amount__isnull=False
-            ).values_list("verified_amount", flat=True)
-        )
-        decision_data["has_corrected_amounts"] = bool(corrected_fields)
+        from core.services.decision_facets import effective_amount_sum_excluding_kae
+
+        has_corrected = DecisionAmountField.objects.filter(
+            decision=decision, verified_amount__isnull=False
+        ).exists()
+
+        corrected_total = None
+        if has_corrected:
+            corrected_total = (
+                Decision.objects.filter(pk=decision.pk)
+                .annotate(total=effective_amount_sum_excluding_kae())
+                .values_list("total", flat=True)
+                .first()
+            )
+
+        decision_data["has_corrected_amounts"] = has_corrected
         decision_data["corrected_amount"] = (
-            float(sum(corrected_fields)) if corrected_fields else None
+            float(corrected_total)
+            if has_corrected and corrected_total is not None
+            else None
         )
 
         return pydantic_response(DecisionDetailResponse(**decision_data))
@@ -189,7 +205,7 @@ def decision_entities(request, decision_id):
         DecisionEntityRelationship.objects.filter(decision_id=decision_id)
         .values("role", "entity")  # GROUP BY role, entity
         .annotate(
-            total_amount=Sum("linked_amounts__amount"),
+            total_amount=effective_linked_amount_sum(),
             occurrences=Count("id"),
             currency=F("linked_amounts__currency"),  # pick first currency
         )

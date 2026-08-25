@@ -3,11 +3,12 @@ from datetime import date
 
 from api.utils.common import get_client_ip
 from core.models.entities import AFMEntity, DecisionEntityRelationship
+from core.services.decision_facets import effective_linked_amount_sum
 from core.services.feature_flag_service import feature_flags
 from core.services.search_service import SearchService
 from core.utils.performance_monitoring import monitor_query_performance
 from django.conf import settings
-from django.db.models import Count, F, Sum
+from django.db.models import Count, F
 from django.utils.dateparse import parse_date
 from django_redis import get_redis_connection
 from loguru import logger
@@ -148,7 +149,7 @@ def afm_entity_decisions(request, afm):
         # For amount sorting, annotate with total linked amount first
         if sort_by in ("amount_desc", "amount_asc"):
             relationships = relationships.annotate(
-                total_linked_amount=Sum("linked_amounts__amount")
+                total_linked_amount=effective_linked_amount_sum()
             )
             relationships = apply_aggregated_amount_sorting(
                 relationships,
@@ -179,7 +180,7 @@ def afm_entity_decisions(request, afm):
             DecisionEntityRelationship.objects
             .filter(decision_id__in=decision_ids)
             .select_related("entity")
-            .annotate(total_amount=Sum("linked_amounts__amount"))
+            .annotate(total_amount=effective_linked_amount_sum())
         )
 
         # Group by decision_id: {decision_id: [rel_dict, ...]}

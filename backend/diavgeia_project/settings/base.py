@@ -38,6 +38,8 @@ STEALTH_ALLOWLIST = os.getenv("STEALTH_ALLOWLIST", "False").lower() in (
 FRONTEND_DOMAINS: list[str] = os.getenv(
     "FRONTEND_DOMAINS", "http://localhost:3000"
 ).split(",")
+# Importable from this module, but NOT exposed as settings.FRONTEND_DOMAINS_clean:
+# Django only copies all-uppercase module attributes into the settings object.
 FRONTEND_DOMAINS_clean: list[str] = [d.strip() for d in FRONTEND_DOMAINS]
 
 if not FRONTEND_DOMAINS_clean and not DEBUG:
@@ -45,6 +47,12 @@ if not FRONTEND_DOMAINS_clean and not DEBUG:
 FRONTEND_HOSTNAMES = [
     urlparse(d).netloc for d in FRONTEND_DOMAINS_clean if urlparse(d).netloc
 ]
+
+# Last-resort fallback origins used by core.services.frontend_url when no
+# FRONTEND_DOMAINS are configured. Overridable via env for local workflows
+# (e.g. FRONTEND_DEV_BASE=http://localhost when the frontend runs on port 80).
+FRONTEND_DEV_BASE = os.getenv("FRONTEND_DEV_BASE", "http://localhost:3000")
+FRONTEND_PROD_BASE = os.getenv("FRONTEND_PROD_BASE", "https://crati.co")
 
 # Start with frontend hostnames
 ALLOWED_HOSTS = FRONTEND_HOSTNAMES.copy()

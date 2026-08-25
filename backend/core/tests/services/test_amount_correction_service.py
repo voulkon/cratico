@@ -184,6 +184,53 @@ class TestGroupCorrection:
         )
         assert qs.first().total == EXPECTED_CORRECTED_TOTAL
 
+    def test_entity_linked_total_uses_verified_amounts(self, db):
+        """Entity-level aggregations use verified_amount for linked amounts.
+
+        Regression guard for the ``effective_linked_amount_*`` helpers: a
+        DecisionAmountField linked to an entity via
+        ``associated_relationship`` must contribute its ``verified_amount``
+        (not its raw ``amount``) to entity/org financial totals.
+        """
+        from core.models.entities import (
+            AFMEntity,
+            DecisionAmountField,
+            DecisionEntityRelationship,
+        )
+
+        act_type, _ = ActType.objects.get_or_create(
+            uid="Β.2.2", defaults={"label": "Ανάθεση"}
+        )
+        decision = Decision.objects.create(
+            ada="TEST-LINKED-001",
+            version_id="v1",
+            subject="Linked amounts use verified values",
+            issue_date=timezone.now(),
+            submission_timestamp=timezone.now(),
+            decision_type=act_type,
+            status="PUBLISHED",
+        )
+        entity = AFMEntity.objects.create(afm="123456789", name="Vendor Co")
+        relationship = DecisionEntityRelationship.objects.create(
+            decision=decision,
+            entity=entity,
+            role="sponsorAFMName",
+            parent_key_path="sponsor[0]",
+        )
+        DecisionAmountField.objects.create(
+            decision=decision,
+            parent_key_path="sponsor[0].expenseAmount",
+            source_field_name="expenseAmount",
+            amount=Decimal("934225.00"),
+            verified_amount=Decimal("9342.25"),
+            currency="EUR",
+            associated_relationship=relationship,
+        )
+
+        # The entity received the corrected amount, not the raw ×100 value.
+        total = financial_service.get_entity_total_received(entity)
+        assert total == Decimal("9342.25")
+
     def test_no_correction_when_amounts_match(self, db):
         """When DB amounts match the text, no correction should happen."""
         act_type, _ = ActType.objects.get_or_create(

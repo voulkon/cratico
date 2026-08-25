@@ -12,12 +12,13 @@ from typing import List, Optional
 
 from django.core.paginator import Paginator
 from django.db.models import (
-    Case, Count, DecimalField, F, OuterRef, Q, Subquery, Sum, When,
+    Case, Count, DecimalField, F, OuterRef, Q, Subquery, When,
 )
 from loguru import logger
 
 from core.models.decisions import Decision
 from core.models.entities import DecisionEntityRelationship
+from core.services.decision_facets import effective_linked_amount_sum
 from core.services.feature_flag_service import feature_flags
 from api.views.search.base import serialize_decision_with_entities
 
@@ -132,7 +133,7 @@ def compute_explore_decisions(
         DecisionEntityRelationship.objects.filter(decision_id=OuterRef("pk"))
         .exclude(role__iexact="org")
         .values("decision_id")
-        .annotate(total=Sum("linked_amounts__amount"))
+        .annotate(total=effective_linked_amount_sum())
         .values("total")
     )
     decisions_qs = decisions_qs.annotate(
@@ -176,7 +177,7 @@ def compute_explore_decisions(
     entity_relationships_qs = (
         DecisionEntityRelationship.objects.filter(decision_id__in=decision_ids)
         .select_related("entity")
-        .annotate(total_amount=Sum("linked_amounts__amount"))
+        .annotate(total_amount=effective_linked_amount_sum())
     )
 
     relationships_by_decision: dict = {}

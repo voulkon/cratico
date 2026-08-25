@@ -488,13 +488,13 @@ def entity_decisions_api_dev(request, entity_type, entity_id):
 
         # ── Batch-fetch entity relationships (eliminates N+1) ──────────────
         from core.models.entities import DecisionEntityRelationship
-        from django.db.models import Sum
+        from core.services.decision_facets import effective_linked_amount_sum
 
         decision_ids = [d.id for d in page_obj]
         entity_relationships_qs = (
             DecisionEntityRelationship.objects.filter(decision_id__in=decision_ids)
             .select_related("entity")
-            .annotate(total_amount=Sum("linked_amounts__amount"))
+            .annotate(total_amount=effective_linked_amount_sum())
         )
 
         relationships_by_decision = {}

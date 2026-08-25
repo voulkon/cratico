@@ -13,7 +13,8 @@ from core.ai_services import get_provider
 from core.jobs.base import BaseAIJob
 from core.models.document_analysis import Decision, DocumentAnalysis
 from core.models.entities import DecisionEntityRelationship
-from django.db.models import DecimalField, OuterRef, Q, Subquery, Sum
+from core.services.decision_facets import effective_linked_amount_sum
+from django.db.models import DecimalField, OuterRef, Q, Subquery
 from loguru import logger
 
 
@@ -127,7 +128,7 @@ class HighValueAnalysisJob(BaseAIJob):
             DecisionEntityRelationship.objects.filter(decision_id=OuterRef("pk"))
             .exclude(role__iexact="org")
             .values("decision_id")
-            .annotate(total=Sum("linked_amounts__amount"))
+            .annotate(total=effective_linked_amount_sum())
             .values("total")
         )
 
@@ -162,7 +163,7 @@ class HighValueAnalysisJob(BaseAIJob):
                 DecisionEntityRelationship.objects.filter(decision=decision)
                 .exclude(role__iexact="org")
                 .select_related("entity")
-                .annotate(total_amount=Sum("linked_amounts__amount"))
+                .annotate(total_amount=effective_linked_amount_sum())
             )
 
             # Serialize entity data

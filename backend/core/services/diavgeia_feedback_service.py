@@ -325,14 +325,9 @@ class DiavgeiaFeedbackService:
     @staticmethod
     def frontend_url(decision) -> str:
         """Return the frontend page URL for a decision."""
-        from django.conf import settings
+        from core.services.frontend_url import decision_frontend_url
 
-        base = (
-            settings.FRONTEND_DOMAINS_clean[0]
-            if getattr(settings, "FRONTEND_DOMAINS_clean", None)
-            else "http://localhost:3000"
-        )
-        return f"{base}/decision/{decision.id}"
+        return decision_frontend_url(decision)
 
     @staticmethod
     def activation_url(reference: str) -> str:

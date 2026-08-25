@@ -12,6 +12,7 @@ from typing import Optional
 from django.db import models
 
 from core.models.decisions import Decision
+from core.services.decision_facets import effective_amount_max, effective_amount_sum
 
 from ._helpers import _make_aware_start, _make_aware_end, _validate_dates, parse_date
 
@@ -41,13 +42,12 @@ def compute_explore_decision_types(
         decisions_qs.values("decision_type__uid")
         .annotate(
             count=models.Count("id", distinct=True),
-            total_amount=models.Sum(
-                "amount_fields__amount",
+            total_amount=effective_amount_sum(
                 filter=models.Q(
                     amount_fields__associated_relationship__isnull=False
                 ),
             ),
-            max_amount=models.Max("amount"),
+            max_amount=effective_amount_max(),
             label=models.Max("decision_type__label"),
         )
         .filter(decision_type__uid__isnull=False)
