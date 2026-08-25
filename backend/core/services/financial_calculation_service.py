@@ -35,8 +35,15 @@ from core.schemas.financial import (
     RoleBreakdown,
     TimelinePoint,
 )
+from core.services.decision_facets import (
+    effective_linked_amount_avg,
+    effective_linked_amount_max,
+    effective_linked_amount_min,
+    effective_linked_amount_sum,
+)
 from core.utils.performance_monitoring import monitor_query_performance
-from django.db.models import Avg, Count, F, Max, Min, Q, QuerySet, Sum
+from django.db.models import Count, F, Max, Min, Q, QuerySet, Sum
+from django.db.models.functions import Coalesce
 
 
 class FinancialCalculationService:
@@ -118,7 +125,7 @@ class FinancialCalculationService:
         qs = self._get_entity_relationships_queryset(
             entity, start_date, end_date, roles
         )
-        result = qs.aggregate(total=Sum("linked_amounts__amount"))
+        result = qs.aggregate(total=effective_linked_amount_sum())
         return result["total"] or Decimal("0.00")
 
     @monitor_query_performance(include_context=True)
@@ -140,9 +147,9 @@ class FinancialCalculationService:
 
         # Aggregate at database level for performance
         received_stats = received_qs.aggregate(
-            total_received=Sum("linked_amounts__amount"),
+            total_received=effective_linked_amount_sum(),
             decision_count=Count("decision", distinct=True),
-            avg_amount=Avg("linked_amounts__amount"),
+            avg_amount=effective_linked_amount_avg(),
             unique_organizations=Count("decision__organization", distinct=True),
         )
 
@@ -152,7 +159,7 @@ class FinancialCalculationService:
                 "decision__organization__uid", "decision__organization__label"
             )
             .annotate(
-                total_amount=Sum("linked_amounts__amount"),
+                total_amount=effective_linked_amount_sum(),
                 decision_count=Count("decision", distinct=True),
             )
             .order_by("-total_amount")[:10]
@@ -162,7 +169,7 @@ class FinancialCalculationService:
         role_breakdown = (
             received_qs.values("role")
             .annotate(
-                total_amount=Sum("linked_amounts__amount"),
+                total_amount=effective_linked_amount_sum(),
                 decision_count=Count("decision", distinct=True),
             )
             .order_by("-total_amount")
@@ -233,7 +240,7 @@ class FinancialCalculationService:
             qs.annotate(period=F(period_column))
             .values("period")
             .annotate(
-                total_amount=Sum("linked_amounts__amount"),
+                total_amount=effective_linked_amount_sum(),
                 decision_count=Count("decision", distinct=True),
             )
             .order_by("period")
@@ -341,7 +348,7 @@ class FinancialCalculationService:
         qs = self._get_organization_relationships_queryset(
             organization, start_date, end_date, roles
         )
-        result = qs.aggregate(total=Sum("linked_amounts__amount"))
+        result = qs.aggregate(total=effective_linked_amount_sum())
         return result["total"] or Decimal("0.00")
 
     def get_organization_expenditure_breakdown(
@@ -368,7 +375,7 @@ class FinancialCalculationService:
             breakdown = (
                 qs.values("entity__afm", "entity__name")
                 .annotate(
-                    total_amount=Sum("linked_amounts__amount"),
+                    total_amount=effective_linked_amount_sum(),
                     decision_count=Count("decision", distinct=True),
                 )
                 .order_by("-total_amount")
@@ -384,7 +391,7 @@ class FinancialCalculationService:
                 qs.annotate(period=F(period_column))
                 .values("period")
                 .annotate(
-                    total_amount=Sum("linked_amounts__amount"),
+                    total_amount=effective_linked_amount_sum(),
                     decision_count=Count("decision", distinct=True),
                 )
                 .order_by("period")
@@ -396,7 +403,7 @@ class FinancialCalculationService:
                     "decision__decision_type__uid", "decision__decision_type__label"
                 )
                 .annotate(
-                    total_amount=Sum("linked_amounts__amount"),
+                    total_amount=effective_linked_amount_sum(),
                     decision_count=Count("decision", distinct=True),
                 )
                 .order_by("-total_amount")
@@ -486,11 +493,11 @@ class FinancialCalculationService:
             qs
             .values("entity__afm", "entity__name", "entity__entity_type")
             .annotate(
-                total_amount=Sum("linked_amounts__amount"),
+                total_amount=effective_linked_amount_sum(),
                 decision_count=Count("decision", distinct=True),
-                avg_amount=Avg("linked_amounts__amount"),
-                max_amount=Max("linked_amounts__amount"),
-                min_amount=Min("linked_amounts__amount"),
+                avg_amount=effective_linked_amount_avg(),
+                max_amount=effective_linked_amount_max(),
+                min_amount=effective_linked_amount_min(),
             )
             .filter(total_amount__gt=0)  # Only entities with amounts
             .order_by("-total_amount")[offset : offset + limit]
@@ -607,7 +614,7 @@ class FinancialCalculationService:
             qs
             .values("decision__organization__uid", "decision__organization__label")
             .annotate(
-                total_amount=Sum("linked_amounts__amount"),
+                total_amount=effective_linked_amount_sum(),
                 decision_count=Count("decision", distinct=True),
             )
             .filter(total_amount__gt=0)
@@ -684,7 +691,7 @@ class FinancialCalculationService:
                 "entity__entity_type",
             )
             .annotate(
-                total_amount=Sum("linked_amounts__amount"),
+                total_amount=effective_linked_amount_sum(),
                 decision_count=Count("decision", distinct=True),
             )
             .filter(total_amount__gt=0)
@@ -827,7 +834,9 @@ class FinancialCalculationService:
         entity_amounts: list[EntityAmount] = []
         for rel in relationships:
             total_amount = sum(
-                amount.amount
+                amount.verified_amount
+                if amount.verified_amount is not None
+                else amount.amount
                 for amount in rel.linked_amounts.all()
                 if amount.amount is not None
             )
@@ -870,7 +879,7 @@ class FinancialCalculationService:
         relationships = (
             DecisionEntityRelationship.objects.filter(decision_id__in=decision_ids)
             .select_related("entity")
-            .annotate(total_amount=Sum("linked_amounts__amount"))
+            .annotate(total_amount=effective_linked_amount_sum())
         )
 
         result: dict[int, list[EntityAmount]] = {did: [] for did in decision_ids}
@@ -911,11 +920,11 @@ class FinancialCalculationService:
 
         linked_total = all_amounts.filter(
             associated_relationship__isnull=False
-        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+        ).aggregate(total=Sum(Coalesce("verified_amount", "amount")))["total"] or Decimal("0.00")
 
         unlinked_total = all_amounts.filter(
             associated_relationship__isnull=True
-        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+        ).aggregate(total=Sum(Coalesce("verified_amount", "amount")))["total"] or Decimal("0.00")
 
         entity_count = DecisionEntityRelationship.objects.filter(
             decision=decision
@@ -1109,7 +1118,7 @@ class FinancialCalculationService:
         # This represents the most accurate financial data via relationships
         total_amount_accurate = DecisionAmountField.objects.filter(
             decision__in=decisions_queryset
-        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+        ).aggregate(total=Sum(Coalesce("verified_amount", "amount")))["total"] or Decimal("0.00")
 
         # Get decision count and basic stats
         decision_stats = decisions_queryset.aggregate(

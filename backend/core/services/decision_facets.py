@@ -24,7 +24,7 @@ from datetime import datetime
 from typing import Optional, Tuple
 
 from django.db import models
-from django.db.models import Q, QuerySet, Sum
+from django.db.models import Avg, Max, Min, Q, QuerySet, Sum
 from django.db.models.functions import Coalesce
 from django.utils.dateparse import parse_date
 from rest_framework.response import Response
@@ -89,6 +89,53 @@ def effective_amount_sum(filter=None):
     """
     return Sum(
         Coalesce("amount_fields__verified_amount", "amount_fields__amount"),
+        filter=filter,
+    )
+
+
+def effective_linked_amount_sum(filter=None):
+    """
+    Verified-aware sum over ``DecisionEntityRelationship.linked_amounts``.
+
+    ``linked_amounts`` points at ``DecisionAmountField`` rows, each of which
+    may carry a ``verified_amount``.  Use ``COALESCE(verified_amount, amount)``
+    so corrected values take precedence — the relationship-level equivalent of
+    :func:`effective_amount_sum`.
+    """
+    return Sum(
+        Coalesce(
+            "linked_amounts__verified_amount", "linked_amounts__amount"
+        ),
+        filter=filter,
+    )
+
+
+def effective_linked_amount_avg(filter=None):
+    """Verified-aware avg over ``DecisionEntityRelationship.linked_amounts``."""
+    return Avg(
+        Coalesce(
+            "linked_amounts__verified_amount", "linked_amounts__amount"
+        ),
+        filter=filter,
+    )
+
+
+def effective_linked_amount_max(filter=None):
+    """Verified-aware max over ``DecisionEntityRelationship.linked_amounts``."""
+    return Max(
+        Coalesce(
+            "linked_amounts__verified_amount", "linked_amounts__amount"
+        ),
+        filter=filter,
+    )
+
+
+def effective_linked_amount_min(filter=None):
+    """Verified-aware min over ``DecisionEntityRelationship.linked_amounts``."""
+    return Min(
+        Coalesce(
+            "linked_amounts__verified_amount", "linked_amounts__amount"
+        ),
         filter=filter,
     )
 

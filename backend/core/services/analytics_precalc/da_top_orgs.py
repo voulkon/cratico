@@ -8,9 +8,15 @@ Two-layer design:
 
 from datetime import date, datetime
 
-from django.db.models import Avg, Count, Max, Min, Sum
+from django.db.models import Count
 
 from core.models.entities import DecisionEntityRelationship
+from core.services.decision_facets import (
+    effective_linked_amount_avg,
+    effective_linked_amount_max,
+    effective_linked_amount_min,
+    effective_linked_amount_sum,
+)
 from core.services.financial_calculation_service import financial_service
 
 from ._helpers import _make_aware_start, _make_aware_end, _validate_dates, parse_date
@@ -64,11 +70,11 @@ def compute_da_top_orgs(
         DecisionEntityRelationship.objects.filter(**base_filter)
         .values("decision__organization__uid", "decision__organization__label")
         .annotate(
-            total_amount=Sum("linked_amounts__amount"),
+            total_amount=effective_linked_amount_sum(),
             decision_count=Count("decision", distinct=True),
-            avg_amount=Avg("linked_amounts__amount"),
-            max_amount=Max("linked_amounts__amount"),
-            min_amount=Min("linked_amounts__amount"),
+            avg_amount=effective_linked_amount_avg(),
+            max_amount=effective_linked_amount_max(),
+            min_amount=effective_linked_amount_min(),
             entity_count=Count("entity", distinct=True),
         )
         .filter(total_amount__gt=0)
@@ -77,7 +83,7 @@ def compute_da_top_orgs(
 
     combined_stats = DecisionEntityRelationship.objects.filter(**base_filter).aggregate(
         unique_organizations=Count("decision__organization", distinct=True),
-        total_amount=Sum("linked_amounts__amount"),
+        total_amount=effective_linked_amount_sum(),
         total_decisions=Count("decision", distinct=True),
         unique_entities=Count("entity", distinct=True),
     )

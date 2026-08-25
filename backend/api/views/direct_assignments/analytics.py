@@ -22,7 +22,14 @@ from core.models.organizations import Organization
 from core.services.financial_calculation_service import financial_service
 from core.utils.performance_monitoring import monitor_query_performance
 from django.conf import settings
-from django.db.models import Avg, Count, Max, Min, Sum
+from django.db.models import Count
+
+from core.services.decision_facets import (
+    effective_linked_amount_avg,
+    effective_linked_amount_max,
+    effective_linked_amount_min,
+    effective_linked_amount_sum,
+)
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from drf_yasg import openapi
@@ -193,7 +200,7 @@ def organization_direct_assignment_top_recipients(request, organization_uid):
             role__in=financial_service.MONEY_RECEIVED_ROLES,
         ).aggregate(
             unique_entities=Count("entity", distinct=True),
-            total_amount=Sum("linked_amounts__amount"),
+            total_amount=effective_linked_amount_sum(),
             total_decisions=Count("decision", distinct=True),
         )
         total_count = result_page.total_count
@@ -342,11 +349,11 @@ def entity_direct_assignment_top_organizations(request, afm):
             DecisionEntityRelationship.objects.filter(**base_filter)
             .values("decision__organization__uid", "decision__organization__label")
             .annotate(
-                total_amount=Sum("linked_amounts__amount"),
+                total_amount=effective_linked_amount_sum(),
                 decision_count=Count("decision", distinct=True),
-                avg_amount=Avg("linked_amounts__amount"),
-                max_amount=Max("linked_amounts__amount"),
-                min_amount=Min("linked_amounts__amount"),
+                avg_amount=effective_linked_amount_avg(),
+                max_amount=effective_linked_amount_max(),
+                min_amount=effective_linked_amount_min(),
             )
             .filter(total_amount__gt=0)
             .order_by("-total_amount")[offset : offset + limit]
@@ -357,7 +364,7 @@ def entity_direct_assignment_top_organizations(request, afm):
             **base_filter
         ).aggregate(
             unique_organizations=Count("decision__organization", distinct=True),
-            total_amount=Sum("linked_amounts__amount"),
+            total_amount=effective_linked_amount_sum(),
             total_decisions=Count("decision", distinct=True),
         )
         total_count = combined_stats["unique_organizations"] or 0

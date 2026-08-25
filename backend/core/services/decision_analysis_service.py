@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional
 
 from core.models.decisions import Decision
 from core.models.entities import DecisionAmountField
+from core.services.decision_facets import effective_linked_amount_sum
 from django.db.models import Avg, Count, Max, Min, OuterRef, Q, Subquery, Sum
 from django.db.models.functions import Coalesce, Extract, TruncHour
 from loguru import logger
@@ -159,7 +160,7 @@ class DecisionAnalysisService:
         calc_amt_subquery = Subquery(
             DecisionAmountField.objects.filter(decision=OuterRef("pk"))
             .values("decision")
-            .annotate(total=Sum("amount"))
+            .annotate(total=Sum(Coalesce("verified_amount", "amount")))
             .values("total")
         )
 
@@ -363,7 +364,7 @@ class DecisionAnalysisService:
         calc_amt_subquery = Subquery(
             DecisionAmountField.objects.filter(decision=OuterRef("pk"))
             .values("decision")
-            .annotate(total=Sum("amount"))
+            .annotate(total=Sum(Coalesce("verified_amount", "amount")))
             .values("total")
         )
 
@@ -400,7 +401,7 @@ class DecisionAnalysisService:
                 decision__in=decisions_qs, role=EntityRole.SPONSOR
             )
             .values("entity__name", "entity__afm")
-            .annotate(total_amount=Sum("linked_amounts__amount"))
+            .annotate(total_amount=effective_linked_amount_sum())
             .filter(total_amount__gt=0)
             .order_by("-total_amount")[:5]
         )

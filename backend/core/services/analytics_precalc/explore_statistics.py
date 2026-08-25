@@ -10,6 +10,7 @@ from datetime import date, datetime
 from typing import Optional
 
 from django.db import models
+from django.db.models.functions import Coalesce
 
 from core.models.decisions import Decision
 from core.models.entities import DecisionAmountField
@@ -45,19 +46,20 @@ def compute_explore_statistics(
     decisions_qs = Decision.objects.all()
     filtered_qs = decisions_qs.filter_by_date_range(start_dt, end_dt)
 
-    # Accurate total via DecisionAmountField scoped to filtered decisions
+    # Accurate total via DecisionAmountField scoped to filtered decisions.
+    # Uses COALESCE(verified_amount, amount) so corrected amounts take
+    # precedence over the (possibly wrong) raw extracted amounts.
     accurate_total = (
         DecisionAmountField.objects.filter(
             decision__in=filtered_qs,
             associated_relationship__isnull=False,
-        ).aggregate(total=models.Sum("amount"))["total"]
+        ).aggregate(
+            total=models.Sum(Coalesce("verified_amount", "amount"))
+        )["total"]
         or 0
     )
 
-    stats = filtered_qs.aggregate(
-        total_decisions=models.Count("id"),
-        avg_amount=models.Avg("amount"),
-    )
+    total_decisions = filtered_qs.count()
 
     organizations_count = filtered_qs.values("organization").distinct().count()
 
@@ -73,9 +75,13 @@ def compute_explore_statistics(
         },
         "summary": {
             "decisions": {
-                "total_count": stats["total_decisions"] or 0,
+                "total_count": total_decisions,
                 "total_amount": float(accurate_total),
-                "avg_amount": float(stats["avg_amount"] or 0),
+                "avg_amount": (
+                    float(accurate_total) / total_decisions
+                    if total_decisions
+                    else 0
+                ),
             },
             "financial": {
                 "primary_amount": float(accurate_total),
