@@ -8,6 +8,7 @@ Provides endpoints for:
 
 from core.models.decisions import Decision
 from core.models.entities import DecisionEntityRelationship
+from core.services.decision_facets import amount_sum_excluding_kae
 from core.services.financial_calculation_service import financial_service
 from django.conf import settings
 from django.db import models
@@ -133,31 +134,35 @@ def relationship_statistics_api(request, afm, orgUid):
         # Apply date filter via shared facet (supports partial ranges)
         decisions_qs = apply_date_range(decisions_qs, start_dt=start_dt, end_dt=end_dt)
 
-        # Use financial service for accurate calculations
+        # Use financial service for accurate calculations (verified-aware)
         try:
             financial_summary = financial_service.get_global_financial_summary(
                 decisions_queryset=decisions_qs
             )
             total_amount = financial_summary.total_amount
         except Exception:
-            # Fall back to simple aggregation
+            # Fall back to verified-aware aggregation over amount fields
             total_amount = float(
-                decisions_qs.aggregate(total=models.Sum("amount"))["total"] or 0
+                decisions_qs.annotate(acc_total=amount_sum_excluding_kae())
+                .aggregate(total=models.Sum("acc_total"))["total"]
+                or 0
             )
 
         stats = decisions_qs.aggregate(
             total_decisions=models.Count("id"),
-            avg_amount=models.Avg("amount"),
             decisions_with_amounts=models.Count(
                 "id", filter=models.Q(amount__isnull=False, amount__gt=0)
             ),
         )
 
+        total_decisions = stats["total_decisions"] or 0
+        avg_amount = (float(total_amount) / total_decisions) if total_decisions else 0
+
         return Response(
             {
-                "total_decisions": stats["total_decisions"] or 0,
+                "total_decisions": total_decisions,
                 "total_amount": float(total_amount),
-                "avg_amount": float(stats["avg_amount"] or 0),
+                "avg_amount": avg_amount,
                 "decisions_with_amounts": stats["decisions_with_amounts"] or 0,
             }
         )

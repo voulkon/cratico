@@ -4,6 +4,7 @@ from datetime import timedelta
 from api.utils.date_utils import _parse_optional_date_range
 from api.utils.sorting import apply_decision_sorting
 from core.models.organizations import Organization, Signer, Unit
+from core.services.decision_facets import amount_sum_excluding_kae
 from core.services.feature_flag_service import feature_flags
 from core.services.financial_calculation_service import financial_service
 from core.services.search_analytics_service import SearchAnalyticsService
@@ -87,9 +88,11 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
                     filtered_qs = decisions_qs.filter_by_date_range(
                         start_date, end_date
                     )
-                    stats = filtered_qs.aggregate(
+                    stats = filtered_qs.annotate(
+                        acc_total=amount_sum_excluding_kae()
+                    ).aggregate(
                         total_decisions=models.Count("id"),
-                        total_amount=models.Sum("amount"),
+                        total_amount=models.Sum("acc_total"),
                     )
                     return Response(
                         {
@@ -159,9 +162,11 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
         # Lightweight mode: only Count + Sum, skips Avg/Max/Min and all expensive
         # breakdown queries (financial summary, charts, recent decisions).
         if lite_mode:
-            stats = filtered_qs.aggregate(
+            stats = filtered_qs.annotate(
+                acc_total=amount_sum_excluding_kae()
+            ).aggregate(
                 total_decisions=models.Count("id"),
-                total_amount=models.Sum("amount"),
+                total_amount=models.Sum("acc_total"),
             )
             return Response(
                 {
@@ -201,12 +206,13 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
             )
 
         # Calculate basic statistics using full aggregate (non-lite path)
-        stats = filtered_qs.aggregate(
+        annotated_qs = filtered_qs.annotate(acc_total=amount_sum_excluding_kae())
+        stats = annotated_qs.aggregate(
             total_decisions=models.Count("id"),
-            avg_amount=models.Avg("amount"),
-            max_amount=models.Max("amount"),
-            min_amount=models.Min("amount"),
-            total_amount=models.Sum("amount"),
+            avg_amount=models.Avg("acc_total"),
+            max_amount=models.Max("acc_total"),
+            min_amount=models.Min("acc_total"),
+            total_amount=models.Sum("acc_total"),
         )
 
         # Calculate financial summary (legacy path for non-AFM entities)
@@ -230,9 +236,12 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
         # Monthly breakdown for charts
         try:
             monthly_stats = (
-                filtered_qs.annotate(month=models.F("issue_date_month"))
+                filtered_qs.annotate(
+                    acc_total=amount_sum_excluding_kae(),
+                    month=models.F("issue_date_month"),
+                )
                 .values("month")
-                .annotate(count=models.Count("id"), amount=models.Sum("amount"))
+                .annotate(count=models.Count("id"), amount=models.Sum("acc_total"))
                 .order_by("month")
             )
         except Exception:
@@ -241,8 +250,9 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
 
         # Top decision types
         top_types = (
-            filtered_qs.values("decision_type__label")
-            .annotate(count=models.Count("id"), total_amount=models.Sum("amount"))
+            filtered_qs.annotate(acc_total=amount_sum_excluding_kae())
+            .values("decision_type__label")
+            .annotate(count=models.Count("id"), total_amount=models.Sum("acc_total"))
             .order_by("-count")[:10]
         )
 
@@ -254,8 +264,12 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
         )
 
         # Recent decisions
-        recent_decisions = filtered_qs.order_by("-issue_date_day")[:5].values(
-            "ada", "subject", "issue_date_day", "amount", "decision_type__label"
+        recent_decisions = (
+            filtered_qs.annotate(amount=amount_sum_excluding_kae())
+            .order_by("-issue_date_day")[:5]
+            .values(
+                "ada", "subject", "issue_date_day", "amount", "decision_type__label"
+            )
         )
 
         return Response(
@@ -628,12 +642,15 @@ def entity_timeline_api_dev(request, entity_type, entity_id):
 
         # Get timeline data
         timeline_data = (
-            decisions_qs.annotate(period=models.F(period_column))
+            decisions_qs.annotate(
+                acc_total=amount_sum_excluding_kae(),
+                period=models.F(period_column),
+            )
             .values("period")
             .annotate(
                 count=models.Count("id"),
-                total_amount=models.Sum("amount"),
-                avg_amount=models.Avg("amount"),
+                total_amount=models.Sum("acc_total"),
+                avg_amount=models.Avg("acc_total"),
             )
             .order_by("period")
         )
