@@ -71,6 +71,7 @@ class TestRegistry:
         slugs = {p["slug"] for p in processes}
         assert "amount" in slugs
         assert "dates" in slugs
+        assert "afm" in slugs
         for p in processes:
             assert p["name"]
             assert p["methods"]
