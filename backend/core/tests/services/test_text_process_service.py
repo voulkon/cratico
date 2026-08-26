@@ -61,6 +61,26 @@ class TestDateProcess:
     def test_empty_text(self):
         assert DateProcess().detect("").spans == []
 
+    def test_date_embedded_in_reference_number(self):
+        """Dates after a slash inside reference numbers are still dates."""
+        result = DateProcess().detect("ΥΠΠΟΑ/ΥΓ/ΓΔΟΥ/173041/19.04.2021 ΚΥΑ")
+        assert len(result.spans) == 1
+        assert result.spans[0].value["date"] == "2021-04-19"
+
+    def test_fek_reference_date(self):
+        result = DateProcess().detect("(ΦΕΚ 4498/Β/29.09.2021)")
+        assert len(result.spans) == 1
+        assert result.spans[0].value["date"] == "2021-09-29"
+
+    def test_decision_number_slash_date(self):
+        result = DateProcess().detect("120141 ΕΞ 2021/30.09.2021 απόφασης")
+        assert len(result.spans) == 1
+        assert result.spans[0].value["date"] == "2021-09-30"
+
+    def test_numeric_chain_not_a_date(self):
+        """Long numeric chains without a valid date shape produce no spans."""
+        assert DateProcess().detect("ΓΔΟΥ/182148/5665/11887").spans == []
+
 
 # ── Registry metadata ────────────────────────────────────────────────────────
 
