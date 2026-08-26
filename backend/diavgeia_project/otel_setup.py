@@ -15,11 +15,19 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.trace import StatusCode
 
 
+from .otel_init import is_jaeger_reachable
+
+
 def setup_tracing(service_name="diavgeia-app"):
     """Initialize and configure OpenTelemetry tracing."""
     # Check if Jaeger transmission is disabled
     if not settings.TRANSMIT_TO_JAEGER:
         # Return a no-op tracer when tracing is disabled
+        return trace.get_tracer(__name__)
+
+    # Tracing is enabled, but Jaeger may be absent (minimal stack).
+    # Fall back to a no-op tracer instead of an exporter that retries forever.
+    if not is_jaeger_reachable():
         return trace.get_tracer(__name__)
 
     # Check if a tracer provider is already set

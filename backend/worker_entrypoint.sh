@@ -4,9 +4,14 @@
 echo "Waiting for database..."
 python manage.py wait_for_db
 
-# Wait for Loki
-echo "Waiting for Loki..."
-python manage.py wait_for_loki
+# Wait for Loki (only if it is part of the stack — the "observability"
+# compose profile can leave it out, in which case the hostname won't resolve)
+if getent hosts "${LOKI_HOST:-loki}" >/dev/null 2>&1; then
+    echo "Waiting for Loki..."
+    python manage.py wait_for_loki
+else
+    echo "Loki not in stack (observability profile off) — skipping wait."
+fi
 
 # Wait for Redis/RabbitMQ
 echo "Waiting for broker..."

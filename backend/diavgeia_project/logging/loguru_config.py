@@ -15,6 +15,10 @@ import sys
 
 from loguru import logger
 
+# Module-level guard so double-calls (wsgi.py + celery.py, autoreload, tests)
+# are harmless — Loguru is configured exactly once per process.
+_configured = False
+
 
 def json_formatter(record):
     """
@@ -92,13 +96,23 @@ def configure_loguru():
         - Better for local development
 
     Log level controlled by DJANGO_LOG_LEVEL env var (default: INFO)
+
+    Rolling file sink (both formats), controlled by LOG_TO_FILE (default: true):
+        - Writes to logs/app.log
+        - Rotates at 5MB, keeps at most 3 rotated files (~20MB worst case)
+        - Rotated files are gzip-compressed
     """
+    global _configured
+    if _configured:
+        return
+
     use_json_logging = os.getenv("USE_JSON_LOGGING", "false").lower() in (
         "true",
         "1",
         "t",
     )
     log_level = os.getenv("DJANGO_LOG_LEVEL", "INFO")  # Respect DJANGO_LOG_LEVEL
+    log_to_file = os.getenv("LOG_TO_FILE", "true").lower() in ("true", "1", "t")
 
     # Remove default handler
     logger.remove()
@@ -126,9 +140,28 @@ def configure_loguru():
             diagnose=True,
         )
 
+    # Always add a rolling file sink alongside stdout/stderr (unless opted out).
+    # This keeps the app debuggable when Loki/Promtail/Grafana are absent
+    # (minimal stack).  Total size is capped: 5MB active + 3 rotated (~20MB).
+    if log_to_file:
+        os.makedirs("logs", exist_ok=True)
+        logger.add(
+            "logs/app.log",
+            rotation="5 MB",  # roll when the file hits 5MB
+            retention=3,  # keep at most 3 rotated files
+            compression="gz",
+            level=log_level,
+            format=json_formatter if use_json_logging else text_formatter,
+            backtrace=True,
+            diagnose=not use_json_logging,
+        )
+
+    _configured = True
+
     # Log the configuration (this will use the newly configured format)
     logger.info(
         f"Loguru configured with {'JSON' if use_json_logging else 'TEXT'} format at {log_level} level"
+        + (" + rolling file sink (logs/app.log)" if log_to_file else "")
     )
 
 
