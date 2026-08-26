@@ -37,6 +37,11 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 # The key signal is the `,\d{2}` suffix — no other numeric pattern in Greek
 # administrative text ends with a comma and exactly two digits.
 #
+# The English alternative (`\d{1,3}(?:,\d{3})*\.\d{2}`) would otherwise match
+# the `DD.MM` head of dot-separated dates (04.02.1998, 12.05.2024).  The
+# `(?!\.\d{2,4}(?!\d))` guard rejects any match immediately followed by a
+# 2–4 digit year, mirroring the numeric-date rule in ``text_processes.dates``.
+#
 # Alternatives (tried left-to-right):
 #   1. \d{1,3}(?:\.\d{3})*,\d{2}   — Greek: optional dot-thousands + comma-decimal
 #   2. \d{1,3}(?:,\d{3})*\.\d{2}   — English: optional comma-thousands + dot-decimal
@@ -52,6 +57,7 @@ _CENTS_AMOUNT_RE = re.compile(
         \d+,\d{2}                    # bare integer + comma-decimal (30000,00)
     )
     (?!\d)                           # not a numeric continuation
+    (?!\.\d{2,4}(?!\d))              # not the DD.MM head of a dot-separated date
     \s*
     (?P<currency>€|ευρώ|EUR)?        # optional currency marker
     """,

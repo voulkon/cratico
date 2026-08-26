@@ -73,6 +73,23 @@ class TestExtractCentsAmounts:
         result = extract_grouped_amounts(text)
         assert result == []
 
+    @pytest.mark.parametrize(
+        "text,expected_amounts",
+        [
+            # DD.MM.YYYY — the 04.02 head must NOT be detected as 4.02
+            ("Απόφαση 04.02.1998. Ποσό 1.000,00 €.", [Decimal("1000.00")]),
+            ("Ημερομηνία 12.05.2024. Δαπάνη 500,00 €.", [Decimal("500.00")]),
+            # DD.MM.YY — two-digit year
+            ("Έκδοση 31.12.24, ποσό 100,00.", [Decimal("100.00")]),
+            # Date alone → nothing at all
+            ("ημερομηνία έκδοσης 04.02.1998", []),
+        ],
+    )
+    def test_does_not_match_dot_separated_dates(self, text, expected_amounts):
+        result = extract_grouped_amounts(text)
+        amounts = [g.amount for g in result]
+        assert amounts == expected_amounts
+
     def test_does_not_match_sentence_end_number_without_cents(self):
         """1.000.000. without ,00 is not matched."""
         text = "το ποσό 1.000.000."
