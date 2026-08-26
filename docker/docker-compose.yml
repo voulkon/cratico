@@ -190,8 +190,6 @@ services:
         condition: service_started
       redis:
         condition: service_healthy
-      opensearch:
-        condition: service_healthy
 
   worker:
     build:
@@ -314,11 +312,15 @@ services:
       - diavgeia-net
 
   # Step 1a: Add OpenSearch
+  # Behind the "search" profile (opt-in): the app degrades gracefully to
+  # Postgres FTS when these containers are absent (see OpenSearchService
+  # circuit breaker). Enable with: --profile search
   opensearch:
     build:
       context: ./opensearch-custom
       dockerfile: Dockerfile
     container_name: diavgeia_opensearch
+    profiles: ["search"]
     environment:
       - "discovery.type=single-node"
       - "plugins.security.disabled=true"
@@ -343,6 +345,7 @@ services:
   opensearch_dashboards:
     image: opensearchproject/opensearch-dashboards:3
     container_name: diavgeia_opensearch_dashboards
+    profiles: ["search"]
     environment:
       OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
       DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"

@@ -237,6 +237,12 @@
         {% endfor %}
     {% endif %}
 
+    {% if opensearch_unavailable %}
+    <div class="alert alert-warning" style="background:#fff3cd;border:1px solid #ffeeba;color:#856404;padding:12px 16px;border-radius:6px;margin-bottom:20px;">
+        <strong>⚠️ OpenSearch unavailable.</strong> The OpenSearch container is not running or unreachable, so indexing is disabled. Search falls back to PostgreSQL full-text search. Start the stack with <code>--profile search</code> to enable OpenSearch.
+    </div>
+    {% endif %}
+
     <div class="info-box">
         <strong>ℹ️ Complete Pipeline View:</strong><br>
         <strong>Step 1:</strong> Decisions downloaded from Diavgeia API → <strong>Step 2:</strong> Text extracted to PostgreSQL → <strong>Step 3:</strong> Indexed in OpenSearch

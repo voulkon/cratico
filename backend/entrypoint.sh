@@ -9,9 +9,16 @@ echo "Waiting for Redis..."
 python manage.py wait_for_redis
 
 if [ "${INDEX_THE_OPENSEARCH:-true}" = "true" ]; then
-    # Wait for OpenSearch
-    echo "Waiting for OpenSearch..."
-    python manage.py wait_for_opensearch
+    # Wait for OpenSearch only if it is part of the stack (the "search"
+    # compose profile can leave it out, in which case the hostname won't
+    # resolve). The OpenSearchService circuit breaker degrades gracefully.
+    OPENSEARCH_HOST=$(echo "${OPENSEARCH_URL:-http://opensearch:9200}" | sed -E 's#^[a-z]+://##; s#[:/].*##')
+    if getent hosts "$OPENSEARCH_HOST" >/dev/null 2>&1; then
+        echo "Waiting for OpenSearch..."
+        python manage.py wait_for_opensearch
+    else
+        echo "OpenSearch not in stack (search profile off) — skipping wait."
+    fi
 fi
 
 # Wait for Loki (only if it is part of the stack — the "observability"

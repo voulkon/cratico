@@ -35,13 +35,13 @@
         {
             "label": "Docker Compose (with DB) Up",
             "type": "shell",
-            "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets --profile observability up -d",
+            "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets --profile observability --profile search up -d",
             "problemMatcher": []
         },
         {
             "label": "Docker Compose (with DB) Up (Build)",
             "type": "shell",
-            "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets --profile observability up --build -d",
+            "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets --profile observability --profile search up --build -d",
             "problemMatcher": []
         },
         {
@@ -59,13 +59,13 @@
         {
             "label": "Docker Compose (with DB) Down",
             "type": "shell",
-            "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets --profile observability down",
+            "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets --profile observability --profile search down",
             "problemMatcher": []
         },
         {
             "label": "Docker Compose (with DB) Restart",
             "type": "shell",
-            "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets --profile observability down && docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets --profile observability up -d",
+            "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets --profile observability --profile search down && docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets --profile observability --profile search up -d",
             "problemMatcher": []
         },
         {

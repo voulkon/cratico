@@ -48,8 +48,12 @@ class Command(BaseCommand):
 
         if not opensearch_up:
             self.stdout.write(
-                self.style.ERROR(
-                    f"Failed to connect to OpenSearch after {max_retries} attempts"
+                self.style.WARNING(
+                    f"OpenSearch not reachable after {max_retries} attempts. "
+                    "Continuing anyway — OpenSearchService will degrade gracefully "
+                    "to Postgres FTS (circuit breaker)."
                 )
             )
-            exit(1)
+            # Do NOT exit(1): the app must boot without OpenSearch. The
+            # OpenSearchService circuit breaker handles the unreachable case.
+            return
