@@ -34,6 +34,85 @@ from core.services.decision_facets import (
 
 
 # ---------------------------------------------------------------------------
+# Batch helpers — entity relationships + calculated amounts
+# ---------------------------------------------------------------------------
+
+def build_entity_relationships_by_decision(decision_ids):
+    """
+    Bulk-fetch entity relationships for a list of decision IDs, grouped by
+    decision id, in the same dict shape used by
+    ``serialize_decision_with_entities``.
+    """
+    from core.models.entities import DecisionEntityRelationship
+
+    decision_ids = list(decision_ids)
+    if not decision_ids:
+        return {}
+
+    relationships_qs = (
+        DecisionEntityRelationship.objects.filter(decision_id__in=decision_ids)
+        .select_related("entity")
+        .annotate(total_amount=effective_linked_amount_sum())
+    )
+
+    relationships_by_decision: dict = {}
+    for rel in relationships_qs:
+        relationships_by_decision.setdefault(rel.decision_id, []).append(
+            {
+                "role": rel.role,
+                "entity": {
+                    "afm": rel.entity.afm,
+                    "name": rel.entity.name,
+                    "entity_type": rel.entity.entity_type,
+                },
+                "total_amount": float(rel.total_amount) if rel.total_amount else 0,
+            }
+        )
+    return relationships_by_decision
+
+
+def build_calculated_amounts_by_decision(decision_ids):
+    """
+    Bulk-compute the verified amount (sum of linked amount fields, excluding
+    KAE rows) for a list of decision IDs, keyed by decision id.
+    """
+    from core.models.decisions import Decision
+
+    decision_ids = list(decision_ids)
+    if not decision_ids:
+        return {}
+
+    amounts_qs = (
+        Decision.objects.filter(id__in=decision_ids)
+        .annotate(calculated_amount=amount_sum_excluding_kae())
+        .values("id", "calculated_amount")
+    )
+    return {
+        row["id"]: (float(row["calculated_amount"]) if row["calculated_amount"] else None)
+        for row in amounts_qs
+    }
+
+
+def build_decision_card_context(decision_ids):
+    """
+    Bulk-compute the data needed to embed entity + amount info into
+    decision-card payloads, grouped by decision id.
+
+    Returns a serializer context dict:
+      - entity_relationships_by_decision
+      - calculated_amount_by_decision
+    """
+    return {
+        "entity_relationships_by_decision": build_entity_relationships_by_decision(
+            decision_ids
+        ),
+        "calculated_amount_by_decision": build_calculated_amounts_by_decision(
+            decision_ids
+        ),
+    }
+
+
+# ---------------------------------------------------------------------------
 # paginate_decisions  (view=decisions)
 # ---------------------------------------------------------------------------
 
@@ -65,7 +144,6 @@ def paginate_decisions(
     (when present) ``search_log_id`` keys.
     """
     from api.views.search.base import serialize_decision_with_entities
-    from core.models.entities import DecisionEntityRelationship
 
     if serialize_fn is None:
         serialize_fn = serialize_decision_with_entities
@@ -86,25 +164,7 @@ def paginate_decisions(
 
     # ── Batch-fetch entity relationships (eliminates N+1) ──────────
     decision_ids = [d.id for d in page_obj]
-    entity_relationships_qs = (
-        DecisionEntityRelationship.objects.filter(decision_id__in=decision_ids)
-        .select_related("entity")
-        .annotate(total_amount=effective_linked_amount_sum())
-    )
-
-    relationships_by_decision: dict = {}
-    for rel in entity_relationships_qs:
-        relationships_by_decision.setdefault(rel.decision_id, []).append(
-            {
-                "role": rel.role,
-                "entity": {
-                    "afm": rel.entity.afm,
-                    "name": rel.entity.name,
-                    "entity_type": rel.entity.entity_type,
-                },
-                "total_amount": float(rel.total_amount) if rel.total_amount else 0,
-            }
-        )
+    relationships_by_decision = build_entity_relationships_by_decision(decision_ids)
 
     # Serialize
     results = []

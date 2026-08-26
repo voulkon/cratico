@@ -3,6 +3,7 @@ from django.db import IntegrityError
 from django.db.models import Count, Max, Min
 from django.utils import timezone
 from loguru import logger
+from core.services.decision_projections import build_decision_card_context
 from notifications.constants import (
     SUBSCRIPTION_TYPE_ENTITY,
     SUBSCRIPTION_TYPE_FILTER,
@@ -403,7 +404,12 @@ class NotificationSubscriptionViewSet(viewsets.ModelViewSet):
         # Optimize with select_related and prefetch_related
         queryset = queryset.select_related(
             "decision", "decision__organization", "decision__decision_type", "batch"
-        ).prefetch_related("decision__signers", "decision__kae_amounts")
+        ).prefetch_related(
+            "decision__signers",
+            "decision__kae_amounts",
+            "decision__text_extraction",
+            "decision__ai_analyses",
+        )
 
         # Apply sorting
         from api.utils.sorting import apply_decision_sorting
@@ -430,8 +436,15 @@ class NotificationSubscriptionViewSet(viewsets.ModelViewSet):
         paginator.page_size = min(int(request.query_params.get("page_size", 20)), 100)
         page = paginator.paginate_queryset(queryset, request)
 
+        # Bulk-compute entity relationships + calculated amounts for the page
+        # so nested decision cards match the unified /decisions/unified/ shape.
+        page_ids = [nbd.decision_id for nbd in page] if page is not None else []
+        serializer_context = build_decision_card_context(page_ids)
+
         if page is not None:
-            serializer = NotificationBatchDecisionSerializer(page, many=True)
+            serializer = NotificationBatchDecisionSerializer(
+                page, many=True, context=serializer_context
+            )
             response = paginator.get_paginated_response(serializer.data)
 
             # Add metadata
@@ -455,7 +468,13 @@ class NotificationSubscriptionViewSet(viewsets.ModelViewSet):
             return response
 
         # Fallback (shouldn't happen with pagination)
-        serializer = NotificationBatchDecisionSerializer(queryset, many=True)
+        serializer = NotificationBatchDecisionSerializer(
+            queryset,
+            many=True,
+            context=build_decision_card_context(
+                [nbd.decision_id for nbd in queryset]
+            ),
+        )
         return Response(serializer.data)
 
 
@@ -743,7 +762,12 @@ class NotificationBatchViewSet(viewsets.ReadOnlyModelViewSet):
         # Optimize with select_related and prefetch_related
         queryset = queryset.select_related(
             "decision", "decision__organization", "decision__decision_type"
-        ).prefetch_related("decision__signers", "decision__kae_amounts")
+        ).prefetch_related(
+            "decision__signers",
+            "decision__kae_amounts",
+            "decision__text_extraction",
+            "decision__ai_analyses",
+        )
 
         # Apply sorting with proper NULL handling
         from api.utils.sorting import apply_decision_sorting
@@ -761,11 +785,24 @@ class NotificationBatchViewSet(viewsets.ReadOnlyModelViewSet):
         paginator.page_size = min(int(request.query_params.get("page_size", 20)), 100)
         page = paginator.paginate_queryset(queryset, request)
 
+        # Bulk-compute entity relationships + calculated amounts for the page
+        # so nested decision cards match the unified /decisions/unified/ shape.
+        page_ids = [nbd.decision_id for nbd in page] if page is not None else []
+        serializer_context = build_decision_card_context(page_ids)
+
         if page is not None:
-            serializer = NotificationBatchDecisionSerializer(page, many=True)
+            serializer = NotificationBatchDecisionSerializer(
+                page, many=True, context=serializer_context
+            )
             return paginator.get_paginated_response(serializer.data)
 
-        serializer = NotificationBatchDecisionSerializer(queryset, many=True)
+        serializer = NotificationBatchDecisionSerializer(
+            queryset,
+            many=True,
+            context=build_decision_card_context(
+                [nbd.decision_id for nbd in queryset]
+            ),
+        )
         return Response(serializer.data)
 
     @action(detail=True, methods=["post"], url_path="mark-read")

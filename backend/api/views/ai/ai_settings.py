@@ -17,7 +17,7 @@ from django.core.cache import cache
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 
 from core.ai_services.providers.openrouter import OpenRouterProvider
@@ -212,16 +212,25 @@ def test_key(request):
 
 
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def list_models(request):
-    """List available OpenRouter models with price + context window (cached 1h)."""
+    """List available OpenRouter models with price + context window (cached 1h).
+
+    Public endpoint — no authentication required.  When an authenticated user
+    has a BYOK key, their key is used to fetch the catalogue; otherwise the
+    system key is used.
+    """
     cached = cache.get(_MODELS_CACHE_KEY)
     if cached is not None:
         return Response({"models": cached, "cached": True})
 
     try:
         # Use the user's key if available, else system key
-        obj = UserAISettings.get_default_for_user(request.user)
+        obj = (
+            UserAISettings.get_default_for_user(request.user)
+            if request.user.is_authenticated
+            else None
+        )
         api_key = obj.get_api_key() if obj and obj.has_own_key else None
         models = OpenRouterProvider.list_models(api_key=api_key)
         cache.set(_MODELS_CACHE_KEY, models, _MODELS_CACHE_TTL)

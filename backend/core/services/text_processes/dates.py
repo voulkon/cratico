@@ -34,10 +34,16 @@ _MONTHS = {
 _MONTH_PATTERN = "|".join(sorted(_MONTHS, key=len, reverse=True))
 
 # 12/05/2024, 12-05-2024, 12.05.2024, 12/05/24
+# The leading lookbehind rejects a digit/dot/hyphen immediately before the
+# day (numeric continuation), but deliberately ALLOWS a preceding '/': in
+# Diavgeia text dates are routinely embedded in reference numbers
+# ("ΓΔΟΥ/173041/19.04.2021", "ΦΕΚ 4498/Β/29.09.2021", "ΕΞ 2021/30.09.2021")
+# and those are real dates.  Garbage chains like "5665/11887" can't match
+# anyway because the pattern requires DD<sep>MM<sep>YYYY with valid ranges.
 # The trailing lookahead only rejects a separator FOLLOWED BY A DIGIT (an
 # actual numeric continuation); a lone '.' at the end of a sentence is fine.
 _NUMERIC_RE = re.compile(
-    r"(?<![\d/.\-])"
+    r"(?<![\d.\-])"
     r"(?P<day>\d{1,2})(?P<sep>[/.-])(?P<month>\d{1,2})(?P=sep)(?P<year>\d{2,4})"
     r"(?![/.-]?\d)"
 )
