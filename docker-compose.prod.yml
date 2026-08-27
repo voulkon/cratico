@@ -279,7 +279,8 @@ services:
     - STAGING_USERNAME=${STAGING_USERNAME:-}
     - STAGING_PASSWORD=${STAGING_PASSWORD:-}
     networks:
-      - diavgeia-net
+      - diavgeia-net   # reach backend/frontend/flower upstreams
+      - coolify        # only proxy-facing service on the shared network
 
   opensearch:
     build:
@@ -334,5 +335,15 @@ volumes:
     driver: local
 
 networks:
+  # Internal service-to-service traffic. Compose names this
+  # <project>_diavgeia-net, so each environment gets its own DNS scope —
+  # 'db', 'redis', etc. can never resolve across environments.
   diavgeia-net:
     driver: bridge
+  # Shared Coolify proxy network. ONLY nginx (and any other service that
+  # must receive proxied domain traffic) may attach here.
+  # Attaching internal services here makes their names ambiguous in the
+  # shared DNS — see docs/postmortems/2026-08-28-pgbouncer-sasl-cross-env-dns-collision.md
+  coolify:
+    external: true
+    name: coolify

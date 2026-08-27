@@ -20,7 +20,7 @@ services:
       - "4317"
       - "4318"
     networks:
-      - diavgeia-prod-net
+      - internal
 
   loki:
     image: grafana/loki:latest
@@ -30,7 +30,7 @@ services:
     expose:
       - "3100"
     networks:
-      - diavgeia-prod-net
+      - internal
     volumes:
       - loki_data:/loki
       - ./docker/loki-config:/etc/loki
@@ -54,7 +54,7 @@ services:
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
     command: -config.file=/etc/promtail/config.yml
     networks:
-      - diavgeia-prod-net
+      - internal
     depends_on:
       - loki
 
@@ -69,7 +69,7 @@ services:
     expose:
       - "3000"
     networks:
-      - diavgeia-prod-net
+      - internal
     volumes:
       - grafana_data:/var/lib/grafana
       - ./docker/grafana-provisioning:/etc/grafana/provisioning
@@ -88,7 +88,7 @@ services:
       - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-guest}
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-guest}
     networks:
-      - diavgeia-prod-net
+      - internal
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -106,7 +106,7 @@ services:
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
     networks:
-      - diavgeia-prod-net
+      - internal
     volumes:
       - redis_data:/data
     healthcheck:
@@ -135,7 +135,7 @@ services:
     expose:
       - "5432"
     networks:
-      - diavgeia-prod-net
+      - internal
     healthcheck:
       test: ["CMD", "pg_isready", "-h", "localhost", "-p", "5432", "-U", "${POSTGRES_USER}"]
       interval: 10s
@@ -186,7 +186,7 @@ services:
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME:-crati-backups}
     networks:
-      - diavgeia-prod-net
+      - internal
     depends_on:
       redis:
         condition: service_healthy
@@ -205,7 +205,7 @@ services:
     restart: always
     command:  ["/bin/sh", "-c", "chmod +x /code/worker_entrypoint.sh && /code/worker_entrypoint.sh"]
     networks:
-      - diavgeia-prod-net
+      - internal
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -232,7 +232,7 @@ services:
     restart: always
     command: celery -A diavgeia_project beat -l INFO
     networks:
-      - diavgeia-prod-net
+      - internal
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -251,7 +251,7 @@ services:
     restart: always
     command: celery -A diavgeia_project flower --port=5555 --basic-auth=${FLOWER_BASIC_AUTH}
     networks:
-      - diavgeia-prod-net
+      - internal
     expose:
       - "5555"
     depends_on:
@@ -270,7 +270,7 @@ services:
         REACT_APP_CLERK_PUBLISHABLE_KEY: ${REACT_APP_CLERK_PUBLISHABLE_KEY}
         REACT_APP_API_URL: ${REACT_APP_API_URL}
     networks:
-      - diavgeia-prod-net
+      - internal
 
   # ──────────────────────── Gateway ──────────────────────────
   # This is the APP Gateway for HTTP traffic
@@ -292,7 +292,8 @@ services:
     - STAGING_USERNAME=${STAGING_USERNAME:-}
     - STAGING_PASSWORD=${STAGING_PASSWORD:-}
     networks:
-      - diavgeia-prod-net
+      - internal   # reach backend/frontend/flower upstreams
+      - coolify    # only proxy-facing service on the shared network
 
 volumes:
   rabbitmq_data:
@@ -305,6 +306,15 @@ volumes:
     driver: local
 
 networks:
-  diavgeia-prod-net:
+  # Internal service-to-service traffic. Compose names this
+  # <project>_internal, so each environment gets its own DNS scope —
+  # 'pgbouncer', 'redis', etc. can never resolve across environments.
+  internal:
+    driver: bridge
+  # Shared Coolify proxy network. ONLY nginx (and any other service that
+  # must receive proxied domain traffic, e.g. grafana) may attach here.
+  # Attaching internal services here makes their names ambiguous in the
+  # shared DNS — see docs/postmortems/2026-08-28-pgbouncer-sasl-cross-env-dns-collision.md
+  coolify:
     external: true
     name: coolify
