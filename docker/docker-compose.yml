@@ -138,23 +138,6 @@ services:
       timeout: 3s
       retries: 5
 
-  # Add to docker-compose.yml
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    container_name: diavgeia_redis_commander
-    environment:
-      # Configure Redis Commander to show all 3 databases:
-      # DB 0: Celery task results
-      # DB 1: Django cache + Search history
-      # DB 2: Import decision chunks
-      - REDIS_HOSTS=celery:redis:6379:0:${REDIS_PASSWORD},cache:redis:6379:1:${REDIS_PASSWORD},import:redis:6379:2:${REDIS_PASSWORD}
-    ports:
-      - "8081:8081"
-    networks:
-      - diavgeia-net
-    depends_on:
-      - redis
-
   # ───────────────────────── Backend ─────────────────────────
   backend:
     build:

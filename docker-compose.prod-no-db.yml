@@ -115,22 +115,6 @@ services:
       timeout: 3s
       retries: 5
 
-  # redis-commander:
-  #   image: rediscommander/redis-commander:latest
-  #   container_name: diavgeia_redis_commander
-  #   restart: always
-  #   environment:
-  #     - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD}
-  #     - SERVICE_FQDN_REDIS_COMMANDER=
-  #   expose:
-  #     - "8081"
-  #   # labels:
-  #   #   - "caddy_0.basicauth.${JAEGER_AUTH_USER}=${JAEGER_AUTH_HASH}"
-  #   networks:
-  #     - diavgeia-prod-net
-  #   depends_on:
-  #     - redis
-
   # ──────────────────── Connection Pooler ────────────────────
   pgbouncer:
     image: edoburu/pgbouncer:latest

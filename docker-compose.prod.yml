@@ -125,18 +125,6 @@ services:
       timeout: 3s
       retries: 5
 
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    container_name: diavgeia_redis_commander
-    environment:
-      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD}
-    expose:
-      - "8081"
-    networks:
-      - diavgeia-net
-    depends_on:
-      - redis
-
   # ───────────────────────── Backend ─────────────────────────
   backend:
     build:
