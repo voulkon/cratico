@@ -642,6 +642,8 @@ class ImportJobAdmin(admin.ModelAdmin):
         "retry_missing_chunks",
         "diagnose_stuck_job",
         "cancel_selected_imports",
+        "reimport_from_scratch",
+        "delete_with_cleanup",
     )
 
     def get_queryset(self, request):
@@ -1326,6 +1328,74 @@ class ImportJobAdmin(admin.ModelAdmin):
                 f"{skipped} job(s) were already in terminal state, skipped.",
                 messages.WARNING,
             )
+
+    @admin.action(
+        description="Re-import from scratch (cancel if active, re-enqueue same date)"
+    )
+    def reimport_from_scratch(self, request, queryset):
+        """Cancel selected jobs (if still active) and enqueue fresh jobs with
+        the same date range and filters, then kick the queue.
+
+        Works for stuck, cancelled, failed, AND completed jobs — useful for
+        both recovering stuck imports and re-running a day from zero.
+        """
+        from core.services.import_job_queue import ImportJobQueue
+
+        queue = ImportJobQueue()
+        requeued = []
+
+        for job in queryset:
+            # Cancel if still in a non-terminal state (no-op otherwise)
+            job.cancel(revoke_task=True, clean_redis=True)
+
+            new_job = queue.enqueue_job(
+                target_date=job.start_date,
+                search_params=job.search_params or {},
+                created_by=job.created_by or request.user,
+                organization_id=job.organization_id,
+                unit_id=job.unit_id,
+                signer_id=job.signer_id,
+                auto_dispatch=False,  # kick once after the loop
+                skip_duplicates=False,  # old job is cancelled; always create fresh
+                import_type=job.import_type,
+            )
+            requeued.append((job.id, new_job.id))
+
+        # Kick the queue — dispatch_next_job only fires on enqueue/completion
+        queue.dispatch_next_job()
+
+        pairs = ", ".join(f"#{old} → #{new}" for old, new in requeued)
+        self.message_user(
+            request,
+            f"[OK] Re-queued {len(requeued)} import(s) from scratch: {pairs}. "
+            f"Queue dispatched.",
+            messages.SUCCESS,
+        )
+
+    @admin.action(
+        description="Delete selected (cancel if active, clean Redis, remove record)"
+    )
+    def delete_with_cleanup(self, request, queryset):
+        """Cancel each job (if still active), clean its Redis chunks, then
+        hard-delete the row. Unlike Django's built-in delete, this never
+        leaves orphaned Celery tasks or Redis chunk keys behind.
+
+        ImportFailure rows are removed automatically via FK cascade.
+        """
+        deleted = []
+
+        for job in queryset:
+            job.cancel(revoke_task=True, clean_redis=True)  # no-op if terminal
+            deleted.append(job.id)
+            job.delete()
+
+        ids = ", ".join(f"#{i}" for i in deleted)
+        self.message_user(
+            request,
+            f"[OK] Deleted {len(deleted)} import job(s): {ids}. "
+            f"Tasks revoked and Redis chunks cleaned where applicable.",
+            messages.SUCCESS,
+        )
 
     def cancel_all_imports_view(self, request):
         """View to cancel ALL in-progress imports with optional RabbitMQ purge."""
