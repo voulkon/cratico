@@ -186,7 +186,13 @@ services:
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME:-crati-backups}
     networks:
-      - internal
+      # Alias exists ONLY on the internal network. Nginx proxies to
+      # 'backend-internal', a name that can never resolve on the shared
+      # 'coolify' network — making cross-env round-robin impossible even
+      # if another stack mistakenly attaches its own 'backend' to coolify.
+      internal:
+        aliases:
+          - backend-internal
     depends_on:
       redis:
         condition: service_healthy
@@ -270,7 +276,10 @@ services:
         REACT_APP_CLERK_PUBLISHABLE_KEY: ${REACT_APP_CLERK_PUBLISHABLE_KEY}
         REACT_APP_API_URL: ${REACT_APP_API_URL}
     networks:
-      - internal
+      # Internal-only alias, same reasoning as backend-internal above.
+      internal:
+        aliases:
+          - frontend-internal
 
   # ──────────────────────── Gateway ──────────────────────────
   # This is the APP Gateway for HTTP traffic
