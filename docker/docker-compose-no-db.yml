@@ -239,7 +239,8 @@ services:
       - ../frontend:/app
       - /app/node_modules
     environment:
-      - REACT_APP_CLERK_PUBLISHABLE_KEY=${REACT_APP_CLERK_PUBLISHABLE_KEY}
+      # No REACT_APP_CLERK_PUBLISHABLE_KEY: the backend advertises auth
+      # methods + the publishable key at runtime via /api/system/config/auth/
       - REACT_APP_API_URL=${REACT_APP_API_URL:-/api}
     networks:
       - crati-app-net

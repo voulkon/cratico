@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/clerk-react";
 import BrowsePage from "./pages/BrowsePage";
 import HomePage from "./pages/HomePage";
 import DevPage from "./pages/OrganizationsPage";
@@ -279,12 +278,8 @@ function App({ controlsLayout = 'vertical-right' }) {
 
 // Separate component to access auth context
 function AppContent({ controlsLayout }) {
-  const { isLoaded, isSignedIn, isClerkAuth } = useAuth();
-  const { stealthMode, loading: configLoading, authMethods } = useAuthConfig();
-  // Runtime decision: Clerk components (SignedIn/SignedOut/RedirectToSignIn)
-  // may only render when ClerkProvider is mounted — index.js mounts it iff
-  // the backend advertises "clerk" in auth_methods.
-  const clerkActive = authMethods.includes('clerk');
+  const { isLoaded, isSignedIn } = useAuth();
+  const { stealthMode, loading: configLoading } = useAuthConfig();
 
   // Show loading state while checking authentication or fetching config
   if (!isLoaded || configLoading) {
@@ -313,29 +308,16 @@ function AppContent({ controlsLayout }) {
         transition: 'background-color 0.3s ease, color 0.3s ease'
       }}>
         {stealthMode ? (
-          // Stealth mode ON - require authentication (Clerk OR Django)
-          <>
-            {clerkActive && isClerkAuth ? (
-              // Using Clerk authentication
-              <>
-                <SignedIn>
-                  <AuthenticatedApp controlsLayout={controlsLayout} />
-                </SignedIn>
-                <SignedOut>
-                  <RedirectToSignIn />
-                </SignedOut>
-              </>
-            ) : (
-              // Using Django authentication - show login page if not signed in
-              <>
-                {isSignedIn ? (
-                  <AuthenticatedApp controlsLayout={controlsLayout} />
-                ) : (
-                  <LoginPage />
-                )}
-              </>
-            )}
-          </>
+          // Stealth mode ON - require authentication. Plain conditional
+          // rendering against the combined auth state: LoginPage offers every
+          // active method (Clerk and/or Django). Clerk's
+          // SignedIn/SignedOut/RedirectToSignIn wrappers only make sense in a
+          // Clerk-only app and block dual-mode rendering, so they're gone.
+          isSignedIn ? (
+            <AuthenticatedApp controlsLayout={controlsLayout} />
+          ) : (
+            <LoginPage />
+          )
         ) : (
           // Stealth mode OFF - public access
           <AuthenticatedApp controlsLayout={controlsLayout} />

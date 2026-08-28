@@ -1,28 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useAuthConfig } from '../contexts/AuthConfigContext';
 import DjangoLoginForm from './DjangoLoginForm';
 import DjangoRegisterForm from './DjangoRegisterForm';
 import DjangoPasswordResetRequest from './DjangoPasswordResetRequest';
+// Static import is safe: <SignInButton>/<UserButton> are only RENDERED when
+// Clerk is active (auth_methods) or a Clerk session exists — both imply
+// ClerkProvider is mounted in index.js.
+import { SignInButton, UserButton } from '@clerk/clerk-react';
 import './UserAuth.css';
-
-// Check if Clerk is available
-const isClerkAvailable = () => {
-  return !!process.env.REACT_APP_CLERK_PUBLISHABLE_KEY;
-};
-
-// Lazy load Clerk components only if available
-let SignInButton, SignUpButton, UserButton;
-if (isClerkAvailable()) {
-  const clerkReact = require('@clerk/clerk-react');
-  SignInButton = clerkReact.SignInButton;
-  SignUpButton = clerkReact.SignUpButton;
-  UserButton = clerkReact.UserButton;
-}
 
 const UserAuth = () => {
   const { getCurrentPaletteColor } = useTheme();
-  const { user, isLoading, isSignedIn, isClerkAuth, signOut } = useAuth();
+  const { user, isLoaded, isSignedIn, isClerkAuth, signOut } = useAuth();
+  const { authMethods } = useAuthConfig();
+  const clerkActive = authMethods.includes('clerk');
   const [showLoginForm, setShowLoginForm] = useState(false);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const [showPasswordResetRequest, setShowPasswordResetRequest] = useState(false);
@@ -43,36 +36,19 @@ const UserAuth = () => {
     }
   }, [showDropdown]);
 
-  // Clerk authentication UI
-  if (isClerkAuth) {
-    if (isLoading) {
-      return (
-        <div className="user-auth">
-          <div className="auth-loading">
-            <div className="loading-spinner"></div>
-          </div>
+  // Wait for the combined auth state before rendering any auth UI.
+  if (!isLoaded) {
+    return (
+      <div className="user-auth">
+        <div className="auth-loading">
+          <div className="loading-spinner"></div>
         </div>
-      );
-    }
+      </div>
+    );
+  }
 
-    // Not signed in - show Clerk sign-in button
-    if (!isSignedIn || !user) {
-      return (
-        <div className="user-auth">
-          <SignInButton mode="modal">
-            <button
-              className="sign-in-button"
-              style={{ borderLeft: `3px solid ${getCurrentPaletteColor()}` }}
-            >
-              <span className="auth-icon">👤</span>
-              <span className="auth-text">Sign In</span>
-            </button>
-          </SignInButton>
-        </div>
-      );
-    }
-
-    // Signed in - use Clerk's UserButton
+  // Signed in via Clerk — use Clerk's UserButton (account menu, sign out).
+  if (isClerkAuth && user) {
     return (
       <div className="user-auth">
         <UserButton
@@ -90,30 +66,31 @@ const UserAuth = () => {
     );
   }
 
-  // Django authentication UI
-  if (isLoading) {
-    return (
-      <div className="user-auth">
-        <div className="auth-loading">
-          <div className="loading-spinner"></div>
-        </div>
-      </div>
-    );
-  }
-
-  // Not signed in - show Django auth buttons
+  // Not signed in — offer every active method: Clerk's modal button (when
+  // advertised) alongside the Django email sign-in/sign-up buttons.
   if (!isSignedIn || !user) {
     return (
       <>
         <div className="user-auth">
           <div className="django-auth-buttons">
+            {clerkActive && (
+              <SignInButton mode="modal">
+                <button
+                  className="sign-in-button"
+                  style={{ borderLeft: `3px solid ${getCurrentPaletteColor()}` }}
+                >
+                  <span className="auth-icon">👤</span>
+                  <span className="auth-text">Sign In</span>
+                </button>
+              </SignInButton>
+            )}
             <button
               className="sign-in-button"
               onClick={() => setShowLoginForm(true)}
               style={{ borderLeft: `3px solid ${getCurrentPaletteColor()}` }}
             >
               <span className="auth-icon">🔑</span>
-              <span className="auth-text">Sign In</span>
+              <span className="auth-text">{clerkActive ? 'Sign In with Email' : 'Sign In'}</span>
             </button>
             <button
               className="sign-up-button"

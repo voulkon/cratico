@@ -276,7 +276,8 @@ services:
       context: .
       dockerfile: docker/Dockerfile.frontend.prod
       args:
-        REACT_APP_CLERK_PUBLISHABLE_KEY: ${REACT_APP_CLERK_PUBLISHABLE_KEY}
+        # No REACT_APP_CLERK_PUBLISHABLE_KEY: the backend advertises auth
+        # methods + the publishable key at runtime via /api/system/config/auth/
         REACT_APP_API_URL: ${REACT_APP_API_URL}
     networks:
       # Internal-only alias, same reasoning as backend-internal above.

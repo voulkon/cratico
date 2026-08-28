@@ -4,20 +4,12 @@ import { useTranslation } from '../contexts/TranslationContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Moon, Sun, LogOut, LogIn, Sparkles } from 'lucide-react';
+import { useAuthConfig } from '../contexts/AuthConfigContext';
+// Static import is safe: these components are only RENDERED when Clerk is
+// active (SignInButton) or a Clerk session exists (SignOutButton) — both
+// imply ClerkProvider is mounted in index.js.
+import { SignInButton, SignOutButton } from '@clerk/clerk-react';
 import './UserMenu.css';
-
-// Check if Clerk is available
-const isClerkAvailable = () => {
-  return !!process.env.REACT_APP_CLERK_PUBLISHABLE_KEY;
-};
-
-// Lazy load Clerk components only if available
-let SignInButton, SignOutButton;
-if (isClerkAvailable()) {
-  const clerkReact = require('@clerk/clerk-react');
-  SignInButton = clerkReact.SignInButton;
-  SignOutButton = clerkReact.SignOutButton;
-}
 
 const UserMenuDropdown = ({ onClose, onShowLogin }) => {
   const navigate = useNavigate();
@@ -31,6 +23,8 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
     changePalette
   } = useTheme();
   const { user, isSignedIn, isClerkAuth, signOut } = useAuth();
+  const { authMethods } = useAuthConfig();
+  const clerkActive = authMethods.includes('clerk');
 
   const handleLanguageChange = (langCode) => {
     switchLanguage(langCode);
@@ -182,26 +176,28 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
         </div>
       </div>
 
-      {/* Sign In Section (only when not signed in) */}
+      {/* Sign In Section (only when not signed in) — offers every active method */}
       {!isSignedIn && (
         <div className="menu-section">
-          {isClerkAuth ? (
+          {clerkActive && (
             <SignInButton mode="modal">
               <button className="menu-action primary" onClick={onClose}>
                 <LogIn size={16} /> {t('common.signIn')}
               </button>
             </SignInButton>
-          ) : (
-            <button
-              className="menu-action primary"
-              onClick={() => {
-                onClose();
-                onShowLogin && onShowLogin();
-              }}
-            >
-              <LogIn size={16} /> {t('common.signIn')}
-            </button>
           )}
+          <button
+            className="menu-action primary"
+            onClick={() => {
+              onClose();
+              onShowLogin && onShowLogin();
+            }}
+          >
+            <LogIn size={16} />{' '}
+            {clerkActive
+              ? t('common.signInWithEmail') || 'Sign in with Email'
+              : t('common.signIn')}
+          </button>
         </div>
       )}
 

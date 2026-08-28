@@ -6,18 +6,11 @@ import { useTheme } from '../contexts/ThemeContext';
 import DjangoLoginForm from './DjangoLoginForm';
 import DjangoRegisterForm from './DjangoRegisterForm';
 import DjangoPasswordResetRequest from './DjangoPasswordResetRequest';
-
-// Check if Clerk is available
-const isClerkAvailable = () => {
-  return !!process.env.REACT_APP_CLERK_PUBLISHABLE_KEY;
-};
-
-// Lazy load SignInButton only if Clerk is available
-let SignInButton;
-if (isClerkAvailable()) {
-  const clerkReact = require('@clerk/clerk-react');
-  SignInButton = clerkReact.SignInButton;
-}
+import { useAuthConfig } from '../contexts/AuthConfigContext';
+// Static import is safe: <SignInButton> is only RENDERED when the backend
+// advertises "clerk" in auth_methods, which also means index.js has mounted
+// ClerkProvider. No more build-time require().
+import { SignInButton } from '@clerk/clerk-react';
 
 /**
  * Modal that prompts users to sign in when they try to access protected features
@@ -31,7 +24,9 @@ if (isClerkAvailable()) {
  */
 function AuthPromptModal() {
   const { t } = useTranslation();
-  const { isLoaded, isSignedIn, isClerkAuth } = useAuth();
+  const { isLoaded, isSignedIn } = useAuth();
+  const { authMethods } = useAuthConfig();
+  const clerkActive = authMethods.includes('clerk');
   const { getCurrentPaletteColor } = useTheme();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
@@ -64,7 +59,7 @@ function AuthPromptModal() {
     return () => {
       window.removeEventListener('authRequired', handleAuthRequired);
     };
-  }, [isLoaded, isSignedIn, isClerkAuth, t, location.pathname]);
+  }, [isLoaded, isSignedIn, t, location.pathname]);
 
   // Close and reset all state
   const handleClose = () => {
@@ -78,7 +73,8 @@ function AuthPromptModal() {
   if (!isOpen) return null;
 
   // ── Django auth: show login/register/reset forms ──
-  if (!isClerkAuth && showAuthForm) {
+  // "django" is always in auth_methods, so these forms are always reachable.
+  if (showAuthForm) {
     if (showPasswordResetRequest) {
       return (
         <DjangoPasswordResetRequest
@@ -224,7 +220,9 @@ function AuthPromptModal() {
             {t('auth.cancel') || 'Cancel'}
           </button>
 
-          {isClerkAuth ? (
+          {/* Dual auth: offer every active method. Clerk opens its own modal;
+              the email option reveals the Django login form in-place. */}
+          {clerkActive && (
             <SignInButton mode="modal">
               <button
                 onClick={handleClose}
@@ -249,30 +247,31 @@ function AuthPromptModal() {
                 {t('auth.signIn') || 'Sign In'}
               </button>
             </SignInButton>
-          ) : (
-            <button
-              onClick={() => setShowAuthForm(true)}
-              style={{
-                padding: '12px 24px',
-                borderRadius: '8px',
-                border: 'none',
-                backgroundColor: getCurrentPaletteColor(),
-                color: 'white',
-                cursor: 'pointer',
-                fontSize: '16px',
-                fontWeight: '500',
-                transition: 'background-color 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.opacity = '0.8';
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.opacity = '1';
-              }}
-            >
-              {t('auth.signIn') || 'Sign In'}
-            </button>
           )}
+          <button
+            onClick={() => setShowAuthForm(true)}
+            style={{
+              padding: '12px 24px',
+              borderRadius: '8px',
+              border: clerkActive ? '1px solid var(--border-color, #e0e0e0)' : 'none',
+              backgroundColor: clerkActive ? 'transparent' : getCurrentPaletteColor(),
+              color: clerkActive ? 'var(--text-color, #000000)' : 'white',
+              cursor: 'pointer',
+              fontSize: '16px',
+              fontWeight: '500',
+              transition: 'background-color 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.opacity = '0.8';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.opacity = '1';
+            }}
+          >
+            {clerkActive
+              ? t('auth.continueWithEmail') || 'Continue with Email'
+              : t('auth.signIn') || 'Sign In'}
+          </button>
         </div>
       </div>
     </div>
