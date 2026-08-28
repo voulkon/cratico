@@ -2,6 +2,7 @@ from datetime import datetime
 
 from core.models.organizations import Organization, Signer, Unit
 from core.services.feature_flag_service import feature_flags
+from core.services.opensearch_service import OpenSearchService
 from core.services.search_service import SearchService
 from django.conf import settings
 from django.db import models
@@ -196,12 +197,12 @@ def document_search_api(request):
             ),  # 'opensearch' or 'postgresql'
             "highlights": search_results.get("highlights", {}),
             "capabilities": {
-                "opensearch_enabled": feature_flags.is_enabled("INDEX_THE_OPENSEARCH"),
+                "opensearch_enabled": OpenSearchService().is_enabled,
                 "postgres_search_enabled": feature_flags.is_enabled(
                     "INDEX_THE_POSTGRES"
                 ),
                 "content_search_available": (
-                    feature_flags.is_enabled("INDEX_THE_OPENSEARCH")
+                    OpenSearchService().is_enabled
                     or feature_flags.is_enabled("INDEX_THE_POSTGRES")
                 ),
             },

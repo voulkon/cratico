@@ -16,6 +16,8 @@ Usage:
 
 from pythonjsonlogger import jsonlogger
 
+import os
+
 
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
     """
@@ -55,6 +57,8 @@ def get_json_logging_config(
     celery_level="INFO",
     celery_task_event_level="WARNING",
     db_level="WARNING",
+    log_to_file=False,
+    file_path=None,
 ):
     """
     Get logging configuration with JSON formatting.
@@ -65,6 +69,9 @@ def get_json_logging_config(
         celery_level: The Celery-specific log level
         celery_task_event_level: Level for noisy per-task logs (strategy/trace), default WARNING
         db_level: The Django DB log level (set to DEBUG to see SQL queries)
+        log_to_file: If True, also attach a RotatingFileHandler (5MB x3) to all
+            loggers — keeps the app debuggable without Loki/Grafana (minimal stack)
+        file_path: Path of the log file (default: logs/django.log, cwd-relative)
 
     Returns:
         dict: Django LOGGING configuration
@@ -195,6 +202,25 @@ def get_json_logging_config(
     # In debug mode, ensure console_json outputs at DEBUG level
     if debug_mode:
         config["handlers"]["console_json"]["level"] = "DEBUG"
+
+    # Rolling file sink alongside stdout — useful when Loki/Promtail are absent.
+    # Capped at 5MB x 3 backups (~20MB total worst case).
+    if log_to_file:
+        if file_path is None:
+            file_path = os.path.join("logs", "django.log")
+        os.makedirs(os.path.dirname(file_path) or ".", exist_ok=True)
+        config["handlers"]["file"] = {
+            "level": logging_level,
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": file_path,
+            "maxBytes": 5_000_000,
+            "backupCount": 3,
+            "formatter": "json",
+        }
+        config["root"]["handlers"].append("file")
+        for logger_cfg in config["loggers"].values():
+            if "file" not in logger_cfg["handlers"]:
+                logger_cfg["handlers"].append("file")
 
     return config
 

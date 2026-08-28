@@ -1,6 +1,8 @@
 import os
+import socket
 import sys
 
+from loguru import logger
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
@@ -10,6 +12,36 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 # Global flag to prevent excessive initialization
 _global_initialized = False
 _services_initialized = set()
+
+# Cached result of the Jaeger reachability probe (None = not probed yet).
+# Probing once per process avoids re-checking on every initialize_otel() call.
+_jaeger_reachable = None
+
+
+def is_jaeger_reachable(timeout=1.0):
+    """
+    Cheap TCP connect check to JAEGER_HOST:JAEGER_PORT.
+
+    Used to guard OTLP exporter creation: when Jaeger is unreachable
+    (e.g. minimal stack without the observability containers), creating
+    the exporter "succeeds" but exports fail asynchronously forever in a
+    gRPC retry loop.  The result is cached for the process lifetime.
+    """
+    global _jaeger_reachable
+    if _jaeger_reachable is not None:
+        return _jaeger_reachable
+
+    jaeger_host = os.getenv("JAEGER_HOST", "jaeger")
+    jaeger_port = int(os.getenv("JAEGER_PORT", "4317"))
+    try:
+        with socket.create_connection((jaeger_host, jaeger_port), timeout=timeout):
+            _jaeger_reachable = True
+    except OSError:
+        _jaeger_reachable = False
+        logger.warning(
+            f"[MUTE] Jaeger unreachable at {jaeger_host}:{jaeger_port} — tracing disabled"
+        )
+    return _jaeger_reachable
 
 
 def initialize_otel(service_name):
@@ -25,6 +57,11 @@ def initialize_otel(service_name):
     except Exception:
         # If Django settings aren't available yet, default to disabled
         # This should rarely happen as settings should be loaded before otel_init
+        return trace.get_tracer(__name__)
+
+    # Tracing is enabled, but Jaeger may be absent (minimal stack).
+    # Fall back to a no-op tracer instead of an exporter that retries forever.
+    if not is_jaeger_reachable():
         return trace.get_tracer(__name__)
 
     # Handle management commands - create a separate service for them

@@ -6,8 +6,11 @@ name: diavgeia-no-db
 
 services:
   # ───────────────────── Observability ──────────────────────
+  # All four services are behind the "observability" profile (opt-in):
+  #   docker-compose -f docker/docker-compose-no-db.yml --profile observability up -d
   jaeger:
     image: jaegertracing/all-in-one:latest
+    profiles: ["observability"]
     environment:
       - COLLECTOR_OTLP_ENABLED=true
     ports:
@@ -21,6 +24,7 @@ services:
   loki:
     image: grafana/loki:latest
     container_name: crati_loki
+    profiles: ["observability"]
     ports:
       - "3100:3100"
     networks:
@@ -39,6 +43,7 @@ services:
   promtail:
     image: grafana/promtail:latest
     container_name: crati_promtail
+    profiles: ["observability"]
     volumes:
       - ./promtail-config/promtail.yml:/etc/promtail/config.yml
       - /var/run/docker.sock:/var/run/docker.sock
@@ -53,6 +58,7 @@ services:
   grafana:
     image: grafana/grafana:latest
     container_name: crati_grafana
+    profiles: ["observability"]
     ports:
       - "3001:3000"
     networks:
@@ -103,23 +109,6 @@ services:
       interval: 30s
       timeout: 3s
       retries: 5
-    restart: unless-stopped
-
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    container_name: crati_redis_commander
-    environment:
-      # Configure Redis Commander to show all 3 databases:
-      # DB 0: Celery task results
-      # DB 1: Django cache + Search history
-      # DB 2: Import decision chunks
-      - REDIS_HOSTS=celery:redis:6379:0:${REDIS_PASSWORD},cache:redis:6379:1:${REDIS_PASSWORD},import:redis:6379:2:${REDIS_PASSWORD}
-    ports:
-      - "8081:8081"
-    networks:
-      - crati-app-net
-    depends_on:
-      - redis
     restart: unless-stopped
 
   # ───────────────────────── Backend ─────────────────────────
@@ -265,7 +254,10 @@ services:
       - ../nginx/local.nginx.conf:/etc/nginx/conf.d/default.conf:ro
     ports:
       - "80:80"       # HTTP Access
-    depends_on: [backend, frontend, flower, jaeger]
+    # NOTE: jaeger is intentionally NOT a dependency — it's behind the
+    # "observability" profile and nginx doesn't proxy to it, so the
+    # minimal stack must boot without it.
+    depends_on: [backend, frontend, flower]
     environment:
     - HOST=0.0.0.0
     networks:

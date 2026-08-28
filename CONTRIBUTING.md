@@ -355,6 +355,26 @@ git commit -m "docs(deployment): add multi-server setup guide"
 git commit -m "docs(i18n): add Greek translation of README"
 ```
 
+## Workflow (Issue → Branch → PR → CI → Merge)
+
+Every change follows this loop:
+
+1. **Pick or open an issue** — all work starts from an issue. Use the issue templates (`.github/ISSUE_TEMPLATE/`). Assign yourself.
+2. **Create a branch from `dev`**, named after the issue:
+   ```bash
+   git checkout dev && git pull origin dev
+   git checkout -b feat/<issue#>-short-description
+   ```
+   Prefixes: `feat/`, `fix/`, `perf/`, `chore/`, `docs/`.
+3. **Work in small commits** using conventional commit messages (`feat:`, `fix:`, `perf:`, `chore:`, `docs:`).
+4. **Open a PR against `dev`** with the body referencing the issue (`Closes #<issue#>` — auto-closes it on merge).
+5. **CI must pass** before merge. Two workflows run on backend changes:
+   - **Backend CI** (`.github/workflows/ci.yml`) — fast tests without DB access (`pytest -m fast -k "not django_db"`)
+   - **Database Tests** (`.github/workflows/db-ci.yml`) — fast tests requiring Postgres, runs on model/migration changes
+6. **Merge to `dev`** (squash). The issue closes automatically.
+
+Only after CI is green and the PR is merged can an issue be considered tackled.
+
 ## Pull Request Process
 
 1. **Update your branch** with the latest `dev` branch

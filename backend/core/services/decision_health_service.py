@@ -411,6 +411,17 @@ class DecisionHealthService:
                     details = {"should_be_indexed": True, "indexing_disabled": True}
                     health_check.set_finding("opensearch", status, message, details)
                     return
+                # Flag is on, but the cluster may be unreachable (minimal stack).
+                # Degrade to "skipped" rather than a false "failed" finding.
+                if not self.opensearch_service.is_enabled:
+                    status = HealthStatus.UNKNOWN
+                    message = "OpenSearch unreachable - indexing check skipped"
+                    details = {
+                        "should_be_indexed": True,
+                        "opensearch_unavailable": True,
+                    }
+                    health_check.set_finding("opensearch", status, message, details)
+                    return
                 # Check if document exists in OpenSearch
                 doc_exists = self.opensearch_service.document_exists(decision.ada)
 

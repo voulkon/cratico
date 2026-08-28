@@ -257,17 +257,23 @@ class BackupAdmin(admin.ModelAdmin):
     def stats_view(self, request):
         from django.conf import settings
 
+        from core.services.opensearch_service import OpenSearchService
+
         service = DatabaseStatsService()
 
         opensearch_stats = None
+        opensearch_enabled = False
         if settings.INDEX_THE_OPENSEARCH:
-            opensearch_stats = service.get_opensearch_stats()
+            opensearch_service = OpenSearchService()
+            opensearch_enabled = opensearch_service.is_enabled
+            if opensearch_enabled:
+                opensearch_stats = service.get_opensearch_stats()
 
         context = dict(
             self.admin_site.each_context(request),
             postgres_stats=service.get_postgres_stats(),
             opensearch_stats=opensearch_stats,
-            opensearch_enabled=settings.INDEX_THE_OPENSEARCH,
+            opensearch_enabled=opensearch_enabled,
             title="Database Statistics",
         )
         return TemplateResponse(request, "admin/backup_stats.html", context)

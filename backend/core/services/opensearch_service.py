@@ -13,6 +13,9 @@ class OpenSearchService:
     _connection_tested = False
     _connection_test_time = 0
     _connection_test_ttl = 300  # Cache connection test for 5 minutes
+    # Circuit breaker: once a probe fails, the service is treated as disabled
+    # until the next TTL expiry re-probes and succeeds (self-healing).
+    _connection_ok = False
 
     def __init__(self, test_connection: bool = False):
         """
@@ -22,7 +25,7 @@ class OpenSearchService:
             test_connection: If True, force connection test. Otherwise uses cached result.
         """
         # Check if OpenSearch is enabled via feature flag
-        self.is_enabled = feature_flags.is_enabled("INDEX_THE_OPENSEARCH")
+        flag_enabled = feature_flags.is_enabled("INDEX_THE_OPENSEARCH")
 
         self.opensearch_url = getattr(
             settings, "OPENSEARCH_URL", "http://opensearch:9200"
@@ -32,7 +35,8 @@ class OpenSearchService:
         self.preview_length = 500
 
         # Skip validation and connection testing if OpenSearch is disabled
-        if not self.is_enabled:
+        if not flag_enabled:
+            self.is_enabled = False
             logger.debug(
                 "OpenSearch is disabled via feature flag - skipping initialization"
             )
@@ -58,12 +62,20 @@ class OpenSearchService:
             or (current_time - OpenSearchService._connection_test_time)
             > OpenSearchService._connection_test_ttl
         ):
-            self._test_connection()
+            OpenSearchService._connection_ok = self._test_connection()
             OpenSearchService._connection_tested = True
             OpenSearchService._connection_test_time = current_time
 
-    def _test_connection(self):
-        """Test OpenSearch connection and log results at DEBUG level"""
+        # Effective enablement: flag on AND the cluster is reachable. When the
+        # container is absent, the probe fails once per TTL and everything
+        # short-circuits at the `if not self.is_enabled` guards below.
+        self.is_enabled = flag_enabled and OpenSearchService._connection_ok
+
+    def _test_connection(self) -> bool:
+        """Test OpenSearch connection and log results at DEBUG level.
+
+        Returns True if the cluster health check succeeded, False otherwise.
+        """
         try:
             response = requests.get(f"{self.opensearch_url}/_cluster/health", timeout=5)
             if response.status_code == 200:
@@ -95,10 +107,13 @@ class OpenSearchService:
                     logger.warning(
                         f"Index '{self.index_name}' does not exist: {index_response.status_code}"
                     )
+                return True
             else:
                 logger.error(f"OpenSearch health check failed: {response.status_code}")
+                return False
         except Exception as e:
             logger.error(f"OpenSearch connection test failed: {e}")
+            return False
 
     def _prepare_content(self, raw_text: str) -> Dict[str, str]:
         """Prepare content with smart truncation"""
@@ -875,6 +890,15 @@ class OpenSearchService:
             "performance_metrics": {},
             "recommendations": [],
         }
+
+        if not self.is_enabled:
+            logger.debug(
+                "OpenSearch is disabled - analyze_index_health returning empty analysis"
+            )
+            health_analysis["recommendations"].append(
+                "OpenSearch is disabled or unreachable"
+            )
+            return health_analysis
 
         try:
             # Check index existence and basic stats
