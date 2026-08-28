@@ -26,7 +26,7 @@ import LibrarySidebar from "./components/LibrarySidebar";
 import NotificationSidebar from "./components/NotificationSidebar";
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
-import { AuthConfigProvider, useAuthConfig } from './contexts/AuthConfigContext';
+import { useAuthConfig } from './contexts/AuthConfigContext';
 import { TranslationProvider } from './contexts/TranslationContext';
 import { useAllowlistCheck } from './hooks/useAllowlistCheck';
 import './App.css';
@@ -41,11 +41,6 @@ import { setTokenGetter } from './api/client';
 import { useTranslation } from './contexts/TranslationContext';
 import { useAuth } from './contexts/AuthContext';
 import PasswordResetPage from './pages/PasswordResetPage';
-
-// Check if Clerk is available
-const isClerkAvailable = () => {
-  return !!process.env.REACT_APP_CLERK_PUBLISHABLE_KEY;
-};
 
 // Separate component to access auth context
 function AuthenticatedApp({ controlsLayout }) {
@@ -267,20 +262,15 @@ function AuthenticatedApp({ controlsLayout }) {
 }
 
 // Main App component
+// AuthConfigProvider + ClerkProvider live in index.js (outermost), so both
+// useAuthConfig and useAuth are available anywhere below.
 function App({ controlsLayout = 'vertical-right' }) {
   // NOTE: Cannot use useTranslation here - this component creates the TranslationProvider
-  const clerkAvailable = isClerkAvailable();
-
   return (
     <TranslationProvider>
       <ThemeProvider>
         <AuthProvider>
-          <AuthConfigProvider>
-              <AppContent
-                controlsLayout={controlsLayout}
-                clerkAvailable={clerkAvailable}
-              />
-          </AuthConfigProvider>
+          <AppContent controlsLayout={controlsLayout} />
         </AuthProvider>
       </ThemeProvider>
     </TranslationProvider>
@@ -288,9 +278,13 @@ function App({ controlsLayout = 'vertical-right' }) {
 }
 
 // Separate component to access auth context
-function AppContent({ controlsLayout, clerkAvailable }) {
+function AppContent({ controlsLayout }) {
   const { isLoaded, isSignedIn, isClerkAuth } = useAuth();
-  const { stealthMode, loading: configLoading } = useAuthConfig();
+  const { stealthMode, loading: configLoading, authMethods } = useAuthConfig();
+  // Runtime decision: Clerk components (SignedIn/SignedOut/RedirectToSignIn)
+  // may only render when ClerkProvider is mounted — index.js mounts it iff
+  // the backend advertises "clerk" in auth_methods.
+  const clerkActive = authMethods.includes('clerk');
 
   // Show loading state while checking authentication or fetching config
   if (!isLoaded || configLoading) {
@@ -321,7 +315,7 @@ function AppContent({ controlsLayout, clerkAvailable }) {
         {stealthMode ? (
           // Stealth mode ON - require authentication (Clerk OR Django)
           <>
-            {clerkAvailable && isClerkAuth ? (
+            {clerkActive && isClerkAuth ? (
               // Using Clerk authentication
               <>
                 <SignedIn>

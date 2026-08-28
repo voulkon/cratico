@@ -1,34 +1,16 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
-// Check if Clerk is available
-const isClerkAvailable = () => {
-  return !!process.env.REACT_APP_CLERK_PUBLISHABLE_KEY;
-};
-
-// Lazy load useUser - always define it as a function to satisfy Rules of Hooks
-let useUser;
-if (isClerkAvailable()) {
-  const clerkReact = require('@clerk/clerk-react');
-  useUser = clerkReact.useUser;
-} else {
-  // Provide a dummy hook that returns null when Clerk is not available
-  useUser = () => ({ user: null, isLoaded: true, isSignedIn: false });
-}
-
 /**
  * Access Denied component for stealth mode allowlist
  *
  * Shown when a user is authenticated but not in the allowlist
  */
 function AccessDenied() {
-  const { user: authUser, isClerkAuth } = useAuth();
-
-  // Always call useUser hook (it's now always defined)
-  const { user: clerkUser } = useUser();
-
-  // Use Clerk user if in Clerk auth mode, otherwise use auth context user
-  const user = isClerkAuth ? clerkUser : authUser;
+  // The combined AuthContext already carries the active session's user
+  // (Clerk user when signed in via Clerk, Django user otherwise) — no direct
+  // Clerk hook needed here.
+  const { user } = useAuth();
 
   return (
     <div style={{
