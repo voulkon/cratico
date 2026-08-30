@@ -11,8 +11,15 @@ To add new post-import work:
   3. Add a feature flag key to KNOWN_FLAGS in feature_flag_service.py
 
 Execution order (via Celery chain):
-  compute_entity_rankings  →  warm_analytics_cache  →  check_all_subscriptions
-  (Track 2: DB snapshots)     (Track 1: Redis cache)     (Notifications)
+  compute_entity_rankings  →  warm_analytics_cache  →  invalidate_browse_cache
+  →  trigger_check_all_subscriptions  →  verify_high_value_amounts
+  (DB snapshots)               (Redis cache)            (Notifications)         (AI amount audit)
+
+Views warmed (all DashboardGrid sections):
+  explore_orgs               → OrganizationsSection
+  da_top_pairs               → TopRelationshipPairs (featured)
+  top_payments               → TopPaymentsSection
+  top_direct_assignments     → TopDirectAssignmentsSection
 """
 
 from datetime import date, timedelta
@@ -96,31 +103,29 @@ def _build_warmup_sentinel_keys(
             limit=page_size, offset="0",
         )]
 
-    if view_name == "explore_decisions":
+    if view_name == "top_payments":
         return [response_cache.build_key(
-            "explore_decisions",
+            "top_payments",
             start_date=start_str, end_date=end_str,
-            page="1", page_size=page_size,
-            sort_by="entity_amount_desc",
-            organization_uid="", entity_afm="",
-            direct_assignments_only="",
+            limit=page_size, offset="0",
         )]
 
-    if view_name in ("da_top_entities", "da_top_orgs"):
-        return [
-            response_cache.build_key(
-                view_name,
-                end_date=end_str, limit=page_size,
-                offset="0", sort_by=sort, start_date=start_str,
-            )
-            for sort in ("amount", "frequency")
-        ]
+    if view_name == "top_direct_assignments":
+        return [response_cache.build_key(
+            "top_direct_assignments",
+            start_date=start_str, end_date=end_str,
+            limit=page_size, offset="0",
+        )]
 
-    # Single-key views: explore_decision_types, explore_statistics
-    return [response_cache.build_key(
-        view_name,
-        end_date=end_str, start_date=start_str,
-    )]
+    if view_name == "top_by_amount":
+        return [response_cache.build_key(
+            "top_by_amount",
+            start_date=start_str, end_date=end_str,
+            limit=page_size, offset="0",
+        )]
+
+    # Fallback for unknown views
+    return []
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +171,8 @@ def post_daily_import_orchestrator(job_id: int, reference_date_str: str):
         invalidate_browse_cache.si(),
         # Notifications: Check all active subscriptions against yesterday's data
         trigger_check_all_subscriptions.si(reference_date_str=reference_date_str),
+        # Amount Verification: AI-based validation of high-value decisions
+        verify_high_value_amounts.si(reference_date_str=reference_date_str),
     )
 
     result = task_chain.apply_async()
@@ -243,13 +250,18 @@ def warm_analytics_cache(reference_date_str: str | None = None):
     cache keys match exactly.
 
     Views warmed:
-      - explore_orgs           (explore/organizations/)
-      - da_top_pairs           (direct-assignments/top-pairs/)
-      - da_top_entities        (direct-assignments/top-entities/)
-      - da_top_orgs            (direct-assignments/top-organizations/)
-      - explore_decisions      (explore/decisions/)
-      - explore_decision_types (explore/decision-types/)
-      - explore_statistics     (explore/statistics/)
+      - explore_orgs              (explore/organizations/)          page_size=6, max_limit=200
+      - da_top_pairs              (direct-assignments/top-pairs/)   page_size=6, max_limit=50
+      - top_payments              (decisions/top-payments/)         page_size=5, max_limit=100
+      - top_direct_assignments    (decisions/top-direct-assignments/) page_size=5, max_limit=100
+      - top_by_amount             (decisions/top-by-amount/)        page_size=5, max_limit=100
+
+    Views NOT warmed (frontend no longer calls these directly):
+      - explore_decisions      frontend uses unified?view=decisions (not cached)
+      - da_top_entities        frontend uses /entities/{afm}/top-organizations/
+      - da_top_orgs            same as above
+      - explore_decision_types frontend uses unified?view=decision_types
+      - explore_statistics     frontend uses unified?view=statistics
 
     Args:
         reference_date_str: ISO-format date string. Defaults to today.
@@ -260,12 +272,10 @@ def warm_analytics_cache(reference_date_str: str | None = None):
 
     from core.services.analytics_precalc_service import (
         warm_da_top_pairs_window,
-        warm_da_top_entities_window,
-        warm_da_top_orgs_window,
-        warm_explore_decisions_window,
-        warm_explore_decision_types_window,
         warm_explore_orgs_window,
-        warm_explore_statistics_window,
+        warm_top_by_amount_window,
+        warm_top_direct_assignments_window,
+        warm_top_payments_window,
     )
 
     ref = (
@@ -287,14 +297,29 @@ def warm_analytics_cache(reference_date_str: str | None = None):
         start_str = start.isoformat()
         end_str = end.isoformat()
 
+        # ── page_size values MUST match what the frontend actually sends, ─
+        #    because the cache key includes limit/page_size.  A mismatch
+        #    means the warmed key never matches the request → defer_on_miss
+        #    → 202 polling loop on the first request after every import.
+        #
+        #    Frontend reference:
+        #      explore_orgs  → OrganizationsSection  PAGE_SIZE=6
+        #      da_top_pairs  → HomePage             limit={6}
+        #      unified       → DecisionsSection      PAGE_SIZE=5 (view=decisions,
+        #                       statistics, decision_types, date_range)
+        #
+        #    Removed (frontend no longer calls these directly):
+        #      explore_decisions  → frontend uses unified?view=decisions (not cached)
+        #      da_top_entities    → frontend uses /entities/{afm}/top-organizations/
+        #      da_top_orgs        → same as above
+        #      explore_decision_types → frontend uses unified?view=decision_types
+        #      explore_statistics    → frontend uses unified?view=statistics
         for view_name, warm_fn, kwargs in [
             ("explore_orgs", warm_explore_orgs_window, {"max_limit": 200, "page_size": 6}),
             ("da_top_pairs", warm_da_top_pairs_window, {"max_limit": 50, "page_size": 6}),
-            ("explore_decisions", warm_explore_decisions_window, {"max_limit": 200, "page_size": 5}),
-            ("da_top_entities", warm_da_top_entities_window, {"max_limit": 100, "page_size": 20}),
-            ("da_top_orgs", warm_da_top_orgs_window, {"max_limit": 100, "page_size": 20}),
-            ("explore_decision_types", warm_explore_decision_types_window, {"max_limit": 200, "page_size": 50}),
-            ("explore_statistics", warm_explore_statistics_window, {"max_limit": 1, "page_size": 1}),
+            ("top_payments", warm_top_payments_window, {"max_limit": 100, "page_size": 5}),
+            ("top_direct_assignments", warm_top_direct_assignments_window, {"max_limit": 100, "page_size": 5}),
+            ("top_by_amount", warm_top_by_amount_window, {"max_limit": 100, "page_size": 5}),
         ]:
             # ── Build sentinel warmup keys so L2 (defer_on_miss) can
             #     detect that L3 is already working on this view ──────
@@ -446,8 +471,12 @@ def invalidate_browse_cache():
     from core.services.response_cache_service import response_cache
 
     count = response_cache.invalidate_prefix("browse")
-    logger.info(f"[invalidate_browse_cache] Invalidated {count} browse cache keys")
-    return {"status": "completed", "keys_invalidated": count}
+    letters_count = response_cache.invalidate_browse_available_letters()
+    logger.info(
+        f"[invalidate_browse_cache] Invalidated {count} browse cache keys "
+        f"and {letters_count} available_letters keys"
+    )
+    return {"status": "completed", "keys_invalidated": count + letters_count}
 
 
 # ── Notifications — Bulk check all active subscriptions ──────────────────
@@ -488,4 +517,108 @@ def trigger_check_all_subscriptions(reference_date_str: str | None = None):
         "status": "dispatched",
         "reference_date": str(ref),
         "task_id": str(result.id),
+    }
+
+
+# ── Amount Verification — AI-based validation of high-value decisions ─────
+
+@shared_task
+def verify_high_value_amounts(reference_date_str: str | None = None):
+    """
+    Verify AND correct monetary amounts for decisions exceeding the
+    high-value threshold by reading the actual document text.
+
+    Two-phase pipeline:
+      1. Verification (AmountVerificationService): runs regex/AI detection
+         and persists TextProcessRun + TextProcessResolution records for
+         audit trail.
+      2. Correction (AmountCorrectionService): runs the cents-based detector
+         and — when the text has a clear different amount with a ×100/÷100
+         decimal-shift — stores the corrected value on each affected
+         ``DecisionAmountField.verified_amount`` so all downstream consumers
+         (via ``COALESCE(verified_amount, amount)``) use the corrected value.
+
+    Catches data-entry errors where decimal separators are misplaced
+    (e.g. €30,000.00 recorded as €3,000,000 in Diavgeia).
+
+    This task is idempotent — it skips decisions that have already been
+    verified/corrected.  It runs as a standalone @shared_task so it can
+    also be triggered manually via the Django admin or management command.
+
+    Args:
+        reference_date_str: ISO-format date string of the import day.  Only
+            decisions *imported* on that day (``Decision.created_at`` within
+            [ref 00:00, ref+1 00:00)) are processed — so a daily post-import
+            run never fans out over the entire historical backlog.  Pass a
+            past date to backfill a specific import day.  If omitted,
+            defaults to today.
+
+    Returns:
+        Dict with batch summary from both phases.
+    """
+    if not feature_flags.is_enabled("POST_IMPORT_AMOUNT_VERIFICATION_ENABLED"):
+        logger.debug(
+            "POST_IMPORT_AMOUNT_VERIFICATION_ENABLED is disabled, skipping"
+        )
+        return {"status": "skipped", "reason": "feature_flag_disabled"}
+
+    from datetime import datetime, timedelta
+
+    from django.utils import timezone as dj_timezone
+
+    from core.services.amount_verification_service import AmountVerificationService
+    from core.services.amount_correction_service import AmountCorrectionService
+
+    ref = (
+        date.fromisoformat(reference_date_str)
+        if reference_date_str
+        else date.today()
+    )
+
+    # Scope to decisions IMPORTED on the reference day — not issue_date, so
+    # old decisions (e.g. 2021) that were only imported today are included,
+    # while the historical backlog is never re-scanned.
+    imported_since = dj_timezone.make_aware(
+        datetime.combine(ref, datetime.min.time())
+    )
+    imported_until = imported_since + timedelta(days=1)
+
+    logger.info(
+        f"Starting amount verification + correction batch "
+        f"(decisions imported on {ref})"
+    )
+
+    # ── Phase 1: Verification (audit trail + discrepancy detection) ───
+    verify_service = AmountVerificationService()
+    verify_result = verify_service.verify_high_value_decisions(
+        imported_since=imported_since,
+        imported_until=imported_until,
+        limit=500,
+    )
+
+    logger.info(
+        f"Amount verification complete: {verify_result['verified']} verified, "
+        f"{verify_result['discrepancies']} discrepancies found"
+    )
+
+    # ── Phase 2: Correction (cents-based, updates Decision model) ────
+    correction_service = AmountCorrectionService()
+    correct_result = correction_service.correct_high_value_decisions(
+        imported_since=imported_since,
+        imported_until=imported_until,
+        limit=500,
+    )
+
+    logger.info(
+        f"Amount correction complete: {correct_result['corrected']} corrected, "
+        f"{correct_result['consistent']} consistent, "
+        f"{correct_result['no_text']} no text, "
+        f"{correct_result['errors']} errors"
+    )
+
+    return {
+        "status": "completed",
+        "reference_date": str(ref),
+        "verification": verify_result,
+        "correction": correct_result,
     }

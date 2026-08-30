@@ -61,7 +61,7 @@ class TestDecisionFetchReconcileLive:
         """
         # Try to find actual lowest volume date
         found_date = DecisionFetchReconcileService.find_lowest_volume_date(
-            min_count=50,
+            min_count=100,
             max_count=1000,
             exclude_weekends=True,
         )
@@ -146,10 +146,10 @@ class TestDecisionFetchReconcileLive:
         assert "chunk_size" not in params
         assert "job_id" not in params
 
-    # @pytest.mark.skipif(
-    #     "not config.getoption('--run-live', default=False)",
-    #     reason="Skipping live API test. Use --run-live to enable.",
-    # )
+    @pytest.mark.skipif(
+        "not config.getoption('--run-live', default=False)",
+        reason="Skipping live API test. Use --run-live to enable.",
+    )
     def test_fetch_low_volume_day(self, service, low_volume_date):
         """
         Test fetching a dynamically-discovered low-volume day from the live API.

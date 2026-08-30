@@ -11,7 +11,7 @@ Key use cases:
 - Financial breakdowns by entity
 """
 
-from api.utils.date_utils import _parse_and_validate_date_range
+from api.utils.date_utils import _parse_and_validate_date_range, _validate_temporal_span
 from core.models.entities import AFMEntity
 from core.models.organizations import Organization
 from core.services.financial_calculation_service import financial_service
@@ -21,7 +21,7 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from loguru import logger
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from api.permissions import PublicReadOnly
 from rest_framework.response import Response
 
 @swagger_auto_schema(
@@ -69,7 +69,7 @@ from rest_framework.response import Response
     ],
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([PublicReadOnly])
 @monitor_query_performance(operation="organization_top_counterparts")
 def organization_top_counterparts_api(
     request, organization_uid
@@ -195,7 +195,7 @@ def organization_top_counterparts_api(
     ],
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([PublicReadOnly])
 @monitor_query_performance(operation="entity_top_organizations")
 def entity_top_organizations_api(request, afm):
     """
@@ -230,72 +230,13 @@ def entity_top_organizations_api(request, afm):
             return Response({"error": f"Entity with AFM '{afm}' not found"}, status=404)
 
         # Get top organizations using financial service
-
-        # Use existing method but aggregate by organization instead of entity
-        from core.models.entities import DecisionEntityRelationship
-        from django.db.models import Count, Sum
-
-        roles = financial_service.MONEY_RECEIVED_ROLES
-
-        # Build base queryset
-        qs = DecisionEntityRelationship.objects.filter(
+        result = financial_service.get_top_organizations_for_entity(
             entity=entity,
-            decision__issue_date_day__gte=start_date,
-            decision__issue_date_day__lte=end_date,
-            role__in=roles,
-        )
-
-        # Apply search filter on organization name using the tiered search infrastructure
-        if search_query:
-            from core.services.search_service import SearchService
-
-            matching_orgs = SearchService().search_organizations(
-                search_query, limit=10000  # High limit for filtering, not display
-            )
-            matching_uids = list(matching_orgs.values_list("uid", flat=True))
-            if matching_uids:
-                qs = qs.filter(decision__organization__uid__in=matching_uids)
-            else:
-                # No matching organizations found — return empty result early
-                return Response(
-                    {
-                        "entity": {
-                            "afm": entity.afm,
-                            "name": entity.name,
-                            "entity_type": entity.entity_type,
-                        },
-                        "date_range": {
-                            "start": start_date_str,
-                            "end": end_date_str,
-                        },
-                        "results": [],
-                        "pagination": {
-                            "limit": limit,
-                            "offset": offset,
-                            "total_count": 0,
-                            "has_more": False,
-                        },
-                    }
-                )
-
-        # Query top organizations for this entity
-        results = list(
-            qs
-            .values("decision__organization__uid", "decision__organization__label")
-            .annotate(
-                total_amount=Sum("linked_amounts__amount"),
-                decision_count=Count("decision", distinct=True),
-            )
-            .filter(total_amount__gt=0)
-            .order_by("-total_amount")[offset : offset + limit]
-        )
-
-        # Get total count for pagination
-        total_count = (
-            qs
-            .values("decision__organization")
-            .distinct()
-            .count()
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+            offset=offset,
+            search_query=search_query,
         )
 
         return Response(
@@ -309,12 +250,12 @@ def entity_top_organizations_api(request, afm):
                     "start": start_date_str,
                     "end": end_date_str,
                 },
-                "results": results,
+                "results": [r.model_dump() for r in result.results],
                 "pagination": {
                     "limit": limit,
                     "offset": offset,
-                    "total_count": total_count,
-                    "has_more": offset + limit < total_count,
+                    "total_count": result.total_count,
+                    "has_more": result.has_more,
                 },
             }
         )
@@ -364,7 +305,7 @@ def entity_top_organizations_api(request, afm):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([PublicReadOnly])
 @monitor_query_performance(operation="temporal_top_relationships")
 def temporal_top_relationship_pairs_api(request):
     """
@@ -384,6 +325,11 @@ def temporal_top_relationship_pairs_api(request):
     )
     if error_response:
         return error_response
+
+    # Validate temporal span (no explicit bucket — uses TEMPORAL_MAX_SPAN_DAYS)
+    span_err = _validate_temporal_span(start_date, end_date)
+    if span_err:
+        return span_err
 
     # Get pagination parameters
     start_date_str = request.GET.get("start_date")

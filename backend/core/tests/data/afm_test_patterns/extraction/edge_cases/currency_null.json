@@ -1,0 +1,22 @@
+{
+    "id": "currency_null",
+    "description": "Salary/withholding decision where amountWithVAT carries explicit null currency - must default to EUR instead of crashing",
+    "ada": "CUR-NULL-FIX",
+    "extra_field_values_json": {
+        "financialYear": 2026,
+        "budgettype": "Τακτικός Προϋπολογισμός",
+        "entryNumber": "585",
+        "partialead": false,
+        "recalledExpenseDecision": false,
+        "amountWithVAT": {
+            "amount": 9795.7,
+            "currency": null
+        },
+        "amountWithKae": [],
+        "documentType": "ΠΡΑΞΗ"
+    },
+    "expected": {
+        "entities": 0,
+        "amounts": 1
+    }
+}

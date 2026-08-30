@@ -10,6 +10,13 @@
   transition: padding-right var(--transition-normal);
 }
 
+/* Vertical layouts stack buttons — much narrower than horizontal.
+   Align the main area's right edge close to the controls' left edge. */
+.main-area.layout-vertical-right,
+.main-area.layout-vertical-left {
+  padding-right: var(--controls-expanded-width-vertical);
+}
+
 /* When controls are collapsed, shrink the reserved right space */
 .main-area.controls-collapsed {
   padding-right: var(--controls-collapsed-width);
@@ -20,15 +27,21 @@
   padding-top: var(--top-controls-offset);
 }
 
+/* On mobile the controls start collapsed (see App.js), so the collapsed
+   width must apply — otherwise the expanded-width override below would
+   eat nearly the whole screen. Specificity ties with .controls-collapsed,
+   so we repeat the collapsed value here to win on source order. */
 @media (max-width: 768px) {
-  .main-area {
-    padding-right: var(--controls-expanded-width);
+  .main-area,
+  .main-area.controls-collapsed {
+    padding-right: var(--controls-collapsed-width);
   }
 }
 
 @media (max-width: 480px) {
-  .main-area {
-    padding-right: var(--controls-expanded-width);
+  .main-area,
+  .main-area.controls-collapsed {
+    padding-right: var(--controls-collapsed-width);
   }
 }
 

@@ -16,6 +16,18 @@ class Command(BaseCommand):
             self.style.SUCCESS("=== Setting up OpenSearch for Greek Documents ===")
         )
 
+        # Gracefully skip when OpenSearch is not part of the stack (e.g. the
+        # "search" compose profile is off, so the hostname doesn't resolve).
+        if not self.opensearch_reachable(opensearch_url):
+            self.stdout.write(
+                self.style.WARNING(
+                    f"[SKIP] OpenSearch is not reachable at {opensearch_url} — "
+                    "skipping setup. It is likely not part of this stack "
+                    "(search profile off)."
+                )
+            )
+            return
+
         # 1. Create index template for Greek documents
         self.create_greek_index_template(opensearch_url)
 
@@ -28,6 +40,17 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS("=== OpenSearch Greek setup completed ===")
         )
+
+    def opensearch_reachable(self, opensearch_url):
+        """Check connectivity to OpenSearch without raising."""
+        try:
+            response = requests.get(
+                f"{opensearch_url}/_cluster/health",
+                timeout=5,
+            )
+            return response.status_code == 200
+        except requests.exceptions.RequestException:
+            return False
 
     def load_template_config(self):
         """

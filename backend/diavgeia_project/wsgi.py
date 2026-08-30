@@ -10,6 +10,17 @@ from loguru import logger
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "diavgeia_project.settings")
 
+# Configure Loguru to match the Django logging format (JSON when
+# USE_JSON_LOGGING=true).  Without this, Loguru uses its default text
+# sink on stderr, which means:
+#   - application logs (cache decorator, response cache, etc.) are NOT
+#     in JSON and won't be parsed by Loki/Grafana
+#   - if Promtail only scrapes stdout, they're silently dropped entirely
+# celery.py already calls this; wsgi.py must too for the web container.
+from diavgeia_project.logging.loguru_config import configure_loguru
+
+configure_loguru()
+
 # --- Monkey-patch wsgiref.util.request_uri to use UTF-8 encoding ---
 # OpenTelemetry's wsgi instrumentation calls wsgiref.util.request_uri(environ)
 # which hardcodes encoding='latin1'. This crashes with a UnicodeEncodeError

@@ -5,6 +5,7 @@ import useTopCounterparts from '../hooks/useTopCounterparts';
 import useTopOrganizations from '../hooks/useTopOrganizations';
 import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import CounterpartStats from './CounterpartStats';
+import CollapsibleCard from './CollapsibleCard';
 import './TopCounterparts.css';
 
 /**
@@ -17,7 +18,10 @@ const TopCounterparts = ({
   id, // AFM for entity, UID for organization
   dateRange, // { start_date, end_date } — now stable via useMemo in parent
   limit = 10,
-  onCounterpartClick // callback: (counterpart) => void - parent controls navigation URL
+  onCounterpartClick, // callback: (counterpart) => void - parent controls navigation URL
+  open: controlledOpen,
+  onToggle,
+  defaultOpen = true,
 }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -58,7 +62,7 @@ const TopCounterparts = ({
       return;
     }
     if (type === 'entity') {
-      const orgUid = counterpart.decision__organization__uid;
+      const orgUid = counterpart.organization_uid;
       navigate(`/relationship/entity/${id}/org/${orgUid}?start_date=${dateRange.start_date}&end_date=${dateRange.end_date}`);
     } else if (type === 'organization') {
       const afm = counterpart.entity_afm;
@@ -86,12 +90,18 @@ const TopCounterparts = ({
   }
 
   // ── Normal render ──────────────────────────────────────────────
-  return (
-    <div className="top-counterparts-section">
-      <div className="section-header">
-        <h3 className="section-title">{title}</h3>
-      </div>
+  const subtitle = totalCount > 0 ? <> ({totalCount.toLocaleString()})</> : null;
 
+  return (
+    <CollapsibleCard
+      title={title}
+      subtitle={subtitle}
+      open={controlledOpen}
+      onToggle={onToggle}
+      defaultOpen={defaultOpen}
+      className="top-counterparts-section"
+    >
+      <div className="top-counterparts-content">
       {/* Search input (both entity and organization paths) */}
       <div className="counterparts-search">
           <input
@@ -125,10 +135,10 @@ const TopCounterparts = ({
         <div className="counterparts-grid">
           {results.map((counterpart, index) => {
             const name = type === 'entity'
-              ? counterpart.decision__organization__label
+              ? counterpart.organization_label
               : counterpart.entity_name;
             const identifier = type === 'entity'
-              ? counterpart.decision__organization__uid
+              ? counterpart.organization_uid
               : counterpart.entity_afm;
             const entityType = type === 'organization' ? counterpart.entity_type : null;
 
@@ -176,7 +186,8 @@ const TopCounterparts = ({
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </CollapsibleCard>
   );
 };
 

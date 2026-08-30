@@ -14,18 +14,23 @@
   pointer-events: none;
 }
 
-/* Left controls container - Logo.
-   Stays fixed at top-left so it's always visible regardless of scroll. */
+/* Left controls container - page-header slot.
+   Fixed at top-left so it's always visible regardless of scroll.
+   #top-bar-slot fills the full width so its centered content
+   aligns with the page body below. */
 .left-controls {
   position: fixed;
   top: var(--spacing-md);
   left: var(--spacing-md);
+  /* Leave room for the right-side controls column so slot content
+     never overlaps the collapse toggle or action buttons. */
+  right: calc(var(--controls-expanded-width) + var(--spacing-md));
   z-index: 1003; /* Above unified overlay (1002) - keeps logo visible */
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   gap: var(--spacing-sm);
   transition: left var(--transition-normal);
-  align-items: flex-start;
   /* Immune to font scaling */
   font-size: 16px;
   --font-xs: 12px;
@@ -37,16 +42,47 @@
   --font-xxxl: 40px;
 }
 
+/* Portal target — pages render their contextual header here.
+   Fills the full width of .left-controls.
+   Content is centered so it aligns with the page body's center
+   (which also accounts for the right controls strip). */
+#top-bar-slot {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: center;
+  justify-content: center;
+  gap: var(--spacing-xs) var(--spacing-sm);
+  min-height: var(--top-controls-height);
+}
+
+/* Default single-line truncation for slot children.
+   Pages that want multi-line layouts override these on their own containers. */
+#top-bar-slot > * {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
 /* Shift right when sidebar is open */
 .left-controls.shifted {
   left: 420px; /* sidebar width (400px) + spacing */
 }
 
-.logo-container {
-  /* Ensure logo aligns with right controls */
-  display: flex;
-  align-items: center;
-  height: var(--top-controls-height);
+/* Shrink right edge when controls column is collapsed,
+   matching .main-area.controls-collapsed behaviour. */
+.left-controls.controls-collapsed {
+  right: calc(var(--controls-collapsed-width) + var(--spacing-md));
+}
+
+/* Vertical layouts: controls stack, so the reserved right space is narrower. */
+.left-controls.layout-vertical-right,
+.left-controls.layout-vertical-left {
+  right: calc(var(--controls-expanded-width-vertical) + var(--spacing-md));
 }
 
 /* Top controls wrapper — fixed to the viewport top-right.
@@ -58,10 +94,10 @@
   right: var(--spacing-md);
   z-index: 1003;
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: flex-end;
   gap: var(--spacing-sm);
   max-width: calc(var(--controls-expanded-width) - var(--spacing-md));
-  transition: opacity var(--transition-normal), transform var(--transition-normal);
   /* Immune to font scaling: override all rem-based font vars with fixed px.
      rem always resolves from html, but CSS custom properties cascade from here. */
   font-size: 16px;
@@ -74,45 +110,33 @@
   --font-xxxl: 40px;
 }
 
-/* Wrapper positioning variants */
-.top-controls-wrapper.horizontal-right,
-.top-controls-wrapper.vertical-right,
-.top-controls-wrapper.split-corners {
-  justify-content: flex-end;
-}
+/* ── Collapsible section (toggle + controls) ──────────────── */
 
-.top-controls-wrapper.vertical-right {
-  flex-direction: row;
-}
-
+/* Wrapper positioning: left-layout variants anchor on the left edge. */
 .top-controls-wrapper.horizontal-left,
 .top-controls-wrapper.vertical-left {
-  top: var(--spacing-md);
   right: auto;
   left: var(--spacing-md);
+  align-items: flex-start;
 }
 
-.top-controls-wrapper.vertical-left {
-  flex-direction: row;
+.top-controls-collapsible {
+  transition: opacity var(--transition-normal), transform var(--transition-normal);
 }
 
-/* Collapsed — slide right until only the toggle button peeks out.
-   translateX = (wrapper max-width) - (toggle width) - (gap)
-   ≈ (expanded - margin) - toggle - gap */
-.top-controls-wrapper.collapsed {
-  transform: translateX(calc(var(--controls-expanded-width) - var(--controls-collapsed-width)));
-}
-
-.top-controls-wrapper.collapsed .top-controls {
+/* Collapsed — slide right out of view so only logo + toggle remain visible. */
+.top-controls-collapsible.collapsed {
+  transform: translateX(calc(100% + var(--spacing-md)));
   opacity: 0;
   pointer-events: none;
 }
-/* Collapse/Expand Toggle Button */
+/* Collapse/Expand Toggle Button — matches .logo-link styling for uniformity */
 .controls-collapse-toggle {
-  background: var(--surface-color);
-  border: 1px solid var(--border-color);
+  appearance: none;
+  background-color: transparent;
+  border: none;
   border-radius: var(--radius-md);
-  padding: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -122,18 +146,17 @@
   backdrop-filter: blur(10px);
   box-shadow: 0 2px 8px var(--shadow);
   height: var(--top-controls-height);
-  width: var(--top-controls-height);
+  min-width: var(--top-controls-height);
   flex-shrink: 0;
 }
 
 .controls-collapse-toggle:hover {
-  background: var(--hover-bg);
-  border-color: var(--palette-primary);
-  transform: scale(1.05);
+  background-color: var(--hover-bg);
+  transform: translateY(-2px);
 }
 
 .controls-collapse-toggle:active {
-  transform: scale(0.95);
+  transform: translateY(0);
 }
 
 /* Top controls - Right side UI elements */
@@ -180,10 +203,23 @@
   box-shadow: 0 2px 8px var(--shadow);
 }
 
+/* The logo inside .top-controls-wrapper gets the same treatment */
+.top-controls-wrapper > .logo-link {
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 8px var(--shadow);
+  flex-shrink: 0;
+}
+
 @media (max-width: 768px) {
   .left-controls {
     top: var(--spacing-sm);
     left: var(--spacing-sm);
+    right: calc(var(--controls-expanded-width) + var(--spacing-sm));
+  }
+
+  .left-controls.layout-vertical-right,
+  .left-controls.layout-vertical-left {
+    right: calc(var(--controls-expanded-width-vertical) + var(--spacing-sm));
   }
 
   .left-controls.shifted {
@@ -195,7 +231,7 @@
     right: var(--spacing-sm);
   }
 
-  .top-controls-wrapper:not(.collapsed) .top-controls {
+  .top-controls-collapsible:not(.collapsed) .top-controls {
     flex-direction: column !important;
     align-items: flex-end !important;
     gap: 3px;
@@ -207,5 +243,16 @@
     gap: var(--spacing-xs);
     top: var(--spacing-xs);
     right: var(--spacing-xs);
+  }
+
+  .left-controls {
+    top: var(--spacing-xs);
+    left: var(--spacing-xs);
+    right: calc(var(--controls-expanded-width) + var(--spacing-xs));
+  }
+
+  .left-controls.layout-vertical-right,
+  .left-controls.layout-vertical-left {
+    right: calc(var(--controls-expanded-width-vertical) + var(--spacing-xs));
   }
 }

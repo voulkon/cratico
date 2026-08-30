@@ -42,7 +42,7 @@ class ExtractorComparison(BaseDocumentProcessor):
         Returns:
             Dict containing results from each extractor and comparison metrics
         """
-        if not decision.document_url:
+        if not decision.document_url_or_fallback:
             logger.warning(f"Decision {decision.ada} has no document URL")
             return {"error": "No document URL"}
 
@@ -50,7 +50,7 @@ class ExtractorComparison(BaseDocumentProcessor):
 
         results = {
             "decision_ada": decision.ada,
-            "document_url": decision.document_url,
+            "document_url": decision.document_url_or_fallback,
             "extractions": {},
             "comparison": {},
             "async_processing": include_async,
@@ -61,7 +61,7 @@ class ExtractorComparison(BaseDocumentProcessor):
         try:
             # Download the PDF once for sync extractors
             if self.sync_extractors:
-                temp_path, success = self.download_pdf(decision.document_url)
+                temp_path, success = self.download_pdf(decision.document_url_or_fallback)
                 if not success:
                     logger.error(f"[ERROR] Failed to download PDF for {decision.ada}")
                     return {"error": "Failed to download PDF"}

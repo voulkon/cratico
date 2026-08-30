@@ -220,7 +220,7 @@ class TestThreeWayReconciliation:
                 api_reported_total=10005,
             )
 
-            assert result["percentage_diff"] == 0.05
+            assert result["percentage_diff"] == pytest.approx(0.05)
             assert result["status"] == "match"  # Within 1% tolerance
 
     def test_just_outside_tolerance_threshold(self, service, test_date):
@@ -238,7 +238,7 @@ class TestThreeWayReconciliation:
                 api_reported_total=1011,
             )
 
-            assert result["percentage_diff"] == 1.1
+            assert result["percentage_diff"] == pytest.approx(1.1)
             assert result["status"] == "discrepancy"
 
     def test_complex_three_way_mismatch(self, service, test_date):
@@ -390,7 +390,7 @@ class TestFilterDetection:
     def test_type_filter_in_params(self, service):
         """Decision type filter in additional params"""
         result = service._check_if_filters_applied(
-            additional_params={"decisionType": "Β.1.1"},
+            additional_params={"type": "Β.1.1"},
             include_feature_flags=False,
         )
         assert result is True

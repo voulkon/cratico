@@ -10,6 +10,7 @@ Key tests:
 3. ImportJob is updated with correct counts
 """
 
+import io
 from datetime import date
 from unittest.mock import MagicMock, patch
 
@@ -17,6 +18,7 @@ import pytest
 from core.models.import_jobs import ImportJob, ImportJobStatus
 from core.tasks.tasks_decisions_import import fetch_daily_decisions_to_redis
 from diavgeia_api.models.decisions import Decision
+from loguru import logger
 
 
 @pytest.mark.django_db(transaction=True)
@@ -29,6 +31,18 @@ class TestFetchDailyDecisionsReconciliation:
     def target_date(self):
         """Test date for all tests"""
         return date(2026, 5, 1)
+
+    @pytest.fixture
+    def loguru_capture(self):
+        """Capture loguru output via an in-memory sink.
+
+        loguru writes directly to stderr and bypasses pytest's caplog/capfd
+        capture, so we attach our own sink to collect messages.
+        """
+        stream = io.StringIO()
+        handler_id = logger.add(stream, format="{message}")
+        yield stream
+        logger.remove(handler_id)
 
     @pytest.fixture
     def sample_decisions(self):
@@ -134,15 +148,15 @@ class TestFetchDailyDecisionsReconciliation:
                 assert import_job.status == ImportJobStatus.PROCESSING
 
     def test_task_logs_reconciliation_results(
-        self, target_date, sample_decisions, mock_reconciliation_result, import_job, capfd
+        self, target_date, sample_decisions, mock_reconciliation_result, import_job, loguru_capture
     ):
         """
         Verify that reconciliation results are properly logged.
         
         This ensures operators can monitor reconciliation status in production logs.
         
-        Note: Uses capfd instead of caplog because the code uses loguru (not stdlib logging).
-        Loguru writes directly to stderr, bypassing pytest's caplog fixture.
+        Note: Uses a custom loguru sink because loguru writes directly to stderr,
+        bypassing pytest's caplog/capfd capture.
         """
         with patch(
             "core.services.decision_fetch_reconcile_service.DecisionFetchReconcileService"
@@ -161,9 +175,8 @@ class TestFetchDailyDecisionsReconciliation:
                     job_id=import_job.id,
                 )
 
-                # Capture loguru's stderr output
-                captured = capfd.readouterr()
-                log_output = captured.err + captured.out
+                # Capture loguru output via the in-memory sink
+                log_output = loguru_capture.getvalue()
                 assert "Official=313" in log_output
                 assert "Ours=10" in log_output
                 assert "Status=discrepancy" in log_output
@@ -440,7 +453,7 @@ class TestFetchDailyDecisionsReconciliation:
                 assert api_metadata_wrong_result["official_count"] == 10
 
     def test_logs_include_three_way_reconciliation(
-        self, target_date, sample_decisions, import_job, capfd
+        self, target_date, sample_decisions, import_job, loguru_capture
     ):
         """
         Verify that logs include all three counts: official, API reported, and ours.
@@ -475,8 +488,7 @@ class TestFetchDailyDecisionsReconciliation:
                 )
 
                 # Capture logs
-                captured = capfd.readouterr()
-                log_output = captured.err + captured.out
+                log_output = loguru_capture.getvalue()
                 
                 # Should log all three counts
                 assert "Official=313" in log_output
@@ -485,7 +497,7 @@ class TestFetchDailyDecisionsReconciliation:
                 assert "Pagination_mismatch" in log_output  # Should show mismatch
 
     def test_filtered_query_skips_official_count(
-        self, target_date, sample_decisions, import_job, capfd
+        self, target_date, sample_decisions, import_job, loguru_capture
     ):
         """
         When FILTER_DECISION_TYPES is active, official count comparison should be skipped.
@@ -524,8 +536,7 @@ class TestFetchDailyDecisionsReconciliation:
                 )
 
                 # Capture logs
-                captured = capfd.readouterr()
-                log_output = captured.err + captured.out
+                log_output = loguru_capture.getvalue()
                 
                 # Should indicate filtered query
                 assert "filtered query" in log_output
@@ -539,7 +550,7 @@ class TestFetchDailyDecisionsReconciliation:
                 # The log format should be different
 
     def test_filtered_query_with_pagination_issue(
-        self, target_date, import_job, capfd
+        self, target_date, import_job, loguru_capture
     ):
         """
         Filtered query can still detect pagination bugs even without official count.
@@ -597,8 +608,7 @@ class TestFetchDailyDecisionsReconciliation:
                 )
 
                 # Capture logs
-                captured = capfd.readouterr()
-                log_output = captured.err + captured.out
+                log_output = loguru_capture.getvalue()
                 
                 # Should detect pagination mismatch even in filtered query
                 assert "Pagination_mismatch=-45" in log_output

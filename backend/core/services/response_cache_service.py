@@ -159,6 +159,50 @@ class ResponseCacheService:
         return timeout
 
     @staticmethod
+    def _delete_keys(pattern: str, key_fragment: str, label: str) -> int:
+        """
+        Delete all cache keys matching a glob pattern.
+
+        Uses delete_pattern when available (django-redis); falls back to
+        iterating the internal dict for backends like LocMemCache.
+
+        Args:
+            pattern: Redis glob pattern (e.g. "*api_cache:da:browse*").
+            key_fragment: Substring used for the LocMem fallback match.
+            label: Human-readable label for logging.
+
+        Returns:
+            Number of keys deleted
+        """
+        from django.core.cache import cache
+
+        try:
+            count = cache.delete_pattern(pattern)
+            if count > 0:
+                logger.info(f"ResponseCache: invalidated {count} keys for {label}")
+            return count
+        except (AttributeError, NotImplementedError):
+            # Backend doesn't support delete_pattern (e.g. LocMemCache).
+            # Fall back to iterating the internal cache dict.
+            cache_dict = getattr(cache, "_cache", None)
+            if cache_dict is None:
+                return 0
+            keys_to_delete = [
+                k for k in list(cache_dict.keys()) if key_fragment in str(k)
+            ]
+            for k in keys_to_delete:
+                del cache_dict[k]
+            if keys_to_delete:
+                logger.info(
+                    f"ResponseCache: invalidated {len(keys_to_delete)} keys "
+                    f"for {label} (LocMem fallback)"
+                )
+            return len(keys_to_delete)
+        except Exception as e:
+            logger.warning(f"ResponseCache: invalidation failed for {label}: {e}")
+            return 0
+
+    @staticmethod
     def invalidate_prefix(view_name: str) -> int:
         """
         Invalidate all cached responses for a specific view.
@@ -172,40 +216,26 @@ class ResponseCacheService:
         Returns:
             Number of keys deleted
         """
-        from django.core.cache import cache
-
         pattern = f"*api_cache:da:{view_name}*"
+        key_fragment = f":{view_name}:"
+        return ResponseCacheService._delete_keys(
+            pattern, key_fragment, f"view={view_name}"
+        )
 
-        try:
-            count = cache.delete_pattern(pattern)
-            if count > 0:
-                logger.info(
-                    f"ResponseCache: invalidated {count} keys for view={view_name}"
-                )
-            return count
-        except AttributeError:
-            # Backend doesn't support delete_pattern (e.g. LocMemCache).
-            # Fall back to iterating the internal cache dict.
-            cache_dict = getattr(cache, "_cache", None)
-            if cache_dict is None:
-                return 0
-            key_fragment = f":{view_name}:"
-            keys_to_delete = [
-                k for k in list(cache_dict.keys()) if key_fragment in str(k)
-            ]
-            for k in keys_to_delete:
-                del cache_dict[k]
-            if keys_to_delete:
-                logger.info(
-                    f"ResponseCache: invalidated {len(keys_to_delete)} keys "
-                    f"for view={view_name} (LocMem fallback)"
-                )
-            return len(keys_to_delete)
-        except Exception as e:
-            logger.warning(
-                f"ResponseCache: invalidation failed for {view_name}: {e}"
-            )
-            return 0
+    @staticmethod
+    def invalidate_browse_available_letters() -> int:
+        """
+        Invalidate the browse "available_letters" cache.
+
+        These keys (browse:available_letters:<entity_type>) are populated by
+        BrowseService._get_available_letters under a different namespace than
+        the API response cache, so they are not covered by invalidate_prefix.
+        """
+        return ResponseCacheService._delete_keys(
+            "browse:available_letters:*",
+            "browse:available_letters:",
+            "browse available_letters",
+        )
 
     @staticmethod
     def invalidate_all() -> int:

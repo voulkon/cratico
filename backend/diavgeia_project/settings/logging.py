@@ -34,6 +34,11 @@ DB_LOG_LEVEL = os.getenv(
 # Backward compatibility: Keep JSON_LOGGING_LEVEL for now
 JSON_LOGGING_LEVEL = os.getenv("JSON_LOGGING_LEVEL", DJANGO_LOG_LEVEL)
 
+# Rolling file logging in addition to console/stdout. Keeps the app debuggable
+# when Loki/Promtail/Grafana are absent (minimal stack). Opt out with
+# LOG_TO_FILE=false.
+LOG_TO_FILE = os.getenv("LOG_TO_FILE", "true").lower() in ("true", "1", "t")
+
 if USE_JSON_LOGGING:
     # JSON structured logging for Grafana/Loki
     from diavgeia_project.logging.logging_config_json import get_json_logging_config
@@ -44,9 +49,17 @@ if USE_JSON_LOGGING:
         celery_level=CELERY_LOG_LEVEL,
         celery_task_event_level=CELERY_TASK_EVENT_LOG_LEVEL,
         db_level=DB_LOG_LEVEL,
+        log_to_file=LOG_TO_FILE,
+        file_path=os.path.join(BASE_DIR, "logs", "django.log"),
     )
 else:
     # Traditional text logging (default)
+    # Handler lists, gated by LOG_TO_FILE
+    _file_handlers = ["console", "file"] if LOG_TO_FILE else ["console"]
+    _file_error_handlers = (
+        ["console", "file", "mail_admins"] if LOG_TO_FILE else ["console", "mail_admins"]
+    )
+
     LOGGING = {
         "version": 1,
         "disable_existing_loggers": False,
@@ -89,8 +102,8 @@ else:
                 "level": "INFO",
                 "class": "logging.handlers.RotatingFileHandler",
                 "filename": os.path.join(BASE_DIR, "logs", "django.log"),
-                "maxBytes": 1024 * 1024 * 15,  # 15MB
-                "backupCount": 10,
+                "maxBytes": 5_000_000,  # 5MB — capped for minimal-stack deployments
+                "backupCount": 3,  # at most ~20MB of django.log* total
                 "formatter": "json",
             },
             "mail_admins": {
@@ -102,63 +115,63 @@ else:
         },
         "root": {
             "level": "INFO",
-            "handlers": ["console"],
+            "handlers": _file_handlers,
         },
         "loggers": {
             "django": {
-                "handlers": ["console", "file"],
+                "handlers": _file_handlers,
                 "level": "INFO",
                 "propagate": False,
             },
             "django.request": {
-                "handlers": ["console", "file", "mail_admins"],
+                "handlers": _file_error_handlers,
                 "level": "ERROR",
                 "propagate": False,
             },
             "django.security": {
-                "handlers": ["console", "file", "mail_admins"],
+                "handlers": _file_error_handlers,
                 "level": "INFO",
                 "propagate": False,
             },
             # Custom app loggers
             "api": {
-                "handlers": ["console", "file"],
+                "handlers": _file_handlers,
                 "level": "INFO",
                 "propagate": False,
             },
             "core": {
-                "handlers": ["console", "file"],
+                "handlers": _file_handlers,
                 "level": "INFO",
                 "propagate": False,
             },
             "users": {
-                "handlers": ["console", "file"],
+                "handlers": _file_handlers,
                 "level": "INFO",
                 "propagate": False,
             },
             # Celery logging
             "celery": {
-                "handlers": ["console", "file"],
+                "handlers": _file_handlers,
                 "level": "INFO",
                 "propagate": False,
             },
             "celery.task": {
-                "handlers": ["console", "file"],
+                "handlers": _file_handlers,
                 "level": "INFO",
                 "propagate": False,
             },
             "celery.worker": {
-                "handlers": ["console", "file"],
+                "handlers": _file_handlers,
                 "level": "INFO",
                 "propagate": False,
             },
             "celery.worker.strategy": {
-                "handlers": ["console", "file"],
+                "handlers": _file_handlers,
                 "level": CELERY_TASK_EVENT_LOG_LEVEL,  # "Task X received" — noisy, default WARNING
                 "propagate": False,
             },
             "celery.app.trace": {
-                "handlers": ["console", "file"],
+                "handlers": _file_handlers,
                 "level": CELERY_TASK_EVENT_LOG_LEVEL,  # "Task Y succeeded" — noisy, default WARNING
                 "propagate": False,
             },

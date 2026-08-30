@@ -312,8 +312,8 @@
   },
   "expected": {
     "entities": 0,
-    "amounts": 59,
-    "total_amount": 3465080800.00
+    "amounts": 1,
+    "total_amount": 1732540400.0
   },
   "_analysis": {
     "comment" : "3465080800.00 is double of the real amount because it contains it once as amountWithVAT and once as sum of amountWithKae. There is no recipient, so all amounts are unlinked.",

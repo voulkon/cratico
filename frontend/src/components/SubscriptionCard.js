@@ -26,6 +26,7 @@ import {
     BarChart3,
     Mail,
     MailX,
+    Sparkles,
     ChevronDown
 } from 'lucide-react';
 import './SubscriptionCard.css';
@@ -199,6 +200,22 @@ export default function SubscriptionCard({ subscription, onRefresh, cardClass = 
             await onRefresh();
         } catch (error) {
             console.error('Failed to toggle email:', error);
+            alert(t('notifications.failedToUpdateSubscription'));
+        } finally {
+            setIsActionLoading(false);
+        }
+    };
+
+    // Toggle AI summary
+    const handleToggleAISummary = async () => {
+        setIsActionLoading(true);
+        try {
+            await updateSubscription(subscription.id, {
+                ai_summary_enabled: !subscription.ai_summary_enabled
+            });
+            await onRefresh();
+        } catch (error) {
+            console.error('Failed to toggle AI summary:', error);
             alert(t('notifications.failedToUpdateSubscription'));
         } finally {
             setIsActionLoading(false);
@@ -444,6 +461,16 @@ export default function SubscriptionCard({ subscription, onRefresh, cardClass = 
                     )}
                     <span className="metadata-text">
                         {subscription.also_send_email !== false ? t('notifications.emailOn') : t('notifications.emailOff')}
+                    </span>
+                </div>
+                <div
+                    className={`metadata-item metadata-ai-toggle ${subscription.ai_summary_enabled ? 'ai-on' : 'ai-off'}`}
+                    onClick={handleToggleAISummary}
+                    title={subscription.ai_summary_enabled ? t('notifications.aiSummaryEnabled') : t('notifications.aiSummaryDisabled')}
+                >
+                    <Sparkles size={14} className="metadata-icon" />
+                    <span className="metadata-text">
+                        {subscription.ai_summary_enabled ? t('notifications.aiOn') : t('notifications.aiOff')}
                     </span>
                 </div>
             </div>

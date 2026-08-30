@@ -39,20 +39,45 @@ User = get_user_model()
 @pytest.fixture(autouse=True)
 def clear_rate_limit_cache(db):
     """
-    Clear rate limit cache before each test to prevent rate limit errors.
+    Clear rate limit and security keys before each test to prevent
+    cross-test contamination.
+
     This runs automatically for all tests that use the database.
     """
     try:
         from django.core.cache import cache
         from django_redis import get_redis_connection
 
-        # Clear all rate limit keys from cache
-        cache.delete_pattern("ratelimit:*")
-
-        # Also clear from Redis directly
         redis = get_redis_connection("default")
+
+        # Clear all rate limit keys
+        cache.delete_pattern("ratelimit:*")
         for key in redis.scan_iter("ratelimit:*"):
             redis.delete(key)
+
+        # Clear cached API view responses so stale data (e.g. from a
+        # previous test run) doesn't leak into the current test.
+        cache.delete_pattern("api_cache:*")
+        for key in redis.scan_iter("api_cache:*"):
+            redis.delete(key)
+
+        # Clear warmup-status keys used by @cached_view(defer_on_miss=True).
+        for key in redis.scan_iter("warmup:*"):
+            redis.delete(key)
+
+        # Clear all security-related keys (velocity, strikes, errors,
+        # scan detection, banned set, flagged set) so tests that use
+        # the real SecurityService don't leak state into other tests.
+        for pattern in (
+            "security:velocity:*",
+            "security:strikes:*",
+            "security:errors:*",
+            "security:scan:*",
+        ):
+            for key in redis.scan_iter(pattern):
+                redis.delete(key)
+        # Full-key deletes for the aggregation sets
+        redis.delete("security:banned", "security:flagged")
     except Exception:
         # If Redis is not available or there's any error, just skip
         # This ensures tests can run even without Redis
@@ -592,3 +617,26 @@ def celery_eager_mode(settings):
     settings.CELERY_TASK_ALWAYS_EAGER = True
     settings.CELERY_TASK_EAGER_PROPAGATES = True
     return settings
+
+
+# ============================================================================
+# Module-identity safeguard for `from conftest import ...`
+# ============================================================================
+# pytest imports every conftest.py in its default "prepend" mode under the bare
+# module name ``conftest``. When several of these exist (e.g.
+# gemi/tests/conftest.py, pothen/tests/conftest.py), the last one imported wins
+# ``sys.modules["conftest"]``. That breaks the widespread deferred pattern
+# ``from conftest import <Factory>`` used inside test bodies, which then
+# resolves to the wrong conftest (and raises ImportError).
+#
+# Re-register this (root) module under ``conftest`` once collection has
+# finished and right before tests start running, so all deferred imports in
+# test bodies keep pointing at the factories defined here.
+
+import sys as _sys
+
+_CONFTEST_MODULE = _sys.modules.get(__name__)  # captured at import time
+
+
+def pytest_sessionstart(session):
+    _sys.modules["conftest"] = _CONFTEST_MODULE

@@ -24,7 +24,6 @@ class ProcessingProvider(models.TextChoices):
     TESSERACT = "TESSERACT", _("Tesseract OCR")
     GOOGLE_VISION = "GOOGLE_VISION", _("Google Vision API")
     AZURE_OCR = "AZURE_OCR", _("Azure OCR")
-
     # Analysis providers
     OPENAI = "OPENAI", _("OpenAI")
     ANTHROPIC = "ANTHROPIC", _("Anthropic Claude")
@@ -32,6 +31,7 @@ class ProcessingProvider(models.TextChoices):
     AWS_BEDROCK = "AWS_BEDROCK", _("AWS Bedrock")
     MISTRAL = "MISTRAL", _("Mistral AI")
     OLLAMA = "OLLAMA", _("Ollama Local Models")
+    OPENROUTER = "OPENROUTER", _("OpenRouter")
 
     # Embedding providers
     OPENAI_EMBED = "OPENAI_EMBED", _("OpenAI Embeddings")
@@ -273,3 +273,232 @@ class ExtractorComparison(models.Model):
 
     def __str__(self):
         return f"Comparison for {self.decision.ada}"
+
+
+class TextProcessStatus(models.TextChoices):
+    PENDING = "PENDING", _("Pending")
+    RUNNING = "RUNNING", _("Running")
+    COMPLETED = "COMPLETED", _("Completed")
+    FAILED = "FAILED", _("Failed")
+    SKIPPED = "SKIPPED", _("Skipped")
+
+
+class TextProcessRun(models.Model):
+    """
+    A single execution of a text process over one document extraction.
+
+    A *text process* is any algorithm that scans ``DocumentExtraction.raw_text``
+    and emits labeled spans (``TextSpan``) — e.g. amount detection, date
+    detection, boilerplate breakdown, entity detection.  One row per
+    (extraction, process, method, provider, model, version), so regex
+    heuristics and any number of AI models can coexist per text and be
+    compared.  Processes that produce a decision-level verdict (e.g. the
+    chosen amount) persist it in ``TextProcessResolution``.
+    """
+
+    extraction = models.ForeignKey(
+        DocumentExtraction,
+        on_delete=models.CASCADE,
+        related_name="text_process_runs",
+        help_text=_("The exact document text snapshot this run was executed on"),
+    )
+
+    # --- Process identity ---
+    process = models.CharField(
+        max_length=50,
+        db_index=True,
+        help_text=_("Process slug: 'amount', 'dates', 'boilerplate', ..."),
+    )
+    method = models.CharField(
+        max_length=20,
+        choices=[("regex", _("Regex / Heuristics")), ("ai", _("AI / LLM"))],
+        default="regex",
+        help_text=_("Execution method used for this run"),
+    )
+    provider = models.CharField(
+        max_length=30,
+        null=True,
+        blank=True,
+        help_text=_("Provider: 'REGEX' for regex runs, else the AI provider"),
+    )
+    model = models.CharField(
+        max_length=100,
+        null=True,
+        blank=True,
+        help_text=_("Model name for AI runs, else the algorithm tag"),
+    )
+    version = models.CharField(max_length=20, default="1.0")
+
+    # --- Status ---
+    status = models.CharField(
+        max_length=20,
+        choices=TextProcessStatus.choices,
+        default=TextProcessStatus.PENDING,
+        db_index=True,
+    )
+
+    # --- Run-level metadata / params / audit trail ---
+    meta = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_(
+            "Run-level inputs & outputs: params, raw response, computed totals, ..."
+        ),
+    )
+    error_message = models.TextField(null=True, blank=True)
+
+    # --- Cost tracking (null for regex runs) ---
+    input_tokens = models.IntegerField(null=True, blank=True)
+    output_tokens = models.IntegerField(null=True, blank=True)
+    cost_usd = models.DecimalField(
+        max_digits=10, decimal_places=6, null=True, blank=True
+    )
+
+    triggered_by = models.ForeignKey(
+        "users.CustomUser",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="text_process_runs",
+    )
+    pipeline_run = models.ForeignKey(
+        "core.PipelineRun",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="text_process_runs",
+        help_text=_("Set when this process ran as part of a pipeline"),
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("Text Process Run")
+        verbose_name_plural = _("Text Process Runs")
+        unique_together = [
+            ["extraction", "process", "method", "provider", "model", "version"]
+        ]
+        indexes = [
+            models.Index(fields=["process", "status"]),
+            models.Index(fields=["extraction", "process"]),
+            models.Index(fields=["-created_at"]),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.extraction.decision.ada} [{self.process}/"
+            f"{self.method}/{self.provider}]"
+        )
+
+
+class TextSpan(models.Model):
+    """
+    A labeled region of text produced by a ``TextProcessRun``.
+
+    ``start``/``end`` are char offsets into the run's extraction
+    ``raw_text`` (inclusive/exclusive) — including any markdown characters
+    the extractor emitted.  ``value`` holds the process-specific payload
+    (e.g. ``{"amount": "30000.00"}`` or ``{"date": "2026-08-05"}``).
+    """
+
+    run = models.ForeignKey(
+        TextProcessRun,
+        on_delete=models.CASCADE,
+        related_name="spans",
+    )
+    label = models.CharField(
+        max_length=50,
+        db_index=True,
+        help_text=_(
+            "Span type: 'amount', 'date', 'boilerplate', 'signer', "
+            "'subject', 'main_point', 'useless', 'entity', ..."
+        ),
+    )
+    start = models.IntegerField(help_text=_("Char offset, inclusive"))
+    end = models.IntegerField(help_text=_("Char offset, exclusive"))
+    text_snippet = models.CharField(
+        max_length=500,
+        help_text=_("The matched text (for quick preview / debugging)"),
+    )
+    value = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_("Process-specific payload for this span"),
+    )
+    confidence = models.FloatField(null=True, blank=True)
+    occurrence_count = models.PositiveIntegerField(
+        default=1,
+        help_text=_("How many times this span's value appears in the text"),
+    )
+
+    class Meta:
+        verbose_name = _("Text Span")
+        verbose_name_plural = _("Text Spans")
+        ordering = ["start"]
+        indexes = [
+            models.Index(fields=["run", "label"]),
+            models.Index(fields=["run", "start"]),
+        ]
+
+    def __str__(self):
+        return f"{self.label} [{self.start}:{self.end}] {self.text_snippet[:40]!r}"
+
+
+class TextProcessResolution(models.Model):
+    """
+    Decision-level verdict for a text process (optional).
+
+    Only processes that pick a *winner* among their spans need one (e.g. the
+    amount process resolves which detected amount is the correct one).
+    One row per (decision, process) — the record queries/UI read.
+    """
+
+    decision = models.ForeignKey(
+        Decision,
+        on_delete=models.CASCADE,
+        related_name="text_process_resolutions",
+    )
+    process = models.CharField(max_length=50, db_index=True)
+    winning_run = models.ForeignKey(
+        TextProcessRun,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="resolutions",
+    )
+    chosen_span = models.ForeignKey(
+        TextSpan,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        help_text=_("The span that corresponds to the resolved value"),
+    )
+    value = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_("The final resolved value, e.g. {'amount': '30000.00'}"),
+    )
+    has_discrepancy = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text=_("True if the winning run found a discrepancy"),
+    )
+    note = models.TextField(
+        null=True, blank=True, help_text=_("Explanation copied from the winning run")
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("Text Process Resolution")
+        verbose_name_plural = _("Text Process Resolutions")
+        unique_together = [["decision", "process"]]
+        indexes = [
+            models.Index(fields=["-updated_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.process} resolution for {self.decision.ada}"

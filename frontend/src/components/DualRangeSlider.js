@@ -1,7 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import SliderTooltip from './SliderTooltip';
 import ActivityChart from './ActivityChart';
-import ActivitySummary from './ActivitySummary';
 import { useSliderFormatters } from '../hooks/useSliderFormatters';
 import './DualRangeSlider.css';
 
@@ -319,12 +318,9 @@ const DualRangeSlider = ({
   return (
     <div className="dual-range-slider">
       <div className="slider-header">
-        <label className="slider-label">{label}:</label>
-        <div className="slider-values">
-          <span className="value-badge">{startLabel}</span>
-          <span className="value-separator">to</span>
-          <span className="value-badge">{endLabel}</span>
-        </div>
+        <span className="value-badge">{startLabel}</span>
+        <span className="value-separator">—</span>
+        <span className="value-badge">{endLabel}</span>
       </div>
 
       <div className="slider-container">
@@ -431,8 +427,6 @@ const DualRangeSlider = ({
           </button>
         )}
       </div>
-
-      <ActivitySummary activityData={activityData} formatAmount={formatAmount} />
     </div>
   );
 };

@@ -1,0 +1,155 @@
+/* ── Annotated text container ────────────────────────────────────────── */
+.annotated-text-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono, 'SF Mono', 'Fira Code', monospace);
+  font-size: var(--font-sm, 13px);
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text-color);
+}
+
+/* ── Legend ──────────────────────────────────────────────────────────── */
+.text-span-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  background: var(--surface-secondary);
+  border-radius: var(--radius-md);
+  font-size: var(--font-xs);
+}
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-secondary);
+}
+.legend-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+/* ── Span structural styles (colors are inline via style prop) ────────── */
+.annot-mark {
+  border-radius: 3px;
+  padding: 0 1px;
+  cursor: default;
+}
+
+.annot-mark--multi {
+  position: relative;
+}
+
+.annot-mark:hover {
+  filter: brightness(1.15);
+  cursor: help;
+}
+
+/* ── Process toggle buttons ───────────────────────────────────────────── */
+.process-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.process-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  font-size: var(--font-xs);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--surface-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+  white-space: nowrap;
+  user-select: none;
+}
+.process-toggle-btn:hover:not(:disabled) {
+  border-color: var(--text-secondary);
+}
+
+.process-toggle-btn--on {
+  border-color: var(--accent-color);
+  color: var(--text-color);
+  font-weight: var(--font-medium);
+}
+
+.process-toggle-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.process-toggle-run {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted-text);
+  cursor: pointer;
+  margin-left: 2px;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+.process-toggle-run:hover {
+  color: var(--accent-color);
+  background: var(--hover-bg);
+}
+.process-toggle-run:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.process-toggle-spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--accent-color);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.view-toggle {
+  display: inline-flex;
+  gap: 0;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  font-size: var(--font-xs);
+  margin-bottom: 8px;
+}
+.view-toggle button {
+  padding: 3px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.view-toggle button.active {
+  background: var(--accent-color);
+  color: var(--text-on-primary);
+}

@@ -169,7 +169,6 @@ class DocumentExtractionImporter:
         DocumentPage.objects.create(
             extraction=extraction,
             page_number=1,
-            raw_text=text,
             character_count=len(text) if text else 0,
         )
         logger.info(f"Created single fallback page for {extraction.decision.ada}")

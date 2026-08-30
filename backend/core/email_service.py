@@ -16,6 +16,8 @@ from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from loguru import logger
 
+from core.services.frontend_url import frontend_base_url
+
 
 class EmailService:
     """
@@ -174,11 +176,7 @@ class RegistrationEmailService:
     Clerk handles all this for Clerk-authenticated users automatically.
     """
 
-    frontend_url = (
-        settings.FRONTEND_HOSTNAMES[0]
-        if settings.FRONTEND_HOSTNAMES
-        else "https://crati.co"
-    )
+    frontend_url = frontend_base_url()
 
     @staticmethod
     def send_verification_email(
@@ -433,11 +431,7 @@ class PasswordResetEmailService:
     Clerk users should use Clerk's built-in password reset flow.
     """
 
-    frontend_url = (
-        settings.FRONTEND_HOSTNAMES[0]
-        if settings.FRONTEND_HOSTNAMES
-        else "https://crati.co"
-    )
+    frontend_url = frontend_base_url()
 
     @staticmethod
     def send_password_reset_email(

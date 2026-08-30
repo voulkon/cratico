@@ -1,0 +1,134 @@
+/* ScrollableCategoryTabs — horizontal ribbon with ‹ › scroll arrows */
+
+.scrollable-category-tabs {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  /* Never taller than the top band — arrows + tabs stay on one line. */
+  max-height: var(--top-controls-height, 48px);
+  overflow: hidden;
+  position: relative;
+}
+
+.sct-scroll {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+}
+
+/* The inner CategoryTabs strip scrolls horizontally inside .sct-scroll. */
+.sct-scroll .category-tabs {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+  border-bottom: none;
+  padding: 0;
+  width: 100%;
+}
+
+.sct-scroll .category-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Scroll arrows ────────────────────────────────────────────────
+   Arrows are ALWAYS rendered (even when disabled) so the affordance
+   is perceptible. Disabled arrows are dimmed; enabled arrows are
+   prominent and carry a gradient fade that makes clipped tabs appear
+   to dissolve into the edge — the standard "more content here" cue. */
+.sct-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 100%;
+  min-height: 28px;
+  padding: 0;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  opacity: 0.35;
+  transition: opacity 0.18s ease, color 0.15s ease;
+  position: relative;
+  z-index: 2;
+}
+
+/* Enabled arrow: full opacity + gradient fade from the surface color
+   (outer edge) to transparent (inner edge), so tabs dissolve into it. */
+.sct-arrow:not(:disabled) {
+  opacity: 1;
+  cursor: pointer;
+}
+
+.sct-arrow:not(:disabled):hover {
+  color: var(--palette-primary, #3b82f6);
+}
+
+.sct-arrow:disabled {
+  cursor: default;
+  /* No gradient when there's nothing to scroll toward — looks clean. */
+  background: transparent;
+}
+
+/* Gradient fades only appear when that side has overflow. */
+.sct-arrow-left:not(:disabled) {
+  background: linear-gradient(
+    to right,
+    var(--card-bg, #fff) 30%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
+.sct-arrow-right:not(:disabled) {
+  background: linear-gradient(
+    to left,
+    var(--card-bg, #fff) 30%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
+/* Dark theme: use a dark surface for the fade. */
+[data-theme="dark"] .sct-arrow-left:not(:disabled) {
+  background: linear-gradient(
+    to right,
+    var(--card-bg, #1c1917) 30%,
+    rgba(28, 25, 23, 0) 100%
+  );
+}
+
+[data-theme="dark"] .sct-arrow-right:not(:disabled) {
+  background: linear-gradient(
+    to left,
+    var(--card-bg, #1c1917) 30%,
+    rgba(28, 25, 23, 0) 100%
+  );
+}
+
+/* ── One-time attention pulse when overflow first appears ──────────
+   Draws the eye to the arrows the first time tabs overflow, so users
+   discover the scroll affordance without being nagged on every render. */
+.sct-arrow.sct-pulse:not(:disabled) {
+  animation: sct-pulse 1.6s ease-out 1;
+}
+
+@keyframes sct-pulse {
+  0% {
+    transform: scale(1);
+  }
+  20% {
+    transform: scale(1.25);
+    color: var(--palette-primary, #3b82f6);
+  }
+  40%,
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sct-arrow.sct-pulse:not(:disabled) {
+    animation: none;
+  }
+}

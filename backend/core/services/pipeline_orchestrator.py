@@ -761,12 +761,12 @@ class DecisionPipelineOrchestrator:
                 )
                 return
 
-            if not decision.document_url:
+            if not decision.document_url_or_fallback:
                 self.update_health_status(
                     health_check,
                     "document_extraction",
                     HealthStatus.WARNING,
-                    "No document URL",
+                    "No document URL (and no ADA to construct one)",
                 )
                 return
 

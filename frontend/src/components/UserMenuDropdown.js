@@ -1,8 +1,9 @@
 import React, { useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { Moon, Sun, LogOut, LogIn } from 'lucide-react';
+import { Moon, Sun, LogOut, LogIn, Sparkles } from 'lucide-react';
 import './UserMenu.css';
 
 // Check if Clerk is available
@@ -19,6 +20,7 @@ if (isClerkAvailable()) {
 }
 
 const UserMenuDropdown = ({ onClose, onShowLogin }) => {
+  const navigate = useNavigate();
   const { t, language, switchLanguage, availableLanguages } = useTranslation();
   const {
     theme,
@@ -201,6 +203,25 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
             </button>
           )}
         </div>
+      )}
+
+      {/* AI (only when signed in) */}
+      {isSignedIn && (
+        <>
+          <div className="menu-divider"></div>
+          <div className="menu-section">
+            <button
+              className="menu-action"
+              style={{ justifyContent: 'center', textAlign: 'center' }}
+              onClick={() => {
+                onClose();
+                navigate('/ai/settings');
+              }}
+            >
+              <Sparkles size={16} /> {t('common.ai')}
+            </button>
+          </div>
+        </>
       )}
     </div>
   );

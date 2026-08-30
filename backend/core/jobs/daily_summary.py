@@ -211,15 +211,18 @@ class DailySummaryJob(BaseAIJob):
         if not extraction:
             return False
 
+        content = item.get("content") or ""
+        identifier = item.get("item_identifier") or item.get("item_id", "unknown")
+
         # Skip if content too short (likely corrupt)
-        if len(item["content"]) < 100:
-            logger.warning(f"Skipping {item['item_identifier']}: content too short")
+        if len(content) < 100:
+            logger.warning(f"Skipping {identifier}: content too short")
             return False
 
         # Skip if content too long (over context window)
         # Assuming ~4 chars per token, 200K token window
-        if len(item["content"]) > 800000:  # 800K chars ~ 200K tokens
-            logger.warning(f"Skipping {item['item_identifier']}: content too long")
+        if len(content) > 800000:  # 800K chars ~ 200K tokens
+            logger.warning(f"Skipping {identifier}: content too long")
             return False
 
         return True

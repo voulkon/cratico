@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useTranslation } from '../contexts/TranslationContext';
+import CollapsibleCard from './CollapsibleCard';
 import CompanyInfoPanel from './CompanyInfoPanel';
 import CompanyPersonsTable from './CompanyPersonsTable';
 import CompanyActivitiesTable from './CompanyActivitiesTable';
@@ -8,7 +9,6 @@ import './GemiSection.css';
 
 const GemiSection = ({ companyInfo, entity, gemiFetchStatus, onRequestFetch }) => {
   const { t } = useTranslation();
-  const [isOpen, setIsOpen] = useState(true);
 
   const hasData = !!companyInfo;
   const neverAttempted = !entity.gemi_lookup_attempted;
@@ -81,62 +81,54 @@ const GemiSection = ({ companyInfo, entity, gemiFetchStatus, onRequestFetch }) =
   );
 
   return (
-    <div className="gemi-section">
-      <button
-        type="button"
-        className="gemi-section-header"
-        onClick={() => setIsOpen(!isOpen)}
-        aria-expanded={isOpen}
-      >
-        <h2 className="gemi-section-title">{t('afmEntityDetail.gemiCompanyInformation')}</h2>
-        <span className="gemi-section-toggle-arrow">{isOpen ? '▲' : '▼'}</span>
-      </button>
+    <CollapsibleCard
+      title={t('afmEntityDetail.gemiCompanyInformation')}
+      defaultOpen={true}
+      className="gemi-section"
+    >
+      <div className="gemi-section-body">
+        {/* Case 1: Data available — persons first */}
+        {hasData && (
+          <div className="gemi-components-grid">
+            <CompanyPersonsTable persons={companyInfo.persons} />
+            <CompanyInfoPanel company={companyInfo} />
+            <CompanyCapitalStocks capital={companyInfo.capital} stocks={companyInfo.stocks} />
+            <CompanyActivitiesTable activities={companyInfo.activities} />
+          </div>
+        )}
 
-      {isOpen && (
-        <div className="gemi-section-body">
-          {/* Case 1: Data available — persons first */}
-          {hasData && (
-            <div className="gemi-components-grid">
-              <CompanyPersonsTable persons={companyInfo.persons} />
-              <CompanyInfoPanel company={companyInfo} />
-              <CompanyCapitalStocks capital={companyInfo.capital} stocks={companyInfo.stocks} />
-              <CompanyActivitiesTable activities={companyInfo.activities} />
-            </div>
-          )}
-
-          {/* Case 2: AFM is currently in the fetch queue (persists across page reloads) */}
-          {!hasData && queueStatus && (
-            <div className="gemi-fetch-request">
-              <p className="gemi-fetch-message gemi-fetch-message--info">
-                {queueStatus === 'processing'
-                  ? t('afmEntityDetail.requestGemiFetchProcessing')
-                  : t('afmEntityDetail.requestGemiFetchInQueue')
-                }
-              </p>
-            </div>
-          )}
-
-          {/* Case 3: Company records exist in DB but full endpoint failed to load */}
-          {!hasData && companyRecordExists && !queueStatus && (
-            <div className="gemi-fetch-request">
-              <p className="gemi-fetch-message gemi-fetch-message--info">
-                {t('afmEntityDetail.requestGemiFetchDataAvailable')}
-              </p>
-            </div>
-          )}
-
-          {/* Case 4: No data — show fetch button (covers never-attempted, failed, and inconsistent state) */}
-          {canRequestFetch && renderFetchRequest()}
-
-          {/* Case 5: Attempted but GEMI returned no record (definitive failure, but still offer retry) */}
-          {!hasData && attemptedButFailed && !claimedSuccessButNoData && !queueStatus && (
+        {/* Case 2: AFM is currently in the fetch queue (persists across page reloads) */}
+        {!hasData && queueStatus && (
+          <div className="gemi-fetch-request">
             <p className="gemi-fetch-message gemi-fetch-message--info">
-              {t('afmEntityDetail.requestGemiFetchNotFound')}
+              {queueStatus === 'processing'
+                ? t('afmEntityDetail.requestGemiFetchProcessing')
+                : t('afmEntityDetail.requestGemiFetchInQueue')
+              }
             </p>
-          )}
-        </div>
-      )}
-    </div>
+          </div>
+        )}
+
+        {/* Case 3: Company records exist in DB but full endpoint failed to load */}
+        {!hasData && companyRecordExists && !queueStatus && (
+          <div className="gemi-fetch-request">
+            <p className="gemi-fetch-message gemi-fetch-message--info">
+              {t('afmEntityDetail.requestGemiFetchDataAvailable')}
+            </p>
+          </div>
+        )}
+
+        {/* Case 4: No data — show fetch button (covers never-attempted, failed, and inconsistent state) */}
+        {canRequestFetch && renderFetchRequest()}
+
+        {/* Case 5: Attempted but GEMI returned no record (definitive failure, but still offer retry) */}
+        {!hasData && attemptedButFailed && !claimedSuccessButNoData && !queueStatus && (
+          <p className="gemi-fetch-message gemi-fetch-message--info">
+            {t('afmEntityDetail.requestGemiFetchNotFound')}
+          </p>
+        )}
+      </div>
+    </CollapsibleCard>
   );
 };
 

@@ -242,9 +242,9 @@ class FeatureFlagService:
         "POST_IMPORT_ORCHESTRATOR_ENABLED": {
             "name": "Post-Import Orchestrator",
             "description": "Master switch for the post-import task pipeline (analytics, "
-            "cache warming, notifications).  When enabled, fires automatically after "
-            "a global daily import completes.  Individual sub-tasks can be toggled "
-            "independently via their own flags.",
+            "cache warming, notifications, amount verification).  When enabled, fires "
+            "automatically after a global daily import completes.  Individual sub-tasks "
+            "can be toggled independently via their own flags.",
             "default": False,
             "env_var": "POST_IMPORT_ORCHESTRATOR_ENABLED",
             "category": "data_ingestion",
@@ -282,6 +282,17 @@ class FeatureFlagService:
             "category": "notifications",
             "requires_restart": False,
         },
+        "POST_IMPORT_AMOUNT_VERIFICATION_ENABLED": {
+            "name": "Post-Import Amount Verification",
+            "description": "After a global daily import, verify monetary amounts in "
+            "high-value decisions (≥€1M) by reading the document text (regex-first, "
+            "optional AI). Catches data-entry errors like misplaced decimal "
+            "separators. Requires POST_IMPORT_ORCHESTRATOR_ENABLED.",
+            "default": True,
+            "env_var": "POST_IMPORT_AMOUNT_VERIFICATION_ENABLED",
+            "category": "data_quality",
+            "requires_restart": False,
+        },
         # ── User-Triggered GEMI Fetch ─────────────────────────────────
         "GEMI_FETCH_REQUEST_PUBLIC_ACCESS": {
             "name": "GEMI Fetch Request — Public Access",
@@ -301,6 +312,97 @@ class FeatureFlagService:
             "default": 10,
             "env_var": "GEMI_FETCH_REQUEST_DAILY_LIMIT",
             "category": "data_enrichment",
+            "requires_restart": False,
+            "value_type": "integer",
+        },
+        # ── Security & Threat Detection ───────────────────────────────
+        "SECURITY_MONITORING_ENABLED": {
+            "name": "Security Monitoring",
+            "description": "Master switch for the security/threat-detection layer. "
+            "When enabled, tracks per-IP velocity, 4xx/5xx ratios, endpoint-scanning "
+            "behavior, and security-event strikes in Redis. "
+            "Does NOT enforce anything by itself — pair with SECURITY_AUTO_BAN "
+            "for enforcement. Safe to leave on in production (Redis-only, no DB writes).",
+            "default": False,
+            "env_var": "SECURITY_MONITORING_ENABLED",
+            "category": "security",
+            "requires_restart": False,
+        },
+        "SECURITY_FORENSIC_LOGGING_ENABLED": {
+            "name": "Forensic Request Logging",
+            "description": "When enabled, writes every API request (IP, endpoint, method, "
+            "query params, user agent, status code, response time) to the EndpointAccessLog "
+            "table. WARNING: high DB write volume — only enable for short investigation "
+            "windows or on low-traffic deployments. When disabled, only requests from "
+            "flagged IPs are logged (see SECURITY_MONITORING_ENABLED).",
+            "default": False,
+            "env_var": "SECURITY_FORENSIC_LOGGING_ENABLED",
+            "category": "security",
+            "requires_restart": False,
+        },
+        "SECURITY_AUTO_BAN_ENABLED": {
+            "name": "Automatic IP Banning",
+            "description": "When enabled, IPs that exceed the velocity/strike thresholds "
+            "are automatically added to the Redis ban set and blocked at the middleware "
+            "layer (HTTP 403). When disabled, threats are only recorded for review. "
+            "Requires SECURITY_MONITORING_ENABLED.",
+            "default": False,
+            "env_var": "SECURITY_AUTO_BAN_ENABLED",
+            "category": "security",
+            "requires_restart": False,
+        },
+        "SECURITY_VELOCITY_THRESHOLD": {
+            "name": "Velocity Threshold (req/min)",
+            "description": "Number of requests per minute from a single IP that triggers "
+            "a velocity flag. Default 300 (5 req/sec sustained). "
+            "Tune based on legitimate traffic patterns.",
+            "default": 300,
+            "env_var": "SECURITY_VELOCITY_THRESHOLD",
+            "category": "security",
+            "requires_restart": False,
+            "value_type": "integer",
+        },
+        "SECURITY_STRIKE_THRESHOLD": {
+            "name": "Security Strike Threshold",
+            "description": "Number of security events (SQLi/XSS/path-traversal attempts "
+            "from security.py middleware) from a single IP within the strike window "
+            "(default 1 hour) that triggers an automatic ban. Default 5.",
+            "default": 5,
+            "env_var": "SECURITY_STRIKE_THRESHOLD",
+            "category": "security",
+            "requires_restart": False,
+            "value_type": "integer",
+        },
+        "SECURITY_BAN_DURATION_HOURS": {
+            "name": "Ban Duration (hours)",
+            "description": "How long an automatically-banned IP stays blocked. "
+            "Default 24 hours. Set to 0 for permanent ban (requires manual unban).",
+            "default": 24,
+            "env_var": "SECURITY_BAN_DURATION_HOURS",
+            "category": "security",
+            "requires_restart": False,
+            "value_type": "integer",
+        },
+        "SECURITY_SCAN_THRESHOLD": {
+            "name": "Scan Detection Threshold",
+            "description": "Number of distinct endpoints hit by a single IP within "
+            "the scan window (default 5 minutes) that triggers a scan flag. "
+            "Default 80. Endpoints are normalized (numeric IDs collapsed) before "
+            "counting, so /api/decisions/123/ and /api/decisions/456/ count as one.",
+            "default": 80,
+            "env_var": "SECURITY_SCAN_THRESHOLD",
+            "category": "security",
+            "requires_restart": False,
+            "value_type": "integer",
+        },
+        "SECURITY_ERROR_THRESHOLD": {
+            "name": "Error Rate Threshold",
+            "description": "Number of 4xx/5xx responses from a single IP within "
+            "the error window (default 5 minutes) that triggers an error-rate flag. "
+            "Default 60.",
+            "default": 60,
+            "env_var": "SECURITY_ERROR_THRESHOLD",
+            "category": "security",
             "requires_restart": False,
             "value_type": "integer",
         },

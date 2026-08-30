@@ -81,10 +81,19 @@ const useUrlFilters = (defaultValues = {}) => {
   }, [sortBy, searchQuery, selectedTypes, selectedRoles, selectedOrgs, amountFilters, directAssignmentsOnly, setSearchParams]);
 
   // Helper functions
-  const toggleType = useCallback((type) => {
-    const newTypes = selectedTypes.includes(type)
-      ? selectedTypes.filter(t => t !== type)
-      : [...selectedTypes, type];
+  // `forceChecked` is optional: when provided (boolean), the type is added or
+  // removed to match it; when omitted, membership is toggled. This lets callers
+  // like DecisionsToolbar pass the checkbox's `checked` value directly instead
+  // of having to infer the desired state from current selection.
+  const toggleType = useCallback((type, forceChecked) => {
+    const isCurrentlySelected = selectedTypes.includes(type);
+    const shouldSelect = typeof forceChecked === 'boolean'
+      ? forceChecked
+      : !isCurrentlySelected;
+    if (shouldSelect === isCurrentlySelected) return; // no-op
+    const newTypes = shouldSelect
+      ? [...selectedTypes, type]
+      : selectedTypes.filter(t => t !== type);
     setSelectedTypes(newTypes);
     updateUrl({ selectedTypes: newTypes });
   }, [selectedTypes, updateUrl]);
@@ -159,6 +168,12 @@ const useUrlFilters = (defaultValues = {}) => {
     setDirectAssignmentsOnly: (value) => {
       setDirectAssignmentsOnly(value);
       updateUrl({ directAssignmentsOnly: value });
+    },
+    // Batch setter for decision types — avoids N URL updates when applying
+    // multiple type selections at once (e.g. from FilterPanel "Apply").
+    setSelectedTypes: (value) => {
+      setSelectedTypes(value);
+      updateUrl({ selectedTypes: value });
     },
 
     // Togglers

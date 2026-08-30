@@ -15,8 +15,10 @@ from core.models.entities import (
     DecisionAmountField,
     DecisionEntityRelationship,
 )
+from core.services.financial_calculation_service import FinancialCalculationService
 from django.db import transaction
-from django.db.models import Count, Max, Min, Q, Sum
+from django.db.models import Count, F, Max, Min, Q, Sum, Window
+from django.db.models.functions import Coalesce, Rank
 from loguru import logger
 
 
@@ -28,18 +30,36 @@ class AFMEntityStatsService:
     in a handful of SQL statements regardless of how many entities exist.
     """
 
-    def compute_all(self, batch_size: int = 5000) -> Dict[str, int]:
+    def compute_all(
+        self,
+        batch_size: int = 5000,
+        decision_type_uid: str | None = None,
+    ) -> Dict[str, int]:
         """
         Compute stats for every AFM entity and upsert them in bulk.
 
+        Args:
+            batch_size: Number of entities to upsert per transaction.
+            decision_type_uid: If provided, only consider decisions whose
+                act type has this UID (e.g. "B.2").
+
         Returns a dict with counts: created, updated, total.
         """
-        logger.info("Computing AFMEntityStats for all entities...")
+        if decision_type_uid:
+            logger.info(
+                "Computing AFMEntityStats for act type uid={}...",
+                decision_type_uid,
+            )
+        else:
+            logger.info("Computing AFMEntityStats for all entities...")
 
         # 1. Gather raw metrics for every entity (bulk aggregations)
-        raw = self._gather_all_metrics()
+        logger.info("Step 1: gathering raw metrics...")
+        raw = self._gather_all_metrics(decision_type_uid=decision_type_uid)
+        logger.info("Step 1 complete: {} entities with data", len(raw))
 
         # 2. Upsert in batches
+        logger.info("Step 2: upserting {} entities in batches...", len(raw))
         entity_ids = list(raw.keys())
         created = 0
         updated = 0
@@ -61,6 +81,9 @@ class AFMEntityStatsService:
                             "distinct_counterpart_entities": m["distinct_counterpart_entities"],
                             "direct_assignment_count": m["direct_assignment_count"],
                             "direct_assignment_percentage": m["direct_assignment_percentage"],
+                            "direct_assignment_30k_38k": m["direct_assignment_30k_38k"],
+                            "payment_30k_38k": m["payment_30k_38k"],
+                            "total_received_amount": m["total_received_amount"],
                         },
                     )
                     if was_created:
@@ -68,21 +91,33 @@ class AFMEntityStatsService:
                     else:
                         updated += 1
 
+        # 3. Compute combined_rank across all entities (global ranking)
+        logger.info("Step 3: computing combined ranks...")
+        self._compute_combined_ranks()
+        logger.info("Step 3 complete")
+
         result = {
             "created": created,
             "updated": updated,
             "total": created + updated,
         }
-        logger.info(f"AFMEntityStats computation complete: {result}")
+        logger.info("AFMEntityStats computation complete: {}", result)
         return result
 
     # ------------------------------------------------------------------
     # Bulk metric gathering
     # ------------------------------------------------------------------
 
-    def _gather_all_metrics(self) -> Dict[int, dict]:
+    def _gather_all_metrics(
+        self,
+        decision_type_uid: str | None = None,
+    ) -> Dict[int, dict]:
         """
         Gather every raw metric in a single pass using bulk queries.
+
+        Args:
+            decision_type_uid: If provided, only consider decisions whose
+                act type has this UID (e.g. "B.2").
 
         Returns: {entity_id: {metric_name: value}}
         """
@@ -97,35 +132,40 @@ class AFMEntityStatsService:
                 "distinct_counterpart_entities": 0,
                 "direct_assignment_count": 0,
                 "direct_assignment_percentage": 0.0,
+                "direct_assignment_30k_38k": 0,
+                "payment_30k_38k": 0,
+                "total_received_amount": Decimal("0.00"),
             }
         )
 
         # ---- (A) decision count + distinct_roles + distinct_organizations ----
-        # One query groups by entity, counting decisions (distinct) and roles.
-        rel_qs = (
-            DecisionEntityRelationship.objects.values("entity_id")
-            .annotate(
-                total_decisions=Count("decision_id", distinct=True),
-                distinct_roles=Count("role", distinct=True),
-                distinct_organizations=Count("decision__organization_id", distinct=True),
-            )
+        # Always across ALL decisions (never filtered by act type).
+        logger.info("  (A) counting decisions, roles, organizations...")
+        rel_qs = DecisionEntityRelationship.objects.values("entity_id").annotate(
+            total_decisions=Count("decision_id", distinct=True),
+            distinct_roles=Count("role", distinct=True),
+            distinct_organizations=Count("decision__organization_id", distinct=True),
         )
         for row in rel_qs:
             eid = row["entity_id"]
             metrics[eid]["total_decisions"] = row["total_decisions"]
             metrics[eid]["distinct_roles"] = row["distinct_roles"]
             metrics[eid]["distinct_organizations"] = row["distinct_organizations"]
+        logger.info("  (A) done: {} entities", len(metrics))
 
         # ---- (B) amounts: sum, avg, max ----
-        amount_qs = (
-            DecisionAmountField.objects
-            .filter(amount__isnull=False, associated_relationship__isnull=False)
-            .values("associated_relationship__entity_id")
-            .annotate(
-                total=Sum("amount"),
-                avg=Sum("amount") / Count("id"),  # rough avg per amount-row (fine)
-                amax=Max("amount"),
+        logger.info("  (B) aggregating amounts...")
+        amount_qs = DecisionAmountField.objects.filter(
+            amount__isnull=False, associated_relationship__isnull=False
+        )
+        if decision_type_uid:
+            amount_qs = amount_qs.filter(
+                associated_relationship__decision__decision_type__uid=decision_type_uid
             )
+        amount_qs = amount_qs.values("associated_relationship__entity_id").annotate(
+            total=Sum(Coalesce("verified_amount", "amount")),
+            avg=Sum(Coalesce("verified_amount", "amount")) / Count("id"),  # rough avg per amount-row (fine)
+            amax=Max(Coalesce("verified_amount", "amount")),
         )
         for row in amount_qs:
             eid = row["associated_relationship__entity_id"]
@@ -133,15 +173,21 @@ class AFMEntityStatsService:
             metrics[eid]["max_amount"] = row["amax"] or Decimal("0")
             # Average: total / number_of_decisions_with_amounts
             # We'll compute a proper avg in step (C) below.
+        logger.info("  (B) done")
 
         # ---- (C) proper per-decision amounts for avg ----
         # Sum amounts per (entity, decision), then average across decisions
-        per_decision_amounts = (
-            DecisionAmountField.objects
-            .filter(amount__isnull=False, associated_relationship__isnull=False)
-            .values("associated_relationship__entity_id", "decision_id")
-            .annotate(decision_total=Sum("amount"))
+        logger.info("  (C) computing per-decision averages...")
+        per_decision_amounts = DecisionAmountField.objects.filter(
+            amount__isnull=False, associated_relationship__isnull=False
         )
+        if decision_type_uid:
+            per_decision_amounts = per_decision_amounts.filter(
+                associated_relationship__decision__decision_type__uid=decision_type_uid
+            )
+        per_decision_amounts = per_decision_amounts.values(
+            "associated_relationship__entity_id", "decision_id"
+        ).annotate(decision_total=Sum(Coalesce("verified_amount", "amount")))
 
         entity_amounts_by_decision: Dict[int, list] = defaultdict(list)
         for row in per_decision_amounts:
@@ -153,8 +199,11 @@ class AFMEntityStatsService:
                 metrics[eid]["avg_amount"] = (
                     Decimal(sum(amounts)) / len(amounts)
                 ).quantize(Decimal("0.01"))
+        logger.info("  (C) done")
 
         # ---- (D) direct-assignment count ----
+        # Always across ALL decisions (never filtered by act type).
+        logger.info("  (D) counting direct assignments...")
         direct_qs = (
             DecisionEntityRelationship.objects
             .filter(decision__classification__is_direct_assignment=True)
@@ -164,19 +213,37 @@ class AFMEntityStatsService:
         for row in direct_qs:
             eid = row["entity_id"]
             metrics[eid]["direct_assignment_count"] = row["count"]
+        logger.info("  (D) done")
 
         # ---- (E) distinct counterpart entities ----
         # For each entity, find other entities that appear in the same decisions.
-        # We do this in two steps:
-        #   Step 1: per entity, collect the set of decision_ids
-        #   Step 2: for each decision_id, count distinct entity_ids → subtract self
-        #
         # Since we're optimizing for bulk, we use a self-join approach.
+        logger.info("  (E) computing counterpart entities (raw SQL)...")
         from django.db import connection
 
-        with connection.cursor() as cursor:
-            cursor.execute(
+        if decision_type_uid:
+            # Filter decisions to only those with the given act type UID.
+            sql = """
+                WITH entity_decisions AS (
+                    SELECT der.entity_id, der.decision_id
+                    FROM core_decisionentityrelationship der
+                    JOIN core_decision d ON d.id = der.decision_id
+                    JOIN core_acttype at ON at.uid = d.decision_type_id
+                    WHERE at.uid = %s
+                    GROUP BY der.entity_id, der.decision_id
+                )
+                SELECT ed1.entity_id,
+                       COUNT(DISTINCT ed2.entity_id) FILTER (WHERE ed2.entity_id != ed1.entity_id) AS counterpart_count
+                FROM entity_decisions ed1
+                JOIN entity_decisions ed2 ON ed2.decision_id = ed1.decision_id
+                GROUP BY ed1.entity_id
                 """
+            with connection.cursor() as cursor:
+                cursor.execute(sql, [decision_type_uid])
+                for entity_id, cc in cursor.fetchall():
+                    metrics[entity_id]["distinct_counterpart_entities"] = cc
+        else:
+            sql = """
                 WITH entity_decisions AS (
                     SELECT entity_id, decision_id
                     FROM core_decisionentityrelationship
@@ -188,9 +255,11 @@ class AFMEntityStatsService:
                 JOIN entity_decisions ed2 ON ed2.decision_id = ed1.decision_id
                 GROUP BY ed1.entity_id
                 """
-            )
-            for entity_id, cc in cursor.fetchall():
-                metrics[entity_id]["distinct_counterpart_entities"] = cc
+            with connection.cursor() as cursor:
+                cursor.execute(sql)
+                for entity_id, cc in cursor.fetchall():
+                    metrics[entity_id]["distinct_counterpart_entities"] = cc
+        logger.info("  (E) done")
 
         # ---- (F) percentages ----
         for eid, m in metrics.items():
@@ -198,16 +267,139 @@ class AFMEntityStatsService:
                 m["direct_assignment_percentage"] = round(
                     m["direct_assignment_count"] / m["total_decisions"] * 100, 1
                 )
+        logger.info("  (F) done")
+
+        # ---- (G) direct-assignment decisions with amounts €30k-€38k ----
+        # Always across ALL decisions (never filtered by act type).
+        logger.info("  (G) counting direct assignments €30k-€38k...")
+        direct_30k_qs = (
+            DecisionAmountField.objects
+            .filter(
+                amount__isnull=False,
+                associated_relationship__isnull=False,
+                associated_relationship__decision__classification__is_direct_assignment=True,
+            )
+            .values("associated_relationship__entity_id", "decision_id")
+            .annotate(decision_total=Sum(Coalesce("verified_amount", "amount")))
+        )
+        for row in direct_30k_qs:
+            total = row["decision_total"]
+            if total and Decimal("30000.00") <= total <= Decimal("38000.00"):
+                eid = row["associated_relationship__entity_id"]
+                metrics[eid]["direct_assignment_30k_38k"] += 1
+        logger.info("  (G) done")
+
+        # ---- (H) payment (money-received) decisions with amounts €30k-€38k ----
+        # Always across ALL decisions (never filtered by act type).
+        logger.info("  (H) counting payments €30k-€38k...")
+        money_received_roles = FinancialCalculationService.MONEY_RECEIVED_ROLES
+        payment_30k_qs = (
+            DecisionAmountField.objects
+            .filter(
+                amount__isnull=False,
+                associated_relationship__isnull=False,
+                associated_relationship__role__in=money_received_roles,
+            )
+            .values("associated_relationship__entity_id", "decision_id")
+            .annotate(decision_total=Sum(Coalesce("verified_amount", "amount")))
+        )
+        for row in payment_30k_qs:
+            total = row["decision_total"]
+            if total and Decimal("30000.00") <= total <= Decimal("38000.00"):
+                eid = row["associated_relationship__entity_id"]
+                metrics[eid]["payment_30k_38k"] += 1
+        logger.info("  (H) done")
+
+        # ---- (I) total amount from "Β.2.2" (expenditure/payment) decisions ----
+        # Always computed regardless of decision_type_uid filter.
+        logger.info("  (I) aggregating 'Β.2.2' received amounts...")
+        received_qs = (
+            DecisionAmountField.objects
+            .filter(
+                amount__isnull=False,
+                associated_relationship__isnull=False,
+                associated_relationship__decision__decision_type__uid="Β.2.2",
+            )
+            .values("associated_relationship__entity_id")
+            .annotate(total=Sum(Coalesce("verified_amount", "amount")))
+        )
+        for row in received_qs:
+            eid = row["associated_relationship__entity_id"]
+            metrics[eid]["total_received_amount"] = row["total"] or Decimal("0")
+        logger.info("  (I) done")
 
         return dict(metrics)
+
+    # ------------------------------------------------------------------
+    # Combined ranking
+    # ------------------------------------------------------------------
+
+    def _compute_combined_ranks(self) -> None:
+        """Compute combined_rank for every AFMEntityStats row.
+
+        The rank is derived from the sum of three individual RANK()s:
+        received_rank  = RANK() OVER total_received_amount DESC
+        da_30k_38k_rank = RANK() OVER direct_assignment_30k_38k DESC
+        pay_30k_38k_rank = RANK() OVER payment_30k_38k DESC
+        raw_score = received_rank + da_30k_38k_rank + pay_30k_38k_rank
+        combined_rank = RANK() OVER raw_score ASC  (1 = best)
+
+        We compute raw_score via the ORM then do the final ranking in
+        Python to avoid nested-window-function SQL limitations.
+        """
+        ranked = AFMEntityStats.objects.annotate(
+            received_rank=Window(
+                expression=Rank(),
+                order_by=F("total_received_amount").desc(),
+            ),
+            da_30k_38k_rank=Window(
+                expression=Rank(),
+                order_by=F("direct_assignment_30k_38k").desc(),
+            ),
+            pay_30k_38k_rank=Window(
+                expression=Rank(),
+                order_by=F("payment_30k_38k").desc(),
+            ),
+            raw_score=F("received_rank")
+            + F("da_30k_38k_rank")
+            + F("pay_30k_38k_rank"),
+        )
+
+        # Sort by raw_score ascending (lowest = best) and assign ranks.
+        pairs = list(ranked.values_list("entity_id", "raw_score"))
+        pairs.sort(key=lambda x: x[1])
+
+        updates = []
+        rank = 0
+        prev_score = None
+        for pos, (entity_id, raw_score) in enumerate(pairs, start=1):
+            if raw_score != prev_score:
+                rank = pos
+                prev_score = raw_score
+            updates.append(
+                AFMEntityStats(entity_id=entity_id, combined_rank=rank)
+            )
+
+        AFMEntityStats.objects.bulk_update(updates, ["combined_rank"])
+        logger.info("  combined_rank updated for {} entities", len(updates))
 
     # ------------------------------------------------------------------
     # Convenience: compute a single entity
     # ------------------------------------------------------------------
 
-    def compute_single(self, entity_id: int) -> AFMEntityStats:
-        """Refresh stats for a single entity and return the saved object."""
-        raw = self._gather_all_metrics()
+    def compute_single(
+        self,
+        entity_id: int,
+        decision_type_uid: str | None = None,
+    ) -> AFMEntityStats:
+        """Refresh stats for a single entity and return the saved object.
+
+        Args:
+            entity_id: The AFMEntity id.
+            decision_type_uid: If provided, only consider decisions whose
+                act type has this UID (e.g. "B.2").
+        """
+        raw = self._gather_all_metrics(decision_type_uid=decision_type_uid)
         m = raw.get(entity_id)
         if m is None:
             # Entity has no relationships → fill with zeros
@@ -221,6 +413,9 @@ class AFMEntityStatsService:
                 "distinct_counterpart_entities": 0,
                 "direct_assignment_count": 0,
                 "direct_assignment_percentage": 0.0,
+                "direct_assignment_30k_38k": 0,
+                "payment_30k_38k": 0,
+                "total_received_amount": Decimal("0.00"),
             }
 
         stats, _created = AFMEntityStats.objects.update_or_create(
@@ -235,6 +430,9 @@ class AFMEntityStatsService:
                 "distinct_counterpart_entities": m["distinct_counterpart_entities"],
                 "direct_assignment_count": m["direct_assignment_count"],
                 "direct_assignment_percentage": m["direct_assignment_percentage"],
+                "direct_assignment_30k_38k": m["direct_assignment_30k_38k"],
+                "payment_30k_38k": m["payment_30k_38k"],
+                "total_received_amount": m["total_received_amount"],
             },
         )
         return stats

@@ -35,19 +35,37 @@
         {
             "label": "Docker Compose (with DB) Up",
             "type": "shell",
-            "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets up -d",
+            "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets --profile observability --profile search up -d",
             "problemMatcher": []
         },
         {
             "label": "Docker Compose (with DB) Up (Build)",
             "type": "shell",
-            "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets up --build -d",
+            "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets --profile observability --profile search up --build -d",
+            "problemMatcher": []
+        },
+        {
+            "label": "Docker Compose (with DB) Up (Minimal)",
+            "type": "shell",
+            "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets up -d",
+            "problemMatcher": []
+        },
+        {
+            "label": "Docker Compose (with DB) Down (Minimal)",
+            "type": "shell",
+            "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets down",
             "problemMatcher": []
         },
         {
             "label": "Docker Compose (with DB) Down",
             "type": "shell",
-            "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets down",
+            "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets --profile observability --profile search down",
+            "problemMatcher": []
+        },
+        {
+            "label": "Docker Compose (with DB) Restart",
+            "type": "shell",
+            "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets --profile observability --profile search down && docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets --profile observability --profile search up -d",
             "problemMatcher": []
         },
         {
@@ -65,13 +83,19 @@
         {
             "label": "Docker Compose (no DB) Up",
             "type": "shell",
+            "command": "docker-compose -f docker/docker-compose-no-db.yml --env-file=.env_files/.env.local.no-db.secrets --profile observability up -d",
+            "problemMatcher": []
+        },
+        {
+            "label": "Docker Compose (no DB) Up (Minimal)",
+            "type": "shell",
             "command": "docker-compose -f docker/docker-compose-no-db.yml --env-file=.env_files/.env.local.no-db.secrets up -d",
             "problemMatcher": []
         },
         {
             "label": "Docker Compose (no DB) Down",
             "type": "shell",
-            "command": "docker-compose -f docker/docker-compose-no-db.yml --env-file=.env_files/.env.local.no-db.secrets down",
+            "command": "docker-compose -f docker/docker-compose-no-db.yml --env-file=.env_files/.env.local.no-db.secrets --profile observability down",
             "problemMatcher": []
         }
     ],

@@ -1,0 +1,10 @@
+{
+  "id": "mixed_fields_one_shifted",
+  "text_content": "Ανατίθεται στον ανάδοχο η εκτέλεση εργασιών αξίας 12.500,00 € για την πρώτη φάση και 7.500,00 € για τη δεύτερη, συνολικής δαπάνης 20.000,00 €.",
+  "db_amounts": ["12500.00", "7500.00", "2000000.00"],
+  "expected_status": "completed",
+  "expected_has_discrepancy": true,
+  "expected_verified_amount": "20000.00",
+  "expected_note_contains": "decimal shift",
+  "notes": "Two fields are confirmed exactly (12.500, 7.500), but the 2.000.000 field is not in the text — its ÷100 clone (20.000, the stated total) matches instead → decimal-shift discrepancy."
+}

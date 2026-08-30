@@ -1,7 +1,6 @@
 from datetime import timedelta
 
 from celery import chord, shared_task
-from diavgeia_project.settings.base import FRONTEND_DOMAINS_clean
 from django.conf import settings
 from django.utils import timezone
 from loguru import logger
@@ -88,6 +87,18 @@ def check_single_subscription(
                 )
             )
             if should_email:
+                # Never send email to users whose email hasn't been verified.
+                # SES rejects unverified identities; this also prevents
+                # sending to test/placeholder addresses (e.g. admin@example.com).
+                if not getattr(subscription.user, "email_verified", False):
+                    logger.warning(
+                        f"User {subscription.user_id} ({subscription.user.email}) "
+                        f"email not verified — skipping notification email for "
+                        f"batch {batch_result['batch_id']} (subscription {subscription_id})"
+                    )
+                    should_email = False
+
+            if should_email:
                 logger.info(
                     f"Triggering email for batch {batch_result['batch_id']} "
                     f"(subscription {subscription_id}, decisions_added={batch_result.get('decisions_added', 0)}, "
@@ -134,11 +145,9 @@ def check_single_subscription(
                     }
 
                     # Send email
-                    frontend_url = (
-                        FRONTEND_DOMAINS_clean[0]
-                        if FRONTEND_DOMAINS_clean
-                        else "https://crati.co"
-                    )
+                    from core.services.frontend_url import frontend_base_url
+
+                    frontend_url = frontend_base_url()
                     # TODO: Remove this log
                     logger.debug("Using frontend URL for email links: {}", frontend_url)
                     batch_data["app_url"] = frontend_url
@@ -505,6 +514,25 @@ def create_batch_for_matches(
                 f"(total in batch: {batch.match_count})"
             )
 
+            # Trigger AI summarization if enabled on the subscription
+            if decisions_added > 0 and getattr(
+                subscription, "ai_summary_enabled", False
+            ):
+                try:
+                    from notifications.tasks.ai_summary_tasks import (
+                        summarize_notification_batch,
+                    )
+
+                    summarize_notification_batch.delay(batch_id=batch.id)
+                    logger.info(
+                        f"Triggered AI summarization for batch {batch.id} "
+                        f"(subscription {subscription.id})"
+                    )
+                except Exception as ai_err:
+                    logger.warning(
+                        f"Failed to trigger AI summarization for batch {batch.id}: {ai_err}"
+                    )
+
             return {
                 "batch_id": batch.id,
                 "decisions_added": decisions_added,
@@ -706,6 +734,7 @@ def check_user_subscriptions(user_id, subscription_ids, lookback_days=1):
     batches_created = 0
     total_decisions = 0
     errors = 0
+    batch_ids = []
 
     for criteria_hash, group_subs in criteria_groups.items():
         try:
@@ -742,6 +771,7 @@ def check_user_subscriptions(user_id, subscription_ids, lookback_days=1):
                 if batch_result.get("batch_id"):
                     batches_created += 1
                     total_decisions += batch_result.get("decisions_added", 0)
+                    batch_ids.append(batch_result["batch_id"])
 
                 # Update last_checked
                 sub.last_checked = timezone.now()
@@ -772,20 +802,23 @@ def check_user_subscriptions(user_id, subscription_ids, lookback_days=1):
         "batches_created": batches_created,
         "total_decisions": total_decisions,
         "errors": errors,
+        "batch_ids": batch_ids,
     }
 
 
 @shared_task
 def send_consolidated_email_for_user(*args, user_id=None):
     """
-    Send a single consolidated email to a user summarizing all their new batches.
+    Send a single consolidated email to a user summarizing their new batches
+    from the current check run only.
 
     Called as the callback of a per-user chord after check_user_subscriptions
-    completes.  Finds all un-emailed NotificationBatch records for this user
-    and sends one email listing all of them.
+    completes.  Only emails the batches created by the just-finished header
+    task — not any stale un-emailed batches from previous runs.
 
     Args:
-        *args: Results from the chord header task (ignored).
+        *args: Results from the chord header task (check_user_subscriptions).
+               Expected to contain a dict with 'batch_ids' (list of ints).
         user_id: The user ID to send the email to (passed via .s(user_id=...)).
 
     Returns:
@@ -800,12 +833,57 @@ def send_consolidated_email_for_user(*args, user_id=None):
 
     User = get_user_model()
 
-    # Find all un-emailed batches for this user
-    unemailed_batches = (
-        NotificationBatch.objects.filter(email_sent=False, user_id=user_id)
-        .select_related("subscription__organization", "subscription__entity")
-        .order_by("-created_at")
+    # Extract batch IDs from the chord header results.
+    # Celery delivers chord header results as a LIST of per-task results,
+    # even when the header is a single task — so unwrap one level when the
+    # first element is a list.  Fall back to the old behaviour (all
+    # un-emailed) only when no usable result is present at all.
+    header_result = None
+    if args:
+        candidate = args[0]
+        if isinstance(candidate, (list, tuple)) and len(candidate) == 1:
+            candidate = candidate[0]
+        if isinstance(candidate, dict) and "batch_ids" in candidate:
+            header_result = candidate
+
+    batch_ids_from_run = (
+        header_result["batch_ids"] if header_result is not None else None
     )
+
+    if batch_ids_from_run is not None:
+        if not batch_ids_from_run:
+            # No batches were created in this run — nothing to email
+            logger.info(
+                f"User {user_id}: no new batches created in this run, "
+                f"skipping email"
+            )
+            return {"user_id": user_id, "batches_emailed": 0, "success": True}
+
+        # Only email the batches created in this run
+        unemailed_batches = (
+            NotificationBatch.objects.filter(
+                email_sent=False, user_id=user_id, id__in=batch_ids_from_run
+            )
+            .select_related("subscription__organization", "subscription__entity")
+            .order_by("-created_at")
+        )
+    else:
+        # Fallback: no batch IDs from header — query recent un-emailed
+        # batches only.  Batches older than 2h are from previous runs and
+        # must NOT be emailed here (prevents stale batches leaking into
+        # every subsequent day's email when the fallback fires).
+        logger.warning(
+            f"User {user_id}: no batch_ids from chord header, "
+            f"falling back to recent un-emailed batches"
+        )
+        recent_cutoff = timezone.now() - timedelta(hours=2)
+        unemailed_batches = (
+            NotificationBatch.objects.filter(
+                email_sent=False, user_id=user_id, created_at__gte=recent_cutoff
+            )
+            .select_related("subscription__organization", "subscription__entity")
+            .order_by("-created_at")
+        )
 
     if not unemailed_batches.exists():
         logger.info(f"User {user_id}: no un-emailed batches, skipping email")
@@ -816,6 +894,16 @@ def send_consolidated_email_for_user(*args, user_id=None):
     except User.DoesNotExist:
         logger.error(f"User {user_id} not found, cannot send consolidated email")
         return {"user_id": user_id, "batches_emailed": 0, "success": False}
+
+    # Never send email to users whose email hasn't been verified.
+    # SES rejects unverified identities; this also prevents sending
+    # to test/placeholder addresses (e.g. admin@example.com).
+    if not getattr(user, "email_verified", False):
+        logger.warning(
+            f"User {user_id} ({user.email}) email not verified — "
+            f"skipping consolidated notification email"
+        )
+        return {"user_id": user_id, "batches_emailed": 0, "success": True}
 
     user_language = getattr(user, "preferred_language", "en") or "en"
 

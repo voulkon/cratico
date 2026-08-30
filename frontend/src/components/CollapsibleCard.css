@@ -1,0 +1,135 @@
+/* ── CollapsibleCard — canonical collapsible card shell ──────────────────
+ *
+ * Single source of truth for the card chrome shared by:
+ *   TimeRangeSection, DecisionsToolbar, TopCounterparts,
+ *   BatchMetadataHeader, SubscriptionMetadataHeader,
+ *   and the signer-organizations section in EntityDetailPage.
+ *
+ * Visual spec:
+ *   • Neobrutalist card: hard border + hard-offset shadow, no blur
+ *     (Knobs in index.css: --neo-shadow-offset, --neo-border-width, …)
+ *   • Centered plain-text title (--text-color)
+ *   • Optional left accent border (--neo-accent-width --palette-primary)
+ *   • Chevron pinned absolute-right; optional badge left of it
+ *   • Content divider only visible when open
+ */
+
+/* ── Card shell (<details>) ──────────────────────────────────────────── */
+.collapsible-card {
+  margin: var(--spacing-xl) 0;
+  border: var(--neo-border-width) solid var(--border-color);
+  border-radius: var(--neo-radius);
+  background-color: var(--card-bg);
+  /* Neobrutalist hard-offset shadow — no blur, pure offset */
+  box-shadow:
+    var(--neo-shadow-offset) var(--neo-shadow-offset) 0 var(--border-color);
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.collapsible-card:hover {
+  box-shadow:
+    var(--neo-shadow-offset-hover) var(--neo-shadow-offset-hover) 0 var(--border-color);
+  transform: translate(var(--neo-lift-x), var(--neo-lift-y));
+}
+
+/* Accent border variant — colored stripe on the left */
+.collapsible-card--accent {
+  border-left: var(--neo-accent-width) solid var(--palette-primary);
+}
+
+/* ── Summary row — title centered, chevron pinned right ──────────────── */
+.collapsible-card__summary {
+  position: relative;
+  padding: var(--spacing-lg) var(--spacing-xl);
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  user-select: none;
+  list-style: none;
+  transition: background-color 0.2s ease;
+}
+
+.collapsible-card__summary:hover {
+  background-color: var(--hover-bg);
+}
+
+.collapsible-card__summary::-webkit-details-marker {
+  display: none;
+}
+
+/* ── Title group — centered, wraps on overflow ───────────────────────── */
+.collapsible-card__title-group {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  flex-wrap: wrap;
+  justify-content: center;
+  min-width: 0;
+  max-width: 100%;
+  /* Leave breathing room so long titles don't collide with chevron */
+  padding: 0 48px;
+}
+
+.collapsible-card__title {
+  font-family: var(--font-sans);
+  font-size: var(--font-md);
+  font-weight: var(--font-medium);
+  color: var(--text-color);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.collapsible-card__subtitle {
+  color: var(--muted-text);
+  font-weight: var(--font-medium);
+  font-size: var(--font-sm);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* ── Right group (badge + chevron) — absolutely pinned ───────────────── */
+.collapsible-card__right {
+  position: absolute;
+  right: var(--spacing-xl);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex-shrink: 0;
+}
+
+/* Chevron — the shared <Chevron> handles rotation; we only need to
+   neutralize translateY so our parent's transform is the sole centering. */
+.collapsible-card__chevron {
+  /* Intentionally empty — Chevron.css owns the base styles */
+}
+
+/* ── Content area — divider appears only when open ───────────────────── */
+.collapsible-card__content {
+  padding: var(--spacing-xl);
+  padding-bottom: var(--spacing-xxl);
+  border-top: var(--neo-divider-width) solid var(--border-color);
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .collapsible-card__summary {
+    padding: var(--spacing-md) var(--spacing-lg);
+  }
+
+  .collapsible-card__title-group {
+    padding: 0 40px;
+  }
+
+  .collapsible-card__content {
+    padding: var(--spacing-lg);
+    padding-bottom: var(--spacing-xl);
+  }
+
+  .collapsible-card__right {
+    right: var(--spacing-lg);
+  }
+}

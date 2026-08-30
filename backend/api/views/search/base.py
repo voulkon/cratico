@@ -199,8 +199,14 @@ def serialize_decision_with_content_info(decision):
         ]
         kae_total = sum(kae.amount for kae in decision.kae_amounts.all())
 
-    # Calculate amount discrepancy
-    primary_amount = float(decision.amount) if decision.amount else 0
+    # Prefer calculated_amount (sum of amount_fields) over the
+    # denormalised Decision.amount which may be NULL.
+    raw_amount = (
+        decision.calculated_amount
+        if hasattr(decision, "calculated_amount") and decision.calculated_amount is not None
+        else decision.amount
+    )
+    primary_amount = float(raw_amount) if raw_amount else 0
     has_discrepancy = False
     discrepancy_percentage = 0
 
@@ -230,12 +236,27 @@ def serialize_decision_with_content_info(decision):
             for signer in decision.signers.all()
         ]
 
+    # AI analyses — all completed, newest first (for summary cards)
+    ai_analyses_data = []
+    if hasattr(decision, "ai_analyses"):
+        # Prefetched via prefetch_related('ai_analyses')
+        for ai in decision.ai_analyses.all():
+            if ai.status == "COMPLETED" and ai.summary:
+                ai_analyses_data.append({
+                    "id": ai.id,
+                    "status": ai.status,
+                    "summary": ai.summary,
+                    "cost_usd": str(ai.cost_usd) if ai.cost_usd else None,
+                    "model_used": ai.model_used,
+                    "completed_at": ai.completed_at,
+                })
+
     return {
         "id": decision.id,
         "ada": decision.ada,
         "subject": decision.subject,
         "issue_date": decision.issue_date_day if decision.issue_date_day else None,
-        "amount": float(decision.amount) if decision.amount else None,
+        "amount": float(raw_amount) if raw_amount else None,
         "decision_type": {
             "uid": decision.decision_type.uid if decision.decision_type else None,
             "label": decision.decision_type.label if decision.decision_type else None,
@@ -257,6 +278,7 @@ def serialize_decision_with_content_info(decision):
         "has_amount_discrepancy": has_discrepancy,
         "discrepancy_percentage": round(discrepancy_percentage, 2),
         "has_document_content": has_document_content,
+        "ai_analyses": ai_analyses_data,
     }
 
 

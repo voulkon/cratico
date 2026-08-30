@@ -287,6 +287,16 @@ class CustomAdminSite(admin.AdminSite):
     def get_app_list(self, request, app_label=None):
         app_list = super().get_app_list(request, app_label)
 
+        # Remove EndpointAccessLog and FlaggedIP from the default "Api" section
+        # — they appear under "Security & Threat Detection" instead.
+        for app in app_list:
+            if app.get("app_label") == "api":
+                app["models"] = [
+                    m
+                    for m in app["models"]
+                    if m["object_name"] not in ("EndpointAccessLog", "FlaggedIP")
+                ]
+
         # Add custom Analytics section
         analytics_app = {
             "name": "Analytics & Monitoring",
@@ -313,6 +323,25 @@ class CustomAdminSite(admin.AdminSite):
             ],
         }
         app_list.append(analytics_app)
+
+        # Add Security & Threat Detection section
+        security_app = {
+            "name": "Security & Threat Detection",
+            "app_label": "security",
+            "models": [
+                {
+                    "name": "Flagged IPs",
+                    "object_name": "FlaggedIP",
+                    "admin_url": "/api/admin/api/flaggedip/",
+                },
+                {
+                    "name": "Endpoint Access Logs (Forensic)",
+                    "object_name": "EndpointAccessLog",
+                    "admin_url": "/api/admin/api/endpointaccesslog/",
+                },
+            ],
+        }
+        app_list.append(security_app)
 
         # Add custom Decision Management section
         decision_mgmt_app = {
@@ -341,6 +370,24 @@ class CustomAdminSite(admin.AdminSite):
                     "name": "Amount ↔ Entity Linkage",
                     "object_name": "AmountEntityLinkage",
                     "admin_url": "/api/admin/amount-entity-analysis/",
+                    "view_only": True,
+                },
+                {
+                    "name": "Batch Amount Correction",
+                    "object_name": "BatchAmountCorrection",
+                    "admin_url": "/api/admin/core/decision/batch-correct-amounts/",
+                    "view_only": True,
+                },
+                {
+                    "name": "Diavgeia Feedback Pool",
+                    "object_name": "DiavgeiaFeedbackPool",
+                    "admin_url": "/api/admin/core/decision/feedback-pool/",
+                    "view_only": True,
+                },
+                {
+                    "name": "Batch Diavgeia Feedback",
+                    "object_name": "BatchDiavgeiaFeedback",
+                    "admin_url": "/api/admin/core/decision/feedback-batch/",
                     "view_only": True,
                 },
             ],
@@ -518,12 +565,17 @@ def register_all_models():
         DecisionAdmin,
         DecisionHealthCheckAdmin,
         DecisionHealthSummaryAdmin,
+        DiavgeiaFeedbackJobAdmin,
+        DiavgeiaFeedbackJobResultAdmin,
+        DiavgeiaFeedbackReportAdmin,
         DocumentAnalysisAdmin,
         DocumentEmbeddingAdmin,
         DocumentExtractionAdmin,
+        EndpointAccessLogAdmin,
         EndpointStatsAdmin,
         FeatureFlagAdmin,
         FeatureFlagAuditLogAdmin,
+        FlaggedIPAdmin,
         ImportJobAdmin,
         ImportThresholdAdmin,
         LegalDocumentAdmin,
@@ -544,6 +596,7 @@ def register_all_models():
         AFMScoringJobAdmin,
     )
     from api.models import APIAnalytics, DailyTraffic, EndpointStats
+    from api.models import EndpointAccessLog, FlaggedIP
     from core.models.ai_pricing import (
         AIJobDefinition,
         AIJobExecution,
@@ -597,6 +650,8 @@ def register_all_models():
     # Register Analytics models
     admin_site.register(APIAnalytics, APIAnalyticsAdmin)
     admin_site.register(EndpointStats, EndpointStatsAdmin)
+    admin_site.register(EndpointAccessLog, EndpointAccessLogAdmin)
+    admin_site.register(FlaggedIP, FlaggedIPAdmin)
     admin_site.register(DailyTraffic, DailyTrafficAdmin)
     admin_site.register(ImportJob, ImportJobAdmin)
     admin_site.register(DateCoverage)
@@ -640,6 +695,17 @@ def register_all_models():
 
     # Note: SearchSuggestion uses custom manager interface, not default admin
     admin_site.register(NotificationBatchDecision, NotificationBatchDecisionAdmin)
+
+    # Register Diavgeia Feedback job models
+    from core.models.diavgeia_feedback_job import (
+        DiavgeiaFeedbackJob,
+        DiavgeiaFeedbackJobResult,
+    )
+    from core.models.diavgeia_feedback_report import DiavgeiaFeedbackReport
+
+    admin_site.register(DiavgeiaFeedbackJob, DiavgeiaFeedbackJobAdmin)
+    admin_site.register(DiavgeiaFeedbackJobResult, DiavgeiaFeedbackJobResultAdmin)
+    admin_site.register(DiavgeiaFeedbackReport, DiavgeiaFeedbackReportAdmin)
 
     # Register django-celery-beat models for periodic task management
     from django_celery_beat.admin import (

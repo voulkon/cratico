@@ -118,7 +118,16 @@ const TopRelationshipPairs = ({
 
         response = await apiClient.get(`/explore/temporal/top-relationships/?${params}`);
 
-        const newResults = response.data.results;
+        // Map general-endpoint keys to the same shape the render code expects
+        const newResults = response.data.results.map(item => ({
+          'decision__organization__uid': item.organization_uid,
+          'decision__organization__label': item.organization_label,
+          'entity__afm': item.entity_afm,
+          'entity__name': item.entity_name,
+          'entity__entity_type': item.entity_type,
+          'total_amount': parseFloat(item.total_amount),
+          'decision_count': item.decision_count
+        }));
         const total = response.data.pagination.total_count;
 
         setTotalCount(total);
@@ -196,6 +205,20 @@ const TopRelationshipPairs = ({
   };
 
   if (error || !results || results.length === 0) {
+    // Debug: log what triggered the early-return so we know why the section
+    // might disappear when the toggle is clicked.
+    if (process.env.NODE_ENV === 'development') {
+      console.debug('[TopRelationshipPairs] early-return decision', {
+        hasError: !!error,
+        errorMessage: error || null,
+        resultsIsNullish: results == null,
+        resultsLength: results?.length ?? null,
+        loading,
+        directAssignmentsOnly,
+        dateRange,
+      });
+    }
+
     if (loading) {
       return (
         <div className={rootClass}>
@@ -223,7 +246,49 @@ const TopRelationshipPairs = ({
         </div>
       );
     }
-    return null; // Don't show section if no data
+
+    // Show empty state instead of returning null — preserves the section
+    // header with the toggle so the user can switch back.
+    return (
+      <div className={rootClass}>
+        <div className="section-header">
+          {collapsible && (
+            <button
+              className="dashboard-section-collapse-toggle"
+              onClick={handleSectionToggle}
+              aria-expanded={!sectionCollapsed}
+              title={sectionCollapsed ? 'Expand section' : 'Collapse section'}
+            >
+              <span
+                className={`dashboard-collapse-chevron${sectionCollapsed ? ' dashboard-collapse-chevron--collapsed' : ''}`}
+                aria-hidden="true"
+              />
+            </button>
+          )}
+          <h3 className="section-title">{t('relationships.topPairs')}</h3>
+          {showDirectAssignmentsToggle && (
+            <label className="toggle-switch">
+              <input
+                type="checkbox"
+                checked={directAssignmentsOnly}
+                onChange={(e) => setDirectAssignmentsOnly(e.target.checked)}
+              />
+              <span className="toggle-slider"></span>
+              <span className="toggle-label">
+                {t('filters.directAssignmentsOnly') || 'Direct Assignments Only'}
+              </span>
+            </label>
+          )}
+        </div>
+        {!sectionCollapsed && (
+          <div className="counterparts-loading">
+            {error
+              ? `${t('common.error') || 'Error'}: ${error}`
+              : t('common.noResults') || 'No results found for this filter.'}
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (

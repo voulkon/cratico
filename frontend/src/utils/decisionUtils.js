@@ -49,6 +49,12 @@ export const getMainRecipient = (decision, entityRelationships, hasPreloadedEnti
  * @returns {number|null} The display amount or null
  */
 export const getTotalAmount = (decision, entityRelationships, hasPreloadedEntityData, mainRecipient = null) => {
+  // Corrected (verified) total always wins when the backend flags it —
+  // the raw `amount` may be a data-entry typo (e.g. ×100/÷100 shift).
+  if (decision.has_corrected_amounts && decision.corrected_amount != null) {
+    return decision.corrected_amount;
+  }
+
   // If we have preloaded entity amount, use it
   if (hasPreloadedEntityData && decision.entity_amount) {
     return decision.entity_amount;

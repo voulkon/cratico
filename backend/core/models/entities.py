@@ -164,6 +164,29 @@ class DecisionAmountField(models.Model):
         help_text="Associated entity relationship if this amount is tied to an entity",
     )
 
+    # ------------------------------------------------------------------
+    # Amount verification — corrected value from document text
+    # ------------------------------------------------------------------
+    # When the cents-based detector finds a ×100/÷100 decimal-shift typo
+    # in this specific amount field, the corrected value is stored here.
+    # Sum(Coalesce('verified_amount', 'amount')) then produces the true
+    # total — no Decision-model bloat needed.
+    verified_amount = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text=(
+            "Corrected amount as detected from the document text. "
+            "When set, this overrides 'amount' for all aggregations."
+        ),
+    )
+    amount_verified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this field's amount was last verified/corrected.",
+    )
+
     class Meta:
         unique_together = ["decision", "parent_key_path", "source_field_name"]
         indexes = [
@@ -180,6 +203,15 @@ class DecisionAmountField(models.Model):
                 fields=["associated_relationship", "amount"],
                 condition=models.Q(associated_relationship__isnull=False),
                 name="idx_linked_amounts_only",
+            ),
+            # Partial index for corrected (verified) amounts: powers the admin
+            # "corrected amounts" counts (and the admin list filter) as an
+            # index-only scan instead of scanning the whole table on millions
+            # of rows.
+            models.Index(
+                fields=["decision", "verified_amount"],
+                condition=models.Q(verified_amount__isnull=False),
+                name="idx_daf_verified_amounts",
             ),
         ]
 

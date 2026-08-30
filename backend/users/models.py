@@ -33,6 +33,13 @@ class CustomUser(AbstractUser):
     api_key = models.CharField(max_length=64, unique=True, null=True, blank=True)
     usage_this_month = models.IntegerField(default=0)
 
+    # Admin-set override: if set, this replaces the subscription-based daily limit.
+    daily_request_limit_override = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Admin override for daily API request limit (null = use subscription default).",
+    )
+
     # Email verification for Django-registered users (Clerk handles this for Clerk users)
     email_verified = models.BooleanField(
         default=False, help_text="Whether email has been verified"
@@ -62,6 +69,24 @@ class CustomUser(AbstractUser):
         max_length=10, default="en", choices=[("en", "English"), ("el", "Greek")]
     )  # en/el
 
+    # AI spend tracking (rolled up from AIInteractionLog by CostLedgerService)
+    ai_spent_this_month_usd = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0
+    )
+    ai_spent_month = models.IntegerField(
+        null=True, blank=True, help_text="YYYYMM for monthly reset logic"
+    )
+
+    # AI feature flags
+    ai_enabled = models.BooleanField(
+        default=True,
+        help_text="Master switch — when off, no AI calls are made for this user.",
+    )
+    ai_system_key_accepted = models.BooleanField(
+        default=False,
+        help_text="User has acknowledged using the platform system key for AI.",
+    )
+
     @property
     def has_active_subscription(self):
         return (
@@ -72,6 +97,9 @@ class CustomUser(AbstractUser):
 
     @property
     def daily_request_limit(self):
+        # Admin override takes precedence over everything
+        if self.daily_request_limit_override is not None:
+            return self.daily_request_limit_override
         if self.has_active_subscription:
             return self.subscription.max_requests_per_day
         return 100  # Default limit for authenticated users without subscription

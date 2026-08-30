@@ -4,6 +4,7 @@ from datetime import timedelta
 from api.utils.date_utils import _parse_optional_date_range
 from api.utils.sorting import apply_decision_sorting
 from core.models.organizations import Organization, Signer, Unit
+from core.services.decision_facets import amount_sum_excluding_kae
 from core.services.feature_flag_service import feature_flags
 from core.services.financial_calculation_service import financial_service
 from core.services.search_analytics_service import SearchAnalyticsService
@@ -16,7 +17,7 @@ from django.utils import timezone
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from api.permissions import PublicReadOnly
 from rest_framework.response import Response
 
 from .base import (
@@ -50,7 +51,7 @@ from .base import (
     ],
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([PublicReadOnly])
 @monitor_query_performance(include_context=True)
 def entity_statistics_api_dev(request, entity_type, entity_id):
     """Get statistics for a specific entity using the enhanced financial service."""
@@ -87,9 +88,11 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
                     filtered_qs = decisions_qs.filter_by_date_range(
                         start_date, end_date
                     )
-                    stats = filtered_qs.aggregate(
+                    stats = filtered_qs.annotate(
+                        acc_total=amount_sum_excluding_kae()
+                    ).aggregate(
                         total_decisions=models.Count("id"),
-                        total_amount=models.Sum("amount"),
+                        total_amount=models.Sum("acc_total"),
                     )
                     return Response(
                         {
@@ -159,9 +162,11 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
         # Lightweight mode: only Count + Sum, skips Avg/Max/Min and all expensive
         # breakdown queries (financial summary, charts, recent decisions).
         if lite_mode:
-            stats = filtered_qs.aggregate(
+            stats = filtered_qs.annotate(
+                acc_total=amount_sum_excluding_kae()
+            ).aggregate(
                 total_decisions=models.Count("id"),
-                total_amount=models.Sum("amount"),
+                total_amount=models.Sum("acc_total"),
             )
             return Response(
                 {
@@ -201,12 +206,13 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
             )
 
         # Calculate basic statistics using full aggregate (non-lite path)
-        stats = filtered_qs.aggregate(
+        annotated_qs = filtered_qs.annotate(acc_total=amount_sum_excluding_kae())
+        stats = annotated_qs.aggregate(
             total_decisions=models.Count("id"),
-            avg_amount=models.Avg("amount"),
-            max_amount=models.Max("amount"),
-            min_amount=models.Min("amount"),
-            total_amount=models.Sum("amount"),
+            avg_amount=models.Avg("acc_total"),
+            max_amount=models.Max("acc_total"),
+            min_amount=models.Min("acc_total"),
+            total_amount=models.Sum("acc_total"),
         )
 
         # Calculate financial summary (legacy path for non-AFM entities)
@@ -230,9 +236,12 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
         # Monthly breakdown for charts
         try:
             monthly_stats = (
-                filtered_qs.annotate(month=models.F("issue_date_month"))
+                filtered_qs.annotate(
+                    acc_total=amount_sum_excluding_kae(),
+                    month=models.F("issue_date_month"),
+                )
                 .values("month")
-                .annotate(count=models.Count("id"), amount=models.Sum("amount"))
+                .annotate(count=models.Count("id"), amount=models.Sum("acc_total"))
                 .order_by("month")
             )
         except Exception:
@@ -241,8 +250,9 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
 
         # Top decision types
         top_types = (
-            filtered_qs.values("decision_type__label")
-            .annotate(count=models.Count("id"), total_amount=models.Sum("amount"))
+            filtered_qs.annotate(acc_total=amount_sum_excluding_kae())
+            .values("decision_type__label")
+            .annotate(count=models.Count("id"), total_amount=models.Sum("acc_total"))
             .order_by("-count")[:10]
         )
 
@@ -254,8 +264,12 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
         )
 
         # Recent decisions
-        recent_decisions = filtered_qs.order_by("-issue_date_day")[:5].values(
-            "ada", "subject", "issue_date_day", "amount", "decision_type__label"
+        recent_decisions = (
+            filtered_qs.annotate(amount=amount_sum_excluding_kae())
+            .order_by("-issue_date_day")[:5]
+            .values(
+                "ada", "subject", "issue_date_day", "amount", "decision_type__label"
+            )
         )
 
         return Response(
@@ -392,7 +406,7 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([PublicReadOnly])
 def entity_decisions_api_dev(request, entity_type, entity_id):
     """Get paginated decisions for a specific entity"""
     start_date_str = request.GET.get("start_date")
@@ -455,47 +469,20 @@ def entity_decisions_api_dev(request, entity_type, entity_id):
         # Get decisions queryset
         decisions_qs = get_entity_decisions_queryset(entity_type, entity_id)
 
-        # Apply date filters via custom queryset method
-        decisions_qs = decisions_qs.filter_by_date_range(start_dt, end_dt)
+        # Apply all standard facets via shared helper (date, search, status,
+        # decision types, amount range, sort)
+        from core.services.decision_facets import apply_decision_facets
 
-        # Apply search filter
-        if search_query:
-            # Always search by subject and ADA (decision metadata)
-            q_filter = models.Q(subject__icontains=search_query) | models.Q(
-                ada__icontains=search_query
-            )
-
-            # Only search content if PostgreSQL indexing is enabled
-            if feature_flags.is_enabled("INDEX_THE_POSTGRES"):
-                from django.contrib.postgres.search import SearchQuery
-
-                search_query_obj = SearchQuery(search_query)
-                q_filter |= models.Q(text_extraction__search_vector=search_query_obj)
-
-            decisions_qs = decisions_qs.filter(q_filter).distinct()
-
-        # Apply status filter
-        if status_filter:
-            decisions_qs = decisions_qs.filter(status=status_filter)
-
-        # Apply decision type filter
-        if decision_type_uids:
-            decisions_qs = decisions_qs.filter(
-                decision_type__uid__in=decision_type_uids
-            )
-
-        # Apply amount filters
-        if min_amount is not None:
-            decisions_qs = decisions_qs.filter(amount__gte=min_amount)
-
-        if max_amount is not None:
-            decisions_qs = decisions_qs.filter(amount__lte=max_amount)
-
-        # Apply sorting via shared utility
-        decisions_qs = apply_decision_sorting(
-            decisions_qs, sort_by,
-            amount_field="amount",
-            date_field="issue_date_day",
+        decisions_qs = apply_decision_facets(
+            decisions_qs,
+            start_dt=start_dt,
+            end_dt=end_dt,
+            search_query=search_query,
+            decision_type_uids=decision_type_uids,
+            min_amount=min_amount,
+            max_amount=max_amount,
+            sort_by=sort_by,
+            status_filter=status_filter,
         )
 
         # Add prefetch_related for optimization
@@ -515,13 +502,13 @@ def entity_decisions_api_dev(request, entity_type, entity_id):
 
         # ── Batch-fetch entity relationships (eliminates N+1) ──────────────
         from core.models.entities import DecisionEntityRelationship
-        from django.db.models import Sum
+        from core.services.decision_facets import effective_linked_amount_sum
 
         decision_ids = [d.id for d in page_obj]
         entity_relationships_qs = (
             DecisionEntityRelationship.objects.filter(decision_id__in=decision_ids)
             .select_related("entity")
-            .annotate(total_amount=Sum("linked_amounts__amount"))
+            .annotate(total_amount=effective_linked_amount_sum())
         )
 
         relationships_by_decision = {}
@@ -616,7 +603,7 @@ def entity_decisions_api_dev(request, entity_type, entity_id):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([PublicReadOnly])
 def entity_timeline_api_dev(request, entity_type, entity_id):
     """Get timeline data for a specific entity"""
     granularity = request.GET.get(
@@ -655,12 +642,15 @@ def entity_timeline_api_dev(request, entity_type, entity_id):
 
         # Get timeline data
         timeline_data = (
-            decisions_qs.annotate(period=models.F(period_column))
+            decisions_qs.annotate(
+                acc_total=amount_sum_excluding_kae(),
+                period=models.F(period_column),
+            )
             .values("period")
             .annotate(
                 count=models.Count("id"),
-                total_amount=models.Sum("amount"),
-                avg_amount=models.Avg("amount"),
+                total_amount=models.Sum("acc_total"),
+                avg_amount=models.Avg("acc_total"),
             )
             .order_by("period")
         )
@@ -736,7 +726,7 @@ def entity_timeline_api_dev(request, entity_type, entity_id):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([PublicReadOnly])
 def entity_decision_types_api_dev(request, entity_type, entity_id):
     """Get available decision types for a specific entity"""
     start_dt, end_dt, err = _parse_optional_date_range(request)
@@ -747,46 +737,16 @@ def entity_decision_types_api_dev(request, entity_type, entity_id):
         # Resolve entity metadata (name, type, etc.) — lightweight DB lookup
         entity_info = get_entity_info(entity_type, entity_id)
 
-        # Get decisions queryset
+        # Get decisions queryset + apply date filter
         decisions_qs = get_entity_decisions_queryset(entity_type, entity_id)
-
-        # Apply date filters via custom queryset method
         decisions_qs = decisions_qs.filter_by_date_range(start_dt, end_dt)
 
-        # Get decision types with counts and financial data
-        decision_types = (
-            decisions_qs.values("decision_type__uid", "decision_type__label")
-            .annotate(
-                count=models.Count("id"),
-                total_amount=models.Sum("amount"),
-                avg_amount=models.Avg("amount"),
-                max_amount=models.Max("amount"),
-            )
-            .filter(decision_type__uid__isnull=False)  # Exclude decisions without types
-            .order_by("-count")
-        )
+        # Use shared projection (single source of truth for the uid-grouped aggregation)
+        from core.services.decision_projections import aggregate_decision_types
 
-        # Format response
-        formatted_types = []
-        for dt in decision_types:
-            formatted_types.append(
-                {
-                    "uid": dt["decision_type__uid"],
-                    "label": dt["decision_type__label"],
-                    "count": dt["count"],
-                    "total_amount": float(dt["total_amount"] or 0),
-                    "avg_amount": float(dt["avg_amount"] or 0),
-                    "max_amount": float(dt["max_amount"] or 0),
-                }
-            )
-
-        return Response(
-            {
-                "entity": entity_info,
-                "decision_types": formatted_types,
-                "total_types": len(formatted_types),
-            }
-        )
+        result = aggregate_decision_types(decisions_qs)
+        result["entity"] = entity_info
+        return Response(result)
 
     except (Organization.DoesNotExist, Signer.DoesNotExist, Unit.DoesNotExist):
         return Response({"error": "Entity not found"}, status=404)
@@ -818,7 +778,7 @@ def entity_decision_types_api_dev(request, entity_type, entity_id):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([PublicReadOnly])
 def entity_date_range_api_dev(request, entity_type, entity_id):
     """Get the available date range and activity overview for an entity"""
     try:
@@ -828,106 +788,28 @@ def entity_date_range_api_dev(request, entity_type, entity_id):
         # Get decisions queryset for the entity
         decisions_qs = get_entity_decisions_queryset(entity_type, entity_id)
 
-        # Get date range
-        date_stats = decisions_qs.aggregate(
-            earliest_date=models.Min("issue_date_day"),
-            latest_date=models.Max("issue_date_day"),
-            total_decisions=models.Count("id"),
-            total_amount=models.Sum("amount"),
-        )
+        # Use shared projection (single source of truth)
+        from core.services.decision_projections import compute_date_range
 
-        if not date_stats["earliest_date"]:
-            return Response(
-                {
-                    "entity": entity_info,
-                    "has_data": False,
-                    "message": "No decisions found for this entity. Contact the administrator if you expect data to be available.",
-                    "date_range": None,
-                    "activity_chart": [],
-                }
-            )
+        result = compute_date_range(decisions_qs)
 
-        # Calculate optimal granularity based on data span
-        earliest = date_stats["earliest_date"]
-        latest = date_stats["latest_date"]
-        span_days = (latest - earliest).days
-
-        # Choose granularity based on data span (week/quarter have no precomputed field)
-        if span_days <= 31:  # Less than a month - daily
-            granularity = "day"
-            period_column = "issue_date_day"
-        elif span_days <= 1825:  # Up to 5 years - monthly
-            granularity = "month"
-            period_column = "issue_date_month"
-        else:  # More than 5 years - yearly
-            granularity = "year"
-            period_column = "issue_date_year"
-
-        # Get activity data for mini chart
-        activity_data = (
-            decisions_qs.annotate(period=models.F(period_column))
-            .values("period")
-            .annotate(count=models.Count("id"), total_amount=models.Sum("amount"))
-            .order_by("period")
-        )
-
-        # Format activity chart data
-        chart_data = []
-        for item in activity_data:
-            period_val = item["period"]
-            period_str = (
-                str(period_val)
-                if granularity == "year"
-                else (period_val.isoformat() if period_val else None)
-            )
-            chart_data.append(
-                {
-                    "period": period_str,
-                    "count": item["count"],
-                    "amount": float(item["total_amount"] or 0),
-                }
-            )
-
-        # Calculate some useful stats for the chart
-        amounts = [item["amount"] for item in chart_data if item["amount"] > 0]
-        counts = [item["count"] for item in chart_data]
-
-        chart_stats = {
-            "max_amount": max(amounts) if amounts else 0,
-            "max_count": max(counts) if counts else 0,
-            "avg_amount": sum(amounts) / len(amounts) if amounts else 0,
-            "avg_count": sum(counts) / len(counts) if counts else 0,
-            "periods_with_activity": len([c for c in counts if c > 0]),
-            "total_periods": len(chart_data),
-        }
-
-        return Response(
-            {
+        # Preserve the exact response shape the frontend expects, with entity_info
+        # embedded and a no-data message matching the old format.
+        if not result["has_data"]:
+            return Response({
                 "entity": entity_info,
-                "has_data": True,
-                "date_range": {
-                    "earliest": earliest,
-                    "latest": latest,
-                    "span_days": span_days,
-                    "recommended_granularity": granularity,
-                },
-                "summary": {
-                    "total_decisions": date_stats["total_decisions"],
-                    "total_amount": float(date_stats["total_amount"] or 0),
-                    "avg_daily_decisions": round(
-                        date_stats["total_decisions"] / max(span_days, 1), 2
-                    ),
-                    "avg_daily_amount": round(
-                        float(date_stats["total_amount"] or 0) / max(span_days, 1), 2
-                    ),
-                },
-                "activity_chart": {
-                    "data": chart_data,
-                    "granularity": granularity,
-                    "stats": chart_stats,
-                },
-            }
-        )
+                "has_data": False,
+                "message": (
+                    "No decisions found for this entity. "
+                    "Contact the administrator if you expect data to be available."
+                ),
+                "date_range": None,
+                "activity_chart": [],
+            })
+
+        # stats are now computed inside compute_date_range — no enrichment needed
+        result["entity"] = entity_info
+        return Response(result)
 
     except (Organization.DoesNotExist, Signer.DoesNotExist, Unit.DoesNotExist):
         return Response({"error": "Entity not found"}, status=404)

@@ -164,7 +164,7 @@ def cached_view(
 
             # ── defer_on_miss path ────────────────────────────────────
             if defer_on_miss:
-                return _handle_defer_on_miss(
+                defer_response = _handle_defer_on_miss(
                     request=request,
                     cache_key=cache_key,
                     cache_prefix=cache_prefix,
@@ -173,6 +173,12 @@ def cached_view(
                     view_func=view_func,
                     log_cache_operations=log_cache_operations,
                 )
+                # _handle_defer_on_miss returns None to signal "fall through
+                # to synchronous execution" (e.g. when warmup is marked ready
+                # but no cache entry exists for this specific key).  Otherwise
+                # it returns a 202 Response to send to the client.
+                if defer_response is not None:
+                    return defer_response
 
             # ── synchronous path (original behaviour) ─────────────────
             if log_cache_operations:
@@ -268,18 +274,25 @@ def _handle_defer_on_miss(
         return _build_202_response(cache_key, defer_retry_after)
 
     if warmup_status == WARMUP_STATUS_READY:
-        # Warmup already completed but produced no cache entries (typically
-        # because there is no data for this window).  Do NOT re-dispatch -
-        # that would create an infinite loop.  The frontend will retry and
-        # eventually the warmup-status TTL expires; at that point a new
-        # warmup may be dispatched if data has arrived in the meantime.
+        # Warmup already completed but produced no cache entry for THIS
+        # specific key.  This happens when the warmup pre-slices pages
+        # for a default sort_by / page_size, but the frontend requested
+        # a different combination (e.g. sort_by=amount_desc vs the
+        # warmed sort_by=entity_amount_desc, or limit=10 vs warmed
+        # page_size=6).
+        #
+        # Previously this returned 202 forever, trapping the frontend in
+        # a polling loop.  Instead, fall through to synchronous execution
+        # so the user sees results immediately.  The result is cached
+        # under the exact key the frontend requested, so subsequent
+        # requests get a cache hit.
         if log_cache_operations:
             logger.info(
-                f"[Cache Decorator DEFER] Warmup already completed (ready) but "
-                f"no cache entry for {cache_prefix} | key={cache_key} — "
-                f"NOT re-dispatching (empty window)"
+                f"[Cache Decorator DEFER] Warmup completed (ready) but no "
+                f"cache entry for THIS key {cache_prefix} | key={cache_key} "
+                f"— falling back to synchronous execution"
             )
-        return _build_202_response(cache_key, defer_retry_after)
+        return None  # signal: fall through to synchronous path
 
     # ── Mark warmup as in-progress ───────────────────────────────────
     response_cache.set_warmup_status(cache_key, WARMUP_STATUS_IN_PROGRESS)

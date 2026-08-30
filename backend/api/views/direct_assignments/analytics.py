@@ -22,14 +22,21 @@ from core.models.organizations import Organization
 from core.services.financial_calculation_service import financial_service
 from core.utils.performance_monitoring import monitor_query_performance
 from django.conf import settings
-from django.db.models import Avg, Count, Max, Min, Sum
+from django.db.models import Count
+
+from core.services.decision_facets import (
+    effective_linked_amount_avg,
+    effective_linked_amount_max,
+    effective_linked_amount_min,
+    effective_linked_amount_sum,
+)
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from loguru import logger
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from api.permissions import PublicReadOnly
 from rest_framework.response import Response
 
 @swagger_auto_schema(
@@ -110,13 +117,13 @@ from rest_framework.response import Response
         )
     },
 )
+@api_view(["GET"])
+@permission_classes([PublicReadOnly])
 @cached_view(
     cache_prefix="da_org_recipients",
     cache_params=["start_date", "end_date", "limit", "offset"],
     end_date_param="end_date",
 )
-@api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
 @monitor_query_performance(operation="direct_assignments_top_recipients_by_org")
 def organization_direct_assignment_top_recipients(request, organization_uid):
     """
@@ -193,7 +200,7 @@ def organization_direct_assignment_top_recipients(request, organization_uid):
             role__in=financial_service.MONEY_RECEIVED_ROLES,
         ).aggregate(
             unique_entities=Count("entity", distinct=True),
-            total_amount=Sum("linked_amounts__amount"),
+            total_amount=effective_linked_amount_sum(),
             total_decisions=Count("decision", distinct=True),
         )
         total_count = result_page.total_count
@@ -280,13 +287,13 @@ def organization_direct_assignment_top_recipients(request, organization_uid):
         ),
     ],
 )
+@api_view(["GET"])
+@permission_classes([PublicReadOnly])
 @cached_view(
     cache_prefix="da_entity_orgs",
     cache_params=["start_date", "end_date", "limit", "offset"],
     end_date_param="end_date",
 )
-@api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
 @monitor_query_performance(operation="direct_assignments_top_organizations_by_entity")
 def entity_direct_assignment_top_organizations(request, afm):
     """
@@ -342,11 +349,11 @@ def entity_direct_assignment_top_organizations(request, afm):
             DecisionEntityRelationship.objects.filter(**base_filter)
             .values("decision__organization__uid", "decision__organization__label")
             .annotate(
-                total_amount=Sum("linked_amounts__amount"),
+                total_amount=effective_linked_amount_sum(),
                 decision_count=Count("decision", distinct=True),
-                avg_amount=Avg("linked_amounts__amount"),
-                max_amount=Max("linked_amounts__amount"),
-                min_amount=Min("linked_amounts__amount"),
+                avg_amount=effective_linked_amount_avg(),
+                max_amount=effective_linked_amount_max(),
+                min_amount=effective_linked_amount_min(),
             )
             .filter(total_amount__gt=0)
             .order_by("-total_amount")[offset : offset + limit]
@@ -357,7 +364,7 @@ def entity_direct_assignment_top_organizations(request, afm):
             **base_filter
         ).aggregate(
             unique_organizations=Count("decision__organization", distinct=True),
-            total_amount=Sum("linked_amounts__amount"),
+            total_amount=effective_linked_amount_sum(),
             total_decisions=Count("decision", distinct=True),
         )
         total_count = combined_stats["unique_organizations"] or 0
@@ -452,14 +459,14 @@ def entity_direct_assignment_top_organizations(request, afm):
         ),
     ],
 )
+@api_view(["GET"])
+@permission_classes([PublicReadOnly])
 @cached_view(
     cache_prefix="da_top_pairs",
     cache_params=["start_date", "end_date", "limit", "offset"],
     end_date_param="end_date",
     defer_on_miss=True,
 )
-@api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
 @monitor_query_performance(operation="direct_assignments_top_pairs_global")
 def direct_assignment_top_pairs_global(request):
     """
@@ -547,14 +554,14 @@ def direct_assignment_top_pairs_global(request):
         ),
     ],
 )
+@api_view(["GET"])
+@permission_classes([PublicReadOnly])
 @cached_view(
     cache_prefix="da_top_entities",
     cache_params=["start_date", "end_date", "limit", "offset", "sort_by"],
     end_date_param="end_date",
     defer_on_miss=True,
 )
-@api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
 @monitor_query_performance(operation="direct_assignments_top_entities_global")
 def direct_assignment_top_entities_global(request):
     """
@@ -644,14 +651,14 @@ def direct_assignment_top_entities_global(request):
         ),
     ],
 )
+@api_view(["GET"])
+@permission_classes([PublicReadOnly])
 @cached_view(
     cache_prefix="da_top_orgs",
     cache_params=["start_date", "end_date", "limit", "offset", "sort_by"],
     end_date_param="end_date",
     defer_on_miss=True,
 )
-@api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
 @monitor_query_performance(operation="direct_assignments_top_organizations_global")
 def direct_assignment_top_organizations_global(request):
     """
@@ -703,13 +710,13 @@ def direct_assignment_top_organizations_global(request):
     method="get",
     operation_description="Get overall statistics about direct assignments",
 )
+@api_view(["GET"])
+@permission_classes([PublicReadOnly])
 @cached_view(
     cache_prefix="da_stats",
     cache_params=None,  # No params - cache all requests the same
     ttl=60 * 10,  # 10 minutes fixed TTL for stats
 )
-@api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
 def direct_assignment_stats(request):
     """
     Get overall statistics about direct assignment classifications.

@@ -15,8 +15,9 @@ from django.conf import settings
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from api.permissions import PublicReadOnly
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny, IsAuthenticated
 
 
 @swagger_auto_schema(
@@ -37,7 +38,7 @@ from rest_framework.response import Response
     ],
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([PublicReadOnly])
 def personal_search_history_api(request):
     """
     Get personal search history for the current user or IP.
@@ -92,7 +93,7 @@ def personal_search_history_api(request):
     ],
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([PublicReadOnly])
 def recent_search_queries_api(request):
     """
     Get recent search query strings (for autocomplete/suggestions).
@@ -253,7 +254,7 @@ def clear_search_history_api(request):
     },
 )
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([PublicReadOnly])
 def recently_visited_api(request):
     """
     Get recently visited items from search selections.

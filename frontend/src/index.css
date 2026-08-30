@@ -9,6 +9,7 @@
   --spacing-xxl: 24px;
   --spacing-xxxl: 30px;
   --spacing-xxxxl: 40px;
+  --spacing-xxs: 2px;
 
   /* ── Top band — single knob for the entire top strip ──
      Change --top-band-height and everything adjusts:
@@ -21,9 +22,10 @@
 
   /* Controls column — width of the right-hand controls strip.
      Expanded: sized so the widest SplitButton (90px) + toggle (44px) + gap (8px)
-     plus right-margin (12px) never overflow: need ≥ 154px, give 180px minimum.
+     plus right-margin (12px) never overflow: need ≥ 154px, give 160px minimum.
      Collapsed: toggle button (44px) + right-margin (12px) = 56px. */
-  --controls-expanded-width: clamp(180px, 18vw, 260px);
+  --controls-expanded-width: clamp(160px, 14vw, 200px);
+  --controls-expanded-width-vertical: 110px;
   --controls-collapsed-width: 56px;
   --controls-column-width: var(--controls-expanded-width);
 
@@ -32,6 +34,10 @@
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-full: 50%;
+  --radius-xs: 2px;
+
+  /* Content width — single knob for all page-level max-widths */
+  --content-max-width: 1100px;
 
   /* Font scale — runtime zoom knob; scales ALL text via html font-size.
      All font-size variables below use rem so they inherit automatically. */
@@ -45,12 +51,14 @@
   --font-xl: 1.5rem;
   --font-xxl: 2rem;
   --font-xxxl: 2.5rem;
+  --font-xxs: 0.625rem;
 
   /* Font weights */
   --font-normal: 400;
   --font-medium: 500;
   --font-bold: 700;
   --font-black: 900;
+  --font-semibold: 600;
 
   /* Transitions */
   --transition-fast: 0.2s ease;
@@ -62,11 +70,108 @@
      Loaded via Google Fonts in public/index.html. */
   --font-serif: 'DM Serif Display', 'Playfair Display', Georgia, serif;
   --font-sans: 'DM Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* ── Aliases & derived tokens ──────────────────────────────
+     Resolve to themed values at runtime via var() indirection.
+     Per-palette overrides for RGB values live in palette blocks below. */
+  --accent-color: var(--palette-primary);
+  --accent-hover: var(--palette-secondary);
+  --accent-color-rgb: var(--palette-primary-rgb);
+  --palette-primary-light: var(--palette-bg-subtle);
+  --palette-primary-rgb: 66, 153, 225;          /* fallback blue; overridden per palette */
+  --primary-hover: var(--palette-secondary);
+  --bg-primary: var(--card-bg);
+  --bg-secondary: var(--surface-secondary);
+  --card-bg-hover: var(--hover-bg);
+  --color-error: var(--error-text);
+  --error-color: var(--error-text);
+  --error-light: var(--error-bg);
+  --color-error-bg: var(--error-bg);
+  --success-color: var(--success-text);
+  --success-border: var(--success-text);
+  --warning-color: var(--warning-text);
+  --dark-text: var(--text-color);
+  --info-color: var(--palette-primary);
+  --border-radius-md: var(--radius-md);
+  --border-radius-sm: var(--radius-sm);
+  --split-btn-height: var(--top-controls-height);
+  --search-max-width: var(--content-max-width);
+  --logo-stroke-surrounding: var(--text-color);
+  --logo-stroke-column: var(--palette-primary);
 }
 
 /* Scale ALL text globally — rem values cascade from here automatically */
 html {
   font-size: calc(16px * var(--font-scale));
+}
+
+/* ===========================================
+   DEFAULT FALLBACK (Light Blue)
+   Applies when no data-theme is set on <html>.
+   Placed BEFORE theme blocks so [data-theme] selectors
+   (equal specificity, later source order) override it.
+   =========================================== */
+:root {
+  --bg-color: #ffffff;
+  --text-color: #000000;
+  --border-color: #e0e0e0;
+  --card-bg: #ffffff;
+  --card-bg-secondary: #f5f5f5;
+  --palette-primary: #4299E1;
+  --palette-secondary: #2B6CB0;
+  --palette-bg-subtle: #C4F1F9;
+  --palette-emphasis: #1E4F72;
+  --palette-primary-contrast: #ffffff;
+  --bg-info: #e3f2fd;
+  --color-text-info: #1976d2;
+  --bg-selected: #e3f2fd;
+  --success-bg: #d4edda;
+  --success-text: #155724;
+  --error-bg: #f8d7da;
+  --error-text: #721c24;
+  --warning-bg: #fff3cd;
+  --warning-text: #856404;
+  --warning-border: #ffeaa7;
+  --danger-color: #ff6b6b;
+  --muted-text: #666666;
+  --light-text: #888888;
+  --disabled-bg: #cccccc;
+  --disabled-text: #999999;
+  --hover-bg: #f5f5f5;
+  --focus-color: #0066cc;
+  --text-secondary: #6b7280;
+  --surface-secondary: #f3f4f6;
+  --color-star: #f59e0b;
+  --avatar-border-default: #9ca3af;
+  --avatar-border-authenticated: #10b981;
+  --slider-rail-color: var(--border-color);
+  --shadow: rgba(0,0,0,0.1);
+  --shadow-hover: rgba(0,0,0,0.15);
+  --shadow-focus: rgba(0,0,0,0.3);
+
+  /* ── Annotation span tokens (AnnotatedText) ────────────────
+     Translucent so they read on both light and dark canvases.
+     Each span type has a bg + underline-accent pair. */
+  --annot-amount-bg: rgba(255, 213, 79, 0.35);
+  --annot-amount-accent: rgba(255, 213, 79, 0.8);
+  --annot-amount-chosen-bg: rgba(76, 175, 80, 0.30);
+  --annot-amount-chosen-accent: rgba(76, 175, 80, 0.8);
+  --annot-amount-clone-bg: rgba(244, 67, 54, 0.25);
+  --annot-amount-clone-accent: rgba(244, 67, 54, 0.7);
+  --annot-date-bg: rgba(100, 181, 246, 0.28);
+  --annot-date-accent: rgba(100, 181, 246, 0.7);
+  --annot-subject-bg: rgba(171, 71, 188, 0.25);
+  --annot-subject-accent: rgba(171, 71, 188, 0.7);
+  --annot-main-point-bg: rgba(0, 150, 136, 0.25);
+  --annot-main-point-accent: rgba(0, 150, 136, 0.7);
+  --annot-signer-bg: rgba(63, 81, 181, 0.25);
+  --annot-signer-accent: rgba(63, 81, 181, 0.7);
+  --annot-entity-bg: rgba(255, 152, 0, 0.25);
+  --annot-entity-accent: rgba(255, 152, 0, 0.7);
+  --annot-boilerplate-bg: rgba(158, 158, 158, 0.18);
+  --annot-boilerplate-accent: rgba(158, 158, 158, 0.5);
+  --annot-useless-bg: rgba(200, 200, 200, 0.08);
+  --annot-useless-accent: rgba(200, 200, 200, 0.3);
 }
 
 /* ===========================================
@@ -79,7 +184,9 @@ html {
   --text-color: #1c1917;
   --border-color: #e7e5e4;
   --card-bg: #ffffff;
+  --card-bg-secondary: #f5f3f0;
   --surface-color: var(--card-bg);
+  --text-on-primary: #ffffff;
 
   /* Status colors for light theme */
   --success-bg: #d4edda;
@@ -115,6 +222,24 @@ html {
   --shadow: rgba(28,25,23,0.08);
   --shadow-hover: rgba(28,25,23,0.12);
   --shadow-focus: rgba(28,25,23,0.24);
+
+  /* Card shadows — two-layer for the Apple-like floating depth */
+  --card-shadow:
+    0 1px 2px rgba(28,25,23,0.04),
+    0 8px 24px rgba(28,25,23,0.06);
+  --card-shadow-hover:
+    0 2px 4px rgba(28,25,23,0.05),
+    0 14px 36px rgba(28,25,23,0.09);
+
+  /* Neobrutalist knobs — tweak these to dial the brutalism up/down */
+  --neo-shadow-offset: 4px;        /* shadow X/Y offset */
+  --neo-shadow-offset-hover: 4px;  /* shadow X/Y offset on hover */
+  --neo-border-width: 2px;         /* card border thickness */
+  --neo-radius: var(--radius-sm);  /* card corner rounding */
+  --neo-lift-x: -2px;              /* horizontal nudge on hover */
+  --neo-lift-y: -4px;              /* vertical lift on hover */
+  --neo-divider-width: 2px;        /* content divider thickness */
+  --neo-accent-width: 5px;         /* left accent stripe width */
 }
 
 /* ===========================================
@@ -127,7 +252,9 @@ html {
   --text-color: #faf9f7;
   --border-color: #44403c;
   --card-bg: #292524;
+  --card-bg-secondary: #1f1b1a;
   --surface-color: var(--card-bg);
+  --text-on-primary: #faf9f7;
 
   /* Status colors for dark theme */
   --success-bg: #1e4620;
@@ -163,6 +290,14 @@ html {
   --shadow: rgba(0,0,0,0.4);
   --shadow-hover: rgba(0,0,0,0.5);
   --shadow-focus: rgba(0,0,0,0.6);
+
+  /* Card shadows — darker canvas needs heavier depth to read */
+  --card-shadow:
+    0 1px 2px rgba(0,0,0,0.25),
+    0 8px 24px rgba(0,0,0,0.35);
+  --card-shadow-hover:
+    0 2px 4px rgba(0,0,0,0.30),
+    0 14px 36px rgba(0,0,0,0.45);
 }
 
 /* ===========================================
@@ -174,7 +309,9 @@ html {
   --text-color: #657b83;
   --border-color: #eee8d5;
   --card-bg: #eee8d5;
+  --card-bg-secondary: #e6dfc3;
   --surface-color: var(--card-bg);
+  --text-on-primary: #fdf6e3;
 
   /* Status colors for solarized light */
   --success-bg: #d9e8d8;
@@ -210,6 +347,14 @@ html {
   --shadow: rgba(101, 123, 131, 0.1);
   --shadow-hover: rgba(101, 123, 131, 0.15);
   --shadow-focus: rgba(101, 123, 131, 0.25);
+
+  /* Card shadows — tinted to match the solarized palette */
+  --card-shadow:
+    0 1px 2px rgba(101,123,131,0.05),
+    0 8px 24px rgba(101,123,131,0.08);
+  --card-shadow-hover:
+    0 2px 4px rgba(101,123,131,0.07),
+    0 14px 36px rgba(101,123,131,0.11);
 }
 
 /* ===========================================
@@ -221,7 +366,9 @@ html {
   --text-color: #839496;
   --border-color: #073642;
   --card-bg: #073642;
+  --card-bg-secondary: #002b36;
   --surface-color: var(--card-bg);
+  --text-on-primary: #fdf6e3;
 
   /* Status colors for solarized dark */
   --success-bg: #0f3d3a;
@@ -257,6 +404,14 @@ html {
   --shadow: rgba(0, 0, 0, 0.4);
   --shadow-hover: rgba(0, 0, 0, 0.5);
   --shadow-focus: rgba(0, 0, 0, 0.6);
+
+  /* Card shadows — darker canvas needs heavier depth to read */
+  --card-shadow:
+    0 1px 2px rgba(0,0,0,0.25),
+    0 8px 24px rgba(0,0,0,0.35);
+  --card-shadow-hover:
+    0 2px 4px rgba(0,0,0,0.30),
+    0 14px 36px rgba(0,0,0,0.45);
 }
 
 /* ===========================================
@@ -284,11 +439,19 @@ html {
 }
 
 /* Solarized themes share similar palette adaptations */
-[data-theme="solarized-light"][data-palette="blue"],
+[data-theme="solarized-light"][data-palette="blue"] {
+  --palette-primary: #268bd2;
+  --palette-secondary: #2aa198;
+  --palette-bg-subtle: rgba(38, 139, 210, 0.08);
+  --palette-emphasis: #268bd2;
+  --bg-info: rgba(38, 139, 210, 0.1);
+  --color-text-info: #268bd2;
+  --bg-selected: rgba(38, 139, 210, 0.15);
+}
 [data-theme="solarized-dark"][data-palette="blue"] {
   --palette-primary: #268bd2;
   --palette-secondary: #2aa198;
-  --palette-bg-subtle: #073642;
+  --palette-bg-subtle: rgba(38, 139, 210, 0.12);
   --palette-emphasis: #268bd2;
   --bg-info: rgba(38, 139, 210, 0.1);
   --color-text-info: #268bd2;
@@ -319,11 +482,19 @@ html {
   --bg-selected: #22193a;
 }
 
-[data-theme="solarized-light"][data-palette="purple"],
+[data-theme="solarized-light"][data-palette="purple"] {
+  --palette-primary: #6c71c4;
+  --palette-secondary: #d33682;
+  --palette-bg-subtle: rgba(108, 113, 196, 0.08);
+  --palette-emphasis: #6c71c4;
+  --bg-info: rgba(108, 113, 196, 0.1);
+  --color-text-info: #6c71c4;
+  --bg-selected: rgba(108, 113, 196, 0.15);
+}
 [data-theme="solarized-dark"][data-palette="purple"] {
   --palette-primary: #6c71c4;
   --palette-secondary: #d33682;
-  --palette-bg-subtle: #073642;
+  --palette-bg-subtle: rgba(108, 113, 196, 0.12);
   --palette-emphasis: #6c71c4;
   --bg-info: rgba(108, 113, 196, 0.1);
   --color-text-info: #6c71c4;
@@ -354,11 +525,19 @@ html {
   --bg-selected: #152419;
 }
 
-[data-theme="solarized-light"][data-palette="green"],
+[data-theme="solarized-light"][data-palette="green"] {
+  --palette-primary: #859900;
+  --palette-secondary: #2aa198;
+  --palette-bg-subtle: rgba(133, 153, 0, 0.08);
+  --palette-emphasis: #859900;
+  --bg-info: rgba(133, 153, 0, 0.1);
+  --color-text-info: #859900;
+  --bg-selected: rgba(133, 153, 0, 0.15);
+}
 [data-theme="solarized-dark"][data-palette="green"] {
   --palette-primary: #859900;
   --palette-secondary: #2aa198;
-  --palette-bg-subtle: #073642;
+  --palette-bg-subtle: rgba(133, 153, 0, 0.12);
   --palette-emphasis: #859900;
   --bg-info: rgba(133, 153, 0, 0.1);
   --color-text-info: #859900;
@@ -391,11 +570,19 @@ html {
   --bg-selected: #3a1d12;
 }
 
-[data-theme="solarized-light"][data-palette="orange"],
+[data-theme="solarized-light"][data-palette="orange"] {
+  --palette-primary: #cb4b16;     /* solarized's native orange — already clay-adjacent */
+  --palette-secondary: #b58900;
+  --palette-bg-subtle: rgba(203, 75, 22, 0.08);
+  --palette-emphasis: #cb4b16;
+  --bg-info: rgba(203, 75, 22, 0.1);
+  --color-text-info: #cb4b16;
+  --bg-selected: rgba(203, 75, 22, 0.15);
+}
 [data-theme="solarized-dark"][data-palette="orange"] {
   --palette-primary: #cb4b16;     /* solarized's native orange — already clay-adjacent */
   --palette-secondary: #b58900;
-  --palette-bg-subtle: #073642;
+  --palette-bg-subtle: rgba(203, 75, 22, 0.12);
   --palette-emphasis: #cb4b16;
   --bg-info: rgba(203, 75, 22, 0.1);
   --color-text-info: #cb4b16;
@@ -426,11 +613,19 @@ html {
   --bg-selected: #311515;
 }
 
-[data-theme="solarized-light"][data-palette="red"],
+[data-theme="solarized-light"][data-palette="red"] {
+  --palette-primary: #dc322f;
+  --palette-secondary: #cb4b16;
+  --palette-bg-subtle: rgba(220, 50, 47, 0.08);
+  --palette-emphasis: #dc322f;
+  --bg-info: rgba(220, 50, 47, 0.1);
+  --color-text-info: #dc322f;
+  --bg-selected: rgba(220, 50, 47, 0.15);
+}
 [data-theme="solarized-dark"][data-palette="red"] {
   --palette-primary: #dc322f;
   --palette-secondary: #cb4b16;
-  --palette-bg-subtle: #073642;
+  --palette-bg-subtle: rgba(220, 50, 47, 0.12);
   --palette-emphasis: #dc322f;
   --bg-info: rgba(220, 50, 47, 0.1);
   --color-text-info: #dc322f;
@@ -461,56 +656,23 @@ html {
   --bg-selected: #2e1222;
 }
 
-[data-theme="solarized-light"][data-palette="pink"],
-[data-theme="solarized-dark"][data-palette="pink"] {
+[data-theme="solarized-light"][data-palette="pink"] {
   --palette-primary: #d33682;
   --palette-secondary: #6c71c4;
-  --palette-bg-subtle: #073642;
+  --palette-bg-subtle: rgba(211, 54, 130, 0.08);
   --palette-emphasis: #d33682;
   --bg-info: rgba(211, 54, 130, 0.1);
   --color-text-info: #d33682;
   --bg-selected: rgba(211, 54, 130, 0.15);
 }
-
-/* ===========================================
-   DEFAULT FALLBACK (Light Blue)
-   =========================================== */
-:root {
-  --bg-color: #ffffff;
-  --text-color: #000000;
-  --border-color: #e0e0e0;
-  --card-bg: #ffffff;
-  --palette-primary: #4299E1;
-  --palette-secondary: #2B6CB0;
-  --palette-bg-subtle: #C4F1F9;
-  --palette-emphasis: #1E4F72;
-  --palette-primary-contrast: #ffffff;
-  --bg-info: #e3f2fd;
-  --color-text-info: #1976d2;
-  --bg-selected: #e3f2fd;
-  --success-bg: #d4edda;
-  --success-text: #155724;
-  --error-bg: #f8d7da;
-  --error-text: #721c24;
-  --warning-bg: #fff3cd;
-  --warning-text: #856404;
-  --warning-border: #ffeaa7;
-  --danger-color: #ff6b6b;
-  --muted-text: #666666;
-  --light-text: #888888;
-  --disabled-bg: #cccccc;
-  --disabled-text: #999999;
-  --hover-bg: #f5f5f5;
-  --focus-color: #0066cc;
-  --text-secondary: #6b7280;
-  --surface-secondary: #f3f4f6;
-  --color-star: #f59e0b;
-  --avatar-border-default: #9ca3af;
-  --avatar-border-authenticated: #10b981;
-  --slider-rail-color: var(--border-color);
-  --shadow: rgba(0,0,0,0.1);
-  --shadow-hover: rgba(0,0,0,0.15);
-  --shadow-focus: rgba(0,0,0,0.3);
+[data-theme="solarized-dark"][data-palette="pink"] {
+  --palette-primary: #d33682;
+  --palette-secondary: #6c71c4;
+  --palette-bg-subtle: rgba(211, 54, 130, 0.12);
+  --palette-emphasis: #d33682;
+  --bg-info: rgba(211, 54, 130, 0.1);
+  --color-text-info: #d33682;
+  --bg-selected: rgba(211, 54, 130, 0.15);
 }
 
 /* Apply border-box globally so palette accent borders on buttons don't
@@ -590,7 +752,8 @@ code {
     --top-controls-height: calc(var(--top-band-height) - var(--spacing-sm) - var(--spacing-xs));
     --top-controls-offset: var(--top-band-height);
     /* Mobile SplitButtons shrink to 68px min; still need toggle(40px)+gap(8px)+btn(68px)+margin(8px)=124px */
-    --controls-expanded-width: clamp(140px, 20vw, 200px);
+    --controls-expanded-width: clamp(124px, 16vw, 160px);
+    --controls-expanded-width-vertical: 90px;
     --controls-collapsed-width: 48px;
   }
 }
@@ -600,7 +763,8 @@ code {
     --top-band-height: 40px;
     --top-controls-height: calc(var(--top-band-height) - var(--spacing-xs) - var(--spacing-xs));
     --top-controls-offset: var(--top-band-height);
-    --controls-expanded-width: clamp(130px, 25vw, 180px);
+    --controls-expanded-width: clamp(116px, 20vw, 140px);
+    --controls-expanded-width-vertical: 80px;
     --controls-collapsed-width: 44px;
   }
 }

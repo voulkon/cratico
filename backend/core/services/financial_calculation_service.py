@@ -28,13 +28,22 @@ from core.schemas.financial import (
     GlobalFinancialSummary,
     OrgBreakdown,
     OrganizationAmountSummary,
+    OrganizationCounterpartPage,
+    OrganizationCounterpartResult,
     RelationshipPairPage,
     RelationshipPairResult,
     RoleBreakdown,
     TimelinePoint,
 )
+from core.services.decision_facets import (
+    effective_linked_amount_avg,
+    effective_linked_amount_max,
+    effective_linked_amount_min,
+    effective_linked_amount_sum,
+)
 from core.utils.performance_monitoring import monitor_query_performance
-from django.db.models import Avg, Count, F, Max, Min, Q, QuerySet, Sum
+from django.db.models import Count, F, Max, Min, Q, QuerySet, Sum
+from django.db.models.functions import Coalesce
 
 
 class FinancialCalculationService:
@@ -116,7 +125,7 @@ class FinancialCalculationService:
         qs = self._get_entity_relationships_queryset(
             entity, start_date, end_date, roles
         )
-        result = qs.aggregate(total=Sum("linked_amounts__amount"))
+        result = qs.aggregate(total=effective_linked_amount_sum())
         return result["total"] or Decimal("0.00")
 
     @monitor_query_performance(include_context=True)
@@ -138,9 +147,9 @@ class FinancialCalculationService:
 
         # Aggregate at database level for performance
         received_stats = received_qs.aggregate(
-            total_received=Sum("linked_amounts__amount"),
+            total_received=effective_linked_amount_sum(),
             decision_count=Count("decision", distinct=True),
-            avg_amount=Avg("linked_amounts__amount"),
+            avg_amount=effective_linked_amount_avg(),
             unique_organizations=Count("decision__organization", distinct=True),
         )
 
@@ -150,7 +159,7 @@ class FinancialCalculationService:
                 "decision__organization__uid", "decision__organization__label"
             )
             .annotate(
-                total_amount=Sum("linked_amounts__amount"),
+                total_amount=effective_linked_amount_sum(),
                 decision_count=Count("decision", distinct=True),
             )
             .order_by("-total_amount")[:10]
@@ -160,7 +169,7 @@ class FinancialCalculationService:
         role_breakdown = (
             received_qs.values("role")
             .annotate(
-                total_amount=Sum("linked_amounts__amount"),
+                total_amount=effective_linked_amount_sum(),
                 decision_count=Count("decision", distinct=True),
             )
             .order_by("-total_amount")
@@ -231,7 +240,7 @@ class FinancialCalculationService:
             qs.annotate(period=F(period_column))
             .values("period")
             .annotate(
-                total_amount=Sum("linked_amounts__amount"),
+                total_amount=effective_linked_amount_sum(),
                 decision_count=Count("decision", distinct=True),
             )
             .order_by("period")
@@ -296,12 +305,13 @@ class FinancialCalculationService:
             granularity = "year"
 
         # Accurate total on only this entity's decisions (small subset)
+        from django.db.models.functions import Coalesce
         decision_ids = qs.values_list("decision_id", flat=True).distinct()
         accurate_total = (
             DecisionAmountField.objects.filter(
                 decision_id__in=decision_ids,
                 associated_relationship__isnull=False,
-            ).aggregate(total=Sum("amount"))["total"]
+            ).aggregate(total=Sum(Coalesce("verified_amount", "amount")))["total"]
             or Decimal("0.00")
         )
 
@@ -338,7 +348,7 @@ class FinancialCalculationService:
         qs = self._get_organization_relationships_queryset(
             organization, start_date, end_date, roles
         )
-        result = qs.aggregate(total=Sum("linked_amounts__amount"))
+        result = qs.aggregate(total=effective_linked_amount_sum())
         return result["total"] or Decimal("0.00")
 
     def get_organization_expenditure_breakdown(
@@ -365,7 +375,7 @@ class FinancialCalculationService:
             breakdown = (
                 qs.values("entity__afm", "entity__name")
                 .annotate(
-                    total_amount=Sum("linked_amounts__amount"),
+                    total_amount=effective_linked_amount_sum(),
                     decision_count=Count("decision", distinct=True),
                 )
                 .order_by("-total_amount")
@@ -381,7 +391,7 @@ class FinancialCalculationService:
                 qs.annotate(period=F(period_column))
                 .values("period")
                 .annotate(
-                    total_amount=Sum("linked_amounts__amount"),
+                    total_amount=effective_linked_amount_sum(),
                     decision_count=Count("decision", distinct=True),
                 )
                 .order_by("period")
@@ -393,7 +403,7 @@ class FinancialCalculationService:
                     "decision__decision_type__uid", "decision__decision_type__label"
                 )
                 .annotate(
-                    total_amount=Sum("linked_amounts__amount"),
+                    total_amount=effective_linked_amount_sum(),
                     decision_count=Count("decision", distinct=True),
                 )
                 .order_by("-total_amount")
@@ -446,24 +456,36 @@ class FinancialCalculationService:
         if direct_assignments_only:
             base_filter["decision__classification__is_direct_assignment"] = True
 
-        # Apply search filter on entity name using the tiered search infrastructure
-        # This respects the ENTITY_SEARCH_METHOD feature flag
-        # (POSTGRES_FTS with Greek-aware full-text search + prefix matching when available,
-        #  falling back to simple ILIKE when prerequisites aren't met)
+        # Apply search filter on counterpart entity names.
+        # Scope FTS to only the entities already appearing as counterparts
+        # (organization + date range), avoiding an unconstrained search across ALL entities.
         qs = DecisionEntityRelationship.objects.filter(**base_filter)
         if search_query:
             from core.services.search_service import SearchService
+            from django.db.models import Q
 
-            matching_entities = SearchService().search_afm_entities(
-                search_query, limit=10000  # High limit for filtering, not display
-            )
-            matching_afms = list(
-                matching_entities.values_list("afm", flat=True)
-            )
+            counterpart_afms = qs.values_list("entity__afm", flat=True).distinct()
+
+            # Short queries fall back to icontains (FTS needs ≥3 chars for lexemes)
+            if SearchService._is_query_too_short_for_fts(search_query):
+                matching_afms = AFMEntity.objects.filter(
+                    afm__in=counterpart_afms,
+                ).filter(
+                    Q(name__icontains=search_query)
+                    | Q(afm__icontains=search_query)
+                ).values_list("afm", flat=True)
+            else:
+                from django.contrib.postgres.search import SearchQuery
+
+                fts_query = SearchService._build_prefix_search_query(search_query)
+                matching_afms = AFMEntity.objects.filter(
+                    afm__in=counterpart_afms,
+                    search_vector=fts_query,
+                ).values_list("afm", flat=True)
+
             if matching_afms:
                 qs = qs.filter(entity__afm__in=matching_afms)
             else:
-                # No matching entities found — return empty result early
                 return CounterpartPage(results=[], total_count=0, has_more=False)
 
         # Query with pagination
@@ -471,11 +493,11 @@ class FinancialCalculationService:
             qs
             .values("entity__afm", "entity__name", "entity__entity_type")
             .annotate(
-                total_amount=Sum("linked_amounts__amount"),
+                total_amount=effective_linked_amount_sum(),
                 decision_count=Count("decision", distinct=True),
-                avg_amount=Avg("linked_amounts__amount"),
-                max_amount=Max("linked_amounts__amount"),
-                min_amount=Min("linked_amounts__amount"),
+                avg_amount=effective_linked_amount_avg(),
+                max_amount=effective_linked_amount_max(),
+                min_amount=effective_linked_amount_min(),
             )
             .filter(total_amount__gt=0)  # Only entities with amounts
             .order_by("-total_amount")[offset : offset + limit]
@@ -499,6 +521,120 @@ class FinancialCalculationService:
                     avg_amount=row.get("avg_amount"),
                     max_amount=row.get("max_amount"),
                     min_amount=row.get("min_amount"),
+                )
+                for row in results
+            ],
+            total_count=total_count,
+            has_more=offset + limit < total_count,
+        )
+
+    @monitor_query_performance(operation="top_organizations_for_entity")
+    def get_top_organizations_for_entity(
+        self,
+        entity: AFMEntity,
+        start_date: datetime,
+        end_date: datetime,
+        limit: int = 5,
+        offset: int = 0,
+        roles: Optional[List[str]] = None,
+        direct_assignments_only: bool = False,
+        search_query: Optional[str] = None,
+    ) -> OrganizationCounterpartPage:
+        """
+        Get top organizations by total amount for an entity in a date range.
+
+        This is the inverse of get_top_counterparts_for_organization: instead of
+        finding which entities received money from an organization, this finds
+        which organizations paid money to a specific entity.
+
+        Args:
+            entity: AFMEntity to analyze
+            start_date: Start of date range
+            end_date: End of date range
+            limit: Number of results to return
+            offset: Pagination offset
+            roles: Optional list of roles to filter by (defaults to MONEY_RECEIVED_ROLES)
+            direct_assignments_only: If True, filters to direct-assignment decisions only
+            search_query: Optional organization name search filter
+
+        Returns:
+            OrganizationCounterpartPage with 'results', 'total_count', and 'has_more'
+        """
+        if roles is None:
+            roles = self.MONEY_RECEIVED_ROLES
+
+        # Build base filter
+        base_filter = dict(
+            entity=entity,
+            decision__issue_date_day__gte=start_date,
+            decision__issue_date_day__lte=end_date,
+            role__in=roles,
+        )
+        if direct_assignments_only:
+            base_filter["decision__classification__is_direct_assignment"] = True
+
+        qs = DecisionEntityRelationship.objects.filter(**base_filter)
+
+        # Apply search filter on counterpart organization names.
+        # Scope FTS to only the organizations already appearing as counterparts
+        # (entity + date range), avoiding an unconstrained search across ALL orgs.
+        if search_query:
+            from core.services.search_service import SearchService
+
+            counterpart_uids = qs.values_list(
+                "decision__organization__uid", flat=True
+            ).distinct()
+
+            # Short queries fall back to icontains (FTS needs ≥3 chars for lexemes)
+            if SearchService._is_query_too_short_for_fts(search_query):
+                matching_uids = Organization.objects.filter(
+                    uid__in=counterpart_uids,
+                ).filter(
+                    Q(label__icontains=search_query)
+                    | Q(latin_name__icontains=search_query)
+                ).values_list("uid", flat=True)
+            else:
+                from django.contrib.postgres.search import SearchQuery
+
+                fts_query = SearchService._build_prefix_search_query(search_query)
+                matching_uids = Organization.objects.filter(
+                    uid__in=counterpart_uids,
+                    search_vector=fts_query,
+                ).values_list("uid", flat=True)
+
+            if matching_uids:
+                qs = qs.filter(decision__organization__uid__in=matching_uids)
+            else:
+                return OrganizationCounterpartPage(
+                    results=[], total_count=0, has_more=False
+                )
+
+        # Query with pagination
+        results = list(
+            qs
+            .values("decision__organization__uid", "decision__organization__label")
+            .annotate(
+                total_amount=effective_linked_amount_sum(),
+                decision_count=Count("decision", distinct=True),
+            )
+            .filter(total_amount__gt=0)
+            .order_by("-total_amount")[offset : offset + limit]
+        )
+
+        # Get total count for pagination UI
+        total_count = (
+            qs.values("decision__organization")
+            .distinct()
+            .count()
+        )
+
+        return OrganizationCounterpartPage(
+            results=[
+                OrganizationCounterpartResult(
+                    organization_uid=row["decision__organization__uid"],
+                    organization_label=row["decision__organization__label"],
+                    total_amount=row["total_amount"] or Decimal("0.00"),
+                    decision_count=row["decision_count"],
                 )
                 for row in results
             ],
@@ -555,7 +691,7 @@ class FinancialCalculationService:
                 "entity__entity_type",
             )
             .annotate(
-                total_amount=Sum("linked_amounts__amount"),
+                total_amount=effective_linked_amount_sum(),
                 decision_count=Count("decision", distinct=True),
             )
             .filter(total_amount__gt=0)
@@ -610,6 +746,11 @@ class FinancialCalculationService:
             List of OrganizationAmountSummary Pydantic models, ordered by
             decision count descending.
         """
+        from core.services.decision_facets import (
+            effective_amount_max,
+            effective_amount_sum,
+        )
+
         qs = Decision.objects.all()
         if start_date:
             qs = qs.filter(issue_date_day__gte=start_date)
@@ -620,11 +761,10 @@ class FinancialCalculationService:
             qs.values("organization__uid", "organization__label")
             .annotate(
                 count=Count("id", distinct=True),
-                total_amount=Sum(
-                    "amount_fields__amount",
+                total_amount=effective_amount_sum(
                     filter=Q(amount_fields__associated_relationship__isnull=False),
                 ),
-                max_amount=Max("amount"),
+                max_amount=effective_amount_max(),
             )
             .filter(organization__uid__isnull=False)
             .order_by("-count")[:limit]
@@ -656,6 +796,11 @@ class FinancialCalculationService:
         """
         Get total amount for a specific decision from all amounts.
 
+        Each ``DecisionAmountField`` may carry a ``verified_amount`` (set by
+        the cents-based amount correction service).  The total sums
+        ``COALESCE(verified_amount, amount)`` so corrected values take
+        precedence automatically.
+
         Args:
             decision: The decision to calculate for
             include_unlinked: If True (default), includes amounts not linked to entities.
@@ -664,12 +809,16 @@ class FinancialCalculationService:
         Returns:
             Total amount as Decimal
         """
+        from django.db.models.functions import Coalesce
+
         qs = DecisionAmountField.objects.filter(decision=decision)
 
         if not include_unlinked:
             qs = qs.filter(associated_relationship__isnull=False)
 
-        result = qs.aggregate(total=Sum("amount"))
+        result = qs.aggregate(
+            total=Sum(Coalesce("verified_amount", "amount"))
+        )
         return result["total"] or Decimal("0.00")
 
     def get_decision_entity_amounts(self, decision: Decision) -> list[EntityAmount]:
@@ -685,7 +834,9 @@ class FinancialCalculationService:
         entity_amounts: list[EntityAmount] = []
         for rel in relationships:
             total_amount = sum(
-                amount.amount
+                amount.verified_amount
+                if amount.verified_amount is not None
+                else amount.amount
                 for amount in rel.linked_amounts.all()
                 if amount.amount is not None
             )
@@ -728,7 +879,7 @@ class FinancialCalculationService:
         relationships = (
             DecisionEntityRelationship.objects.filter(decision_id__in=decision_ids)
             .select_related("entity")
-            .annotate(total_amount=Sum("linked_amounts__amount"))
+            .annotate(total_amount=effective_linked_amount_sum())
         )
 
         result: dict[int, list[EntityAmount]] = {did: [] for did in decision_ids}
@@ -769,11 +920,11 @@ class FinancialCalculationService:
 
         linked_total = all_amounts.filter(
             associated_relationship__isnull=False
-        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+        ).aggregate(total=Sum(Coalesce("verified_amount", "amount")))["total"] or Decimal("0.00")
 
         unlinked_total = all_amounts.filter(
             associated_relationship__isnull=True
-        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+        ).aggregate(total=Sum(Coalesce("verified_amount", "amount")))["total"] or Decimal("0.00")
 
         entity_count = DecisionEntityRelationship.objects.filter(
             decision=decision
@@ -810,15 +961,19 @@ class FinancialCalculationService:
             List of DecisionTypeBreakdown Pydantic models, ordered by decision
             count descending.
         """
+        from core.services.decision_facets import (
+            effective_amount_max,
+            effective_amount_sum,
+        )
+
         decision_types = (
             decisions_qs.values("decision_type__uid", "decision_type__label")
             .annotate(
                 count=Count("id", distinct=True),
-                total_amount=Sum(
-                    "amount_fields__amount",
+                total_amount=effective_amount_sum(
                     filter=Q(amount_fields__associated_relationship__isnull=False),
                 ),
-                max_amount=Max("amount"),
+                max_amount=effective_amount_max(),
             )
             .filter(decision_type__uid__isnull=False)
             .order_by("-count")
@@ -963,7 +1118,7 @@ class FinancialCalculationService:
         # This represents the most accurate financial data via relationships
         total_amount_accurate = DecisionAmountField.objects.filter(
             decision__in=decisions_queryset
-        ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+        ).aggregate(total=Sum(Coalesce("verified_amount", "amount")))["total"] or Decimal("0.00")
 
         # Get decision count and basic stats
         decision_stats = decisions_queryset.aggregate(
@@ -1023,12 +1178,13 @@ class FinancialCalculationService:
             "year": "issue_date_year",
         }.get(granularity, "issue_date_month")
 
+        from core.services.decision_facets import effective_amount_sum
+
         # Annotate each decision with accurate total from linked amounts
         timeline = (
             qs.annotate(period=F(period_column))
             .annotate(
-                accurate_total=Sum(
-                    "amount_fields__amount",
+                accurate_total=effective_amount_sum(
                     filter=Q(amount_fields__associated_relationship__isnull=False),
                 )
             )

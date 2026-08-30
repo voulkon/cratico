@@ -1,69 +1,11 @@
-/* ── TimeRangeSection — shared collapsible slider section ──────────────── */
+/* ── TimeRangeSection — slider & metadata content ───────────────────────
+ *
+ * Card chrome (shadow, border-radius, summary row, chevron, content
+ * divider) is now owned by CollapsibleCard.  This file only contains
+ * TimeRangeSection-specific content styles.
+ */
 
-/* Collapsible section container */
-.collapsible-section {
-  margin: var(--spacing-xl) 0;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background-color: var(--card-bg);
-  overflow: hidden;
-}
-
-.collapsible-section[open] {
-  background-color: var(--card-bg);
-}
-
-/* Summary bar — clickable toggle */
-.section-summary {
-  padding: var(--spacing-md) var(--spacing-xl);
-  background-color: var(--hover-bg);
-  border-bottom: 1px solid var(--border-color);
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  user-select: none;
-  transition: background-color 0.2s ease;
-}
-
-.section-summary:hover {
-  background-color: var(--bg-selected);
-}
-
-.section-summary::-webkit-details-marker {
-  display: none;
-}
-
-.summary-title {
-  font-size: var(--font-md);
-  font-weight: var(--font-semibold);
-  color: var(--palette-primary);
-}
-
-.summary-count {
-  font-size: var(--font-xs);
-  color: var(--muted-text);
-  background-color: var(--bg-selected);
-  padding: var(--spacing-xxs) var(--spacing-sm);
-  border-radius: var(--radius-full);
-  font-weight: var(--font-medium);
-}
-
-.toggle-icon {
-  font-size: var(--font-xs);
-  color: var(--muted-text);
-  margin-left: var(--spacing-sm);
-}
-
-/* Expandable content area */
-.section-content {
-  padding: var(--spacing-xl);
-}
-
-/* Time-range specific overrides */
-.time-range-container {
-  /* Inherits from .collapsible-section above */
-}
+/* ── Date-span info ───────────────────────────────────────────────────── */
 
 .time-range-header {
   margin-bottom: var(--spacing-md);
@@ -76,4 +18,31 @@
   padding: var(--spacing-xs) var(--spacing-sm);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* ── Summary count badge (centered below the slider) ─────────────────── */
+.summary-count-row {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--spacing-md);
+}
+
+.summary-count {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--font-xs);
+  color: var(--palette-primary);
+  background-color: var(--palette-bg-subtle);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: var(--font-medium);
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }

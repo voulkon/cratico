@@ -5,8 +5,11 @@ version: '3.8'
 
 services:
   # ───────────────────── Observability ──────────────────────
+  # All four services are behind the "observability" profile (opt-in):
+  #   docker-compose -f docker-compose.prod-no-db.yml --profile observability up -d
   jaeger:
     image: jaegertracing/all-in-one:latest
+    profiles: ["observability"]
     restart: always
     environment:
       - COLLECTOR_OTLP_ENABLED=true
@@ -17,16 +20,17 @@ services:
       - "4317"
       - "4318"
     networks:
-      - diavgeia-prod-net
+      - internal
 
   loki:
     image: grafana/loki:latest
     container_name: diavgeia_loki
+    profiles: ["observability"]
     restart: always
     expose:
       - "3100"
     networks:
-      - diavgeia-prod-net
+      - internal
     volumes:
       - loki_data:/loki
       - ./docker/loki-config:/etc/loki
@@ -42,6 +46,7 @@ services:
   promtail:
     image: grafana/promtail:latest
     container_name: diavgeia_promtail
+    profiles: ["observability"]
     restart: always
     volumes:
       - ./docker/promtail-config/promtail.yml:/etc/promtail/config.yml
@@ -49,13 +54,14 @@ services:
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
     command: -config.file=/etc/promtail/config.yml
     networks:
-      - diavgeia-prod-net
+      - internal
     depends_on:
       - loki
 
   grafana:
     image: grafana/grafana:latest
     container_name: diavgeia_grafana
+    profiles: ["observability"]
     restart: always
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
@@ -63,7 +69,7 @@ services:
     expose:
       - "3000"
     networks:
-      - diavgeia-prod-net
+      - internal
     volumes:
       - grafana_data:/var/lib/grafana
       - ./docker/grafana-provisioning:/etc/grafana/provisioning
@@ -82,12 +88,12 @@ services:
       - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-guest}
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-guest}
     networks:
-      - diavgeia-prod-net
+      - internal
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 5s
+      interval: 30s
       timeout: 15s
       retries: 5
 
@@ -100,30 +106,14 @@ services:
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
     networks:
-      - diavgeia-prod-net
+      - internal
     volumes:
       - redis_data:/data
     healthcheck:
       test: ["CMD", "sh", "-c", "redis-cli $${REDIS_PASSWORD:+-a \"$$REDIS_PASSWORD\"} ping"]
-      interval: 5s
+      interval: 30s
       timeout: 3s
       retries: 5
-
-  # redis-commander:
-  #   image: rediscommander/redis-commander:latest
-  #   container_name: diavgeia_redis_commander
-  #   restart: always
-  #   environment:
-  #     - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD}
-  #     - SERVICE_FQDN_REDIS_COMMANDER=
-  #   expose:
-  #     - "8081"
-  #   # labels:
-  #   #   - "caddy_0.basicauth.${JAEGER_AUTH_USER}=${JAEGER_AUTH_HASH}"
-  #   networks:
-  #     - diavgeia-prod-net
-  #   depends_on:
-  #     - redis
 
   # ──────────────────── Connection Pooler ────────────────────
   pgbouncer:
@@ -145,7 +135,7 @@ services:
     expose:
       - "5432"
     networks:
-      - diavgeia-prod-net
+      - internal
     healthcheck:
       test: ["CMD", "pg_isready", "-h", "localhost", "-p", "5432", "-U", "${POSTGRES_USER}"]
       interval: 10s
@@ -196,7 +186,13 @@ services:
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME:-crati-backups}
     networks:
-      - diavgeia-prod-net
+      # Alias exists ONLY on the internal network. Nginx proxies to
+      # 'backend-internal', a name that can never resolve on the shared
+      # 'coolify' network — making cross-env round-robin impossible even
+      # if another stack mistakenly attaches its own 'backend' to coolify.
+      internal:
+        aliases:
+          - backend-internal
     depends_on:
       redis:
         condition: service_healthy
@@ -215,7 +211,7 @@ services:
     restart: always
     command:  ["/bin/sh", "-c", "chmod +x /code/worker_entrypoint.sh && /code/worker_entrypoint.sh"]
     networks:
-      - diavgeia-prod-net
+      - internal
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -242,7 +238,7 @@ services:
     restart: always
     command: celery -A diavgeia_project beat -l INFO
     networks:
-      - diavgeia-prod-net
+      - internal
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -261,7 +257,7 @@ services:
     restart: always
     command: celery -A diavgeia_project flower --port=5555 --basic-auth=${FLOWER_BASIC_AUTH}
     networks:
-      - diavgeia-prod-net
+      - internal
     expose:
       - "5555"
     depends_on:
@@ -280,7 +276,10 @@ services:
         REACT_APP_CLERK_PUBLISHABLE_KEY: ${REACT_APP_CLERK_PUBLISHABLE_KEY}
         REACT_APP_API_URL: ${REACT_APP_API_URL}
     networks:
-      - diavgeia-prod-net
+      # Internal-only alias, same reasoning as backend-internal above.
+      internal:
+        aliases:
+          - frontend-internal
 
   # ──────────────────────── Gateway ──────────────────────────
   # This is the APP Gateway for HTTP traffic
@@ -292,14 +291,18 @@ services:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     expose:
       - "80"
-    depends_on: [backend, frontend, flower, jaeger]
+    # NOTE: jaeger is intentionally NOT a dependency — it's behind the
+    # "observability" profile and nginx doesn't proxy to it, so the
+    # minimal stack must boot without it.
+    depends_on: [backend, frontend, flower]
     environment:
     - HOST=0.0.0.0
     - STAGING_MODE=${STAGING_MODE:-false}
     - STAGING_USERNAME=${STAGING_USERNAME:-}
     - STAGING_PASSWORD=${STAGING_PASSWORD:-}
     networks:
-      - diavgeia-prod-net
+      - internal   # reach backend/frontend/flower upstreams
+      - coolify    # only proxy-facing service on the shared network
 
 volumes:
   rabbitmq_data:
@@ -312,6 +315,15 @@ volumes:
     driver: local
 
 networks:
-  diavgeia-prod-net:
+  # Internal service-to-service traffic. Compose names this
+  # <project>_internal, so each environment gets its own DNS scope —
+  # 'pgbouncer', 'redis', etc. can never resolve across environments.
+  internal:
+    driver: bridge
+  # Shared Coolify proxy network. ONLY nginx (and any other service that
+  # must receive proxied domain traffic, e.g. grafana) may attach here.
+  # Attaching internal services here makes their names ambiguous in the
+  # shared DNS — see docs/postmortems/2026-08-28-pgbouncer-sasl-cross-env-dns-collision.md
+  coolify:
     external: true
     name: coolify

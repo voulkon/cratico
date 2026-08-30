@@ -3,16 +3,17 @@ from datetime import datetime
 from core.models.companies import Company
 from core.models.entities import AFMEntity, DecisionEntityRelationship
 from core.models.organizations import Organization
+from core.services.decision_facets import effective_linked_amount_sum
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
-from django.db.models import Count, F, Sum
+from django.db.models import Count, F
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from api.permissions import PublicReadOnly
 from rest_framework.response import Response
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([PublicReadOnly])
 def company_transactions_summary(request, afm):
     """
     Get summary of all transactions (money received) for a company identified by AFM.
@@ -61,7 +62,7 @@ def company_transactions_summary(request, afm):
                     "decision__organization__uid", "decision__organization__label"
                 )
                 .annotate(
-                    total_amount=Sum("linked_amounts__amount"),
+                    total_amount=effective_linked_amount_sum(),
                     decision_count=Count("decision", distinct=True),
                 )
                 .order_by("-total_amount")
@@ -90,7 +91,7 @@ def company_transactions_summary(request, afm):
                 base_query.annotate(period=F(period_column))
                 .values("period")
                 .annotate(
-                    total_amount=Sum("linked_amounts__amount"),
+                    total_amount=effective_linked_amount_sum(),
                     decision_count=Count("decision", distinct=True),
                 )
                 .order_by("period")
@@ -141,7 +142,7 @@ def company_transactions_summary(request, afm):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([PublicReadOnly])
 def organization_expenditures_summary(request, organization_uid):
     """
     Get summary of all expenditures from an organization to various companies.
@@ -196,7 +197,7 @@ def organization_expenditures_summary(request, organization_uid):
             result = (
                 base_query.values("entity__afm", "entity__name")
                 .annotate(
-                    total_amount=Sum("linked_amounts__amount"),
+                    total_amount=effective_linked_amount_sum(),
                     decision_count=Count("decision", distinct=True),
                 )
                 .order_by("-total_amount")
@@ -232,7 +233,7 @@ def organization_expenditures_summary(request, organization_uid):
                 base_query.annotate(period=F(period_column))
                 .values("period")
                 .annotate(
-                    total_amount=Sum("linked_amounts__amount"),
+                    total_amount=effective_linked_amount_sum(),
                     decision_count=Count("decision", distinct=True),
                 )
                 .order_by("period")
@@ -276,7 +277,7 @@ def organization_expenditures_summary(request, organization_uid):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([PublicReadOnly])
 def top_transactions(request):
     """
     Get top transactions (highest amounts) between organizations and companies.
@@ -323,7 +324,7 @@ def top_transactions(request):
                 "entity__name",
                 "role",
             )
-            .annotate(total_amount=Sum("linked_amounts__amount"))
+            .annotate(total_amount=effective_linked_amount_sum())
             .order_by("-total_amount")[:limit]
         )
 

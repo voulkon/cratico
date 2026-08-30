@@ -4,8 +4,10 @@ import { useTranslation } from '../contexts/TranslationContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import useUrlFilters from '../hooks/useUrlFilters';
 import useDecisionsList from '../hooks/useDecisionsList';
+import useDecisionTypes from '../hooks/useDecisionTypes';
 import DecisionList from '../components/DecisionList';
-import SortControl from '../components/SortControl';
+import TopBarSlot from '../components/TopBarSlot';
+import DecisionsToolbar from '../components/DecisionsToolbar';
 import TimeRangeSection from '../components/TimeRangeSection';
 import StatisticsGrid from '../components/StatisticsGrid';
 import apiClient from '../api/client';
@@ -34,6 +36,7 @@ const RelationshipDetailPage = () => {
   const [statistics, setStatistics] = useState(null);
   const [statisticsLoading, setStatisticsLoading] = useState(false);
   const [statisticsError, setStatisticsError] = useState(null);
+  const [statsRequested, setStatsRequested] = useState(false);
   const [error, setError] = useState(null);
 
   // Date range state
@@ -56,13 +59,13 @@ const RelationshipDetailPage = () => {
     toggleType,
     setAmountFilters,
     setDirectAssignmentsOnly,
-    clearAllFilters
+    clearAllFilters,
+    updateUrl
   } = useUrlFilters({ sortBy: 'entity_amount_desc' });
 
-  const [availableDecisionTypes, setAvailableDecisionTypes] = useState([]);
-  const [showFilters, setShowFilters] = useState(false);
+  // Decision types are now owned by the useDecisionTypes hook below.
 
-  // ── Fetch date range on mount ──────────────────────────────────────────────
+  // ── Fetch date range on mount ──────────────────────────────────────────
   const fetchEntityDateRange = useCallback(async () => {
     try {
       setDateRangeLoading(true);
@@ -117,6 +120,13 @@ const RelationshipDetailPage = () => {
     }
   }, [afm, orgUid]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Decision types via shared hook (scans entire relationship, not just loaded batch) ──
+  const { decisionTypes: availableDecisionTypes, loading: decisionTypesLoading } =
+    useDecisionTypes({
+      endpoint: `/relationship/entity/${afm}/org/${orgUid}/decision-types/`,
+      dateRange: timeRange,
+    });
+
   // ── Async statistics fetch ─────────────────────────────────────────────────
   const fetchStatistics = useCallback(async () => {
     if (!timeRange) return;
@@ -150,10 +160,12 @@ const RelationshipDetailPage = () => {
     loadingMore,
     loadMore,
   } = useDecisionsList({
-    endpoint: '/explore/decisions-optimized/',
+    endpoint: '/decisions/unified/',
     params: {
-      entity_afm: afm,
-      organization_uid: orgUid,
+      source: 'relationship',
+      view: 'decisions',
+      afm,
+      org_uid: orgUid,
       start_date: timeRange?.startDate,
       end_date: timeRange?.endDate,
       sort_by: sortBy,
@@ -173,24 +185,15 @@ const RelationshipDetailPage = () => {
       setOrganization(firstDecision.organization);
       setEntity(firstDecision.main_recipient || { afm, name: 'Unknown Entity' });
     }
-    // Derive available decision types from loaded decisions
-    const uniqueTypes = [...new Set(decisions
-      .map(d => d.decision_type)
-      .filter(Boolean)
-    )];
-    if (uniqueTypes.length !== availableDecisionTypes.length) {
-      setAvailableDecisionTypes(uniqueTypes);
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [decisions]);
 
-  // Statistics load independently when timeRange changes
+  // Statistics load on demand when user clicks "Load statistics"
   useEffect(() => {
-    if (timeRange) {
-      fetchStatistics();
-    }
+    if (!timeRange || !statsRequested) return;
+    fetchStatistics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeRange]);
+  }, [timeRange, statsRequested]);
 
   // ── Slider handlers ────────────────────────────────────────────────────────
   const handleMonthRangeChange = (startIndex, endIndex) => {
@@ -261,6 +264,29 @@ const RelationshipDetailPage = () => {
 
   return (
     <div className="relationship-detail-page">
+      {/* Relationship entity cards rendered into the fixed top bar */}
+      <TopBarSlot>
+        <div className="relationship-entities relationship-entities-topbar">
+          <button
+            className="entity-card entity-card-topbar clickable"
+            onClick={() => navigate(`/entity/afm/${afm}`)}
+          >
+            <span className="entity-name">{entity.name}</span>
+            <span className="entity-id">AFM: {afm}</span>
+          </button>
+
+          <span className="connector-icon connector-icon-topbar">⇄</span>
+
+          <button
+            className="entity-card entity-card-topbar clickable"
+            onClick={() => navigate(`/entity/organization/${orgUid}`)}
+          >
+            <span className="entity-name">{organization.label}</span>
+            <span className="entity-id">UID: {orgUid}</span>
+          </button>
+        </div>
+      </TopBarSlot>
+
       {/* Breadcrumb */}
       <div className="breadcrumb">
         <button onClick={() => navigate(-1)} className="breadcrumb-link">
@@ -268,37 +294,6 @@ const RelationshipDetailPage = () => {
         </button>
         <span className="breadcrumb-separator">•</span>
         <span>{t('relationship.title')}</span>
-      </div>
-
-      {/* Header Section */}
-      <div className="relationship-header">
-        <h1 className="relationship-title">{t('relationship.pageTitle')}</h1>
-
-        <div className="relationship-entities">
-          <button
-            className="entity-card clickable"
-            onClick={() => navigate(`/entity/afm/${afm}`)}
-          >
-            <span className="entity-label">{t('relationship.entity')}</span>
-            <span className="entity-name">{entity.name}</span>
-            <span className="entity-id">AFM: {afm}</span>
-          </button>
-
-          <div className="relationship-connector">
-            <div className="connector-line"></div>
-            <span className="connector-icon">⇄</span>
-            <div className="connector-line"></div>
-          </div>
-
-          <button
-            className="entity-card clickable"
-            onClick={() => navigate(`/entity/organization/${orgUid}`)}
-          >
-            <span className="entity-label">{t('relationship.organization')}</span>
-            <span className="entity-name">{organization.label}</span>
-            <span className="entity-id">UID: {orgUid}</span>
-          </button>
-        </div>
       </div>
 
       {/* Time Range Slider */}
@@ -312,139 +307,84 @@ const RelationshipDetailPage = () => {
         />
       )}
 
-      {/* Statistics Section */}
-      <StatisticsGrid
-        loading={statisticsLoading}
-        error={statisticsError}
-        columns={3}
-        cards={
-          statistics
-            ? [
-                {
-                  title: t('relationship.totalDecisions'),
-                  value: statistics.total_decisions?.toLocaleString() || '0',
-                },
-                {
-                  title: t('relationship.totalAmount'),
-                  value: formatAmount(statistics.total_amount),
-                },
-                {
-                  title: t('statistics.averageAmount'),
-                  value: formatAmount(statistics.avg_amount),
-                  subtitle: statistics.decisions_with_amounts
-                    ? `${statistics.decisions_with_amounts} ${t('relationship.withAmounts')}`
-                    : '',
-                },
-              ]
-            : null
-        }
-      />
+      {/* Statistics Section - triggered manually by user */}
+      {!statsRequested ? (
+        <div className="statistics-manual-trigger" style={{ marginBottom: '1rem' }}>
+          <button
+            type="button"
+            className="see-all-button"
+            onClick={() => setStatsRequested(true)}
+          >
+            {t('entityDetail.loadStatistics', 'Load statistics')}
+          </button>
+        </div>
+      ) : (
+        <StatisticsGrid
+          loading={statisticsLoading && !statistics}
+          error={statisticsError}
+          columns={3}
+          cards={
+            statistics
+              ? [
+                  {
+                    title: t('relationship.totalDecisions'),
+                    value: statistics.total_decisions?.toLocaleString() || '0',
+                  },
+                  {
+                    title: t('relationship.totalAmount'),
+                    value: formatAmount(statistics.total_amount),
+                  },
+                  {
+                    title: t('statistics.averageAmount'),
+                    value: formatAmount(statistics.avg_amount),
+                    subtitle: statistics.decisions_with_amounts
+                      ? `${statistics.decisions_with_amounts} ${t('relationship.withAmounts')}`
+                      : '',
+                  },
+                ]
+              : null
+          }
+          onRetry={fetchStatistics}
+        />
+      )}
 
       {/* Decisions Section */}
-      <div className="decisions-section">
-        <div className="decisions-header">
-          <h3 className="decisions-title">
-            {t('relationship.decisions')} ({pagination?.total_count || 0})
-          </h3>
-
-          <div className="controls-container">
-            <label className="checkbox-label" style={{ marginRight: '1rem' }}>
-              <input
-                type="checkbox"
-                checked={directAssignmentsOnly}
-                onChange={(e) => setDirectAssignmentsOnly(e.target.checked)}
-              />
-              <span>{t('filters.directAssignmentsOnly', 'Direct Assignments Only')}</span>
-            </label>
-            <SortControl sortBy={sortBy} onSortChange={setSortBy} />
-            <button
-              className="filter-toggle-button"
-              onClick={() => setShowFilters(!showFilters)}
-            >
-              {t('common.filters')} {showFilters ? '▲' : '▼'}
-              {activeFiltersCount > 0 && ` (${activeFiltersCount})`}
-            </button>
-          </div>
-        </div>
-
-        {/* Filters Panel */}
-        {showFilters && (
-          <div className="filters-panel">
-            {/* Search */}
-            <div className="filter-group">
-              <label>{t('filters.search')}</label>
-              <input
-                type="text"
-                placeholder={t('filters.searchPlaceholder')}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="search-input"
-              />
-            </div>
-
-            {/* Decision Types */}
-            {availableDecisionTypes.length > 0 && (
-              <div className="filter-group">
-                <label>{t('filters.decisionTypes')}</label>
-                <div className="checkbox-group">
-                  {availableDecisionTypes.map(type => (
-                    <label key={type.uid} className="checkbox-label">
-                      <input
-                        type="checkbox"
-                        checked={selectedTypes.includes(type.uid)}
-                        onChange={() => toggleType(type.uid)}
-                      />
-                      <span>{type.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Amount Range */}
-            <div className="filter-group">
-              <label>{t('filters.amountRange')}</label>
-              <div className="amount-inputs">
-                <input
-                  type="number"
-                  placeholder={t('filters.minAmount')}
-                  value={amountFilters.minAmount}
-                  onChange={(e) => setAmountFilters({ ...amountFilters, minAmount: e.target.value })}
-                />
-                <span>—</span>
-                <input
-                  type="number"
-                  placeholder={t('filters.maxAmount')}
-                  value={amountFilters.maxAmount}
-                  onChange={(e) => setAmountFilters({ ...amountFilters, maxAmount: e.target.value })}
-                />
-              </div>
-            </div>
-
-            {activeFiltersCount > 0 && (
-              <button onClick={clearAllFilters} className="clear-filters-button">
-                {t('common.clearFilters')}
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Decisions List */}
-        <DecisionList
-          decisions={decisions}
-          loading={loading}
-          loadingMore={loadingMore}
+        <DecisionsToolbar
+          title={t('relationship.decisions')}
+          totalCount={pagination?.total_count}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          directOnly={directAssignmentsOnly}
+          onDirectOnlyChange={setDirectAssignmentsOnly}
+          sortBy={sortBy}
+          onSortChange={setSortBy}
+          sortVariant="simple"
+          activeFiltersCount={activeFiltersCount}
+          onClearAll={clearAllFilters}
+          amountFilters={amountFilters}
+          onAmountChange={(field, value) => setAmountFilters({ ...amountFilters, [field]: value })}
+          onApplyFilters={(updates) => updateUrl(updates)}
+          decisionTypes={availableDecisionTypes}
+          selectedTypes={selectedTypes}
+          onTypeToggle={toggleType}
+          typesLoading={decisionTypesLoading}
           pagination={pagination}
-          hasSearchQuery={activeFiltersCount > 0}
-          formatAmount={formatAmount}
-          onViewDocumentContent={handleViewDocumentContent}
-          onLoadMore={loadMore}
-          emptyMessage={t('relationship.noDecisions')}
-          emptyFilterMessage={t('relationship.noDecisionsWithFilters')}
-          infiniteScroll={true}
-          getDecisionKey={(d) => d.id}
-        />
-      </div>
+        >
+          <DecisionList
+            decisions={decisions}
+            loading={loading}
+            loadingMore={loadingMore}
+            pagination={pagination}
+            hasSearchQuery={activeFiltersCount > 0}
+            formatAmount={formatAmount}
+            onViewDocumentContent={handleViewDocumentContent}
+            onLoadMore={loadMore}
+            emptyMessage={t('relationship.noDecisions')}
+            emptyFilterMessage={t('relationship.noDecisionsWithFilters')}
+            infiniteScroll={true}
+            getDecisionKey={(d) => d.id}
+          />
+        </DecisionsToolbar>
     </div>
   );
 };

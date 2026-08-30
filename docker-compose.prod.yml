@@ -1,8 +1,11 @@
 services:
 
   # ───────────────────── Observability ──────────────────────
+  # All four services are behind the "observability" profile (opt-in):
+  #   docker-compose -f docker-compose.prod.yml --profile observability up -d
   jaeger:
     image: jaegertracing/all-in-one:latest
+    profiles: ["observability"]
     environment:
       - COLLECTOR_OTLP_ENABLED=true         # enable modern OTLP receiver
     expose:
@@ -17,6 +20,7 @@ services:
   loki:
     image: grafana/loki:latest
     container_name: diavgeia_loki
+    profiles: ["observability"]
     expose:
       - "3100"
     networks:
@@ -36,6 +40,7 @@ services:
   promtail:
     image: grafana/promtail:latest
     container_name: diavgeia_promtail
+    profiles: ["observability"]
     volumes:
       - ./docker/promtail-config/promtail.yml:/etc/promtail/config.yml
       - /var/run/docker.sock:/var/run/docker.sock
@@ -49,6 +54,7 @@ services:
   grafana:
     image: grafana/grafana:latest
     container_name: diavgeia_grafana
+    profiles: ["observability"]
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
@@ -78,7 +84,7 @@ services:
       - "5432"
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
-      interval: 5s
+      interval: 30s
       timeout: 5s
       retries: 5
 
@@ -98,7 +104,7 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 5s
+      interval: 30s
       timeout: 15s
       retries: 5
 
@@ -115,21 +121,9 @@ services:
       - redis_data:/data
     healthcheck:
       test: ["CMD", "sh", "-c", "redis-cli $${REDIS_PASSWORD:+-a \"$$REDIS_PASSWORD\"} ping"]
-      interval: 5s
+      interval: 30s
       timeout: 3s
       retries: 5
-
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    container_name: diavgeia_redis_commander
-    environment:
-      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD}
-    expose:
-      - "8081"
-    networks:
-      - diavgeia-net
-    depends_on:
-      - redis
 
   # ───────────────────────── Backend ─────────────────────────
   backend:
@@ -174,13 +168,17 @@ services:
       - STEALTH_MODE=${STEALTH_MODE:-false}
       - STEALTH_ALLOWLIST=${STEALTH_ALLOWLIST:-false}
     networks:
-      - diavgeia-net
+      # Alias exists ONLY on the internal network. Nginx proxies to
+      # 'backend-internal', a name that can never resolve on the shared
+      # 'coolify' network — making cross-env round-robin impossible even
+      # if another stack mistakenly attaches its own 'backend' to coolify.
+      diavgeia-net:
+        aliases:
+          - backend-internal
     depends_on:
       db:
         condition: service_started
       redis:
-        condition: service_healthy
-      opensearch:
         condition: service_healthy
 
   worker:
@@ -266,7 +264,10 @@ services:
         REACT_APP_CLERK_PUBLISHABLE_KEY: ${REACT_APP_CLERK_PUBLISHABLE_KEY}
         REACT_APP_API_URL: ${REACT_APP_API_URL}
     networks:
-      - diavgeia-net
+      # Internal-only alias, same reasoning as backend-internal above.
+      diavgeia-net:
+        aliases:
+          - frontend-internal
 
   # ──────────────────────── Gateway ──────────────────────────
   nginx:
@@ -277,20 +278,25 @@ services:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     expose:
       - "80"
-    depends_on: [backend, frontend, flower, jaeger]
+    # NOTE: jaeger is intentionally NOT a dependency — it's behind the
+    # "observability" profile and nginx doesn't proxy to it, so the
+    # minimal stack must boot without it.
+    depends_on: [backend, frontend, flower]
     environment:
     - HOST=0.0.0.0
     - STAGING_MODE=${STAGING_MODE:-false}
     - STAGING_USERNAME=${STAGING_USERNAME:-}
     - STAGING_PASSWORD=${STAGING_PASSWORD:-}
     networks:
-      - diavgeia-net
+      - diavgeia-net   # reach backend/frontend/flower upstreams
+      - coolify        # only proxy-facing service on the shared network
 
   opensearch:
     build:
       context: docker/opensearch-custom
       dockerfile: Dockerfile
     container_name: diavgeia_opensearch
+    profiles: ["search"]
     environment:
       - "discovery.type=single-node"
       - "plugins.security.disabled=true"
@@ -311,6 +317,7 @@ services:
   opensearch_dashboards:
     image: opensearchproject/opensearch-dashboards:3
     container_name: diavgeia_opensearch_dashboards
+    profiles: ["search"]
     environment:
       - OPENSEARCH_HOSTS=["http://opensearch:9200"]
       - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
@@ -337,5 +344,15 @@ volumes:
     driver: local
 
 networks:
+  # Internal service-to-service traffic. Compose names this
+  # <project>_diavgeia-net, so each environment gets its own DNS scope —
+  # 'db', 'redis', etc. can never resolve across environments.
   diavgeia-net:
     driver: bridge
+  # Shared Coolify proxy network. ONLY nginx (and any other service that
+  # must receive proxied domain traffic) may attach here.
+  # Attaching internal services here makes their names ambiguous in the
+  # shared DNS — see docs/postmortems/2026-08-28-pgbouncer-sasl-cross-env-dns-collision.md
+  coolify:
+    external: true
+    name: coolify

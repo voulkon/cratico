@@ -57,3 +57,5 @@ from .static import *
 
 # Import templates configuration
 from .templates import *
+
+from .ai import *

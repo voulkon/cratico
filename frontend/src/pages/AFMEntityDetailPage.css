@@ -48,6 +48,27 @@
   color: var(--palette-primary);
 }
 
+/* ── Top-bar entity header (rendered via TopBarSlot portal) ── */
+.entity-header-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  min-height: var(--top-controls-height);
+  min-width: 0;
+}
+
+.entity-title-topbar {
+  font-size: 1rem;
+  font-weight: var(--font-bold);
+  color: var(--palette-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
 .entity-metadata {
   display: flex;
   flex-wrap: wrap;
@@ -191,10 +212,6 @@
   color: var(--palette-secondary);
 }
 
-.decisions-section {
-  margin-bottom: var(--spacing-xxxl);
-}
-
 .decisions-header {
   display: flex;
   justify-content: space-between;
@@ -231,11 +248,16 @@
 .sort-select {
   padding: var(--spacing-xs) var(--spacing-sm);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  background-color: var(--card-bg);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-color);
   color: var(--text-color);
   font-size: var(--font-sm);
   cursor: pointer;
+  max-width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sort-select:focus {
@@ -519,7 +541,6 @@
 .time-range-container {
   margin: 1rem 0;
   padding: 1rem;
-  background: var(--bg-secondary);
   border-radius: 8px;
   border: 1px solid var(--border-color);
 }
@@ -530,38 +551,7 @@
   max-width: 500px;
 }
 
-/* Collapsible sections — shared pattern */
-.collapsible-section .section-summary {
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  user-select: none;
-  font-weight: var(--font-bold);
-  color: var(--text-color);
-}
-
-.collapsible-section .summary-title {
-  font-size: var(--font-md);
-}
-
-.collapsible-section .summary-count {
-  font-size: var(--font-xs);
-  color: var(--muted-text);
-  background: var(--bg-selected);
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-}
-
-.collapsible-section .toggle-icon {
-  margin-left: auto;
-  font-size: 0.8rem;
-  color: var(--muted-text);
-}
-
-.collapsible-section .section-content {
-  margin-top: 1rem;
-}
+/* ── Collapsible sections — now provided by CollapsibleCard ────── */
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
@@ -602,9 +592,5 @@
 
   .entity-search-bar {
     max-width: 100%;
-  }
-
-  .collapsible-section .section-summary {
-    flex-wrap: wrap;
   }
 }

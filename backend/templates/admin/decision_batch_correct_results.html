@@ -1,0 +1,71 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <h1>
+    {% if dry_run %}🧪 Dry Run — {% else %}✅ {% endif %}Batch Amount Correction Results
+  </h1>
+
+  <div style="background:#f8f9fa;border:1px solid #dee2e6;border-radius:6px;padding:16px;margin-bottom:20px;">
+    <strong>{{ result.total_candidates }}</strong> candidates &nbsp;·&nbsp;
+    <strong style="color:#155724;">{{ result.corrected }} {% if dry_run %}would be corrected{% else %}corrected{% endif %}</strong> &nbsp;·&nbsp;
+    {{ result.consistent }} consistent &nbsp;·&nbsp;
+    {{ result.no_text }} no amounts in text &nbsp;·&nbsp;
+    {{ result.skipped }} skipped &nbsp;·&nbsp;
+    <strong style="color:#721c24;">{{ result.errors }} errors</strong>
+  </div>
+
+  {% if result.results %}
+  <table style="width:100%;border-collapse:collapse;">
+    <thead>
+      <tr style="background:#417690;color:#fff;text-align:left;">
+        <th style="padding:8px;">ADA</th>
+        <th style="padding:8px;">Subject</th>
+        <th style="padding:8px;">Status</th>
+        <th style="padding:8px;">Corrections</th>
+        <th style="padding:8px;">Frontend</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in result.results %}
+      <tr style="border-bottom:1px solid #eee;{% if r.status == 'corrected' or r.status == 'would_correct' %}background:#f0fff4;{% elif r.status == 'error' %}background:#fff5f5;{% endif %}">
+        <td style="padding:8px;white-space:nowrap;">{{ r.ada }}</td>
+        <td style="padding:8px;max-width:280px;overflow:hidden;text-overflow:ellipsis;">{{ r.subject|truncatewords:12 }}</td>
+        <td style="padding:8px;">
+          {% if r.status == 'corrected' %}<span style="color:#155724;">✓ corrected</span>
+          {% elif r.status == 'would_correct' %}<span style="color:#155724;">✓ would correct</span>
+          {% elif r.status == 'consistent' %}consistent
+          {% elif r.status == 'no_text_amounts_found' %}no text amounts
+          {% elif r.status == 'error' %}<span style="color:#721c24;">error</span>
+          {% else %}{{ r.status }}{% endif %}
+          {% if r.group_correction %}<span title="Group (total-level) correction" style="color:#856404;">⚑</span>{% endif %}
+        </td>
+        <td style="padding:8px;">
+          {% for c in r.corrections %}
+            <div style="font-size:12px;">
+              <code>{{ c.source_field }}</code>: €{{ c.db_amount }} → <strong>€{{ c.corrected_to }}</strong>
+              (×{{ c.clone_factor }})
+            </div>
+          {% empty %}
+            <span style="color:#999;">— {% if r.reason %}{{ r.reason }}{% endif %}</span>
+          {% endfor %}
+        </td>
+        <td style="padding:8px;">
+          <a href="{{ r.frontend_url }}" target="_blank">view →</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <div style="margin-top:20px;">
+    <a href="../batch-correct-amounts/" class="button">← Run another</a>
+    <a href="../corrected-amounts-pool/" class="button" style="margin-left:8px;">View corrected pool</a>
+    <a href="../" class="button" style="margin-left:8px;">Decision list</a>
+  </div>
+</div>
+{% endblock %}

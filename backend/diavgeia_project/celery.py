@@ -24,16 +24,17 @@ is_celery_beat = len(sys.argv) > 1 and "beat" in sys.argv
 @beat_init.connect
 def init_beat_tracing(*args, **kwargs):
     from django.conf import settings
+    from loguru import logger
 
     if not settings.TRANSMIT_TO_JAEGER:
-        print("[MUTE] [Beat] Jaeger tracing disabled (TRANSMIT_TO_JAEGER=false)")
+        logger.info("[Beat] Jaeger tracing disabled (TRANSMIT_TO_JAEGER=false)")
         return
     try:
         initialize_otel("diavgeia-celery-beat")
         CeleryInstrumentor().instrument()
-        print("[OK] [Beat] OpenTelemetry initialized")
+        logger.info("[Beat] OpenTelemetry initialized")
     except Exception as e:
-        print(f"[ERROR] [Beat] Failed to initialize OpenTelemetry: {e}")
+        logger.error(f"[Beat] Failed to initialize OpenTelemetry: {e}")
 
 
 # If we are NOT a worker and NOT beat (e.g. Django web, management command, etc.)
@@ -75,11 +76,10 @@ def init_celery_tracing(*args, **kwargs):
     are not fork-safe and break when inherited from the parent process.
     """
     from django.conf import settings
+    from loguru import logger
 
     if not settings.TRANSMIT_TO_JAEGER:
-        print(
-            "[MUTE] [Worker Child] Jaeger tracing disabled (TRANSMIT_TO_JAEGER=false)"
-        )
+        logger.info("[Worker Child] Jaeger tracing disabled (TRANSMIT_TO_JAEGER=false)")
         return
     try:
         # 1. Force reset the global state in otel_init module
@@ -93,15 +93,20 @@ def init_celery_tracing(*args, **kwargs):
         trace._TRACER_PROVIDER = None
 
         # 3. Re-initialize with a fresh gRPC channel
-        print("[RETRY] [Worker Child] Re-initializing OpenTelemetry for fork safety...")
+        # Brief sleep to let the old gRPC channel drain before creating a new one.
+        # On Docker-for-Mac (flaky gRPC/FUSE), failing to drain can cause "transport
+        # closed by client" errors and worker crash loops.
+        import time
+        time.sleep(0.5)
+        logger.info("[Worker Child] Re-initializing OpenTelemetry for fork safety")
         initialize_otel("diavgeia-celery")
 
         # 4. Ensure instrumentation is active for this process
         # We explicitly instrument here for the worker child logic
         CeleryInstrumentor().instrument()
-        print("[OK] [Worker Child] OpenTelemetry re-initialized successfully")
+        logger.info("[Worker Child] OpenTelemetry re-initialized successfully")
     except Exception as e:
-        print(f"[ERROR] [Worker Child] Failed to re-initialize OpenTelemetry: {e}")
+        logger.error(f"[Worker Child] Failed to re-initialize OpenTelemetry: {e}")
 
 
 # Instrumentation is now handled via signals (worker_process_init, beat_init)
@@ -181,10 +186,14 @@ auto_import_hour, auto_import_minute = get_auto_import_time()
 
 
 app.conf.beat_schedule = {
-    # "persist-analytics-daily": {
-    #     "task": "api.tasks.persist_analytics_task",
-    #     "schedule": crontab(hour=0, minute=5),  # Run at 00:05 every day
-    # },
+    "persist-analytics-daily": {
+        "task": "api.tasks.analytics.persist_analytics_task",
+        "schedule": crontab(minute=5, hour="*/4"),  # Run at 5 minutes past every 4th hour
+    },
+    # NOTE: persist_endpoint_access_log is NOT a periodic task. It is a per-request
+    # task fired from api/middleware/security_monitoring.py with the fields of a
+    # single access log. Scheduling it via beat with no args only produces failing
+    # tasks (missing required arguments). Do not re-add it here.
     # 'import-ministry-decisions-daily': {
     #     'task': 'core.tasks.import_ministry_decisions_task',
     #     'schedule': crontab(hour=3, minute=0),  # Run at 3am daily
@@ -257,5 +266,11 @@ app.conf.beat_schedule = {
     "auto-company-gemi-import": {
         "task": "core.tasks.tasks_auto_import.trigger_next_company_gemi_batch",
         "schedule": crontab(hour=2, minute=0),
+    },
+    # Daily amount correction — APPLIES corrections (dry_run=False) over
+    # high-value decisions.  Runs on the worker; progress visible in admin.
+    "daily-amount-correction": {
+        "task": "core.tasks.tasks_amount_correction.daily_amount_correction",
+        "schedule": crontab(hour=3, minute=30),
     },
 }

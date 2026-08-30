@@ -25,6 +25,7 @@ URL Structure:
 
 # Import URL modules to get their PREFIX constants (single source of truth)
 from api.urls import (
+    ai,
     auth,
     browse,
     companies,
@@ -38,12 +39,15 @@ from api.urls import (
     system,
     tasks,
     public,
+    text_processes,
 )
 from api.views import entities as entities_views
 from api.views.direct_assignments import entity_direct_assignment_top_organizations
 from api.views.organization_entity_relationships import (
     entity_top_organizations_api,
     relationship_date_range_api,
+    relationship_decisions_api,
+    relationship_decision_types_api,
     relationship_statistics_api,
 )
 
@@ -70,6 +74,7 @@ urlpatterns = [
     # Modular URL includes using PREFIX constants (single source of truth)
     # The PREFIX from each module is used both here AND in the stealth middleware
     path(auth.PREFIX, include("api.urls.auth")),
+    path(ai.PREFIX, include("api.urls.ai")),
     path(notifications.PREFIX, include("api.urls.notifications")),
     path(search.PREFIX, include("api.urls.search")),
     path(entities.PREFIX, include("api.urls.entities")),
@@ -81,6 +86,7 @@ urlpatterns = [
     path(direct_assignments.PREFIX, include("api.urls.direct_assignments")),
     path(system.PREFIX, include("api.urls.system")),
     path(tasks.PREFIX, include("api.urls.tasks")),
+    path(text_processes.PREFIX, include("api.urls.text_processes")),
     # Legacy organization chart endpoints (TODO: consider moving to organizations module)
     path("org-chart-api/", organization_chart_api, name="org-chart-api"),
     path("org-chart-api-dev/", organization_chart_api_dev, name="org-chart-api-dev"),
@@ -94,6 +100,21 @@ urlpatterns = [
         "entity/afm/<str:afm>/decisions/",
         entities_views.afm_entity_decisions,
         name="afm_entity_decisions",
+    ),
+    path(
+        "entity/afm/<str:afm>/decision-types/",
+        entities_views.afm_entity_decision_types,
+        name="afm_entity_decision_types",
+    ),
+    path(
+        "entity/afm/<str:afm>/statistics/",
+        entities_views.afm_entity_statistics,
+        name="afm_entity_statistics",
+    ),
+    path(
+        "entity/afm/<str:afm>/date-range/",
+        entities_views.afm_entity_date_range,
+        name="afm_entity_date_range",
     ),
     path(
         "entity/afm/<str:afm>/request-fetch/",
@@ -126,6 +147,16 @@ urlpatterns = [
         "relationship/entity/<str:afm>/org/<str:orgUid>/statistics/",
         relationship_statistics_api,
         name="relationship_statistics",
+    ),
+    path(
+        "relationship/entity/<str:afm>/org/<str:orgUid>/decision-types/",
+        relationship_decision_types_api,
+        name="relationship_decision_types",
+    ),
+    path(
+        "relationship/entity/<str:afm>/org/<str:orgUid>/decisions/",
+        relationship_decisions_api,
+        name="relationship_decisions",
     ),
     # Debug/tracing endpoints (TODO: move to debug module or remove in production)
     path(

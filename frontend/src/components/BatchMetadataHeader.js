@@ -1,6 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { useTranslation } from '../contexts/TranslationContext';
+import CollapsibleCard from './CollapsibleCard';
 import './BatchMetadataHeader.css';
 
 /**
@@ -17,7 +18,10 @@ const BatchMetadataHeader = ({
   showCreatedAt = true,
   showSubscriptionInfo = true,
   showStats = true,
-  title
+  title,
+  open: controlledOpen,
+  onToggle,
+  defaultOpen = true,
 }) => {
   const { t } = useTranslation();
 
@@ -27,11 +31,21 @@ const BatchMetadataHeader = ({
 
   const { subscription, check_window_start, check_window_end, created_at, match_count, aggregate_stats } = batch;
 
-  return (
-    <div className="batch-metadata-header">
-      {/* Title */}
-      <h1 className="batch-title">{title || t('notifications.notificationBatch')}</h1>
+  const displayTitle = title || t('notifications.notificationBatch');
+  const subtitle = match_count > 0
+    ? <> — {match_count} {t('notifications.totalMatches').toLowerCase()}</>
+    : null;
 
+  return (
+    <CollapsibleCard
+      title={displayTitle}
+      subtitle={subtitle}
+      open={controlledOpen}
+      onToggle={onToggle}
+      defaultOpen={defaultOpen}
+      className="batch-metadata-header"
+    >
+      <div className="batch-metadata-content">
       {/* Subscription Info */}
       {showSubscriptionInfo && subscription && (
         <div className="subscription-info">
@@ -131,7 +145,8 @@ const BatchMetadataHeader = ({
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </CollapsibleCard>
   );
 };
 

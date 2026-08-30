@@ -59,6 +59,19 @@ AFM_FETCH_QUEUE_IGNORED = f"{AFM_FETCH_QUEUE_NS}:ignored"  # Set of AFMs below t
 AFM_FETCH_QUEUE_LOCK = f"{AFM_FETCH_QUEUE_NS}:lock"  # Global queue processing lock
 AFM_FETCH_QUEUE_STATS = f"{AFM_FETCH_QUEUE_NS}:stats"  # Hash of queue statistics
 
+# Decision AI Processing Queue (user-triggered document extraction + AI summarization)
+DECISION_AI_QUEUE_NS = "decision_ai_queue"
+DECISION_AI_QUEUE_PENDING = f"{DECISION_AI_QUEUE_NS}:pending"  # Set of decision IDs
+DECISION_AI_QUEUE_ACTIVE = f"{DECISION_AI_QUEUE_NS}:active"  # Set being processed
+DECISION_AI_QUEUE_COMPLETED = f"{DECISION_AI_QUEUE_NS}:completed"  # Set of completed
+DECISION_AI_QUEUE_FAILED = f"{DECISION_AI_QUEUE_NS}:failed"  # Set of failed
+DECISION_AI_QUEUE_LOCK = f"{DECISION_AI_QUEUE_NS}:lock"  # Global processing lock
+DECISION_AI_QUEUE_STATS = f"{DECISION_AI_QUEUE_NS}:stats"  # Hash of statistics
+DECISION_AI_QUEUE_MAX_CONCURRENT = 2  # Max concurrent AI processing jobs
+
+# Redis key for per-decision metadata (user_id, provider, etc.)
+META_KEY_PREFIX = "decision_ai_queue:meta"
+
 # Search History (personal search tracking)
 SEARCH_HISTORY_NS = "search_history"
 SEARCH_HISTORY_USER_PREFIX = (
@@ -89,6 +102,47 @@ FEATURE_FLAG_PREFIX = "feature_flag"
 BROWSE_NS = "browse"
 BROWSE_AVAILABLE_LETTERS_PREFIX = f"{BROWSE_NS}:available_letters:"  # browse:available_letters:<entity_type>
 BROWSE_CACHE_TIMEOUT = 300  # 5 minutes
+
+# ── Security / Threat Detection ──────────────────────────────────────
+SECURITY_NS = "security"
+# Per-IP velocity counters (sliding 60s window via TTL)
+SECURITY_VELOCITY_PREFIX = f"{SECURITY_NS}:velocity:"  # security:velocity:<ip>
+SECURITY_VELOCITY_WINDOW = 60  # seconds — rolling window for velocity check
+# Per-IP security-event strike counter (rolling 1h window)
+SECURITY_STRIKES_PREFIX = f"{SECURITY_NS}:strikes:"  # security:strikes:<ip>
+SECURITY_STRIKES_WINDOW = 60 * 60  # 1 hour
+# Per-IP 4xx/5xx error counters (rolling 5min window)
+SECURITY_ERRORS_PREFIX = f"{SECURITY_NS}:errors:"  # security:errors:<ip>
+SECURITY_ERRORS_WINDOW = 60 * 5  # 5 minutes
+# Banned IPs (Redis set with TTL per member via ZADD with score=ban_expiry_ts)
+SECURITY_BANNED_SET = f"{SECURITY_NS}:banned"  # sorted set: score = expiry timestamp
+# Flagged IPs under forensic observation (sorted set: score = expiry timestamp)
+SECURITY_FLAGGED_SET = f"{SECURITY_NS}:flagged"  # ZSET, score = expiry ts
+SECURITY_FLAGGED_WINDOW = 60 * 60  # 1 hour forensic capture window
+# Per-IP distinct-endpoint counter (rolling 5min window) for scan detection
+SECURITY_SCAN_PREFIX = f"{SECURITY_NS}:scan:"  # security:scan:<ip> (set of endpoints)
+SECURITY_SCAN_WINDOW = 60 * 5  # 5 minutes
+
+ADMIN_FEEDBACK_POOL_CORRECTED_DECISIONS_KEY = "admin:feedback_pool:corrected_decisions:v1"
+
+def get_velocity_key(ip: str) -> str:
+    """Redis key for per-IP request velocity (rolling window)."""
+    return f"{SECURITY_VELOCITY_PREFIX}{ip}"
+
+
+def get_strikes_key(ip: str) -> str:
+    """Redis key for per-IP security-event strike counter."""
+    return f"{SECURITY_STRIKES_PREFIX}{ip}"
+
+
+def get_errors_key(ip: str) -> str:
+    """Redis key for per-IP 4xx/5xx error counter."""
+    return f"{SECURITY_ERRORS_PREFIX}{ip}"
+
+
+def get_scan_key(ip: str) -> str:
+    """Redis key for per-IP distinct-endpoint set (scan detection)."""
+    return f"{SECURITY_SCAN_PREFIX}{ip}"
 
 def get_endpoint_key(endpoint):
     """Get the Redis key for endpoint stats"""

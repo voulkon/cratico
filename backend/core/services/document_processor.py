@@ -190,13 +190,13 @@ class TextExtractionProcessor(BaseDocumentProcessor):
             bool: Success status
         """
 
-        if not decision.document_url:
-            logger.warning(f"Decision {decision.ada} has no document URL")
+        if not decision.document_url_or_fallback:
+            logger.warning(f"Decision {decision.ada} has no document URL and no ADA")
             return False
 
         # Log which file we're starting to process
         logger.debug(f"Starting processing for decision {decision.ada}")
-        logger.debug(f"Document URL: {decision.document_url}")
+        logger.debug(f"Document URL: {decision.document_url_or_fallback}")
 
         # Use the specified provider or default
         provider = provider or self.default_extractor
@@ -237,8 +237,28 @@ class TextExtractionProcessor(BaseDocumentProcessor):
                 logger.info(f"Document {decision.ada} already marked as corrupted.")
                 return True
             elif extraction.extraction_status == ProcessingStatus.PROCESSING:
-                logger.info(f"Document {decision.ada} is currently being processed")
-                return False
+                # A row can get stuck in PROCESSING forever if the worker
+                # died mid-extraction (there is no reaper).  Treat rows that
+                # haven't been touched for a while as stale and re-process.
+                from datetime import timedelta
+
+                from django.utils import timezone as dj_timezone
+
+                stale_after = dj_timezone.now() - timedelta(minutes=30)
+                if (
+                    extraction.updated_at
+                    and extraction.updated_at < stale_after
+                ):
+                    logger.warning(
+                        f"Document {decision.ada} stuck in PROCESSING since "
+                        f"{extraction.updated_at} — resetting and re-processing."
+                    )
+                    # fall through to re-processing below
+                else:
+                    logger.info(
+                        f"Document {decision.ada} is currently being processed"
+                    )
+                    return False
 
         # Update status to processing
         extraction.extraction_status = ProcessingStatus.PROCESSING
@@ -249,7 +269,7 @@ class TextExtractionProcessor(BaseDocumentProcessor):
 
         # Download the PDF
         logger.debug(f"Downloading PDF for {decision.ada}")
-        temp_path, success = self.download_pdf(decision.document_url)
+        temp_path, success = self.download_pdf(decision.document_url_or_fallback)
         if not success:
             logger.error(f"Failed to download PDF for {decision.ada}")
             importer.mark_extraction_failed(extraction, "Failed to download PDF")

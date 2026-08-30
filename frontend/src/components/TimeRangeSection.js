@@ -1,6 +1,7 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback } from 'react';
 import DualRangeSlider from './DualRangeSlider';
 import { useTranslation } from '../contexts/TranslationContext';
+import CollapsibleCard from './CollapsibleCard';
 import './TimeRangeSection.css';
 
 /**
@@ -36,18 +37,6 @@ const TimeRangeSection = ({
   defaultOpen = true,
 }) => {
   const { t } = useTranslation();
-  const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
-
-  const isControlled = controlledOpen !== undefined;
-  const isOpen = isControlled ? controlledOpen : uncontrolledOpen;
-
-  const handleToggle = (e) => {
-    if (isControlled) {
-      onToggle?.(e.target.open);
-    } else {
-      setUncontrolledOpen(e.target.open);
-    }
-  };
 
   const formatSliderValue = useCallback(
     (value) => {
@@ -60,25 +49,13 @@ const TimeRangeSection = ({
   const hasDateRange = dateRange && dateRange.span_days != null;
 
   return (
-    <details
-      className="time-range-container collapsible-section"
-      open={isOpen}
-      onToggle={handleToggle}
+    <CollapsibleCard
+      title={t('exploration.timeRange')}
+      open={controlledOpen}
+      onToggle={onToggle}
+      defaultOpen={defaultOpen}
+      className="time-range-container"
     >
-      <summary className="section-summary">
-        <span className="summary-title">{t('exploration.timeRange')}</span>
-        {hasDateRange && (
-          <span className="summary-count">
-            {summaryPrefix && <>{summaryPrefix} — </>}
-            {t('exploration.availableDataShort', {
-              days: dateRange.span_days,
-            })}
-          </span>
-        )}
-        <span className="toggle-icon">{isOpen ? '▼' : '▶'}</span>
-      </summary>
-
-      <div className="section-content">
         {showDateSpanInfo && hasDateRange && (
           <div className="time-range-header">
             <span className="date-span-info">
@@ -101,8 +78,18 @@ const TimeRangeSection = ({
           formatValue={formatSliderValue}
           activityData={activityData}
         />
-      </div>
-    </details>
+
+        {hasDateRange && (
+          <div className="summary-count-row">
+            <span className="summary-count">
+              {summaryPrefix && <>{summaryPrefix} — </>}
+              {t('exploration.availableDataShort', {
+                days: dateRange.span_days,
+              })}
+            </span>
+          </div>
+        )}
+    </CollapsibleCard>
   );
 };
 

@@ -7,6 +7,26 @@
   min-height: 100vh;
 }
 
+/* ── Top-bar person header (rendered via TopBarSlot portal) ── */
+.person-header-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: var(--top-controls-height);
+  min-width: 0;
+}
+
+.person-title-topbar {
+  font-size: 1rem;
+  font-weight: var(--font-bold);
+  color: var(--palette-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
 .person-page-header {
   margin-bottom: var(--spacing-xxxl);
 }
@@ -38,11 +58,39 @@
   color: var(--muted-text);
 }
 
-.person-title {
-  font-size: var(--font-xxl);
-  font-weight: var(--font-bold);
-  color: var(--text-color);
+.person-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
   margin: var(--spacing-md) 0 var(--spacing-sm) 0;
+}
+
+.person-title {
+  display: none; /* moved to top bar */
+}
+
+.person-title-row {
+  margin: var(--spacing-sm) 0;
+}
+
+.person-google-search {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  justify-content: center;
+  color: var(--muted-text);
+  transition: var(--transition-fast);
+  flex-shrink: 0;
+  text-decoration: none;
+  font-size: var(--font-sm);
+}
+
+.person-google-search:hover {
+  color: var(--palette-primary);
+}
+
+.google-search-label {
+  font-size: var(--font-xs);
 }
 
 .person-subtitle {

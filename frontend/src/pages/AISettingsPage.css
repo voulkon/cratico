@@ -1,0 +1,487 @@
+/* ===================================================================
+   AI Settings Page — card-based two-part layout
+   =================================================================== */
+
+.ai-settings-page {
+  min-height: 100vh;
+  padding: 2rem;
+  background: var(--bg-color);
+  color: var(--text-color);
+}
+
+.ai-settings-container {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* ── Top-bar title (rendered via TopBarSlot portal) ── */
+.ai-settings-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  overflow: visible;
+  white-space: normal;
+  text-overflow: clip;
+}
+
+.ai-settings-title-topbar {
+  font-size: 1rem;
+  font-weight: var(--font-bold, 700);
+  color: var(--palette-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+/* Keep h1 for accessibility but hide visually */
+.ai-settings-title {
+  display: none;
+}
+
+.ai-settings-subtitle {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: 1.25rem;
+}
+
+.ai-settings-loading {
+  text-align: center;
+  padding: 4rem;
+  color: var(--text-secondary);
+}
+
+.ai-settings-error {
+  background: var(--error-bg);
+  color: var(--error-text);
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+}
+
+.ai-settings-success {
+  background: var(--success-bg);
+  color: var(--success-text);
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+}
+
+.ai-settings-interactions-link {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  margin-bottom: 1.5rem;
+  background: var(--hover-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-color);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.2s;
+}
+
+.ai-settings-interactions-link:hover {
+  background: var(--palette-bg-subtle);
+  color: var(--palette-primary);
+}
+
+/* -------------------------------------------------------------------
+   Cards
+   ------------------------------------------------------------------- */
+.ai-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.ai-card--disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.ai-card--disabled .ai-toggle {
+  pointer-events: auto;
+}
+
+.ai-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.ai-card-header-left {
+  flex: 1;
+}
+
+.ai-card-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0 0 0.25rem;
+}
+
+.ai-card-desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.ai-card-empty {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 1.5rem 0;
+  font-size: 0.875rem;
+}
+
+/* -------------------------------------------------------------------
+   Toggle switch
+   ------------------------------------------------------------------- */
+.ai-toggle {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.ai-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.ai-toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: var(--border-color);
+  border-radius: 24px;
+  transition: 0.25s;
+}
+
+.ai-toggle-slider::before {
+  content: "";
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: 0.25s;
+}
+
+.ai-toggle input:checked + .ai-toggle-slider {
+  background: var(--palette-primary);
+}
+
+.ai-toggle input:checked + .ai-toggle-slider::before {
+  transform: translateX(20px);
+}
+
+/* -------------------------------------------------------------------
+   Buttons
+   ------------------------------------------------------------------- */
+.ai-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.45rem 0.9rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+}
+
+.ai-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ai-btn--primary {
+  background: var(--palette-primary);
+  color: var(--text-on-primary);
+}
+
+.ai-btn--primary:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.ai-btn--ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.ai-btn--ghost:hover:not(:disabled) {
+  background: var(--hover-bg);
+  color: var(--text-color);
+}
+
+.ai-btn--danger:hover:not(:disabled) {
+  color: var(--error-text);
+  border-color: var(--error-text);
+}
+
+/* -------------------------------------------------------------------
+   Key list
+   ------------------------------------------------------------------- */
+.ai-keys-list {
+  margin-top: 1rem;
+}
+
+.ai-key-item {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  margin-bottom: 0.6rem;
+  background: var(--card-bg-secondary);
+}
+
+.ai-key-item--default {
+  border-color: var(--palette-primary);
+  border-width: 1.5px;
+}
+
+.ai-key-item--new {
+  border-style: dashed;
+  border-color: var(--palette-primary);
+}
+
+.ai-key-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.35rem;
+}
+
+.ai-badge {
+  display: inline-block;
+  background: var(--palette-primary);
+  color: var(--text-on-primary);
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.ai-key-label {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.ai-key-masked {
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.ai-key-status {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  background: var(--border-color);
+  color: var(--text-secondary);
+}
+
+.ai-key-status--active {
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.ai-key-details {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.ai-key-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+/* -------------------------------------------------------------------
+   Key form (inline add / edit)
+   ------------------------------------------------------------------- */
+.ai-key-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.ai-key-form-row label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-bottom: 0.2rem;
+}
+
+.ai-key-form-row input[type="text"],
+.ai-key-form-row input[type="password"],
+.ai-key-form-row input[type="number"],
+.ai-key-form-row select {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-color);
+  font-size: 0.8rem;
+}
+
+.ai-settings-key-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.ai-settings-key-row input {
+  flex: 1;
+}
+
+.ai-settings-test-btn {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.ai-settings-test-btn:hover:not(:disabled) {
+  background: var(--hover-bg);
+}
+
+.ai-settings-test-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-settings-test-result {
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+}
+
+.ai-settings-test-result.valid {
+  color: var(--success-text);
+  background: var(--success-bg);
+}
+
+.ai-settings-test-result.invalid {
+  color: var(--error-text);
+  background: var(--error-bg);
+}
+
+.ai-settings-hint {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.ai-key-form-toggle label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: 400;
+}
+
+.ai-key-form-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.ai-key-form-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+/* -------------------------------------------------------------------
+   System key section
+   ------------------------------------------------------------------- */
+.ai-system-key-prompt {
+  margin-top: 0.75rem;
+}
+
+.ai-system-key-prompt p {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0 0 0.75rem;
+}
+
+.ai-system-key-accepted {
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--success-text);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.ai-check-icon {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Model preference (independent of key)                              */
+/* ------------------------------------------------------------------ */
+
+.ai-model-preference-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.ai-model-preference-badge {
+  font-size: 0.8rem;
+  color: var(--accent-color);
+  background: var(--palette-bg-subtle);
+  padding: 0.25rem 0.6rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.ai-max-tokens-row {
+  margin-top: var(--spacing-md);
+}
+
+.ai-max-tokens-label {
+  font-size: var(--font-sm);
+  font-weight: var(--font-semibold);
+}
+
+.ai-max-tokens-input {
+  width: 140px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--card-bg);
+  color: var(--text-color);
+  font-size: var(--font-xs);
+}

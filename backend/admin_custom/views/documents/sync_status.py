@@ -212,6 +212,7 @@ def sync_status_dashboard(request):
         )
 
         # Step 3: OpenSearch count
+        opensearch_unavailable = not opensearch_service.is_enabled
         os_results = opensearch_service._test_match_all()
         opensearch_count = os_results.get("hits", {}).get("total", {}).get("value", 0)
 
@@ -263,6 +264,7 @@ def sync_status_dashboard(request):
             "failed_extractions": failed_extractions,
             "completed_extractions": completed_extractions,
             "opensearch_count": opensearch_count,
+            "opensearch_unavailable": opensearch_unavailable,
             # Gaps
             "extraction_gap": extraction_gap,
             "indexing_gap": indexing_gap,

@@ -1,11 +1,21 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import apiClient from '../api/client';
+import { getAIModels } from '../api/aiApi';
+import ModelDropdown from '../components/ModelDropdown';
+import AnnotatedText from '../components/AnnotatedText';
+import TopBarSlot from '../components/TopBarSlot';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import './DecisionDetailPage.css';
+import '../components/StatCard.css';
 import EntityDisplay from '../components/EntityDisplay';
-import { formatAmount } from '../utils/dateUtils';
+import { formatAmount, formatDate } from '../utils/dateUtils';
+import { useDecisionAI } from '../hooks/useDecisionAI';
+import { useTextProcesses } from '../hooks/useTextProcesses';
+import CollapsibleCard from '../components/CollapsibleCard';
 import {
   FinancialIcon,
   CalendarIcon,
@@ -20,7 +30,12 @@ import {
   GlobeIcon,
   PaperclipIcon,
   SearchIcon,
-  WrenchIcon
+  EyeIcon,
+  DownloadIcon,
+  SparklesIcon,
+  InfoIcon,
+  LoaderIcon,
+  AlertIcon
 } from '../components/Icons';
 
 const DecisionDetailPage = () => {
@@ -35,9 +50,76 @@ const DecisionDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchDecisionData = useCallback(async () => {
+  // ── Document content (inline) ──────────────────────────────────────
+  const [docContent, setDocContent] = useState(null);       // raw_text when COMPLETED
+  const [docStatus, setDocStatus] = useState(null);          // PENDING | PROCESSING | COMPLETED | FAILED | NOT_FOUND
+  const [docMeta, setDocMeta] = useState(null);              // { character_count, page_count, extraction_provider, ... }
+  const [docLoading, setDocLoading] = useState(false);       // fetching content
+  const [docRequesting, setDocRequesting] = useState(false); // requesting extraction
+  const pollRef = useRef(null);
+  const aiPollRef = useRef(null);
+
+  const fetchDocumentContent = useCallback(async () => {
     try {
-      setLoading(true);
+      setDocLoading(true);
+      const response = await apiClient.get(`/decisions/${id}/content/?include=spans`);
+      const data = response.data;
+      setDocStatus(data.status);
+      if (data.status === 'COMPLETED' && data.raw_text) {
+        setDocContent(data.raw_text);
+        setDocMeta({
+          character_count: data.character_count,
+          page_count: data.page_count,
+          extraction_provider: data.extraction_provider,
+          extraction_date: data.extraction_date,
+          processing_time_ms: data.processing_time_ms,
+        });
+        // Capture text-process runs + resolution (for annotated view)
+        setProcessRuns(data.runs || []);
+        setProcessResolution(data.resolution || null);
+      } else {
+        setDocContent(null);
+        setDocMeta(null);
+        setProcessRuns([]);
+        setProcessResolution(null);
+      }
+    } catch (err) {
+      console.error('Error fetching document content:', err);
+      setDocStatus('ERROR');
+      setDocContent(null);
+    } finally {
+      setDocLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // Initial fetch + polling while extraction is in flight
+  useEffect(() => {
+    fetchDocumentContent();
+
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [fetchDocumentContent]);
+
+  useEffect(() => {
+    if (docStatus === 'PENDING' || docStatus === 'PROCESSING') {
+      if (pollRef.current) clearInterval(pollRef.current);
+      pollRef.current = setInterval(fetchDocumentContent, 4000);
+    } else {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    }
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [docStatus, fetchDocumentContent]);
+
+  const fetchDecisionData = useCallback(async (silent = false) => {
+    try {
+      if (!silent) setLoading(true);
 
       const decisionResponse = await apiClient.get(`/decisions/${id}/`);
       setDecision(decisionResponse.data);
@@ -60,39 +142,154 @@ const DecisionDetailPage = () => {
     fetchDecisionData();
   }, [fetchDecisionData]);
 
-  const handleViewDocumentContent = async () => {
-    try {
-      const response = await apiClient.get(`/decision/${id}/content/`);
+  const { aiAnalyses, requestExtraction, requestAISummary, requestAmountVerification } = useDecisionAI(decision, fetchDecisionData);
 
-      if (response.data.content) {
-        const newWindow = window.open('', '_blank');
-        newWindow.document.write(`
-          <html>
-            <head><title>${t('decisionDetail.documentTitle', { ada: decision.ada })}</title></head>
-            <body style="font-family: Arial, sans-serif; padding: 20px;">
-              <h1>${t('decisionDetail.decisionLabel')} ${decision.ada}</h1>
-              <h2>${decision.subject}</h2>
-              <div style="white-space: pre-wrap; line-height: 1.6;">
-                ${response.data.content}
-              </div>
-            </body>
-          </html>
-        `);
-      } else {
-        alert(t('decisionDetail.documentNotAvailable'));
+  const {
+    viewMode, setViewMode,
+    processRuns, setProcessRuns,
+    processResolution, setProcessResolution,
+    processList,
+    activeProcesses, toggleProcess,
+    handleRunProcess,
+  } = useTextProcesses(id, fetchDocumentContent);
+
+  // Model selection for AI summarization
+  const [models, setModels] = useState([]);
+  const [selectedModel, setSelectedModel] = useState('');
+  const [aiRequesting, setAiRequesting] = useState(false);
+  // Track which AI summaries are expanded
+  const [expandedSummaries, setExpandedSummaries] = useState({});
+
+  const toggleSummary = (key) => {
+    setExpandedSummaries(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  // Fetch available models for the dropdown
+  useEffect(() => {
+    getAIModels().then(data => {
+      if (data?.models) setModels(data.models);
+    }).catch(() => {});
+  }, []);
+
+  // AI summary polling while any analysis is RUNNING
+  useEffect(() => {
+    const hasRunning = aiAnalyses.some(a => a.status === 'RUNNING');
+    if (hasRunning) {
+      if (aiPollRef.current) clearInterval(aiPollRef.current);
+      aiPollRef.current = setInterval(fetchDecisionData, 4000);
+    } else {
+      if (aiPollRef.current) {
+        clearInterval(aiPollRef.current);
+        aiPollRef.current = null;
       }
-    } catch (error) {
-      console.error('Error fetching document content:', error);
-      alert(t('decisionDetail.documentContentError', { error: error.message }));
+    }
+    return () => {
+      if (aiPollRef.current) clearInterval(aiPollRef.current);
+    };
+  }, [aiAnalyses, fetchDecisionData]);
+
+  const handleRequestContent = async () => {
+    try {
+      setDocRequesting(true);
+      await requestExtraction();
+      // Immediately poll — the backend just queued the task
+      setDocStatus('PENDING');
+    } catch (err) {
+      alert(typeof err === 'string' ? err : t('decisionDetail.extractionFailed'));
+    } finally {
+      setDocRequesting(false);
     }
   };
 
+  const handleRequestAISummary = async (model = null) => {
+    try {
+      setAiRequesting(true);
+      await requestAISummary(false, model);
+      // Refresh immediately to show the new RUNNING analysis
+      fetchDecisionData();
+    } catch (err) {
+      alert(typeof err === 'string' ? err : t('decisionDetail.aiSummaryFailed'));
+    } finally {
+      setAiRequesting(false);
+    }
+  };
+
+  // ── Amount verification ──────────────────────────────────────────
+  const [verifyingAmount, setVerifyingAmount] = useState(false);
+  const [verifyResult, setVerifyResult] = useState(null); // 'corrected' | 'ok' | null
+
+  const handleVerifyAmount = async () => {
+    try {
+      setVerifyingAmount(true);
+      setVerifyResult(null);
+      await requestAmountVerification(false);
+
+      // Poll silently (no full-page spinner). Stop as soon as we see the
+      // corrected state change, otherwise after a few attempts report "ok".
+      const hadCorrection = !!decision?.has_corrected_amounts;
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts += 1;
+        const resp = await apiClient.get(`/decisions/${id}/`);
+        const d = resp.data;
+        if (d.has_corrected_amounts && !hadCorrection) {
+          clearInterval(poll);
+          setDecision(d);
+          setVerifyResult('corrected');
+          setVerifyingAmount(false);
+        } else if (attempts >= 6) {
+          clearInterval(poll);
+          setDecision(d);
+          setVerifyResult('ok');
+          setVerifyingAmount(false);
+        }
+      }, 2500);
+    } catch (err) {
+      setVerifyingAmount(false);
+      alert(typeof err === 'string' ? err : 'Amount verification failed');
+    }
+  };
+
+  // ── Compute main recipient from entity relationships ──────────
+  // Roles that mark the entity actually receiving funds (as opposed to a
+  // generic counterparty). Ranked: listed roles first, then by amount desc.
+  const MAIN_RECIPIENT_ROLES = ['sponsor', 'creditor'];
+
+  const mainRecipient = useMemo(() => {
+    if (!entityRelationships || !entityRelationships.length) return null;
+
+    const candidates = entityRelationships.filter((rel) => {
+      const role = (rel.role || '').toLowerCase();
+      return role !== 'org' && (rel.total_amount || 0) > 0;
+    });
+    if (!candidates.length) return null;
+
+    const roleRank = (rel) => {
+      const role = (rel.role || '').toLowerCase();
+      return MAIN_RECIPIENT_ROLES.some((r) => role.includes(r)) ? 0 : 1;
+    };
+
+    return [...candidates].sort(
+      (a, b) =>
+        roleRank(a) - roleRank(b) ||
+        (b.total_amount || 0) - (a.total_amount || 0)
+    )[0];
+  }, [entityRelationships]);
+
   if (loading) {
     return (
-      <div className="loading-container">
-        <h2>{t('decisionDetail.loadingDecision')}</h2>
-        <div className="spinner"></div>
-      </div>
+      <>
+        <TopBarSlot>
+          <div className="entity-header-topbar">
+            <span className="entity-title-topbar">{t('decisionDetail.loadingDecision')}</span>
+            <span className="entity-subtitle-topbar">ADA: {id}</span>
+          </div>
+        </TopBarSlot>
+        <div className="loading-container">
+          <h2>{t('decisionDetail.loadingDecision')}</h2>
+          <div className="spinner"></div>
+        </div>
+      </>
     );
   }
 
@@ -122,7 +319,19 @@ const DecisionDetailPage = () => {
 
   return (
     <div className="decision-detail-page">
-      {/* Header Section */}
+      {/* Top-bar decision header (rendered via TopBarSlot portal) —
+          always keeps the current decision visible in the fixed top bar */}
+      <TopBarSlot>
+        <div className="entity-header-topbar">
+          <span className="entity-title-topbar">{decision.subject}</span>
+          <span className="entity-subtitle-topbar">
+            {t('decisionDetail.decisionLabel')} {decision.ada}
+            {decision.status && <span> · {decision.status}</span>}
+          </span>
+        </div>
+      </TopBarSlot>
+
+      {/* Header Section — centered */}
       <div className="decision-header">
         <div className="breadcrumb">
           <button onClick={() => navigate(-1)} className="breadcrumb-link">
@@ -132,154 +341,610 @@ const DecisionDetailPage = () => {
           <span>{t('decisionDetail.decisionDetails')}</span>
         </div>
 
-        <h1 className="decision-title">{decision.subject}</h1>
+        <div className="decision-title-row">
+          <h1 className="decision-title">{decision.subject}</h1>
 
-        <div className="decision-metadata">
-          <span className="ada-badge">ADA: {decision.ada}</span>
-          <span className="id-badge">ID: {decision.id}</span>
-          <span className={`status-badge status-${decision.status.toLowerCase()}`}>
-            {decision.status}
+          {/* All metadata lives behind a single uniform (i) hover card */}
+          <span className="metadata-info" tabIndex={0}>
+            <InfoIcon size={16} />
+            <div className="metadata-popover">
+              {decision.ada && (
+                <div className="metadata-row">
+                  <span className="metadata-key">ADA</span>
+                  <span className="metadata-value">{decision.ada}</span>
+                </div>
+              )}
+              <div className="metadata-row">
+                <span className="metadata-key">{t('decisionDetail.versionId')}</span>
+                <span className="metadata-value">{decision.version_id || '—'}</span>
+              </div>
+              <div className="metadata-row">
+                <span className="metadata-key">{t('decisionDetail.statusLabel')}</span>
+                <span className="metadata-value">{decision.status}</span>
+              </div>
+              {decision.protocol_number && (
+                <div className="metadata-row">
+                  <span className="metadata-key">{t('decisionDetail.protocol')}</span>
+                  <span className="metadata-value">{decision.protocol_number}</span>
+                </div>
+              )}
+            </div>
           </span>
-          {decision.protocol_number && (
-            <span className="protocol-badge">
-              {t('decisionDetail.protocol')}: {decision.protocol_number}
+        </div>
+      </div>
+
+      {/* AI Analyses card is rendered below the document content card */}
+      {false && (
+      <CollapsibleCard
+        title={
+          <span className="ai-analysis-title">
+            <SparklesIcon size={16} /> {t('decisionDetail.aiAnalysis')}
+            {aiAnalyses.filter(a => a.status === 'COMPLETED').length > 0 && (
+              <span className="ai-analysis-count">
+                {' '}({aiAnalyses.filter(a => a.status === 'COMPLETED').length})
+              </span>
+            )}
+          </span>
+        }
+        subtitle={
+          aiAnalyses.some(a => a.status === 'RUNNING') ? (
+            <span className="ai-analysis-subtitle">{t('decisionDetail.aiSummaryRunning')}</span>
+          ) : null
+        }
+        badge={
+          aiAnalyses.some(a => a.status === 'RUNNING') ? (
+            <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+          ) : null
+        }
+        defaultOpen={aiAnalyses.filter(a => a.status === 'COMPLETED').length > 0}
+        className="ai-analysis-collapsible"
+      >
+        {/* Model picker + single summarize button — always visible */}
+        <div className="ai-analysis-request-row">
+          <div className="ai-model-picker-row">
+            <ModelDropdown
+              models={models}
+              value={selectedModel}
+              onChange={setSelectedModel}
+              placeholder={t('aiSettings.usePipelineDefault')}
+              t={t}
+            />
+          </div>
+          <button
+            className="document-link ai-summary-retry"
+            onClick={() => handleRequestAISummary(selectedModel || null)}
+            disabled={aiRequesting}
+          >
+            {aiRequesting ? <LoaderIcon className="spinner" size={14} /> : <SparklesIcon size={14} />}
+            {' '}{t('decisionDetail.requestAISummary')}
+          </button>
+        </div>
+
+        {/* Running analyses */}
+        {aiAnalyses.filter(a => a.status === 'RUNNING').map((a, i) => (
+          <div key={`running-${i}`} className="ai-summary-item ai-summary-item--running">
+            <div className="ai-summary-item-header">
+              <span className="ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
+              <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+            </div>
+            <p className="ai-summary-item-status">{t('decisionDetail.aiSummaryRunning')}</p>
+          </div>
+        ))}
+
+        {/* Completed analyses — click header to expand/collapse */}
+        {aiAnalyses.filter(a => a.status === 'COMPLETED').map((a, i) => {
+          const key = a.id || i;
+          const expanded = expandedSummaries[key];
+          return (
+            <div key={key} className="ai-summary-item">
+              <div
+                className="ai-summary-item-header ai-summary-item-header--clickable"
+                onClick={() => toggleSummary(key)}
+                title={expanded ? t('decisionCard.collapse') : t('decisionCard.expand')}
+              >
+                <span className="ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
+                <span className="ai-summary-item-cost">
+                  {a.cost_usd && `$${a.cost_usd}`}
+                  {a.completed_at && ` · ${formatDate(a.completed_at)}`}
+                  <span className="ai-summary-chevron">{expanded ? '▴' : '▾'}</span>
+                </span>
+              </div>
+              {expanded && (
+                <div className="ai-summary-text">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {a.summary}
+                  </ReactMarkdown>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Failed analyses — show error, no retry (pick model again from dropdown to retry) */}
+        {aiAnalyses.filter(a => a.status === 'FAILED').map((a, i) => (
+          <div key={`failed-${i}`} className="ai-summary-item ai-summary-item--failed">
+            <div className="ai-summary-item-header">
+              <span className="ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
+              <AlertIcon size={14} />
+            </div>
+            <p className="ai-summary-item-error">{a.error_message || t('decisionDetail.aiSummaryFailed')}</p>
+          </div>
+        ))}
+
+        {/* No summaries yet */}
+        {aiAnalyses.length === 0 && (
+          <div className="ai-summary-placeholder">
+            <SparklesIcon size={28} />
+            <p>{t('decisionDetail.aiAnalysisDescription')}</p>
+          </div>
+        )}
+      </CollapsibleCard>
+      )}
+
+      {/* Hero amount */}
+      {decision.amount != null && (
+        <div className="amount-hero">
+          <div className="amount-hero-value">
+            {decision.has_corrected_amounts && decision.corrected_amount != null
+              ? formatAmount(decision.corrected_amount)
+              : formatAmount(decision.amount)
+            }
+            {decision.has_corrected_amounts && decision.corrected_amount != null && (
+              <span
+                className="amount-corrected-badge"
+                tabIndex={0}
+                aria-label={t('decisionDetail.amountCorrected')}
+              >
+                <InfoIcon size={14} />
+                <div className="amount-corrected-popover">
+                  {t('decisionDetail.amountCorrectedHint', {
+                    original: formatAmount(decision.amount),
+                    corrected: formatAmount(decision.corrected_amount),
+                  })}
+                </div>
+              </span>
+            )}
+          </div>
+          <div className="amount-hero-meta">
+            {decision.currency && decision.currency !== 'EUR' && (
+              <span>{decision.currency}</span>
+            )}
+            {decision.financial_year && (
+              <span>{t('decisionDetail.financialYear')} {decision.financial_year}</span>
+            )}
+          </div>
+
+          {/* Main recipient (counterpart entity receiving the funds) */}
+          {mainRecipient?.entity?.name && (
+            <div className="amount-hero-recipient">
+              <span className="recipient-arrow">→</span>
+              <button
+                className="recipient-name"
+                onClick={() => navigate(`/entity/afm/${mainRecipient.entity.afm}`)}
+                title={t('decisionDetail.viewEntityDetails')}
+              >
+                {mainRecipient.entity.name}
+              </button>
+              {mainRecipient.total_amount > 0 && (
+                <span className="recipient-amount">
+                  {formatAmount(mainRecipient.total_amount)}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Verify-amount knob */}
+          <div className="verify-amount-row">
+            <button
+              className="document-link"
+              onClick={handleVerifyAmount}
+              disabled={verifyingAmount}
+              title={t('decisionDetail.verifyAmount')}
+            >
+              {verifyingAmount
+                ? <LoaderIcon className="spinner" size={14} />
+                : <SearchIcon size={14} />}
+              {' '}{verifyingAmount ? t('decisionDetail.verifying') : t('decisionDetail.verifyAmount')}
+            </button>
+            {verifyResult === 'ok' && !decision.has_corrected_amounts && (
+              <span className="verify-result-text">
+                {t('decisionDetail.verifyNoDiscrepancy')}
+              </span>
+            )}
+            {verifyResult === 'corrected' && (
+              <span className="verify-result-text">
+                {t('decisionDetail.verifyCorrected')}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Core Information — compact inline strip (amount is already
+          shown in the hero, so the financial card was redundant) */}
+      <div className="decision-facts">
+        <span className="fact-item">
+          <CalendarIcon size={14} />
+          <span className="fact-label">{t('decisionDetail.timeline')}</span>
+          <strong>{formatDate(decision.issue_date)}</strong>
+        </span>
+        {decision.publish_timestamp && (
+          <span className="fact-item">
+            <span className="fact-label">{t('decisionDetail.published')}</span>
+            <strong>{formatDate(decision.publish_timestamp)}</strong>
+          </span>
+        )}
+        {decision.submission_timestamp && (
+          <span className="fact-item">
+            <span className="fact-label">{t('decisionDetail.submitted')}</span>
+            <strong>{formatDate(decision.submission_timestamp)}</strong>
+          </span>
+        )}
+        <span className="fact-item">
+          <DocumentTypeIcon size={14} />
+          <span className="fact-label">{t('decisionDetail.decisionType')}</span>
+          <strong>
+            {decision.decision_type
+              ? decision.decision_type.label
+              : t('decisionDetail.typeNotSpecified')}
+          </strong>
+        </span>
+        {decision.financial_year && (
+          <span className="fact-item">
+            <FinancialIcon size={14} />
+            <span className="fact-label">{t('decisionDetail.financialYear')}</span>
+            <strong>{decision.financial_year}</strong>
+          </span>
+        )}
+      </div>
+
+      {/* ── Document Content (collapsible, with polling) ──────────────── */}
+      <CollapsibleCard
+        title={
+          <span className="doc-content-title">
+            <BookOpenIcon size={16} /> {t('decisionDetail.documentContent')}
+          </span>
+        }
+        subtitle={
+          docStatus === 'COMPLETED' && docMeta ? (
+            <span className="doc-content-subtitle">
+              {t('decisionDetail.documentContentMeta', {
+                chars: docMeta.character_count?.toLocaleString() || '?',
+                pages: docMeta.page_count ?? '?',
+                provider: docMeta.extraction_provider || '?',
+              })}
+              {docMeta.processing_time_ms && ` · ${docMeta.processing_time_ms}ms`}
             </span>
-          )}
-        </div>
-      </div>
-
-      {/* Core Information Grid */}
-      <div className="decision-info-grid">
-        <div className="info-card">
-          <h3><FinancialIcon size={20} /> {t('decisionDetail.financialInformation')}</h3>
-          {decision.amount && (
-            <div className="amount-display">
-              {formatAmount(decision.amount)}
-            </div>
-          )}
-          {decision.currency && decision.currency !== 'EUR' && (
-            <div className="currency-info">
-              {t('decisionDetail.currency')}: {decision.currency}
-            </div>
-          )}
-          {decision.financial_year && (
-            <div className="financial-year">
-              {t('decisionDetail.financialYear')}: {decision.financial_year}
-            </div>
-          )}
-        </div>
-
-        <div className="info-card">
-          <h3><CalendarIcon size={20} /> {t('decisionDetail.timeline')}</h3>
-          <div className="timeline-item">
-            <strong>{t('decisionDetail.issueDate')}:</strong> {new Date(decision.issue_date).toLocaleDateString('en-GB', {
-              day: '2-digit',
-              month: '2-digit',
-              year: 'numeric'
-            })}
+          ) : null
+        }
+        badge={
+          docStatus === 'COMPLETED' ? (
+            <span className="doc-content-badge">✓</span>
+          ) : docStatus === 'PENDING' || docStatus === 'PROCESSING' ? (
+            <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+          ) : docStatus === 'FAILED' ? (
+            <AlertIcon size={14} />
+          ) : null
+        }
+        defaultOpen={docStatus === 'COMPLETED'}
+        className="document-content-collapsible"
+      >
+        {docLoading && !docContent && docStatus !== 'COMPLETED' ? (
+          <div className="document-content-placeholder">
+            <div className="spinner" />
+            <p>{t('common.loading')}</p>
           </div>
-          {decision.publish_timestamp && (
-            <div className="timeline-item">
-              <strong>{t('decisionDetail.published')}:</strong> {new Date(decision.publish_timestamp).toLocaleDateString('en-GB', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-              })}
+        ) : docStatus === 'COMPLETED' && docContent ? (
+          <>
+            {/* View toggle */}
+            <div className="view-toggle">
+              <button
+                className={viewMode === 'rendered' ? 'active' : ''}
+                onClick={() => setViewMode('rendered')}
+              >
+                Rendered
+              </button>
+              <button
+                className={viewMode === 'annotated' ? 'active' : ''}
+                onClick={() => setViewMode('annotated')}
+              >
+                Annotated
+              </button>
             </div>
-          )}
-          {decision.submission_timestamp && (
-            <div className="timeline-item">
-              <strong>{t('decisionDetail.submitted')}:</strong> {new Date(decision.submission_timestamp).toLocaleDateString('en-GB', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric'
-              })}
-            </div>
-          )}
-        </div>
 
-        <div className="info-card">
-          <h3><DocumentTypeIcon size={20} /> {t('decisionDetail.decisionType')}</h3>
-          {decision.decision_type ? (
+            {/* Process controls — per-process toggle buttons */}
+            {viewMode === 'annotated' && (
+              <div className="process-controls">
+                {processList.map(p => {
+                  const hasRun = processRuns.some(
+                    r => r.process === p.slug && r.status === 'COMPLETED'
+                  );
+                  const isRunning = processRuns.some(
+                    r => r.process === p.slug && (r.status === 'PENDING' || r.status === 'RUNNING')
+                  );
+                  const isOn = activeProcesses.has(p.slug);
+                  const swatchColor = p.color || '#757575';
+
+                  return (
+                    <button
+                      key={p.slug}
+                      className={`process-toggle-btn${isOn ? ' process-toggle-btn--on' : ''}`}
+                      onClick={() => {
+                        if (!hasRun && !isRunning) {
+                          handleRunProcess(p.slug);
+                        } else if (hasRun) {
+                          toggleProcess(p.slug);
+                        }
+                      }}
+                      disabled={isRunning}
+                      title={p.description || p.name}
+                    >
+                      <span
+                        className="process-toggle-swatch"
+                        style={{ backgroundColor: swatchColor }}
+                      />
+                      {p.name}
+                      {isRunning ? (
+                        <span className="process-toggle-spinner" />
+                      ) : !hasRun ? (
+                        <span className="process-toggle-run" title={`Run ${p.name}`}>
+                          <SparklesIcon size={10} />
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Content: annotated or rendered */}
+            {viewMode === 'annotated' ? (
+              <AnnotatedText
+                rawText={docContent}
+                runs={processRuns}
+                activeProcesses={activeProcesses}
+                processList={processList}
+              />
+            ) : (
+              <div className="document-content-body">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {docContent}
+                </ReactMarkdown>
+              </div>
+            )}
+          </>
+        ) : docStatus === 'PENDING' || docStatus === 'PROCESSING' ? (
+          <div className="document-content-placeholder">
+            <div className="spinner" />
+            <p>{t('decisionDetail.documentContentExtractionInProgress')}</p>
+          </div>
+        ) : docStatus === 'FAILED' ? (
+          <div className="document-content-placeholder">
+            <AlertIcon size={28} />
+            <p>{t('decisionDetail.documentContentExtractionFailed', { error: '' })}</p>
             <button
-              className="clickable-entity decision-type-button"
-              onClick={() => navigate(`/explore/type/${decision.decision_type.uid}`)}
-              title={t('decisionDetail.exploreDecisionsOfType')}
+              className="document-link document-content-retry"
+              onClick={handleRequestContent}
+              disabled={docRequesting}
             >
-              {decision.decision_type.label}
+              {docRequesting ? <LoaderIcon className="spinner" size={14} /> : <BookOpenIcon size={14} />}
+              {' '}{t('decisionDetail.documentContentRequestExtraction')}
             </button>
-          ) : (
-            <span className="no-data">{t('decisionDetail.typeNotSpecified')}</span>
-          )}
-        </div>
-      </div>
-
-      {/* Organizational Context */}
-      <div className="organizational-section">
-        <h3><OrganizationIcon size={20} /> {t('decisionDetail.organizationalContext')}</h3>
-
-        {decision.organization && (
-          <div className="org-info">
-            <h4>{t('decisionDetail.issuingOrganization')}</h4>
+          </div>
+        ) : docStatus === 'NOT_FOUND' ? (
+          <div className="document-content-placeholder">
+            <BookOpenIcon size={28} />
+            <p>{t('decisionDetail.documentContentNotRequested')}</p>
             <button
-              className="clickable-entity org-link"
-              onClick={() => navigate(`/entity/organization/${decision.organization.uid}`)}
-              title={t('decisionDetail.viewOrganizationDetails')}
+              className="document-link document-content-retry"
+              onClick={handleRequestContent}
+              disabled={docRequesting}
             >
-              <OrganizationIcon size={16} /> {decision.organization.label}
+              {docRequesting ? <LoaderIcon className="spinner" size={14} /> : <BookOpenIcon size={14} />}
+              {' '}{t('decisionDetail.documentContentRequestExtraction')}
             </button>
-
+          </div>
+        ) : (
+          <div className="document-content-placeholder">
+            <p>{t('decisionDetail.documentContentNotAvailable')}</p>
             <button
-              className="org-chart-quick-link"
-              onClick={() => navigate(`/organizations?uid=${decision.organization.uid}`)}
-              title={t('decisionDetail.viewOrganizationChart')}
+              className="document-link document-content-retry"
+              onClick={handleRequestContent}
+              disabled={docRequesting}
             >
-              <ChartIcon size={16} /> {t('decisionDetail.viewOrgChart')}
+              {docRequesting ? <LoaderIcon className="spinner" size={14} /> : <BookOpenIcon size={14} />}
+              {' '}{t('decisionDetail.documentContentRequestExtraction')}
             </button>
           </div>
         )}
+      </CollapsibleCard>
 
-        {decision.signers && decision.signers.length > 0 && (
-          <div className="signers-section">
-            <h4><UsersIcon size={18} /> {t('decisionDetail.signers', { count: decision.signers.length })}</h4>
-            <div className="signers-grid">
-              {decision.signers.map(signer => (
+      {/* ── AI Analyses (multi-model, collapsible, with polling) —
+          rendered directly below the document content so the summary
+          follows the raw text ──── */}
+      <CollapsibleCard
+        title={
+          <span className="ai-analysis-title">
+            <SparklesIcon size={16} /> {t('decisionDetail.aiAnalysis')}
+            {aiAnalyses.filter(a => a.status === 'COMPLETED').length > 0 && (
+              <span className="ai-analysis-count">
+                {' '}({aiAnalyses.filter(a => a.status === 'COMPLETED').length})
+              </span>
+            )}
+          </span>
+        }
+        subtitle={
+          aiAnalyses.some(a => a.status === 'RUNNING') ? (
+            <span className="ai-analysis-subtitle">{t('decisionDetail.aiSummaryRunning')}</span>
+          ) : null
+        }
+        badge={
+          aiAnalyses.some(a => a.status === 'RUNNING') ? (
+            <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
+          ) : null
+        }
+        defaultOpen={aiAnalyses.filter(a => a.status === 'COMPLETED').length > 0}
+        className="ai-analysis-collapsible"
+      >
+        {/* Model picker + single summarize button — always visible */}
+        <div className="ai-analysis-request-row">
+          <div className="ai-model-picker-row">
+            <ModelDropdown
+              models={models}
+              value={selectedModel}
+              onChange={setSelectedModel}
+              placeholder={t('aiSettings.usePipelineDefault')}
+              t={t}
+            />
+          </div>
+          <button
+            className="document-link ai-summary-retry"
+            onClick={() => handleRequestAISummary(selectedModel || null)}
+            disabled={aiRequesting}
+          >
+            {aiRequesting ? <LoaderIcon className="spinner" size={14} /> : <SparklesIcon size={14} />}
+            {' '}{t('decisionDetail.requestAISummary')}
+          </button>
+        </div>
+
+        {/* Running analyses */}
+        {aiAnalyses.filter(a => a.status === 'RUNNING').map((a, i) => (
+          <div key={`running-${i}`} className="ai-summary-item ai-summary-item--running">
+            <div className="ai-summary-item-header">
+              <span className="ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
+              <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+            </div>
+            <p className="ai-summary-item-status">{t('decisionDetail.aiSummaryRunning')}</p>
+          </div>
+        ))}
+
+        {/* Completed analyses — click header to expand/collapse */}
+        {aiAnalyses.filter(a => a.status === 'COMPLETED').map((a, i) => {
+          const key = a.id || i;
+          const expanded = expandedSummaries[key];
+          return (
+            <div key={key} className="ai-summary-item">
+              <div
+                className="ai-summary-item-header ai-summary-item-header--clickable"
+                onClick={() => toggleSummary(key)}
+                title={expanded ? t('decisionCard.collapse') : t('decisionCard.expand')}
+              >
+                <span className="ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
+                <span className="ai-summary-item-cost">
+                  {a.cost_usd && `$${a.cost_usd}`}
+                  {a.completed_at && ` · ${formatDate(a.completed_at)}`}
+                  <span className="ai-summary-chevron">{expanded ? '▴' : '▾'}</span>
+                </span>
+              </div>
+              {expanded && (
+                <div className="ai-summary-text">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {a.summary}
+                  </ReactMarkdown>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Failed analyses — show error, no retry (pick model again from dropdown to retry) */}
+        {aiAnalyses.filter(a => a.status === 'FAILED').map((a, i) => (
+          <div key={`failed-${i}`} className="ai-summary-item ai-summary-item--failed">
+            <div className="ai-summary-item-header">
+              <span className="ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
+              <AlertIcon size={14} />
+            </div>
+            <p className="ai-summary-item-error">{a.error_message || t('decisionDetail.aiSummaryFailed')}</p>
+          </div>
+        ))}
+
+        {/* No summaries yet */}
+        {aiAnalyses.length === 0 && (
+          <div className="ai-summary-placeholder">
+            <SparklesIcon size={28} />
+            <p>{t('decisionDetail.aiAnalysisDescription')}</p>
+          </div>
+        )}
+      </CollapsibleCard>
+
+      {/* Organizational Context — stat cards (Organization / Signers / Units) */}
+      <div className="section-block">
+        <h3 className="section-heading">
+          <OrganizationIcon size={20} /> {t('decisionDetail.organizationalContext')}
+        </h3>
+        <div className="statistics-grid decision-org-grid">
+          {decision.organization && (
+            <div className="stat-card">
+              <h3 className="stat-title">
+                <OrganizationIcon size={16} /> {t('decisionDetail.organizationLabel')}
+              </h3>
+              <div className="org-card-values">
                 <button
-                  key={signer.uid}
-                  className="clickable-entity signer-card"
-                  onClick={() => navigate(`/entity/signer/${signer.uid}`)}
-                  title={t('decisionDetail.viewSignerDetails')}
+                  className="org-card-link"
+                  onClick={() => navigate(`/entity/organization/${decision.organization.uid}`)}
+                  title={t('decisionDetail.viewOrganizationDetails')}
                 >
-                  <UserIcon size={16} /> {signer.first_name} {signer.last_name}
+                  {decision.organization.label}
                 </button>
-              ))}
+              </div>
+              <button
+                className="org-chart-link"
+                onClick={() => navigate(`/organizations?uid=${decision.organization.uid}`)}
+                title={t('decisionDetail.viewOrganizationChart')}
+              >
+                <ChartIcon size={14} /> {t('decisionDetail.viewOrgChart')}
+              </button>
             </div>
-          </div>
-        )}
+          )}
 
-        {decision.units && decision.units.length > 0 && (
-          <div className="units-section">
-            <h4><OrganizationIcon size={18} /> {t('decisionDetail.organizationalUnits', { count: decision.units.length })}</h4>
-            <div className="units-list">
-              {decision.units.map(unit => (
-                <button
-                  key={unit.uid}
-                  className="clickable-entity unit-tag"
-                  onClick={() => navigate(`/entity/unit/${unit.uid}`)}
-                  title={t('decisionDetail.viewUnitDetails')}
-                >
-                  <OrganizationIcon size={16} /> {unit.label}
-                </button>
-              ))}
+          {decision.signers && decision.signers.length > 0 && (
+            <div className="stat-card">
+              <h3 className="stat-title">
+                <UsersIcon size={16} /> {t('decisionDetail.signersLabel')}
+              </h3>
+              <div className="org-card-values">
+                {decision.signers.map(signer => (
+                  <button
+                    key={signer.uid}
+                    className="org-card-link"
+                    onClick={() => navigate(`/entity/signer/${signer.uid}`)}
+                    title={t('decisionDetail.viewSignerDetails')}
+                  >
+                    <UserIcon size={14} /> {signer.first_name} {signer.last_name}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+
+          {decision.units && decision.units.length > 0 && (
+            <div className="stat-card">
+              <h3 className="stat-title">
+                <OrganizationIcon size={16} /> {t('decisionDetail.unitsLabel')}
+              </h3>
+              <div className="org-card-values">
+                {decision.units.map(unit => (
+                  <button
+                    key={unit.uid}
+                    className="org-card-link"
+                    onClick={() => navigate(`/entity/unit/${unit.uid}`)}
+                    title={t('decisionDetail.viewUnitDetails')}
+                  >
+                    {unit.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Entity Relationships */}
       {entityRelationships && entityRelationships.length > 0 && (
-        <div className="entities-section">
-          <h3><LinkIcon size={20} /> {t('decisionDetail.relatedEntities')}</h3>
+        <div className="section-block entities-section">
+          <h3 className="section-heading">
+            <LinkIcon size={20} /> {t('decisionDetail.relatedEntities')}
+          </h3>
           <p className="section-description">
             {t('decisionDetail.relatedEntitiesDescription')}
           </p>
@@ -290,71 +955,102 @@ const DecisionDetailPage = () => {
             showCompanies={false}
           />
         </div>
-    )}
+      )}
 
-      {/* Document Section */}
-      <div className="document-section">
-        <h3><FileIcon size={20} /> {t('decisionDetail.documents')}</h3>
+      {/* Documents — uniform action pills */}
+      <div className="section-block document-section">
+        <h3 className="section-heading">
+          <FileIcon size={20} /> {t('decisionDetail.documents')}
+        </h3>
 
         <div className="document-actions">
-          {decision.document_url && (
+          {decision.diavgeia_doc_url && (
             <button
-              className="document-link primary-doc"
-              onClick={() => window.open(decision.document_url, '_blank')}
+              className="document-link"
+              onClick={() => window.open(decision.diavgeia_doc_url, '_blank')}
               title={t('decisionDetail.viewOriginalDocumentTooltip')}
             >
-              <FileIcon size={16} /> {t('decisionDetail.viewOriginalDocument')}
+              <EyeIcon size={15} /> {t('decisionDetail.viewDocument')}
             </button>
           )}
 
-          <button
-            className="document-link extracted-content"
-            onClick={handleViewDocumentContent}
-            title={t('decisionDetail.viewExtractedContentTooltip')}
-          >
-            <BookOpenIcon size={16} /> {t('decisionDetail.viewExtractedContent')}
-          </button>
-
-          {decision.url && (
+          {decision.document_url && (
             <button
-              className="document-link diavgeia-link"
-              onClick={() => window.open(decision.url, '_blank')}
+              className="document-link"
+              onClick={() => window.open(decision.document_url, '_blank')}
+              title={t('decisionDetail.downloadDocumentTooltip')}
+            >
+              <DownloadIcon size={15} /> {t('decisionDetail.downloadDocument')}
+            </button>
+          )}
+
+          {decision.diavgeia_page_url && (
+            <button
+              className="document-link"
+              onClick={() => window.open(decision.diavgeia_page_url, '_blank')}
               title={t('decisionDetail.viewOnDiavgeiaTooltip')}
             >
-              <GlobeIcon size={16} /> {t('decisionDetail.viewOnDiavgeia')}
+              <GlobeIcon size={15} /> {t('decisionDetail.viewOnDiavgeia')}
             </button>
           )}
         </div>
 
         {decision.attachments && decision.attachments.length > 0 && (
           <div className="attachments-list">
-            <h4><PaperclipIcon size={18} /> {t('decisionDetail.attachments', { count: decision.attachments.length })}</h4>
-            {decision.attachments.map((attachment, index) => (
-              <div key={index} className="attachment-item">
-                <span className="attachment-icon"><PaperclipIcon size={14} /></span>
-                <span className="attachment-name">{attachment.filename}</span>
-                <span className="attachment-type">({attachment.mime_type})</span>
-                {attachment.checksum && (
-                  <span className="attachment-checksum" title={t('decisionDetail.fileChecksum')}>
-                    {attachment.checksum.substring(0, 8)}...
-                  </span>
-                )}
-              </div>
-            ))}
+            <h4><PaperclipIcon size={16} /> {t('decisionDetail.attachments', { count: decision.attachments.length })}</h4>
+            {decision.attachments.map((attachment, index) => {
+              const attachmentUrl = decision.ada && attachment.attachment_id
+                ? `https://diavgeia.gov.gr/luminapi/api/decisions/${decision.ada}/attachments/${attachment.attachment_id}/document`
+                : null;
+              return (
+                <div key={index} className="attachment-item">
+                  <span className="attachment-icon"><PaperclipIcon size={14} /></span>
+                  {attachmentUrl ? (
+                    <a
+                      className="attachment-name attachment-link"
+                      href={attachmentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={t('decisionDetail.downloadAttachmentTooltip', { filename: attachment.filename })}
+                    >
+                      {attachment.filename}
+                    </a>
+                  ) : (
+                    <span className="attachment-name">{attachment.filename}</span>
+                  )}
+                  {attachment.description && (
+                    <span className="attachment-description">{attachment.description}</span>
+                  )}
+                  <span className="attachment-type">({attachment.mime_type})</span>
+                </div>
+              );
+            })}
           </div>
         )}
 
-        {decision.document_checksum && (
-          <div className="document-checksum">
-            <small>{t('decisionDetail.documentChecksum')}: {decision.document_checksum}</small>
-          </div>
+        {(decision.document_checksum || (decision.attachments || []).some(a => a.checksum)) && (
+          <details className="document-debug-details">
+            <summary>{t('decisionDetail.technicalDetails')}</summary>
+            <div className="document-debug-body">
+              {decision.document_checksum && (
+                <p><strong>{t('decisionDetail.documentChecksum')}:</strong> <code>{decision.document_checksum}</code></p>
+              )}
+              {(decision.attachments || []).filter(a => a.checksum).map((a, i) => (
+                <p key={i}>
+                  <strong>{a.filename}:</strong> <code>{a.checksum}</code>
+                </p>
+              ))}
+            </div>
+          </details>
         )}
       </div>
 
       {/* Related Decisions */}
       {relatedDecisions && relatedDecisions.length > 0 && (
-        <div className="related-decisions">
-          <h3><SearchIcon size={20} /> {t('decisionDetail.relatedDecisions')}</h3>
+        <div className="section-block related-decisions">
+          <h3 className="section-heading">
+            <SearchIcon size={20} /> {t('decisionDetail.relatedDecisions')}
+          </h3>
           <p className="section-description">
             {t('decisionDetail.relatedDecisionsDescription')}
           </p>
@@ -368,9 +1064,9 @@ const DecisionDetailPage = () => {
               >
                 <div className="related-header">
                   <span className="related-ada">{related.ada}</span>
-                  {related.amount && (
+                  {related.amount != null && (
                     <span className="related-amount">
-                      €{related.amount.toLocaleString()}
+                      {formatAmount(related.amount)}
                     </span>
                   )}
                 </div>
@@ -381,7 +1077,7 @@ const DecisionDetailPage = () => {
                   }
                 </div>
                 <div className="related-meta">
-                  {new Date(related.issue_date).toLocaleDateString('en-GB')}
+                  {formatDate(related.issue_date)}
                   {related.decision_type && (
                     <span> • {related.decision_type.label}</span>
                   )}
@@ -389,37 +1085,6 @@ const DecisionDetailPage = () => {
               </button>
             ))}
           </div>
-
-          {relatedDecisions.length > 6 && (
-            <div className="related-more">
-              <button
-                className="view-more-related"
-                onClick={() => navigate(`/entity/organization/${decision.organization.uid}`)}
-              >
-                {t('decisionDetail.viewAllFromOrganization')} →
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Debug Info (only in development) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="debug-section">
-          <details>
-            <summary><WrenchIcon size={16} /> {t('decisionDetail.debugInformation')}</summary>
-            <div className="debug-content">
-              <p><strong>{t('decisionDetail.decisionId')}:</strong> {decision.id}</p>
-              <p><strong>ADA:</strong> {decision.ada}</p>
-              <p><strong>{t('decisionDetail.versionId')}:</strong> {decision.version_id}</p>
-              {decision.corrected_version_id && (
-                <p><strong>{t('decisionDetail.correctedVersion')}:</strong> {decision.corrected_version_id}</p>
-              )}
-              {decision.warnings && (
-                <p><strong>{t('decisionDetail.warnings')}:</strong> {decision.warnings}</p>
-              )}
-            </div>
-          </details>
         </div>
       )}
     </div>

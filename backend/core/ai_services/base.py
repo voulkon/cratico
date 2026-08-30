@@ -49,7 +49,7 @@ class BaseLLMProvider(ABC):
         # Validate pricing exists
         pricing = self.cost_estimator.get_pricing(provider_name, model_name)
         if not pricing:
-            logger.warning(
+            logger.debug(
                 f"No pricing found for {provider_name}/{model_name}. "
                 "Cost tracking will be incomplete."
             )
@@ -149,7 +149,7 @@ class BaseLLMProvider(ABC):
         pricing = self.cost_estimator.get_pricing(self.provider_name, self.model_name)
 
         if not pricing:
-            logger.warning(
+            logger.debug(
                 f"No pricing available for {self.provider_name}/{self.model_name}"
             )
             return Decimal("0")
@@ -165,18 +165,32 @@ class BaseLLMProvider(ABC):
         latency_ms: int,
         error: Optional[str] = None,
         metadata: Optional[Dict] = None,
+        cost_from_provider: Optional[Decimal] = None,
     ) -> Dict[str, Any]:
         """
         Create standardized response dictionary.
 
         Internal helper to ensure consistent response format.
+
+        Args:
+            cost_from_provider: When the API response includes a cost field
+                (e.g. OpenRouter's ``usage.cost``), pass it here to use the
+                provider's own cost calculation instead of the local pricing
+                tables.  Falls back to local calculation when ``None``.
         """
-        # Calculate costs
+        # estimated_cost always uses local pricing tables for comparability
         estimated_cost = self.calculate_cost(input_tokens, output_tokens)
-        actual_cost = self.calculate_cost(input_tokens, output_tokens)
+        # actual cost uses the provider's reported value when available,
+        # otherwise falls back to local calculation
+        actual_cost = (
+            cost_from_provider
+            if cost_from_provider is not None
+            else self.calculate_cost(input_tokens, output_tokens)
+        )
 
         response = {
             "success": success,
+            "text": text or "",
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
             "estimated_cost_usd": estimated_cost,
@@ -186,9 +200,6 @@ class BaseLLMProvider(ABC):
             "provider": self.provider_name,
             "is_estimate": False,
         }
-
-        if text is not None:
-            response["text"] = text
 
         if error:
             response["error"] = error

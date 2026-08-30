@@ -19,6 +19,25 @@
   text-align: center;
 }
 
+.hero-brand {
+  /* 3-track grid so the title (middle "auto" column) is EXACTLY centered by
+     the two equal 1fr side columns, while the SVG rides along on its left. */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  column-gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  /* Feeds the LogoGlyph SVG's currentColor so it tracks the palette */
+  color: var(--palette-primary);
+}
+
+/* Anchor the logo glyph to the left edge of the centered wordmark.
+   Default (stretch) would slam the SVG to the far left of its 1fr column;
+   justify-self: end keeps it hugging the wordmark's left side. */
+.hero-brand svg {
+  justify-self: end;
+}
+
 .hero-title {
   font-size: 3.5rem;
   font-weight: var(--font-bold);
@@ -166,6 +185,18 @@
 
 /* ── Responsive Design ──────────────────────────────────────────── */
 @media (max-width: 768px) {
+  /* Collapse the huge right padding — main-area already reserves space
+     for the controls column, so the container only needs a small gutter. */
+  .homepage-container {
+    padding-left: var(--spacing-md);
+    padding-right: var(--spacing-md);
+  }
+
+  /* Compact the card padding so content isn't buried in whitespace. */
+  .data-section {
+    padding: var(--spacing-sm);
+  }
+
   .hero-title {
     font-size: 2.5rem;
   }

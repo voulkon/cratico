@@ -165,7 +165,9 @@ def test_decision_importer_to_defaults(test_organization):
 
 
 # Mark slow if DB interaction is heavy
-@pytest.mark.django_db  # Essential for DB operations
+# transaction=True: import_decisions_in_batches() calls connection.close()
+# between batches, which cannot run inside the default wrapping transaction.
+@pytest.mark.django_db(transaction=True)
 def test_import_decisions_full(
     test_organization, test_signers, test_units, test_act_type
 ):
@@ -299,6 +301,7 @@ from core.fetchers.diavgeia_fetcher import DiavgeiaFetcher
 from core.importers.decisions import DecisionImporter
 from core.models.decisions import Decision
 from core.models.entities import DecisionAmountField, DecisionEntityRelationship
+from core.services.pipeline_orchestrator import DecisionPipelineOrchestrator
 
 
 @pytest.mark.django_db(transaction=True)
@@ -314,21 +317,22 @@ class TestDecisionImporterIntegration(TransactionTestCase):
         """Test that AFM entities and amounts are correctly linked after import."""
 
         # Setup
-        importer = DecisionImporter()
         fetcher = DiavgeiaFetcher()
+        orchestrator = DecisionPipelineOrchestrator()
 
         # Fetch the test decision using centralized ADA
         decision_dto = fetcher.fetch_a_decision(self.TEST_ADA)
 
         assert decision_dto is not None, f"Could not fetch decision {self.TEST_ADA}"
 
-        # Import the decision
-        created_count = importer.import_many([decision_dto])
-        assert created_count == 1
-
-        # Verify the decision was created
-        decision = Decision.objects.get(ada=self.TEST_ADA)
+        # Import + extract entities/amounts via the orchestrator. Entity and amount
+        # extraction moved out of DecisionImporter.import_many into the pipeline
+        # (Stage 0: import, Stage 2: entity+amount extraction).
+        decision = orchestrator._step_import_decision(decision_dto)
         assert decision is not None
+
+        health_check = orchestrator.get_or_create_health_check(decision)
+        orchestrator._step_extract_entities_and_amounts(decision, health_check)
 
         # Check that AFM entities were extracted
         relationships = DecisionEntityRelationship.objects.filter(decision=decision)

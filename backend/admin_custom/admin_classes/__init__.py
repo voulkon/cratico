@@ -8,11 +8,18 @@ from .ai_pricing import (
 from .analytics import (
     APIAnalyticsAdmin,
     DailyTrafficAdmin,
+    EndpointAccessLogAdmin,
     EndpointStatsAdmin,
+    FlaggedIPAdmin,
     ImportJobAdmin,
 )
 from .backup import BackupAdmin
 from .classification_jobs import ClassificationJobAdmin
+from .feedback_jobs import (
+    DiavgeiaFeedbackJobAdmin,
+    DiavgeiaFeedbackJobResultAdmin,
+    DiavgeiaFeedbackReportAdmin,
+)
 from .decisions import (
     AttachmentAdmin,
     DecisionAdmin,
@@ -61,6 +68,8 @@ __all__ = [
     # Analytics admin classes
     "APIAnalyticsAdmin",
     "EndpointStatsAdmin",
+    "EndpointAccessLogAdmin",
+    "FlaggedIPAdmin",
     "DailyTrafficAdmin",
     "ImportJobAdmin",
     # User admin classes

@@ -25,6 +25,7 @@ from .tasks_data_migration import (
     recompute_publish_date_fields_task,
 )
 from .tasks_db_vacuum import vacuum_multiple_tables_task, vacuum_table_task
+from .tasks_decision_ai import extract_decision_text, process_decision_ai, consume_decision_queue
 from .tasks_decisions import (
     collect_results,
     daily_decisions_sync_task,
@@ -65,6 +66,17 @@ from .tasks_import_validation import (
     validate_single_day,
 )
 from .tasks_misc import ping, say_hi, test_tracing
+from .tasks_amount_correction import (
+    correct_single_decision,
+    daily_amount_correction,
+    finalize_amount_correction_job,
+    run_amount_correction_job,
+)
+from .tasks_diavgeia_feedback import (
+    finalize_feedback_job,
+    report_single_decision_feedback,
+    run_feedback_job,
+)
 from .tasks_opensearch import (
     bulk_reindex_missing_documents,
     check_opensearch_sync,
@@ -83,7 +95,8 @@ from .tasks_post_import import (
     compute_entity_rankings,
     warm_analytics_cache,
     warm_single_window,
-    trigger_check_all_subscriptions
+    trigger_check_all_subscriptions,
+    verify_high_value_amounts,
     )
 from .tasks_periodic_validation import periodic_validation_task
 from .tasks_browse import (

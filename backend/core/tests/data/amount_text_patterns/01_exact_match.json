@@ -1,0 +1,9 @@
+{
+  "id": "exact_match",
+  "text_content": "Απόφαση ανάθεσης για την προμήθεια εξοπλισμού συνολικού ποσού 30.000,00 € (τριάντα χιλιάδες ευρώ) με ΦΠΑ.",
+  "db_amounts": ["30000.00"],
+  "expected_status": "completed",
+  "expected_has_discrepancy": false,
+  "expected_verified_amount": "30000.00",
+  "notes": "DB amount appears verbatim in text with Greek formatting (dot thousands, comma decimals)."
+}

@@ -48,8 +48,10 @@ const relationshipsApi = {
    */
   getRelationshipDecisions: async (afm, orgUid, params = {}) => {
     const queryParams = new URLSearchParams({
-      entity_afm: afm,
-      organization_uid: orgUid,
+      source: 'relationship',
+      view: 'decisions',
+      afm,
+      org_uid: orgUid,
       ...params
     });
 
@@ -60,7 +62,7 @@ const relationshipsApi = {
       }
     }
 
-    const response = await apiClient.get(`/explore/decisions-optimized/?${queryParams}`);
+    const response = await apiClient.get(`/decisions/unified/?${queryParams}`);
     return response.data;
   }
 };

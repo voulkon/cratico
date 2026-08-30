@@ -52,6 +52,12 @@ function getFirstLetter(item) {
  * EntityList — alphabetical entity list with infinite scroll,
  * letter-grouped sticky headers, and optional prefix search.
  *
+ * When a prefix query is active, performs progressive criteria
+ * relaxation: first searches with the current letter + type filters,
+ * then drops the letter filter, then drops the type filter —
+ * accumulating results from each phase so exact matches appear first
+ * and broader matches appear below a divider.
+ *
  * Props:
  *   entityType  - 'all' | 'organization' | 'signer' | 'unit' |
  *                 'company' | 'companyperson' | 'afmentity'
@@ -59,6 +65,7 @@ function getFirstLetter(item) {
  *   query       - free-text prefix filter (optional)
  *   sort        - 'asc' | 'desc'
  *   onLettersLoaded - callback(letters[]) — inform parent of available letters
+ *   onLoadingChange - callback(bool) — inform parent when search is in progress
  *   scrollToLetter  - string | null — when set, scroll to this letter's heading
  */
 const EntityList = ({
@@ -67,102 +74,277 @@ const EntityList = ({
   query = null,
   sort = 'asc',
   onLettersLoaded,
+  onLoadingChange,
   scrollToLetter,
 }) => {
   const navigate = useNavigate();
 
-  const [items, setItems] = useState([]);
+  // sections: array of { key, label, items, hasMore, offset, phase }
+  // Each section represents one progressive-search phase's results.
+  const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState(null);
 
-  const offsetRef = useRef(0);
-  const isFirstLoad = useRef(true);
-  const queryRef = useRef(null);
+  const abortControllerRef = useRef(null);
+  const debounceTimerRef = useRef(null);
+  const sectionsRef = useRef([]);
+  const requestIdRef = useRef(0);
 
-  // ── Reset when filters change ──────────────────────────────────
+  // Keep sectionsRef in sync for pagination
   useEffect(() => {
-    setItems([]);
-    setHasMore(true);
+    sectionsRef.current = sections;
+  }, [sections]);
+
+  // Notify parent of loading state (for search-input spinner)
+  useEffect(() => {
+    onLoadingChange?.(loading);
+  }, [loading, onLoadingChange]);
+
+  // ── Build progressive search phases ────────────────────────────
+  // When a prefix query is active, we search in widening circles:
+  //   Phase 1: current type + letter + query  (most specific)
+  //   Phase 2: current type + query           (drop letter)
+  //   Phase 3: all types + query              (drop type filter)
+  // Results from each phase are accumulated so the user sees exact
+  // matches first, then broader matches below a divider.
+  const buildPhases = useCallback((q) => {
+    if (!q || !q.trim()) return null;
+    const trimmed = q.trim();
+    const phases = [{ type: entityType, letter, query: trimmed, label: null }];
+    if (letter) {
+      phases.push({
+        type: entityType,
+        letter: null,
+        query: trimmed,
+        label: 'Results without letter filter',
+      });
+    }
+    if (entityType !== 'all') {
+      phases.push({
+        type: 'all',
+        letter: null,
+        query: trimmed,
+        label: 'Results from all categories',
+      });
+    }
+    return phases;
+  }, [entityType, letter]);
+
+  // ── Fetch a single phase page ─────────────────────────────────
+  const fetchPhasePage = useCallback(
+    async (phase, offset, limit, signal) => {
+      const params = { type: phase.type, sort, offset, limit };
+      if (phase.letter) params.letter = phase.letter;
+      if (phase.query) params.q = phase.query;
+      return await fetchBrowseEntities(params, signal);
+    },
+    [sort]
+  );
+
+  // ── Progressive initial search ────────────────────────────────
+  const performSearch = useCallback(async () => {
+    const myRequestId = ++requestIdRef.current;
+
+    // Abort any in-flight request from a previous search
+    if (abortControllerRef.current) abortControllerRef.current.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    setLoading(true);
     setError(null);
-    offsetRef.current = 0;
-    isFirstLoad.current = true;
-  }, [entityType, letter, query, sort]);
+    setSections([]);
+    sectionsRef.current = [];
 
-  // ── Fetch a page ───────────────────────────────────────────────
-  const fetchPage = useCallback(
-    async (loadMore = false) => {
-      // Prevent duplicate inflight requests
-      if (queryRef.current) return;
-      queryRef.current = true;
+    const phases = buildPhases(query);
 
-      if (!loadMore) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
-      }
-      setError(null);
-
+    // No query → simple single fetch (alphabetical browse)
+    if (!phases) {
       try {
-        const params = {
-          type: entityType,
-          sort,
-          offset: loadMore ? offsetRef.current : 0,
-          limit: 50,
-        };
-        if (letter) params.letter = letter;
-        if (query && query.trim()) params.q = query.trim();
-
-        const data = await fetchBrowseEntities(params);
-
-        if (loadMore) {
-          setItems((prev) => [...prev, ...data.results]);
-        } else {
-          setItems(data.results);
-        }
-
-        setHasMore(data.has_more);
-        offsetRef.current += data.results.length;
-
-        // Notify parent of available letters on first load
-        if (!loadMore && onLettersLoaded && data.available_letters) {
+        const data = await fetchPhasePage(
+          { type: entityType, letter, query: null },
+          0,
+          50,
+          controller.signal
+        );
+        if (myRequestId !== requestIdRef.current) return;
+        const newSections = [
+          {
+            key: 'main',
+            label: null,
+            items: data.results,
+            hasMore: data.has_more,
+            offset: data.results.length,
+            phase: { type: entityType, letter, query: null },
+          },
+        ];
+        setSections(newSections);
+        sectionsRef.current = newSections;
+        if (onLettersLoaded && data.available_letters) {
           onLettersLoaded(data.available_letters);
         }
       } catch (err) {
-        console.error('Browse fetch failed:', err);
-        setError(err.message || 'Failed to load entities');
+        if (myRequestId !== requestIdRef.current) return;
+        if (err?.code !== 'ERR_CANCELED') {
+          console.error('Browse fetch failed:', err);
+          setError(err.message || 'Failed to load entities');
+        }
       } finally {
-        setLoading(false);
-        setLoadingMore(false);
-        queryRef.current = null;
+        if (myRequestId === requestIdRef.current) setLoading(false);
       }
-    },
-    [entityType, letter, query, sort, onLettersLoaded]
-  );
+      return;
+    }
 
-  // Initial load
+    // Progressive: execute phases sequentially, accumulate results
+    const newSections = [];
+    let lettersNotified = false;
+
+    for (let i = 0; i < phases.length; i++) {
+      if (myRequestId !== requestIdRef.current) return;
+      const phase = phases[i];
+
+      try {
+        const data = await fetchPhasePage(phase, 0, 50, controller.signal);
+        if (myRequestId !== requestIdRef.current) return;
+
+        // Notify parent of available letters (once, from first phase)
+        if (!lettersNotified && onLettersLoaded && data.available_letters) {
+          onLettersLoaded(data.available_letters);
+          lettersNotified = true;
+        }
+
+        // Deduplicate against previously accumulated sections
+        const existingIds = new Set();
+        newSections.forEach((s) =>
+          s.items.forEach((item) => existingIds.add(`${item.type}-${item.id}`))
+        );
+        const newItems = data.results.filter(
+          (item) => !existingIds.has(`${item.type}-${item.id}`)
+        );
+
+        if (newItems.length > 0) {
+          newSections.push({
+            key: `phase-${i}`,
+            label: phase.label,
+            items: newItems,
+            hasMore: data.has_more,
+            offset: data.results.length,
+            phase,
+          });
+          setSections([...newSections]);
+          sectionsRef.current = newSections;
+        }
+      } catch (err) {
+        if (myRequestId !== requestIdRef.current) return;
+        if (err?.code !== 'ERR_CANCELED') {
+          console.error('Browse fetch failed:', err);
+          setError(err.message || 'Failed to load entities');
+        }
+        return;
+      }
+    }
+
+    if (myRequestId === requestIdRef.current) setLoading(false);
+  }, [entityType, letter, query, sort, buildPhases, fetchPhasePage, onLettersLoaded]);
+
+  // ── Debounced search trigger ──────────────────────────────────
+  // Debounce only when a query is present (keystroke-driven).
+  // Filter changes (type/letter/sort) fire immediately.
   useEffect(() => {
-    fetchPage(false);
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    if (abortControllerRef.current) abortControllerRef.current.abort();
+
+    debounceTimerRef.current = setTimeout(() => {
+      performSearch();
+    }, query ? 300 : 0);
+
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entityType, letter, query, sort]);
 
-  // ── Infinite scroll ────────────────────────────────────────────
-  const handleLoadMore = useCallback(() => {
-    if (!hasMore || loading || loadingMore) return;
-    fetchPage(true);
-  }, [hasMore, loading, loadingMore, fetchPage]);
+  // ── Cleanup on unmount ────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, []);
+
+  // ── Load more (paginate the last section with hasMore) ────────
+  const handleLoadMore = useCallback(async () => {
+    const currentSections = sectionsRef.current;
+    // Find the last section that still has more results to load
+    let targetIdx = -1;
+    for (let i = currentSections.length - 1; i >= 0; i--) {
+      if (currentSections[i].hasMore) {
+        targetIdx = i;
+        break;
+      }
+    }
+    if (targetIdx === -1) return;
+
+    const myRequestId = requestIdRef.current;
+    const targetSection = currentSections[targetIdx];
+    setLoadingMore(true);
+
+    try {
+      const data = await fetchPhasePage(
+        targetSection.phase,
+        targetSection.offset,
+        50
+      );
+      // Discard if a new search started while we were loading
+      if (myRequestId !== requestIdRef.current) return;
+
+      // Deduplicate against ALL existing items
+      const existingIds = new Set();
+      currentSections.forEach((s) =>
+        s.items.forEach((item) => existingIds.add(`${item.type}-${item.id}`))
+      );
+      const newItems = data.results.filter(
+        (item) => !existingIds.has(`${item.type}-${item.id}`)
+      );
+
+      const updatedSections = [...currentSections];
+      updatedSections[targetIdx] = {
+        ...targetSection,
+        items: [...targetSection.items, ...newItems],
+        hasMore: data.has_more,
+        offset: targetSection.offset + data.results.length,
+      };
+      setSections(updatedSections);
+      sectionsRef.current = updatedSections;
+    } catch (err) {
+      if (err?.code !== 'ERR_CANCELED') {
+        console.error('Load more failed:', err);
+      }
+    } finally {
+      if (myRequestId === requestIdRef.current) setLoadingMore(false);
+    }
+  }, [fetchPhasePage]);
+
+  // ── Derived state ─────────────────────────────────────────────
+  const hasMore = useMemo(
+    () => sections.some((s) => s.hasMore),
+    [sections]
+  );
+  const totalItems = useMemo(
+    () => sections.reduce((sum, s) => sum + s.items.length, 0),
+    [sections]
+  );
 
   const { sentinelRef } = useInfiniteScroll({
     hasMore,
     loading,
     loadingMore,
     onLoadMore: handleLoadMore,
-    enabled: items.length > 0,
+    enabled: totalItems > 0,
   });
 
-  // ── Group by first letter ──────────────────────────────────────
-  const groups = useMemo(() => {
+  // ── Group items by first letter (within a section) ─────────────
+  const groupItems = useCallback((items) => {
     const g = [];
     let currentLetter = null;
     for (const item of items) {
@@ -175,20 +357,19 @@ const EntityList = ({
       }
     }
     return g;
-  }, [items]);
+  }, []);
 
   // ── Scroll to letter ───────────────────────────────────────────
   useEffect(() => {
-    if (!scrollToLetter || items.length === 0) return;
+    if (!scrollToLetter || totalItems === 0) return;
 
-    // Find the heading for this letter
     const el = document.querySelector(
       `[data-letter-heading="${scrollToLetter}"]`
     );
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [scrollToLetter, items]);
+  }, [scrollToLetter, totalItems]);
 
   // ── Render helpers ─────────────────────────────────────────────
   const renderSkeleton = () => (
@@ -206,18 +387,18 @@ const EntityList = ({
   );
 
   // ── Main render ────────────────────────────────────────────────
-  if (loading && !loadingMore) {
+  if (loading && totalItems === 0) {
     return <div className="entity-list">{renderSkeleton()}</div>;
   }
 
-  if (error && items.length === 0) {
+  if (error && totalItems === 0) {
     return (
       <div className="entity-list entity-list--error">
         <div className="entity-list-error">
           <p>{error}</p>
           <button
             className="entity-list-retry-btn"
-            onClick={() => fetchPage(false)}
+            onClick={() => performSearch()}
           >
             Retry
           </button>
@@ -226,7 +407,7 @@ const EntityList = ({
     );
   }
 
-  if (!loading && items.length === 0) {
+  if (!loading && totalItems === 0) {
     return (
       <div className="entity-list entity-list--empty">
         <div className="entity-list-empty">
@@ -243,34 +424,53 @@ const EntityList = ({
 
   return (
     <div className="entity-list">
-      {groups.map((group) => (
-        <div key={group.letter} className="entity-list-group">
-          <div
-            className="entity-list-letter-header"
-            data-letter-heading={group.letter}
-          >
-            {group.letter}
+      {sections.map((section) => {
+        const groups = groupItems(section.items);
+        return (
+          <div key={section.key} className="entity-list-section">
+            {section.label && (
+              <div className="entity-list-section-divider">
+                {section.label}
+              </div>
+            )}
+            {groups.map((group) => (
+              <div key={group.letter} className="entity-list-group">
+                <div
+                  className="entity-list-letter-header"
+                  data-letter-heading={group.letter}
+                >
+                  {group.letter}
+                </div>
+                {group.items.map((item) => (
+                  <div
+                    key={`${item.type}-${item.id}`}
+                    className="entity-list-row"
+                    onClick={() => navigate(getEntityUrl(item))}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') navigate(getEntityUrl(item));
+                    }}
+                  >
+                    <span className="entity-list-row-icon">
+                      {TYPE_ICONS[item.type] || <CompanyIcon size={16} />}
+                    </span>
+                    <span className="entity-list-row-text">{item.text}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
           </div>
+        );
+      })}
 
-          {group.items.map((item) => (
-            <div
-              key={`${item.type}-${item.id}`}
-              className="entity-list-row"
-              onClick={() => navigate(getEntityUrl(item))}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') navigate(getEntityUrl(item));
-              }}
-            >
-              <span className="entity-list-row-icon">
-                {TYPE_ICONS[item.type] || <CompanyIcon size={16} />}
-              </span>
-              <span className="entity-list-row-text">{item.text}</span>
-            </div>
-          ))}
+      {/* "Searching more broadly…" indicator */}
+      {loading && totalItems > 0 && (
+        <div className="entity-list-broadening">
+          <div className="entity-list-spinner" />
+          <span>Searching more broadly…</span>
         </div>
-      ))}
+      )}
 
       {/* Infinite scroll sentinel */}
       <div ref={sentinelRef} className="entity-list-sentinel" />
@@ -282,7 +482,7 @@ const EntityList = ({
         </div>
       )}
 
-      {!hasMore && items.length > 0 && (
+      {!hasMore && !loading && totalItems > 0 && (
         <div className="entity-list-end">— End of results —</div>
       )}
     </div>

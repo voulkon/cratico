@@ -1,15 +1,20 @@
 from core.models.companies import Company
+from core.models.decision_ai_analysis import DecisionAIAnalysis
 from core.models.decisions import Decision
+from core.models.document_analysis import DocumentExtraction, ProcessingStatus
 from core.models.entities import DecisionEntityRelationship
+from core.schemas.decision_detail import DecisionDetailResponse
+from core.services.decision_facets import effective_linked_amount_sum
+from api.utils.response import pydantic_response
 from django.conf import settings
-from django.db.models import Count, F, Q, Sum
+from django.db.models import Count, F, Q
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from api.permissions import PublicReadOnly
 from rest_framework.response import Response
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([PublicReadOnly])
 def decision_detail(request, decision_id):
     """Get detailed decision information with all relationships."""
     try:
@@ -18,6 +23,40 @@ def decision_detail(request, decision_id):
             .prefetch_related("signers", "units", "kae_amounts", "attachments")
             .get(id=decision_id)
         )  # Using integer ID
+
+        # Document content availability (so the frontend can decide whether to
+        # show the "view extracted content" action or a "request extraction" CTA).
+        has_document_content = False
+        try:
+            extraction = DocumentExtraction.objects.get(decision=decision)
+            has_document_content = (
+                extraction.extraction_status == ProcessingStatus.COMPLETED
+                and bool(extraction.raw_text)
+            )
+        except DocumentExtraction.DoesNotExist:
+            has_document_content = False
+
+        # AI analyses — all completed, newest first
+        ai_analyses_data = []
+        try:
+            ai_analyses = (
+                DecisionAIAnalysis.objects
+                .filter(decision=decision, status="COMPLETED")
+                .exclude(summary="")
+                .order_by("-created_at")
+            )
+            for ai in ai_analyses:
+                ai_analyses_data.append({
+                    "id": ai.id,
+                    "status": ai.status,
+                    "summary": ai.summary,
+                    "cost_usd": str(ai.cost_usd) if ai.cost_usd else None,
+                    "model_used": ai.model_used,
+                    "completed_at": ai.completed_at,
+                    "error_message": ai.error_message,
+                })
+        except DecisionAIAnalysis.DoesNotExist:
+            ai_analyses_data = []
 
         # Serialize decision data
         decision_data = {
@@ -39,6 +78,20 @@ def decision_detail(request, decision_id):
             "document_url": decision.document_url,
             "document_checksum": decision.document_checksum,
             "url": decision.url,
+            # User-friendly Diavgeia page (matches DecisionCard) instead of the
+            # raw luminapi JSON endpoint.
+            "diavgeia_page_url": (
+                f"https://diavgeia.gov.gr/decision/view/{decision.ada}"
+                if decision.ada
+                else None
+            ),
+            "diavgeia_doc_url": (
+                f"https://diavgeia.gov.gr/doc/{decision.ada}?inline=true"
+                if decision.ada
+                else None
+            ),
+            "has_document_content": has_document_content,
+            "ai_analyses": ai_analyses_data,
             "warnings": decision.warnings,
             "has_private_data": decision.has_private_data,
             "organization": (
@@ -96,7 +149,35 @@ def decision_detail(request, decision_id):
             "thematic_category_ids": decision.thematic_category_ids,
         }
 
-        return Response(decision_data)
+        # Amount-correction state — powers the "verify amount" button and
+        # surfaces the corrected (verified) total.  Once any amount field has
+        # been verified/corrected, the effective total sums
+        # COALESCE(verified_amount, amount) so partially-corrected decisions
+        # still report the full true total (not just the corrected subset).
+        from core.models.entities import DecisionAmountField
+        from core.services.decision_facets import effective_amount_sum_excluding_kae
+
+        has_corrected = DecisionAmountField.objects.filter(
+            decision=decision, verified_amount__isnull=False
+        ).exists()
+
+        corrected_total = None
+        if has_corrected:
+            corrected_total = (
+                Decision.objects.filter(pk=decision.pk)
+                .annotate(total=effective_amount_sum_excluding_kae())
+                .values_list("total", flat=True)
+                .first()
+            )
+
+        decision_data["has_corrected_amounts"] = has_corrected
+        decision_data["corrected_amount"] = (
+            float(corrected_total)
+            if has_corrected and corrected_total is not None
+            else None
+        )
+
+        return pydantic_response(DecisionDetailResponse(**decision_data))
 
     except Decision.DoesNotExist:
         return Response({"error": "Decision not found"}, status=404)
@@ -105,7 +186,7 @@ def decision_detail(request, decision_id):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([PublicReadOnly])
 def decision_entities(request, decision_id):
     """
     Return entity relationships for a decision with the **total amount per entity**
@@ -124,7 +205,7 @@ def decision_entities(request, decision_id):
         DecisionEntityRelationship.objects.filter(decision_id=decision_id)
         .values("role", "entity")  # GROUP BY role, entity
         .annotate(
-            total_amount=Sum("linked_amounts__amount"),
+            total_amount=effective_linked_amount_sum(),
             occurrences=Count("id"),
             currency=F("linked_amounts__currency"),  # pick first currency
         )
@@ -204,7 +285,7 @@ def decision_entities(request, decision_id):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([PublicReadOnly])
 def decision_companies(request, decision_id):
     """Get all companies associated with a decision."""
     try:
@@ -318,7 +399,7 @@ def decision_companies(request, decision_id):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny if settings.DEBUG else IsAuthenticated])
+@permission_classes([PublicReadOnly])
 def decision_related(request, decision_id):
     """Get related decisions based on organization, amount, type, etc."""
     try:

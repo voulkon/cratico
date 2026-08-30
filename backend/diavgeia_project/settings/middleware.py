@@ -8,6 +8,7 @@ from .base import ENABLE_SILK
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # Serve static files in production (must be right after SecurityMiddleware)
     "corsheaders.middleware.CorsMiddleware",  # Must be placed as high as possible to handle CORS on all responses
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -19,5 +20,6 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "api.middleware.rate_limit.RateLimitMiddleware",
     "api.middleware.security.SecurityMonitoringMiddleware",
+    "api.middleware.security_monitoring.SecurityMonitoringResponseMiddleware",  # Response-side threat detection + forensic logging
     "csp.middleware.CSPMiddleware",
 ]

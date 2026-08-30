@@ -7,35 +7,52 @@ from core.models.decisions import Decision
 from core.models.organizations import Organization, Signer
 from core.tests.utils import create_decision_dto
 from diavgeia_api.models.decisions import Decision as DecisionDTO
+from diavgeia_api.models.organizations import Organization as OrganizationDTO
+from diavgeia_api.models.organizations import Signer as SignerDTO
 
 
 @pytest.fixture
-def mock_diavgeia_fetcher():
+def mock_diavgeia_fetcher(db):
     """Mock the DiavgeiaFetcher to return controlled test data."""
+    # Pre-create the decision's own organization so the importer does not try
+    # to fetch it from the (mocked) API - these tests target the *signer's*
+    # missing organization dependency.
+    Organization.objects.get_or_create(
+        uid="100054486",
+        defaults={
+            "label": "ΥΠΟΥΡΓΕΙΟ ΨΗΦΙΑΚΗΣ ΔΙΑΚΥΒΕΡΝΗΣΗΣ",
+            "latin_name": "min_digital",
+            "status": "active",
+            "category": "MINISTRY",
+        },
+    )
+
     with patch("core.importers.decisions.DiavgeiaFetcher") as mock_fetcher_cls:
         # Create the mock instance
         mock_fetcher = MagicMock()
         mock_fetcher_cls.return_value = mock_fetcher
 
-        # Configure mock responses
         # 1. Mock the inactive organization (100054498)
-        org_dto = MagicMock()
-        org_dto.uid = "100054498"
-        org_dto.label = "ΥΠΟΥΡΓΕΙΟ ΕΡΓΑΣΙΑΣ ΚΑΙ ΚΟΙΝΩΝΙΚΩΝ ΥΠΟΘΕΣΕΩΝ"
-        org_dto.latinName = "min_erky"
-        org_dto.status = "inactive"
-        org_dto.category = "MINISTRY"
-        org_dto.vatNumber = "011111111"
+        org_dto = OrganizationDTO(
+            uid="100054498",
+            label="ΥΠΟΥΡΓΕΙΟ ΕΡΓΑΣΙΑΣ ΚΑΙ ΚΟΙΝΩΝΙΚΩΝ ΥΠΟΘΕΣΕΩΝ",
+            latinName="min_erky",
+            status="inactive",
+            category="MINISTRY",
+            vatNumber="011111111",
+        )
         mock_fetcher.fetch_an_organization.return_value = org_dto
 
         # 2. Mock the signer (100063912)
-        signer_dto = MagicMock()
-        signer_dto.uid = "100063912"
-        signer_dto.firstName = "ΚΩΝΣΤΑΝΤΙΝΟΣ"
-        signer_dto.lastName = "ΧΑΤΖΗΔΑΚΗΣ"
-        signer_dto.active = False
-        signer_dto.organizationId = "100054498"  # References the inactive org
-        signer_dto.hasOrganizationSignRights = True
+        signer_dto = SignerDTO(
+            uid="100063912",
+            firstName="ΚΩΝΣΤΑΝΤΙΝΟΣ",
+            lastName="ΧΑΤΖΗΔΑΚΗΣ",
+            active=False,
+            organizationId="100054498",  # References the inactive org
+            hasOrganizationSignRights=True,
+            units=[],
+        )
         mock_fetcher.fetch_a_signer.return_value = signer_dto
 
         yield mock_fetcher
@@ -57,11 +74,12 @@ def test_fetch_decision_with_missing_org_dependency(mock_diavgeia_fetcher):
 
     # 1. Create the decision DTO with a signer that references a non-existent org
     decision_dto = create_decision_dto(
-        ada="MISSING_ORG_TEST",
+        ada="MISS_ORG_TEST",
         org_id="100054486",  # The decision's organization
         signer_ids=[
             "100063912"
         ],  # This signer references org 100054498 which doesn't exist yet
+        unit_ids=[],
         subject="Test Decision With Missing Org Dependency",
     )
 
@@ -89,7 +107,7 @@ def test_fetch_decision_with_missing_org_dependency(mock_diavgeia_fetcher):
     assert signer.first().organization.uid == "100054498"
 
     # 7. Verify the decision was created with the correct signer
-    decision = Decision.objects.get(ada="MISSING_ORG_TEST")
+    decision = Decision.objects.get(ada="MISS_ORG_TEST")
     assert "100063912" in [s.uid for s in decision.signers.all()]
 
     # 8. Verify the fetch methods were called correctly
@@ -108,6 +126,7 @@ def test_org_cache_prevents_duplicate_fetches(mock_diavgeia_fetcher):
         ada="CACHE_TEST_1",
         org_id="100054486",
         signer_ids=["100063912"],
+        unit_ids=[],
         subject="First Test Decision",
     )
 
@@ -115,6 +134,7 @@ def test_org_cache_prevents_duplicate_fetches(mock_diavgeia_fetcher):
         ada="CACHE_TEST_2",
         org_id="100054486",
         signer_ids=["100063912"],  # Same signer, should reuse cached org info
+        unit_ids=[],
         subject="Second Test Decision",
     )
 
@@ -145,9 +165,10 @@ def test_placeholder_creation_when_org_unfetchable(mock_diavgeia_fetcher):
 
     # 1. Create a decision with a signer whose org can't be fetched
     decision_dto = create_decision_dto(
-        ada="UNFETCHABLE_ORG_TEST",
+        ada="UNFETCH_TEST",
         org_id="100054486",
         signer_ids=["100063912"],
+        unit_ids=[],
         subject="Test with Unfetchable Org",
     )
 
@@ -159,7 +180,7 @@ def test_placeholder_creation_when_org_unfetchable(mock_diavgeia_fetcher):
 
     # 4. Verify a placeholder org was created
     org = Organization.objects.get(uid="100054498")
-    assert org.name.startswith("Unknown Organization")
+    assert org.label.startswith("Unknown Organization")
     assert org.status == "UNKNOWN"
     assert org.category == "UNKNOWN"
 

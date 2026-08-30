@@ -91,11 +91,10 @@ class SecurityTracer:
 security_tracer = SecurityTracer()
 
 
-# Helper function to get client IP, considering proxies
+# Helper function to get client IP, considering proxies.
+# Delegates to the canonical resolver in api.utils.ip so that Cloudflare's
+# CF-Connecting-IP header is respected when present.
 def get_client_ip(request):
-    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-    if x_forwarded_for:
-        ip = x_forwarded_for.split(",")[0]
-    else:
-        ip = request.META.get("REMOTE_ADDR")
-    return ip
+    from api.utils.ip import get_client_ip as _resolve
+
+    return _resolve(request)

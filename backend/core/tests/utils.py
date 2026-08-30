@@ -126,6 +126,7 @@ def create_decision_dto(
     org_id: str = "org_test_1",  # Use predictable IDs for tests
     signer_ids: Optional[List[str]] = None,
     unit_ids: Optional[List[str]] = None,
+    subject: Optional[str] = None,
     num_attachments: int = 1,
     extra_fields_config: Optional[Dict[str, Any]] = None,
     extra_attributes: Optional[Dict[str, Any]] = None,
@@ -138,6 +139,7 @@ def create_decision_dto(
         org_id: The organization ID string (must exist in test DB).
         signer_ids: List of signer ID strings (must exist in test DB).
         unit_ids: List of unit ID strings (must exist in test DB).
+        subject: The decision subject, or a random sentence if None.
         num_attachments: How many attachment DTOs to generate.
         extra_fields_config: Dict to configure ExtraFieldValuesDTO generation
                              (e.g., {'has_amount': True, 'num_kae': 2}).
@@ -169,7 +171,7 @@ def create_decision_dto(
     # Create base decision DTO
     decision_data = {
         "protocolNumber": f"PROTO-{randint(1000, 9999)}",
-        "subject": faker.sentence(nb_words=10),
+        "subject": subject if subject is not None else faker.sentence(nb_words=10),
         "issueDate": issue_date,
         "organizationId": org_id,
         "signerIds": signer_ids,

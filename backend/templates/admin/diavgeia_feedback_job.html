@@ -1,0 +1,83 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block extrahead %}
+  {{ block.super }}
+  {% if job.is_active %}
+    <meta http-equiv="refresh" content="4">
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <h1>
+    📮 Feedback Job
+    <code style="font-size:14px;">{{ job.job_id }}</code>
+  </h1>
+
+  <p>
+    <strong>Status:</strong>
+    {% if job.status == 'completed' %}<span style="color:var(--body-loud-color);">✓ completed</span>
+    {% elif job.status == 'failed' %}<span style="color:var(--body-loud-color);">✗ failed</span>
+    {% elif job.status == 'running' %}<span style="color:var(--body-loud-color);">▶ running…</span>
+    {% else %}{{ job.status }}{% endif %}
+    &nbsp;·&nbsp; reporter <code>{{ job.reporter_email|default:"(configured default)" }}</code>
+    &nbsp;·&nbsp; errors <code>{{ job.feedback_errors|join:", "|default:"FE_1" }}</code>
+    &nbsp;·&nbsp; {% if job.dry_run %}dry-run{% else %}sending reports{% endif %}
+  </p>
+
+  {% if job.is_active %}
+  <p style="color:var(--body-quiet-color);"><em>Page refreshes automatically every 4s while running.</em></p>
+  {% endif %}
+
+  <!-- Progress bar -->
+  <div style="background:var(--darkened-bg);border-radius:6px;overflow:hidden;height:26px;margin:12px 0;max-width:640px;">
+    <div style="background:var(--primary);height:100%;width:{{ job.progress_percentage }}%;
+                color:var(--primary-fg);text-align:center;line-height:26px;font-size:13px;">
+      {{ job.processed_count }}/{{ job.total_candidates }}
+    </div>
+  </div>
+
+  <div style="background:var(--darkened-bg);border:1px solid var(--border-color);border-radius:6px;padding:14px;margin-bottom:18px;max-width:640px;">
+    <strong style="color:var(--body-loud-color);">{{ job.reported }} reported</strong> ·
+    {{ job.already_reported }} already reported ·
+    {{ job.skipped }} skipped ·
+    <strong style="color:var(--body-loud-color);">{{ job.errors }} errors</strong>
+    {% if job.last_error %}<div style="color:var(--body-loud-color);margin-top:6px;">{{ job.last_error }}</div>{% endif %}
+  </div>
+
+  {% if results %}
+  <table style="width:100%;border-collapse:collapse;">
+    <thead>
+      <tr style="background:var(--primary);color:var(--primary-fg);text-align:left;">
+        <th style="padding:8px;">ADA</th>
+        <th style="padding:8px;">Subject</th>
+        <th style="padding:8px;">Status</th>
+        <th style="padding:8px;">Reference / response</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in results %}
+      <tr style="border-bottom:1px solid var(--border-color);{% if r.status == 'reported' or r.status == 'would_report' %}background:var(--message-success-bg);{% elif r.status == 'error' %}background:var(--message-error-bg);{% endif %}">
+        <td style="padding:8px;white-space:nowrap;"><code>{{ r.ada }}</code></td>
+        <td style="padding:8px;max-width:260px;">{{ r.subject|truncatewords:12 }}</td>
+        <td style="padding:8px;">{{ r.status }}{% if r.reason %}<div style="font-size:11px;color:var(--body-quiet-color);">{{ r.reason }}</div>{% endif %}</td>
+        <td style="padding:8px;">
+          {% if r.reference %}<code>{{ r.reference }}</code>{% endif %}
+          {% if r.response %}<div style="font-size:11px;color:var(--body-quiet-color);max-width:420px;word-break:break-word;">{{ r.response|truncatechars:180 }}</div>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <div style="margin-top:20px;">
+    <a href="../../" class="button">← Decision list</a>
+    <a href="../../feedback-pool/" class="button" style="margin-left:8px;">Feedback pool</a>
+    <a href="../../feedback-batch/" class="button" style="margin-left:8px;">New feedback job</a>
+  </div>
+</div>
+{% endblock %}

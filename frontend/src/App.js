@@ -10,6 +10,8 @@ import AFMEntityDetailPage from "./pages/AFMEntityDetailPage";
 import RelationshipDetailPage from "./pages/RelationshipDetailPage";
 import NotificationBatchDetailPage from "./pages/NotificationBatchDetailPage";
 import SubscriptionHistoryPage from "./pages/SubscriptionHistoryPage";
+import AISettingsPage from "./pages/AISettingsPage";
+import AIInteractionsPage from "./pages/AIInteractionsPage";
 import SearchResults from "./pages/SearchResults";
 import SuperSearchExample from "./pages/SuperSearchExample";
 import LibraryPage from "./pages/LibraryPage";
@@ -200,7 +202,7 @@ function AuthenticatedApp({ controlsLayout }) {
 
       {/* Main content — right padding reserves space so content never slides under controls */}
       <div
-        className={`main-area${isCollapsed ? ' controls-collapsed' : ''}`}
+        className={`main-area layout-${controlsLayout}${isCollapsed ? ' controls-collapsed' : ''}`}
         style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}
       >
         {/* Top spacer clears the fixed logo on non-home pages */}
@@ -230,6 +232,8 @@ function AuthenticatedApp({ controlsLayout }) {
             <Route path="/relationship/entity/:afm/org/:orgUid" element={<RelationshipDetailPage />} />
             <Route path="/batch/:batchId" element={<NotificationBatchDetailPage />} />
             <Route path="/notifications/subscriptions/:subscriptionId/history" element={<SubscriptionHistoryPage />} />
+            <Route path="/ai/settings" element={<AISettingsPage />} />
+            <Route path="/ai/interactions" element={<AIInteractionsPage />} />            
             <Route path="/reset-password" element={<PasswordResetPage />} />
             <Route path="/legal/:type" element={<LegalPage />} />
           </Routes>

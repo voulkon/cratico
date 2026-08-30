@@ -1,16 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { getNotificationBatch, getBatchDecisions, markBatchRead } from '../api/notifications';
+import { getBatchSummary, summarizeBatch } from '../api/aiApi';
 import apiClient from '../api/client';
 import { formatAmount } from '../utils/dateUtils';
 import './NotificationBatchDetailPage.css';
 
 // Import shared components
 import DecisionList from '../components/DecisionList';
-import SortControl from '../components/SortControl';
+import DecisionsToolbar from '../components/DecisionsToolbar';
 import BatchMetadataHeader from '../components/BatchMetadataHeader';
+import AISummaryCard from '../components/AISummaryCard';
+import TopBarSlot from '../components/TopBarSlot';
 import { ChartIcon } from '../components/Icons';
 
 /**
@@ -33,6 +36,10 @@ const NotificationBatchDetailPage = () => {
   // Filters
   const [sortBy, setSortBy] = useState('recent');
   const [isViewedFilter, setIsViewedFilter] = useState(null); // null, true, or false
+
+  // AI Summary state
+  const [aiSummary, setAiSummary] = useState(null);
+  const [aiSummaryTriggering, setAiSummaryTriggering] = useState(false);
 
   // Fetch batch data
   useEffect(() => {
@@ -108,6 +115,45 @@ const NotificationBatchDetailPage = () => {
     }
   };
 
+  // AI Summary: single poller — fetches status, re-polls every 5s while RUNNING
+  const pollTimerRef = useRef(null);
+
+  const pollSummary = useCallback(async () => {
+    if (!batchId) return;
+    try {
+      const data = await getBatchSummary(batchId);
+      setAiSummary(data);
+      if (data.status === 'RUNNING') {
+        pollTimerRef.current = setTimeout(pollSummary, 5000);
+      }
+    } catch (err) {
+      // Summary endpoint might not be available — ignore
+    }
+  }, [batchId]);
+
+  useEffect(() => {
+    pollSummary();
+    return () => {
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+    };
+  }, [pollSummary]);
+
+  // AI Summary: trigger summarization
+  const handleSummarize = async () => {
+    setAiSummaryTriggering(true);
+    try {
+      await summarizeBatch(batchId);
+      setAiSummary(prev => ({ ...prev, status: 'RUNNING' }));
+      // Kick the poller (it self-perpetuates while RUNNING)
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = setTimeout(pollSummary, 3000);
+    } catch (err) {
+      console.error('Failed to trigger summarization:', err);
+    } finally {
+      setAiSummaryTriggering(false);
+    }
+  };
+
   // Format date helper
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -163,6 +209,23 @@ const NotificationBatchDetailPage = () => {
 
   return (
     <div className="notification-batch-detail-page">
+      {/* Compact batch info rendered into the fixed top bar */}
+      <TopBarSlot>
+        <div className="batch-header-topbar">
+          <span className="batch-title-topbar">
+            {t('notifications.batch')} #{batchId}
+          </span>
+          {batch.subscription && (
+            <>
+              <span className="batch-topbar-sep">·</span>
+              <span className="batch-subscription-topbar">
+                {batch.subscription.alias || batch.subscription.organization_label || `#${batch.subscription.id}`}
+              </span>
+            </>
+          )}
+        </div>
+      </TopBarSlot>
+
       {/* Breadcrumb */}
       <nav className="breadcrumb">
         <button onClick={() => navigate('/notifications')} className="breadcrumb-link">
@@ -198,54 +261,41 @@ const NotificationBatchDetailPage = () => {
         </div>
       )}
 
-      {/* Decisions Section Header + Controls */}
-      <div className="decisions-header">
-        <h3 className="decisions-title">
-          {t('notifications.decisions', 'Decisions')}{' '}
-          <span className="count-badge">{(pagination?.total_count || 0).toLocaleString()}</span>
-        </h3>
-        <div className="controls-container">
-          <div className="viewed-filter">
-            <label htmlFor="viewed-filter" className="sort-label">Filter:</label>
-            <select
-              id="viewed-filter"
-              className="sort-select"
-              value={isViewedFilter === null ? 'all' : isViewedFilter.toString()}
-              onChange={(e) => {
-                const value = e.target.value;
-                if (value === 'all') {
-                  setIsViewedFilter(null);
-                } else {
-                  setIsViewedFilter(value === 'true');
-                }
-              }}
-            >
-              <option value="all">All Decisions</option>
-              <option value="false">Unviewed Only</option>
-              <option value="true">Viewed Only</option>
-            </select>
-          </div>
-          <SortControl sortBy={sortBy} onSortChange={setSortBy} />
-        </div>
-      </div>
-
-      {/* Decision List */}
-      <DecisionList
-        decisions={decisions.map(bd => ({
-          ...bd.decision,
-          _batchDecisionId: bd.id,
-          _isViewed: bd.is_viewed,
-        }))}
-        loading={loading}
-        loadingMore={loadingMore}
-        pagination={pagination}
-        formatAmount={formatAmount}
-        onViewDocumentContent={handleViewDocumentContent}
-        onLoadMore={handleLoadMore}
-        emptyMessage={t('notifications.noDecisionsInBatch')}
-        infiniteScroll={true}
-        getDecisionKey={(d) => `batch-${batchId}-${d._batchDecisionId || d.id}`}
+      {/* AI Summary Card */}
+      <AISummaryCard
+        summary={aiSummary}
+        onGenerate={handleSummarize}
+        triggering={aiSummaryTriggering}
       />
+
+      {/* Decisions Section */}
+      <DecisionsToolbar
+        title={t('notifications.decisions', 'Decisions')}
+        totalCount={pagination?.total_count}
+        viewedFilter={isViewedFilter}
+        onViewedFilterChange={setIsViewedFilter}
+        sortBy={sortBy}
+        onSortChange={setSortBy}
+        sortVariant="simple"
+        pagination={pagination}
+      >
+        <DecisionList
+          decisions={decisions.map(bd => ({
+            ...bd.decision,
+            _batchDecisionId: bd.id,
+            _isViewed: bd.is_viewed,
+          }))}
+          loading={loading}
+          loadingMore={loadingMore}
+          pagination={pagination}
+          formatAmount={formatAmount}
+          onViewDocumentContent={handleViewDocumentContent}
+          onLoadMore={handleLoadMore}
+          emptyMessage={t('notifications.noDecisionsInBatch')}
+          infiniteScroll={true}
+          getDecisionKey={(d) => `batch-${batchId}-${d._batchDecisionId || d.id}`}
+        />
+      </DecisionsToolbar>
     </div>
   );
 };

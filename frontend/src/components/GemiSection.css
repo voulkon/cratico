@@ -1,51 +1,7 @@
-.gemi-section {
-  margin-top: var(--spacing-xxxl);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background-color: var(--card-bg);
-  box-shadow: 0 2px 8px var(--shadow);
-  overflow: hidden;
-}
-
-/* Clickable section header — top panel inside the outer container */
-.gemi-section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-  padding: var(--spacing-md) var(--spacing-lg);
-  background-color: var(--bg-secondary, var(--bg-color));
-  border: none;
-  border-bottom: 1px solid var(--border-color);
-  border-radius: 0;
-  cursor: pointer;
-  text-align: left;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
-  user-select: none;
-}
-
-.gemi-section-header:hover {
-  background-color: var(--hover-bg);
-}
-
-.gemi-section-title {
-  font-size: var(--font-xl);
-  font-weight: var(--font-bold);
-  color: var(--text-color);
-  margin: 0;
-  padding-bottom: 0;
-  border-bottom: none;
-}
-
-.gemi-section-toggle-arrow {
-  font-size: var(--font-sm);
-  color: var(--muted-text);
-  flex-shrink: 0;
-  margin-left: var(--spacing-md);
-}
+/* ── GemiSection — content-only styles (card shell is now handled by CollapsibleCard) ── */
 
 .gemi-section-body {
-  padding: var(--spacing-lg);
+  /* CollapsibleCard already provides padding via __content */
 }
 
 .gemi-components-grid {

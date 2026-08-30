@@ -62,7 +62,8 @@ class TestTransliteration:
             tc
             for tc in TEST_CASES
             if "expected" in tc[1]
-            and tc[1].get("category") != "needs_transliteration_detection"
+            and tc[2] != "needs_transliteration_detection"
+            and tc[2] != "query_transliteration"
         ],
     )
     def test_transliteration_from_json(self, test_id, test_case, category):

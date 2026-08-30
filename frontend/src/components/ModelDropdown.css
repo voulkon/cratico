@@ -1,0 +1,148 @@
+/* ------------------------------------------------------------------ */
+/*  Sortable model dropdown                                            */
+/* ------------------------------------------------------------------ */
+
+.ai-model-dropdown {
+  position: relative;
+  flex: 1;
+  min-width: 280px;
+}
+
+.ai-model-dropdown-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-color);
+  font-size: 0.82rem;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s;
+}
+
+.ai-model-dropdown-trigger:hover:not(:disabled) {
+  border-color: var(--palette-primary);
+}
+
+.ai-model-dropdown-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ai-model-dropdown-trigger-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-model-dropdown-arrow {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  transition: transform 0.15s;
+}
+
+.ai-model-dropdown-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.ai-model-dropdown-header {
+  display: flex;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--card-bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ai-model-dropdown-option {
+  display: flex;
+  padding: 0.45rem 0;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.ai-model-dropdown-option:hover {
+  background: var(--hover-bg);
+}
+
+.ai-model-dropdown-option--selected {
+  background: var(--palette-bg-subtle);
+  color: var(--accent-color);
+  font-weight: 600;
+}
+
+.ai-model-col {
+  display: flex;
+  align-items: center;
+  padding: 0.3rem 0.6rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-model-col--sortable {
+  cursor: pointer;
+  user-select: none;
+  padding: 0.4rem 0.6rem;
+  gap: 2px;
+}
+
+.ai-model-col--sortable:hover {
+  color: var(--palette-primary);
+}
+
+/* ---- stacked sort triangles ---- */
+.ai-sort-indicator {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 0.6;
+  vertical-align: middle;
+}
+
+.ai-sort-arrow {
+  font-size: 0.5rem;
+  color: var(--text-secondary);
+  transition: color 0.15s;
+  line-height: 1;
+}
+
+.ai-sort-arrow--active {
+  color: var(--palette-primary);
+}
+
+.ai-model-col--name {
+  flex: 2;
+  justify-content: flex-start;
+}
+
+.ai-model-col--context {
+  flex: 0 0 70px;
+  justify-content: flex-end;
+}
+
+.ai-model-col--price {
+  flex: 0 0 90px;
+  justify-content: flex-end;
+}
