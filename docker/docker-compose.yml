@@ -86,7 +86,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
     env_file:
-      - ../.env_files/.env.local.secrets
+      - ../${ENV_FILE:-.env_files/.env.local.secrets}
     networks:
       - diavgeia-net
     ports:
@@ -151,7 +151,7 @@ services:
       - "${DJANGO_DEBUG_PORT:-8002}:${DJANGO_DEBUG_PORT:-8002}"
       - "8003:8003"
     env_file:
-      - ../.env_files/.env.local.secrets
+      - ../${ENV_FILE:-.env_files/.env.local.secrets}
     environment:
       - DJANGO_DEBUG_PORT=${DJANGO_DEBUG_PORT:-8002}
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${DB_HOST}:${DB_PORT}/${POSTGRES_DB}
@@ -203,7 +203,7 @@ services:
       backend:
         condition: service_started
     env_file:
-      - ../.env_files/.env.local.secrets
+      - ../${ENV_FILE:-.env_files/.env.local.secrets}
     environment:
       - CELERY_DEBUG_PORT=${CELERY_DEBUG_PORT:-8004}
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${DB_HOST:-db}:${DB_PORT:-5432}/${POSTGRES_DB}
@@ -235,7 +235,7 @@ services:
       backend:
         condition: service_started
     env_file:
-      - ../.env_files/.env.local.secrets
+      - ../${ENV_FILE:-.env_files/.env.local.secrets}
     environment:
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${DB_HOST:-db}:${DB_PORT:-5432}/${POSTGRES_DB}
       - CELERY_BROKER_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//
@@ -260,7 +260,7 @@ services:
       backend:
         condition: service_started
     env_file:
-      - ../.env_files/.env.local.secrets
+      - ../${ENV_FILE:-.env_files/.env.local.secrets}
     environment:
       - CELERY_BROKER_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//
       - FLOWER_BASIC_AUTH=${FLOWER_BASIC_AUTH}
