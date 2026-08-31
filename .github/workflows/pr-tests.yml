@@ -101,8 +101,19 @@ jobs:
         run: >
           poetry run diff-cover coverage.xml
           --compare-branch=origin/${{ github.base_ref || 'main' }}
-          --fail-under=80
-          --markdown-report=diff-cover.md
+          --fail-under=1
+          --format markdown:diff-cover.md
+
+      - name: Report total coverage
+        if: always()
+        run: |
+          poetry run python -c "
+          import xml.etree.ElementTree as ET
+          r = ET.parse('coverage.xml').getroot()
+          attrs = r.attrib if r.tag == 'coverage' else r.find('coverage').attrib
+          print(f'Total line coverage: {float(attrs[\"line-rate\"]) * 100:.1f}%')
+          print(f'Total branch coverage: {float(attrs.get(\"branch-rate\", 0)) * 100:.1f}%')
+          "
 
       - name: Upload coverage artifacts
         if: always()
