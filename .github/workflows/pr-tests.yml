@@ -102,11 +102,7 @@ jobs:
           CELERY_BROKER_URL: 'amqp://guest:guest@localhost:5672//'
 
       - name: Coverage diff vs base branch
-        run: >
-          poetry run diff-cover coverage.xml
-          --compare-branch=origin/${{ github.base_ref || 'main' }}
-          --fail-under=1
-          --format markdown:diff-cover.md
+        run: ../scripts/ci/diff_cover.sh coverage.xml "origin/${{ github.base_ref || 'main' }}" 1
 
       - name: Report total coverage
         if: always()
@@ -147,17 +143,63 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
+      - name: Setup frontend
+        uses: ./.github/actions/setup-frontend
 
       - name: Run tests with coverage
         run: npm test -- --coverage --watchAll=false
         env:
           CI: 'true'
+
+  e2e-auth:
+    name: E2E auth matrix (non-blocking)
+    runs-on: ubuntu-latest
+    # Task 05 gate decision: non-blocking for 2 weeks, then flip to blocking.
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup frontend (with Playwright)
+        uses: ./.github/actions/setup-frontend
+        with:
+          install-playwright: 'true'
+
+      - name: Generate CI env file
+        working-directory: .
+        env:
+          # All optional — create_env_file.sh falls back to safe dummies.
+          # Provide all three CLERK_* secrets to flip the stack to row A.
+          GEMI_API_KEY: ${{ secrets.GEMI_API_KEY }}
+          CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          CLERK_JWT_PUBLIC_KEY: ${{ secrets.CLERK_JWT_PUBLIC_KEY }}
+        run: scripts/ci/create_env_file.sh .env_files/.env.ci
+
+      - name: Boot stack (with DB, Django-only row B)
+        working-directory: .
+        run: make stack-up ENV_FILE=.env_files/.env.ci
+
+      - name: Run Playwright E2E
+        working-directory: .
+        run: make e2e
+        env:
+          E2E_BASE_URL: 'http://localhost'
+          CI: 'true'
+
+      - name: Tear down stack
+        if: always()
+        working-directory: .
+        run: make stack-down ENV_FILE=.env_files/.env.ci || true
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 14
