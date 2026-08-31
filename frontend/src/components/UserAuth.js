@@ -1,21 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { useAuthConfig } from '../contexts/AuthConfigContext';
 import DjangoLoginForm from './DjangoLoginForm';
 import DjangoRegisterForm from './DjangoRegisterForm';
 import DjangoPasswordResetRequest from './DjangoPasswordResetRequest';
-// Static import is safe: <SignInButton>/<UserButton> are only RENDERED when
-// Clerk is active (auth_methods) or a Clerk session exists — both imply
-// ClerkProvider is mounted in index.js.
-import { SignInButton, UserButton } from '@clerk/clerk-react';
+// Static import is safe: <UserButton> is only RENDERED when a Clerk session
+// exists (isClerkAuth), which implies ClerkProvider is mounted in index.js.
+// Sign-in goes through the unified DjangoLoginForm modal (which offers Clerk
+// when active), so SignInButton is no longer needed here.
+import { UserButton } from '@clerk/clerk-react';
 import './UserAuth.css';
 
 const UserAuth = () => {
   const { getCurrentPaletteColor } = useTheme();
   const { user, isLoaded, isSignedIn, isClerkAuth, signOut } = useAuth();
-  const { authMethods } = useAuthConfig();
-  const clerkActive = authMethods.includes('clerk');
   const [showLoginForm, setShowLoginForm] = useState(false);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const [showPasswordResetRequest, setShowPasswordResetRequest] = useState(false);
@@ -66,31 +64,20 @@ const UserAuth = () => {
     );
   }
 
-  // Not signed in — offer every active method: Clerk's modal button (when
-  // advertised) alongside the Django email sign-in/sign-up buttons.
+  // Not signed in — one email sign-in button; the DjangoLoginForm modal it
+  // opens offers every active method (Clerk + email) in one place.
   if (!isSignedIn || !user) {
     return (
       <>
         <div className="user-auth">
           <div className="django-auth-buttons">
-            {clerkActive && (
-              <SignInButton mode="modal">
-                <button
-                  className="sign-in-button"
-                  style={{ borderLeft: `3px solid ${getCurrentPaletteColor()}` }}
-                >
-                  <span className="auth-icon">👤</span>
-                  <span className="auth-text">Sign In</span>
-                </button>
-              </SignInButton>
-            )}
             <button
               className="sign-in-button"
               onClick={() => setShowLoginForm(true)}
               style={{ borderLeft: `3px solid ${getCurrentPaletteColor()}` }}
             >
               <span className="auth-icon">🔑</span>
-              <span className="auth-text">{clerkActive ? 'Sign In with Email' : 'Sign In'}</span>
+              <span className="auth-text">Sign In</span>
             </button>
             <button
               className="sign-up-button"

@@ -532,7 +532,9 @@
     "forgotPassword": "Ξεχάσατε τον κωδικό σας;",
     "signingIn": "Σύνδεση...",
     "noAccount": "Δεν έχετε λογαριασμό;",
-    "createAccount": "Δημιουργία Λογαριασμού"
+    "createAccount": "Δημιουργία Λογαριασμού",
+    "signInWithClerk": "Σύνδεση με Clerk",
+    "orContinueWithEmail": "ή συνεχίστε με email"
   },
   "counterparts": {
     "topOrganizations": "Κορυφαίοι Οργανισμοί",

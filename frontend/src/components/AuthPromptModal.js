@@ -6,11 +6,6 @@ import { useTheme } from '../contexts/ThemeContext';
 import DjangoLoginForm from './DjangoLoginForm';
 import DjangoRegisterForm from './DjangoRegisterForm';
 import DjangoPasswordResetRequest from './DjangoPasswordResetRequest';
-import { useAuthConfig } from '../contexts/AuthConfigContext';
-// Static import is safe: <SignInButton> is only RENDERED when the backend
-// advertises "clerk" in auth_methods, which also means index.js has mounted
-// ClerkProvider. No more build-time require().
-import { SignInButton } from '@clerk/clerk-react';
 
 /**
  * Modal that prompts users to sign in when they try to access protected features
@@ -18,15 +13,14 @@ import { SignInButton } from '@clerk/clerk-react';
  *
  * Flow:
  * 1. Explanation screen: shows WHY sign-in is needed + the feature-specific message
- * 2. Auth screen: Clerk sign-in button OR Django login form
+ * 2. Auth screen: the unified DjangoLoginForm modal, which offers every
+ *    active method (Clerk + email) in one place.
  *
  * This ensures users always see the explanation before being asked to log in.
  */
 function AuthPromptModal() {
   const { t } = useTranslation();
   const { isLoaded, isSignedIn } = useAuth();
-  const { authMethods } = useAuthConfig();
-  const clerkActive = authMethods.includes('clerk');
   const { getCurrentPaletteColor } = useTheme();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
@@ -220,42 +214,16 @@ function AuthPromptModal() {
             {t('auth.cancel') || 'Cancel'}
           </button>
 
-          {/* Dual auth: offer every active method. Clerk opens its own modal;
-              the email option reveals the Django login form in-place. */}
-          {clerkActive && (
-            <SignInButton mode="modal">
-              <button
-                onClick={handleClose}
-                style={{
-                  padding: '12px 24px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  backgroundColor: getCurrentPaletteColor(),
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontSize: '16px',
-                  fontWeight: '500',
-                  transition: 'background-color 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.opacity = '0.8';
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.opacity = '1';
-                }}
-              >
-                {t('auth.signIn') || 'Sign In'}
-              </button>
-            </SignInButton>
-          )}
+          {/* One button: the DjangoLoginForm it reveals offers every active
+              method (Clerk + email) in one place. */}
           <button
             onClick={() => setShowAuthForm(true)}
             style={{
               padding: '12px 24px',
               borderRadius: '8px',
-              border: clerkActive ? '1px solid var(--border-color, #e0e0e0)' : 'none',
-              backgroundColor: clerkActive ? 'transparent' : getCurrentPaletteColor(),
-              color: clerkActive ? 'var(--text-color, #000000)' : 'white',
+              border: 'none',
+              backgroundColor: getCurrentPaletteColor(),
+              color: 'white',
               cursor: 'pointer',
               fontSize: '16px',
               fontWeight: '500',
@@ -268,9 +236,7 @@ function AuthPromptModal() {
               e.target.style.opacity = '1';
             }}
           >
-            {clerkActive
-              ? t('auth.continueWithEmail') || 'Continue with Email'
-              : t('auth.signIn') || 'Sign In'}
+            {t('auth.signIn') || 'Sign In'}
           </button>
         </div>
       </div>
