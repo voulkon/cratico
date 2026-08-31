@@ -26,6 +26,8 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed",
     "lint:css-vars": "node scripts/check-css-vars.js"
   },
   "eslintConfig": {
@@ -55,6 +57,8 @@
     ]
   },
   "devDependencies": {
+    "@clerk/testing": "^2.2.31",
+    "@playwright/test": "^1.62.1",
     "jest": "^27.5.1"
   }
 }
