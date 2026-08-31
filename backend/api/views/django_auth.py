@@ -72,23 +72,41 @@ def register(request):
         )
 
     try:
-        # Create user - inactive until email is verified
-        user = User.objects.create_user(
-            email=email,
-            username=username,
-            password=password,
-            is_active=False,  # User cannot login until email is verified
+        # Email verification is optional. When disabled (local dev / e2e),
+        # create an already-active, verified user and skip the SES send
+        # entirely — there is nothing to verify and no working mailer.
+        verification_required = getattr(
+            settings, "DJANGO_EMAIL_VERIFICATION_REQUIRED", False
         )
 
-        # Generate verification token
-        verification_token = uuid.uuid4()
-        user.email_verification_token = verification_token
-        user.email_verification_token_expires = timezone.now() + timedelta(hours=24)
-        user.save()
+        if verification_required:
+            # Create user - inactive until email is verified
+            user = User.objects.create_user(
+                email=email,
+                username=username,
+                password=password,
+                is_active=False,  # User cannot login until email is verified
+            )
 
-        # Send verification email
+            # Generate verification token
+            verification_token = uuid.uuid4()
+            user.email_verification_token = verification_token
+            user.email_verification_token_expires = timezone.now() + timedelta(hours=24)
+            user.save()
+        else:
+            # No verification needed: user is immediately usable.
+            user = User.objects.create_user(
+                email=email,
+                username=username,
+                password=password,
+                is_active=True,
+            )
+            user.email_verified = True
+            user.save()
+
+        # Send verification email only when verification is actually required.
         email_sent = False
-        if (
+        if verification_required and (
             getattr(settings, "DEFAULT_FROM_EMAIL", None)
             and settings.DEFAULT_FROM_EMAIL != "YOUR-ACCESS-KEY-ID"
         ):
@@ -108,19 +126,43 @@ def register(request):
                     )
             except Exception as e:
                 logger.error(f"Error sending verification email: {e}", exc_info=True)
-        else:
+        elif verification_required:
             logger.warning(
                 "Email not configured - user created but no verification email sent"
             )
 
-        logger.debug(f"Created Django user (pending verification): {user.email}")
+        logger.debug(
+            f"Created Django user "
+            f"({'pending verification' if verification_required else 'active'}): "
+            f"{user.email}"
+        )
 
+        if verification_required:
+            return Response(
+                {
+                    "message": "Registration successful! Please check your email to verify your account.",
+                    "email": user.email,
+                    "verification_required": True,
+                    "email_sent": email_sent,
+                },
+                status=status.HTTP_201_CREATED,
+            )
+
+        # Verification off: return a working token so the client can sign in
+        # immediately (no email round-trip exists in this mode).
+        token, _ = Token.objects.get_or_create(user=user)
         return Response(
             {
-                "message": "Registration successful! Please check your email to verify your account.",
+                "message": "Registration successful!",
                 "email": user.email,
-                "verification_required": True,
-                "email_sent": email_sent,
+                "verification_required": False,
+                "email_sent": False,
+                "token": token.key,
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "username": user.username,
+                },
             },
             status=status.HTTP_201_CREATED,
         )

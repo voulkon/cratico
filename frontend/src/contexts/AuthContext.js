@@ -167,10 +167,12 @@ const CombinedAuthProvider = ({ clerkActive, clerkState, configLoading, children
           };
         }
 
-        // Old behavior: immediate login (for backward compatibility if verification is disabled)
+        // Verification disabled: the backend returns a token (and user) so we
+        // can sign the user in immediately — no email round-trip exists.
         if (data.token) {
           localStorage.setItem('django_auth_token', data.token);
-          setDjangoUser(data.user);
+          // Fall back to a minimal user object if the backend omits one.
+          setDjangoUser(data.user || { email: data.email, username: data.email });
           setDjangoSignedIn(true);
         }
 
