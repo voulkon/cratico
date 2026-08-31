@@ -3,9 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useTheme } from '../contexts/ThemeContext';
-import DjangoLoginForm from './DjangoLoginForm';
-import DjangoRegisterForm from './DjangoRegisterForm';
-import DjangoPasswordResetRequest from './DjangoPasswordResetRequest';
+import AuthModal from './AuthModal';
 
 /**
  * Modal that prompts users to sign in when they try to access protected features
@@ -27,8 +25,6 @@ function AuthPromptModal() {
   const [message, setMessage] = useState('');
   const [supertitle, setSupertitle] = useState('');
   const [showAuthForm, setShowAuthForm] = useState(false);
-  const [showRegister, setShowRegister] = useState(false);
-  const [showPasswordResetRequest, setShowPasswordResetRequest] = useState(false);
 
   useEffect(() => {
     const handleAuthRequired = (event) => {
@@ -59,53 +55,19 @@ function AuthPromptModal() {
   const handleClose = () => {
     setIsOpen(false);
     setShowAuthForm(false);
-    setShowRegister(false);
-    setShowPasswordResetRequest(false);
   };
 
   // Don't render if modal is not open
   if (!isOpen) return null;
 
-  // ── Django auth: show login/register/reset forms ──
-  // "django" is always in auth_methods, so these forms are always reachable.
+  // ── Django auth: self-contained login/register/reset modal ──
+  // "django" is always in auth_methods, so the form is always reachable.
   if (showAuthForm) {
-    if (showPasswordResetRequest) {
-      return (
-        <DjangoPasswordResetRequest
-          onSuccess={() => {
-            handleClose();
-          }}
-          onCancel={() => {
-            setShowPasswordResetRequest(false);
-          }}
-        />
-      );
-    }
-
-    if (showRegister) {
-      return (
-        <DjangoRegisterForm
-          onSuccess={() => {
-            handleClose();
-          }}
-          onCancel={() => {
-            handleClose();
-          }}
-          onSwitchToLogin={() => setShowRegister(false)}
-        />
-      );
-    }
-
     return (
-      <DjangoLoginForm
-        onSuccess={() => {
-          handleClose();
-        }}
-        onCancel={() => {
-          handleClose();
-        }}
-        onSwitchToRegister={() => setShowRegister(true)}
-        onForgotPassword={() => setShowPasswordResetRequest(true)}
+      <AuthModal
+        onSuccess={handleClose}
+        onCancel={handleClose}
+        onRegisterSuccess={handleClose}
       />
     );
   }

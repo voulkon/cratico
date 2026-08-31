@@ -1,12 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import DjangoLoginForm from './DjangoLoginForm';
-import DjangoRegisterForm from './DjangoRegisterForm';
-import DjangoPasswordResetRequest from './DjangoPasswordResetRequest';
+import AuthModal from './AuthModal';
 // Static import is safe: <UserButton> is only RENDERED when a Clerk session
 // exists (isClerkAuth), which implies ClerkProvider is mounted in index.js.
-// Sign-in goes through the unified DjangoLoginForm modal (which offers Clerk
+// Sign-in goes through the unified AuthModal (which offers Clerk
 // when active), so SignInButton is no longer needed here.
 import { UserButton } from '@clerk/clerk-react';
 import './UserAuth.css';
@@ -14,9 +12,7 @@ import './UserAuth.css';
 const UserAuth = () => {
   const { getCurrentPaletteColor } = useTheme();
   const { user, isLoaded, isSignedIn, isClerkAuth, signOut } = useAuth();
-  const [showLoginForm, setShowLoginForm] = useState(false);
-  const [showRegisterForm, setShowRegisterForm] = useState(false);
-  const [showPasswordResetRequest, setShowPasswordResetRequest] = useState(false);
+  const [authView, setAuthView] = useState(null); // null | 'login' | 'register'
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -73,7 +69,7 @@ const UserAuth = () => {
           <div className="django-auth-buttons">
             <button
               className="sign-in-button"
-              onClick={() => setShowLoginForm(true)}
+              onClick={() => setAuthView('login')}
               style={{ borderLeft: `3px solid ${getCurrentPaletteColor()}` }}
             >
               <span className="auth-icon">🔑</span>
@@ -81,7 +77,7 @@ const UserAuth = () => {
             </button>
             <button
               className="sign-up-button"
-              onClick={() => setShowRegisterForm(true)}
+              onClick={() => setAuthView('register')}
               style={{
                 background: getCurrentPaletteColor(),
                 borderLeft: `3px solid ${getCurrentPaletteColor()}`
@@ -93,36 +89,12 @@ const UserAuth = () => {
           </div>
         </div>
 
-        {showLoginForm && (
-          <DjangoLoginForm
-            onSuccess={() => setShowLoginForm(false)}
-            onCancel={() => setShowLoginForm(false)}
-            onSwitchToRegister={() => {
-              setShowLoginForm(false);
-              setShowRegisterForm(true);
-            }}
-            onForgotPassword={() => {
-              setShowLoginForm(false);
-              setShowPasswordResetRequest(true);
-            }}
-          />
-        )}
-
-        {showRegisterForm && (
-          <DjangoRegisterForm
-            onSuccess={() => setShowRegisterForm(false)}
-            onCancel={() => setShowRegisterForm(false)}
-            onSwitchToLogin={() => {
-              setShowRegisterForm(false);
-              setShowLoginForm(true);
-            }}
-          />
-        )}
-
-        {showPasswordResetRequest && (
-          <DjangoPasswordResetRequest
-            onSuccess={() => setShowPasswordResetRequest(false)}
-            onCancel={() => setShowPasswordResetRequest(false)}
+        {authView && (
+          <AuthModal
+            initialView={authView}
+            onSuccess={() => setAuthView(null)}
+            onCancel={() => setAuthView(null)}
+            onRegisterSuccess={() => setAuthView(null)}
           />
         )}
       </>

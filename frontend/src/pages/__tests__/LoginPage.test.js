@@ -26,17 +26,11 @@ const mockNavigate = jest.fn();
 // LoginPage only consumes useNavigate from the router.
 jest.mock('react-router-dom', () => ({ useNavigate: () => mockNavigate }));
 
-jest.mock('../../components/DjangoLoginForm', () => (props) => (
-  <div data-testid="django-login-form">
-    <button data-testid="mock-switch-register" onClick={props.onSwitchToRegister} />
+jest.mock('../../components/AuthModal', () => (props) => (
+  <div data-testid="auth-modal">
+    <button data-testid="mock-login-success" onClick={props.onSuccess} />
     <button data-testid="mock-cancel" onClick={props.onCancel} />
   </div>
-));
-jest.mock('../../components/DjangoRegisterForm', () => () => (
-  <div data-testid="django-register-form" />
-));
-jest.mock('../../components/DjangoPasswordResetRequest', () => () => (
-  <div data-testid="django-reset-form" />
 ));
 
 const setup = ({ isSignedIn = false }) => {
@@ -48,26 +42,19 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
-describe('unified login modal', () => {
-  it('renders the login modal directly (dual mode)', () => {
+describe('unified auth modal', () => {
+  it('renders the self-contained auth modal directly', () => {
     setup({});
 
-    expect(screen.getByTestId('django-login-form')).toBeInTheDocument();
+    expect(screen.getByTestId('auth-modal')).toBeInTheDocument();
   });
 
-  it('renders the login modal directly (django-only mode)', () => {
+  it('navigates home on login success', () => {
     setup({});
 
-    expect(screen.getByTestId('django-login-form')).toBeInTheDocument();
-  });
+    fireEvent.click(screen.getByTestId('mock-login-success'));
 
-  it('keeps registration Django-only', () => {
-    setup({});
-
-    fireEvent.click(screen.getByTestId('mock-switch-register'));
-
-    expect(screen.getByTestId('django-register-form')).toBeInTheDocument();
-    expect(screen.queryByTestId('django-login-form')).not.toBeInTheDocument();
+    expect(mockNavigate).toHaveBeenCalledWith('/');
   });
 });
 

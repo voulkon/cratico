@@ -173,6 +173,7 @@ function DjangoLoginForm({ onSuccess, onCancel, onSwitchToRegister, onForgotPass
           <p>
             {t('auth.noAccount')}{' '}
             <button
+              type="button"
               onClick={onSwitchToRegister}
               className="django-login-switch"
               disabled={loading}
