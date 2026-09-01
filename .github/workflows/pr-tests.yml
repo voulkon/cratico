@@ -184,7 +184,7 @@ jobs:
 
       - name: Boot stack (with DB, Django-only row B)
         working-directory: .
-        run: make stack-up ENV_FILE=.env_files/.env.ci
+        run: make stack-up-ci ENV_FILE=.env_files/.env.ci
 
       - name: Run Playwright E2E
         working-directory: .
@@ -200,10 +200,13 @@ jobs:
         working-directory: .
         run: |
           set -x
-          docker compose -f docker/docker-compose.yml --env-file=.env_files/.env.ci ps -a || true
-          docker compose -f docker/docker-compose.yml --env-file=.env_files/.env.ci logs --no-color backend > backend-logs.txt 2> compose-logs-err.txt || true
-          # Fallback: raw container logs (works even if compose metadata is gone)
-          docker logs diavgeia_backend >> backend-logs.txt 2>&1 || true
+          docker compose -f docker/docker-compose.yml -p diavgeia-ci --env-file=.env_files/.env.ci ps -a || true
+          docker compose -f docker/docker-compose.yml -p diavgeia-ci --env-file=.env_files/.env.ci logs --no-color backend > backend-logs.txt 2> compose-logs-err.txt || true
+          # Fallback: raw container logs (works even if compose metadata is
+          # gone). Containers have no fixed names anymore, so resolve the
+          # name via compose (project-prefixed) and fall back to grep.
+          backend_cid=$(docker compose -f docker/docker-compose.yml -p diavgeia-ci --env-file=.env_files/.env.ci ps -q backend 2>/dev/null || true)
+          [ -n "$backend_cid" ] && docker logs "$backend_cid" >> backend-logs.txt 2>&1 || true
           wc -c backend-logs.txt
           cat compose-logs-err.txt || true
           tail -c 100000 backend-logs.txt || true
@@ -211,7 +214,7 @@ jobs:
       - name: Tear down stack
         if: always()
         working-directory: .
-        run: make stack-down ENV_FILE=.env_files/.env.ci || true
+        run: make stack-down-ci ENV_FILE=.env_files/.env.ci || true
 
       - name: Upload Playwright report
         if: always()
