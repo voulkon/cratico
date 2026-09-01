@@ -24,11 +24,24 @@ stack-up: ## Boot the compose stack (override with COMPOSE_FILE=... ENV_FILE=...
 stack-down: ## Tear down the compose stack
 	docker compose -f $(COMPOSE_FILE) --env-file=$(ENV_FILE) down
 
+# CI/e2e stack: isolated project name => isolated volumes. Prevents the
+# "FATAL: password authentication failed" trap: the postgres image only
+# applies POSTGRES_USER/PASSWORD on first volume init, so a generated
+# .env.ci with different credentials can't reuse the local volume.
+stack-up-ci: ## Boot an isolated CI-style stack (own project name + volumes)
+	COMPOSE_PROJECT_NAME=diavgeia-ci docker compose -f $(COMPOSE_FILE) --env-file=$(ENV_FILE) up -d
+	COMPOSE_PROJECT_NAME=diavgeia-ci $(MAKE) wait-for-api
+
+stack-down-ci: ## Tear down the isolated CI stack (including its volumes)
+	COMPOSE_PROJECT_NAME=diavgeia-ci docker compose -f $(COMPOSE_FILE) --env-file=$(ENV_FILE) down -v
+
 stack-logs: ## Tail backend logs
 	docker compose -f $(COMPOSE_FILE) --env-file=$(ENV_FILE) logs -f backend
 
 wait-for-api: ## Block until the auth-config endpoint answers
 	scripts/ci/wait_for_url.sh $(API_URL) $(COMPOSE_FILE) $(ENV_FILE) backend
+
+.PHONY: stack-up-ci stack-down-ci
 
 # ───────────────────────── E2E (Playwright) ─────────────────────────
 

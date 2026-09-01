@@ -216,8 +216,9 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.celery-light
-    container_name: diavgeia_beat
-    command: celery -A diavgeia_project beat -l INFO
+    # Retries via beat_entrypoint.sh: DatabaseScheduler needs
+    # django_celery_beat_* tables, created by backend migrations.
+    command: ["/code/beat_entrypoint.sh"]
     networks:
       - diavgeia-net
     volumes:
