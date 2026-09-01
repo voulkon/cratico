@@ -26,7 +26,6 @@ services:
 
   loki:
     image: grafana/loki:latest
-    container_name: diavgeia_loki
     profiles: ["observability"]
     ports:
       - "3100:3100"
@@ -47,7 +46,6 @@ services:
 
   promtail:
     image: grafana/promtail:latest
-    container_name: diavgeia_promtail
     profiles: ["observability"]
     volumes:
       - ./promtail-config/promtail.yml:/etc/promtail/config.yml
@@ -61,7 +59,6 @@ services:
 
   grafana:
     image: grafana/grafana:latest
-    container_name: diavgeia_grafana
     profiles: ["observability"]
     ports:
       - "3001:3000"  # Expose on 3001 to avoid conflict with React dev server
@@ -77,7 +74,6 @@ services:
       - loki
   db:
     image: pgvector/pgvector:pg17
-    container_name: diavgeia_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../init-scripts:/docker-entrypoint-initdb.d
@@ -86,7 +82,8 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
     env_file:
-      - ../${ENV_FILE:-.env_files/.env.local.secrets}
+      - path: ../${ENV_FILE:-.env_files/.env.local.secrets}
+        required: true
     networks:
       - diavgeia-net
     ports:
@@ -101,7 +98,6 @@ services:
   rabbitmq:
     # image: rabbitmq:4.01-management
     image: rabbitmq:3.12-management
-    container_name: diavgeia_rabbitmq
     ports:
       - "5672:5672"  # AMQP protocol
       - "15672:15672"  # Management interface
@@ -121,7 +117,6 @@ services:
   # ──────────────────────── Cache ─────────────────────────
   redis:
     image: redis:8.0.0-alpine
-    container_name: diavgeia_redis
     # Unblock to enable custom config (e.g. for persistence, maxmemory, etc.)
     # command: redis-server /usr/local/etc/redis/redis.conf
     ports:
@@ -143,7 +138,6 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.backend
-    container_name: diavgeia_backend
     volumes:
       - ../backend:/code
     ports:
@@ -151,7 +145,8 @@ services:
       - "${DJANGO_DEBUG_PORT:-8002}:${DJANGO_DEBUG_PORT:-8002}"
       - "8003:8003"
     env_file:
-      - ../${ENV_FILE:-.env_files/.env.local.secrets}
+      - path: ../${ENV_FILE:-.env_files/.env.local.secrets}
+        required: true
     environment:
       - DJANGO_DEBUG_PORT=${DJANGO_DEBUG_PORT:-8002}
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${DB_HOST}:${DB_PORT}/${POSTGRES_DB}
@@ -186,7 +181,6 @@ services:
         # LIGHT_WORKER=true  → lightweight (no Docling, ~500MB, 2-3 min build)
         # LIGHT_WORKER=false → full mode (with Docling, ~13GB, 15+ min build)
         LIGHT_WORKER: ${LIGHT_WORKER:-false}
-    container_name: diavgeia_worker
     command: ["/code/worker_entrypoint.sh"]
     restart: unless-stopped
     networks:
@@ -203,7 +197,8 @@ services:
       backend:
         condition: service_started
     env_file:
-      - ../${ENV_FILE:-.env_files/.env.local.secrets}
+      - path: ../${ENV_FILE:-.env_files/.env.local.secrets}
+        required: true
     environment:
       - CELERY_DEBUG_PORT=${CELERY_DEBUG_PORT:-8004}
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${DB_HOST:-db}:${DB_PORT:-5432}/${POSTGRES_DB}
@@ -235,7 +230,8 @@ services:
       backend:
         condition: service_started
     env_file:
-      - ../${ENV_FILE:-.env_files/.env.local.secrets}
+      - path: ../${ENV_FILE:-.env_files/.env.local.secrets}
+        required: true
     environment:
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${DB_HOST:-db}:${DB_PORT:-5432}/${POSTGRES_DB}
       - CELERY_BROKER_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//
@@ -244,7 +240,6 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.celery-light
-    container_name: diavgeia_flower
     command: celery -A diavgeia_project flower --port=5555  --basic-auth=${FLOWER_BASIC_AUTH}
     networks:
       - diavgeia-net
@@ -260,7 +255,8 @@ services:
       backend:
         condition: service_started
     env_file:
-      - ../${ENV_FILE:-.env_files/.env.local.secrets}
+      - path: ../${ENV_FILE:-.env_files/.env.local.secrets}
+        required: true
     environment:
       - CELERY_BROKER_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//
       - FLOWER_BASIC_AUTH=${FLOWER_BASIC_AUTH}
@@ -306,7 +302,6 @@ services:
     build:
       context: ./opensearch-custom
       dockerfile: Dockerfile
-    container_name: diavgeia_opensearch
     profiles: ["search"]
     environment:
       - "discovery.type=single-node"
@@ -331,7 +326,6 @@ services:
 
   opensearch_dashboards:
     image: opensearchproject/opensearch-dashboards:3
-    container_name: diavgeia_opensearch_dashboards
     profiles: ["search"]
     environment:
       OPENSEARCH_HOSTS: '["http://opensearch:9200"]'

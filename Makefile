@@ -11,6 +11,12 @@ COMPOSE_FILE ?= docker/docker-compose.yml
 ENV_FILE ?= .env_files/.env.local.secrets
 API_URL ?= http://localhost/api/system/config/auth/
 
+# docker/docker-compose.yml interpolates ${ENV_FILE:-...} inside its own
+# `env_file:` directives, so it must be visible in the environment, not just
+# as a make variable. Without this, every service silently falls back to
+# .env.local.secrets (which doesn't exist in CI).
+export ENV_FILE
+
 stack-up: ## Boot the compose stack (override with COMPOSE_FILE=... ENV_FILE=...)
 	docker compose -f $(COMPOSE_FILE) --env-file=$(ENV_FILE) up -d
 	$(MAKE) wait-for-api
