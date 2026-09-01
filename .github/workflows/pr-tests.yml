@@ -191,6 +191,15 @@ jobs:
           E2E_BASE_URL: 'http://localhost'
           CI: 'true'
 
+      # With DEBUG=False the full traceback of any unhandled 500 lands in the
+      # backend container logs. Capture them BEFORE teardown destroys the stack.
+      - name: Dump backend logs
+        if: always()
+        working-directory: .
+        run: |
+          docker compose -f docker/docker-compose.yml --env-file=.env_files/.env.ci logs --no-color backend > backend-logs.txt || true
+          tail -c 100000 backend-logs.txt || true
+
       - name: Tear down stack
         if: always()
         working-directory: .
@@ -202,4 +211,12 @@ jobs:
         with:
           name: playwright-report
           path: frontend/playwright-report/
+          retention-days: 14
+
+      - name: Upload backend logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-logs
+          path: backend-logs.txt
           retention-days: 14

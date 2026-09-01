@@ -207,44 +207,54 @@ def login(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Authenticate using Django's auth backends
-    user = authenticate(request, username=email, password=password)
+    try:
+        # Authenticate using Django's auth backends
+        user = authenticate(request, username=email, password=password)
 
-    if user is None:
-        return Response(
-            {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
-        )
-
-    # Check if user is active (for Django-registered users, this means email is verified)
-    if not user.is_active:
-        # Check if it's specifically because email is not verified
-        if not user.email_verified and user.email_verification_token:
+        if user is None:
             return Response(
-                {
-                    "error": "Email not verified. Please check your email for the verification link.",
-                    "verification_required": True,
-                },
-                status=status.HTTP_403_FORBIDDEN,
+                {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
             )
+
+        # Check if user is active (for Django-registered users, this means email is verified)
+        if not user.is_active:
+            # Check if it's specifically because email is not verified
+            if not user.email_verified and user.email_verification_token:
+                return Response(
+                    {
+                        "error": "Email not verified. Please check your email for the verification link.",
+                        "verification_required": True,
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            return Response(
+                {"error": "User account is disabled"}, status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Get or create DRF token
+        token, _ = Token.objects.get_or_create(user=user)
+
+        logger.debug(f"Django login: {user.email}")
+
         return Response(
-            {"error": "User account is disabled"}, status=status.HTTP_403_FORBIDDEN
+            {
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "username": user.username,
+                },
+                "token": token.key,
+            }
         )
-
-    # Get or create DRF token
-    token, _ = Token.objects.get_or_create(user=user)
-
-    logger.debug(f"Django login: {user.email}")
-
-    return Response(
-        {
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "username": user.username,
-            },
-            "token": token.key,
-        }
-    )
+    except Exception as e:
+        # Mirror register(): never leak an HTML error page to API clients —
+        # log the full traceback (visible in `docker compose logs backend`)
+        # and return a machine-readable 500.
+        logger.error(f"Login error for {email}: {e}", exc_info=True)
+        return Response(
+            {"error": "Login failed due to a server error"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
 
 @csrf_exempt
