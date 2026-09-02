@@ -2,6 +2,7 @@ import re
 
 from core.services.search_service import SearchService
 from core.services.transliteration import TransliterationService
+from core.utils.search_trace import finish_search_trace, start_search_trace
 
 
 def determine_matched_field(entity_type, entity, query):
@@ -185,6 +186,15 @@ def get_entities_fast(query, **kwargs):
 
     search_service = SearchService()
 
+    # Start a per-request trace (no-op unless DEBUG_SEARCH_SERVICE=1)
+    trace = start_search_trace(query)
+    if trace is not None:
+        trace.add(
+            "transliteration",
+            transliterated=transliterated_query,
+            changed=(transliterated_query != query),
+        )
+
     # Extract parameters
     entity_types = kwargs.get(
         "entity_types", ["organization", "signer", "unit", "company", "company_person"]
@@ -196,6 +206,7 @@ def get_entities_fast(query, **kwargs):
     results = {"query": query, "results": {}, "total_count": 0, "type": "entities"}
 
     if not query:
+        finish_search_trace(trace)
         return results
 
     # Search entities based on requested types
@@ -205,6 +216,13 @@ def get_entities_fast(query, **kwargs):
         orgs = list(search_service.search_organizations(transliterated_query, limit))
         if transliterated_query != query:
             fallback = list(search_service.search_organizations(query, limit))
+            if trace is not None:
+                trace.add(
+                    "fallback_search",
+                    type="organization",
+                    reason="transliteration_changed",
+                    fallback_count=len(fallback),
+                )
             orgs = _merge_deduped_results(
                 orgs, fallback, lambda o: o.uid, limit
             )
@@ -221,6 +239,13 @@ def get_entities_fast(query, **kwargs):
             fallback = list(
                 search_service.search_signers(query, organization_id, limit)
             )
+            if trace is not None:
+                trace.add(
+                    "fallback_search",
+                    type="signer",
+                    reason="transliteration_changed",
+                    fallback_count=len(fallback),
+                )
             signers = _merge_deduped_results(
                 signers, fallback, lambda s: s.uid, limit
             )
@@ -237,6 +262,13 @@ def get_entities_fast(query, **kwargs):
             fallback = list(
                 search_service.search_units(query, organization_id, limit)
             )
+            if trace is not None:
+                trace.add(
+                    "fallback_search",
+                    type="unit",
+                    reason="transliteration_changed",
+                    fallback_count=len(fallback),
+                )
             units = _merge_deduped_results(
                 units, fallback, lambda u: u.uid, limit
             )
@@ -247,6 +279,13 @@ def get_entities_fast(query, **kwargs):
         companies = list(search_service.search_companies(transliterated_query, limit))
         if transliterated_query != query:
             fallback = list(search_service.search_companies(query, limit))
+            if trace is not None:
+                trace.add(
+                    "fallback_search",
+                    type="company",
+                    reason="transliteration_changed",
+                    fallback_count=len(fallback),
+                )
             companies = _merge_deduped_results(
                 companies, fallback, lambda c: c.ar_gemi, limit
             )
@@ -265,6 +304,13 @@ def get_entities_fast(query, **kwargs):
             fallback = list(
                 search_service.search_company_persons(query, company_id, limit)
             )
+            if trace is not None:
+                trace.add(
+                    "fallback_search",
+                    type="company_person",
+                    reason="transliteration_changed",
+                    fallback_count=len(fallback),
+                )
             company_persons = _merge_deduped_results(
                 company_persons, fallback, lambda p: p.pk, limit
             )
@@ -289,6 +335,9 @@ def get_entities_fast(query, **kwargs):
         ]
         results["total_count"] += len(afm_entities)
 
+    if trace is not None:
+        trace.add("done", total_count=results["total_count"])
+    finish_search_trace(trace)
     return results
 
 
