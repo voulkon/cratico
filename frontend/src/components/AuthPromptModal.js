@@ -3,21 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useTheme } from '../contexts/ThemeContext';
-import DjangoLoginForm from './DjangoLoginForm';
-import DjangoRegisterForm from './DjangoRegisterForm';
-import DjangoPasswordResetRequest from './DjangoPasswordResetRequest';
-
-// Check if Clerk is available
-const isClerkAvailable = () => {
-  return !!process.env.REACT_APP_CLERK_PUBLISHABLE_KEY;
-};
-
-// Lazy load SignInButton only if Clerk is available
-let SignInButton;
-if (isClerkAvailable()) {
-  const clerkReact = require('@clerk/clerk-react');
-  SignInButton = clerkReact.SignInButton;
-}
+import AuthModal from './AuthModal';
 
 /**
  * Modal that prompts users to sign in when they try to access protected features
@@ -25,21 +11,20 @@ if (isClerkAvailable()) {
  *
  * Flow:
  * 1. Explanation screen: shows WHY sign-in is needed + the feature-specific message
- * 2. Auth screen: Clerk sign-in button OR Django login form
+ * 2. Auth screen: the unified DjangoLoginForm modal, which offers every
+ *    active method (Clerk + email) in one place.
  *
  * This ensures users always see the explanation before being asked to log in.
  */
 function AuthPromptModal() {
   const { t } = useTranslation();
-  const { isLoaded, isSignedIn, isClerkAuth } = useAuth();
+  const { isLoaded, isSignedIn } = useAuth();
   const { getCurrentPaletteColor } = useTheme();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [supertitle, setSupertitle] = useState('');
   const [showAuthForm, setShowAuthForm] = useState(false);
-  const [showRegister, setShowRegister] = useState(false);
-  const [showPasswordResetRequest, setShowPasswordResetRequest] = useState(false);
 
   useEffect(() => {
     const handleAuthRequired = (event) => {
@@ -64,58 +49,25 @@ function AuthPromptModal() {
     return () => {
       window.removeEventListener('authRequired', handleAuthRequired);
     };
-  }, [isLoaded, isSignedIn, isClerkAuth, t, location.pathname]);
+  }, [isLoaded, isSignedIn, t, location.pathname]);
 
   // Close and reset all state
   const handleClose = () => {
     setIsOpen(false);
     setShowAuthForm(false);
-    setShowRegister(false);
-    setShowPasswordResetRequest(false);
   };
 
   // Don't render if modal is not open
   if (!isOpen) return null;
 
-  // ── Django auth: show login/register/reset forms ──
-  if (!isClerkAuth && showAuthForm) {
-    if (showPasswordResetRequest) {
-      return (
-        <DjangoPasswordResetRequest
-          onSuccess={() => {
-            handleClose();
-          }}
-          onCancel={() => {
-            setShowPasswordResetRequest(false);
-          }}
-        />
-      );
-    }
-
-    if (showRegister) {
-      return (
-        <DjangoRegisterForm
-          onSuccess={() => {
-            handleClose();
-          }}
-          onCancel={() => {
-            handleClose();
-          }}
-          onSwitchToLogin={() => setShowRegister(false)}
-        />
-      );
-    }
-
+  // ── Django auth: self-contained login/register/reset modal ──
+  // "django" is always in auth_methods, so the form is always reachable.
+  if (showAuthForm) {
     return (
-      <DjangoLoginForm
-        onSuccess={() => {
-          handleClose();
-        }}
-        onCancel={() => {
-          handleClose();
-        }}
-        onSwitchToRegister={() => setShowRegister(true)}
-        onForgotPassword={() => setShowPasswordResetRequest(true)}
+      <AuthModal
+        onSuccess={handleClose}
+        onCancel={handleClose}
+        onRegisterSuccess={handleClose}
       />
     );
   }
@@ -224,55 +176,30 @@ function AuthPromptModal() {
             {t('auth.cancel') || 'Cancel'}
           </button>
 
-          {isClerkAuth ? (
-            <SignInButton mode="modal">
-              <button
-                onClick={handleClose}
-                style={{
-                  padding: '12px 24px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  backgroundColor: getCurrentPaletteColor(),
-                  color: 'white',
-                  cursor: 'pointer',
-                  fontSize: '16px',
-                  fontWeight: '500',
-                  transition: 'background-color 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.opacity = '0.8';
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.opacity = '1';
-                }}
-              >
-                {t('auth.signIn') || 'Sign In'}
-              </button>
-            </SignInButton>
-          ) : (
-            <button
-              onClick={() => setShowAuthForm(true)}
-              style={{
-                padding: '12px 24px',
-                borderRadius: '8px',
-                border: 'none',
-                backgroundColor: getCurrentPaletteColor(),
-                color: 'white',
-                cursor: 'pointer',
-                fontSize: '16px',
-                fontWeight: '500',
-                transition: 'background-color 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.opacity = '0.8';
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.opacity = '1';
-              }}
-            >
-              {t('auth.signIn') || 'Sign In'}
-            </button>
-          )}
+          {/* One button: the DjangoLoginForm it reveals offers every active
+              method (Clerk + email) in one place. */}
+          <button
+            onClick={() => setShowAuthForm(true)}
+            style={{
+              padding: '12px 24px',
+              borderRadius: '8px',
+              border: 'none',
+              backgroundColor: getCurrentPaletteColor(),
+              color: 'white',
+              cursor: 'pointer',
+              fontSize: '16px',
+              fontWeight: '500',
+              transition: 'background-color 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.opacity = '0.8';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.opacity = '1';
+            }}
+          >
+            {t('auth.signIn') || 'Sign In'}
+          </button>
         </div>
       </div>
     </div>

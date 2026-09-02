@@ -1,9 +1,94 @@
 import jwt
 from diavgeia_project.security_tracing import get_client_ip, security_tracer
 from django.conf import settings
+from django.db import IntegrityError, transaction
 from loguru import logger
 from rest_framework import authentication, exceptions
 from users.models import CustomUser
+
+
+def _resolve_clerk_user(clerk_id: str, payload: dict) -> CustomUser:
+    """
+    Resolve (link or provision) the CustomUser for a verified Clerk identity.
+
+    Identity-linking rules (unified-auth step 06):
+    1. Match on clerk_id first — the fast path for returning Clerk users.
+    2. Otherwise LINK to an existing Django-registered account with the same
+       email (case-insensitive). Clerk only issues sessions for verified
+       emails, so "same verified email = same person" — the industry-standard
+       behavior (Auth0/Firebase/Supabase). Prefer verified rows, tie-break
+       oldest-first for determinism when legacy duplicates exist.
+    3. Otherwise provision a new user with a collision-safe username.
+
+    Race-safe: provisioning runs in a transaction with an IntegrityError
+    retry, so two concurrent first-logins with the same new email produce
+    exactly one row (the loser re-resolves via clerk_id/email lookup).
+    """
+    email = (payload.get("email") or "").strip().lower()
+    # Clerk's session token template emits a top-level `email_verified` user
+    # property (see docs/implementation-tasks/04. unified-auth/06-...md).
+    # Fallback: a Clerk session can only exist for a verified primary email,
+    # so a present email is treated as verified when the claim is absent.
+    email_verified = bool(payload.get("email_verified", bool(email)))
+
+    # 1. Fast path: existing Clerk-linked user.
+    user = CustomUser.objects.filter(clerk_id=clerk_id).first()
+    if user:
+        # Keep email_verified in sync with Clerk's claim (e.g. the user
+        # verified their Django email via Clerk in the meantime).
+        if email and email_verified and not user.email_verified:
+            user.email_verified = True
+            user.save(update_fields=["email_verified"])
+        return user
+
+    # 2. Link to an existing same-email Django account before creating a new
+    #    row — this is what keeps bookmarks/subscription/AI spend unified.
+    if email:
+        existing = (
+            CustomUser.objects.filter(email__iexact=email)
+            .order_by("-email_verified", "date_joined")
+            .first()
+        )
+        if existing:
+            if existing.clerk_id and existing.clerk_id != clerk_id:
+                # Different Clerk identity already bound to this email — do
+                # not silently steal the link; provision a separate user.
+                logger.warning(
+                    f"Email {email} already linked to clerk_id {existing.clerk_id}; "
+                    f"provisioning separate user for {clerk_id}"
+                )
+            else:
+                existing.clerk_id = clerk_id
+                if email_verified:
+                    existing.email_verified = True
+                existing.save(update_fields=["clerk_id", "email_verified"])
+                logger.info(f"Linked Clerk identity {clerk_id} to user {existing.pk}")
+                return existing
+
+    # 3. Provision a new user (collision-safe username, race-safe).
+    username = email or f"user_{clerk_id}"
+    for attempt in range(3):
+        try:
+            with transaction.atomic():
+                if CustomUser.objects.filter(username=username).exists():
+                    username = f"{username}_{clerk_id[-8:]}" if attempt == 0 else f"{username}_{attempt}"
+                user = CustomUser.objects.create(
+                    username=username,
+                    email=email,
+                    clerk_id=clerk_id,
+                    email_verified=email_verified,
+                )
+                logger.info(f"Provisioned new user {user.pk} from Clerk identity {clerk_id}")
+                return user
+        except IntegrityError:
+            # Concurrent login created the row first — re-resolve and return.
+            user = (
+                CustomUser.objects.filter(clerk_id=clerk_id).first()
+                or CustomUser.objects.filter(email__iexact=email).first()
+            )
+            if user:
+                return user
+    raise exceptions.AuthenticationFailed("Could not resolve Clerk identity")
 
 
 class CsrfExemptSessionAuthentication(authentication.SessionAuthentication):
@@ -73,34 +158,16 @@ class ClerkAuthentication(authentication.BaseAuthentication):
                 )
                 raise exceptions.AuthenticationFailed("Invalid token")
 
-            # Get or create user based on Clerk ID
-            try:
-                user = CustomUser.objects.get(clerk_id=clerk_id)
-                # Log successful authentication
-                security_tracer.log_security_event(
-                    "authentication.clerk.success",
-                    {"email": payload.get("email", "")},
-                    user=user,
-                    ip=get_client_ip(request),
-                )
-            except CustomUser.DoesNotExist:
-                # Auto-provision user from Clerk data
-                email = payload.get("email", "")
-                username = email or f"user_{clerk_id}"
+            # Resolve (link or provision) the user for this Clerk identity.
+            user = _resolve_clerk_user(clerk_id, payload)
 
-                user = CustomUser.objects.create(
-                    username=username,
-                    email=email,
-                    clerk_id=clerk_id,
-                )
-
-                # Log user provisioning
-                security_tracer.log_security_event(
-                    "user.provisioned",
-                    {"email": email, "source": "clerk"},
-                    user=user,
-                    ip=get_client_ip(request),
-                )
+            # Log successful authentication
+            security_tracer.log_security_event(
+                "authentication.clerk.success",
+                {"email": payload.get("email", "")},
+                user=user,
+                ip=get_client_ip(request),
+            )
 
             return (user, token)
 

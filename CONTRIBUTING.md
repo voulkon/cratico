@@ -13,6 +13,7 @@ Thank you for your interest in contributing to the Crati.Co platform! We welcome
   - [Code Contributions](#code-contributions)
   - [Documentation](#documentation)
   - [Translations](#translations)
+- [Roadmap](#roadmap)
 - [Development Setup](#development-setup)
 - [Coding Standards](#coding-standards)
 - [Commit Guidelines](#commit-guidelines)
@@ -172,6 +173,10 @@ git push origin translate/greek-deployment-guide
 - Technical accuracy is paramount
 - Maintain consistent terminology throughout translations
 
+## Roadmap
+
+For a list of project directions and areas where contributions are most welcome, see the [Roadmap](docs/en/ROADMAP.md).
+
 ## Development Setup
 
 ### Prerequisites
@@ -234,16 +239,78 @@ This starts only the backend, database, and Redis - enough for API development a
 
 ### Running Tests
 
+The project has three test tracks. Any of them is a great way to contribute — pick the one that matches what you're comfortable with. All three run automatically on every PR (see `.github/workflows/pr-tests.yml`).
+
+#### Backend (pytest, mostly unit tests)
+
+Tests live next to the code they cover, in per-app `tests/` packages (`backend/api/tests/`, `backend/core/tests/`, `backend/notifications/tests/`, ...). Shared factories and fixtures are in `backend/conftest.py`.
+
 ```bash
-# Backend tests
+# Full suite (inside the running stack)
 docker-compose exec backend pytest
 
 # With coverage
 docker-compose exec backend pytest --cov=api --cov=core
 
-# Frontend tests
-docker-compose exec frontend npm test
+# Only fast tests that don't need a database (great for quick iteration)
+docker-compose exec backend pytest -m fast
+
+# Postgres-specific tests (requires the db service)
+docker-compose exec backend pytest -m requires_postgresql
+
+# Integration tests
+docker-compose exec backend pytest -m integration
+
+# A single file / test
+docker-compose exec backend pytest api/tests/test_some_module.py -k test_name
 ```
+
+Available markers (`backend/pytest.ini`, enforced with `--strict-markers`): `fast`, `slow`, `super_slow`, `requires_postgresql`, `impossible`, `integration`, `benchmark`, `live_api` (gated behind `--run-live` and skipped by default).
+
+CI note: fast no-DB tests and Postgres tests run as separate workflows, so please mark tests that need the database with `requires_postgresql`.
+
+#### Frontend (Jest unit tests)
+
+Tests are co-located with components in `frontend/src/**/__tests__/` and `*.test.js` files.
+
+```bash
+docker-compose exec frontend npm test
+
+# With coverage
+npm test -- --coverage --watchAll=false
+
+# A single file, in watch mode during development
+npm test -- src/pages/__tests__/LoginPage.test.js
+```
+
+#### E2E (Playwright)
+
+E2E specs live in `frontend/e2e/` (`auth.spec.js`, `clerk.spec.js`) and run against a real Docker stack — Playwright does not start the stack itself.
+
+```bash
+# 1. Boot an isolated CI-style stack (separate compose project + volumes)
+make stack-up-ci ENV_FILE=.env_files/.env.ci
+
+# 2. Run the E2E suite (or `make e2e-headed` to watch the browser)
+make e2e
+
+# 3. Tear it down
+make stack-down-ci ENV_FILE=.env_files/.env.ci
+
+# Or against your already-running dev stack
+cd frontend && npx playwright test --headed
+```
+
+The auth matrix supports two configurations: dual-auth (Clerk + Django) and Django-only, selected via `USE_CLERK_AUTH` and `CLERK_*` env vars. See `docs/en/AUTHENTICATION_FALLBACK.md` and `frontend/playwright.config.ts`. In CI this job is currently **non-blocking** (`continue-on-error: true` in `pr-tests.yml`).
+
+#### Coverage gate on PRs
+
+Backend PRs are checked with a **diff coverage** gate: changed lines must be covered at or above a threshold, reported via `scripts/ci/diff_cover.sh` and commented on the PR. If your PR fails it, add tests for the lines you changed.
+
+#### A good first contribution
+- Backend: pick an untested module in `backend/api/` or `backend/core/`, add `test_*.py` with pytest markers and factory_boy fixtures from `conftest.py`.
+- Frontend: add tests for an uncovered component or hook in `frontend/src/`.
+- E2E: add a spec in `frontend/e2e/` covering a happy path (login, list, detail view) that runs in both auth rows if possible.
 
 ## Coding Standards
 

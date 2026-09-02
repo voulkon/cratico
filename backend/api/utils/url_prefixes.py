@@ -71,6 +71,10 @@ def get_default_exempt_prefixes():
         "admin",  # /api/admin - Admin interface
         "docs",  # /api/docs - API documentation
         "public/",  # /api/public/ - Public sharing endpoints (must be unauthenticated)
+        # /api/system/config/auth/ must stay reachable before login: in stealth
+        # mode the login gate renders from its payload (auth_methods, Clerk
+        # publishable key). All system/* endpoints are AllowAny by design.
+        "system/",
     ]
 
     # Always include auth module - users MUST be able to login!

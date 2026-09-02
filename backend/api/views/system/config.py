@@ -1,3 +1,4 @@
+from api.utils.auth_methods import get_auth_methods, get_clerk_publishable_key
 from core.services.feature_flag_service import feature_flags
 from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
@@ -15,6 +16,8 @@ def auth_config(request):
     - Whether authentication is required (stealth mode)
     - Whether allowlist is enabled
     - Password requirements
+    - Which auth providers are active ("clerk" and/or "django")
+    - The Clerk publishable key, when Clerk is active (null otherwise)
 
     This allows the frontend to adapt its UI without hardcoding env vars.
     """
@@ -30,5 +33,7 @@ def auth_config(request):
             "password_requirements": {
                 "min_length": getattr(settings, "MIN_PASSWORD_LENGTH", 8),
             },
+            "auth_methods": get_auth_methods(),
+            "clerk_publishable_key": get_clerk_publishable_key(),
         }
     )

@@ -136,6 +136,9 @@ services:
       - GEMI_API_KEY=${GEMI_API_KEY}
       - STEALTH_MODE=${STEALTH_MODE:-false}
       - STEALTH_ALLOWLIST=${STEALTH_ALLOWLIST:-false}
+      # Clerk: backend owns all three Clerk values; the frontend receives the
+      # publishable key at runtime via /api/system/config/auth/
+      - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY:-}
       - DJANGO_LOG_LEVEL=${BACKEND_LOG_LEVEL:-INFO}
       - DB_LOG_LEVEL=${DB_LOG_LEVEL:-WARNING}
     networks:
@@ -236,7 +239,8 @@ services:
       - ../frontend:/app
       - /app/node_modules
     environment:
-      - REACT_APP_CLERK_PUBLISHABLE_KEY=${REACT_APP_CLERK_PUBLISHABLE_KEY}
+      # No REACT_APP_CLERK_PUBLISHABLE_KEY: the backend advertises auth
+      # methods + the publishable key at runtime via /api/system/config/auth/
       - REACT_APP_API_URL=${REACT_APP_API_URL:-/api}
     networks:
       - crati-app-net

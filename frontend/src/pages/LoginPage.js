@@ -1,18 +1,17 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import DjangoLoginForm from '../components/DjangoLoginForm';
-import DjangoRegisterForm from '../components/DjangoRegisterForm';
-import DjangoPasswordResetRequest from '../components/DjangoPasswordResetRequest';
+import AuthModal from '../components/AuthModal';
 
 const LoginPage = () => {
   useDocumentTitle('Login');
-  const [showLogin, setShowLogin] = useState(true);
-  const [showRegister, setShowRegister] = useState(false);
-  const [showPasswordResetRequest, setShowPasswordResetRequest] = useState(false);
   const { isSignedIn } = useAuth();
   const navigate = useNavigate();
+  // The AuthModal is self-contained: it owns login ⇄ register ⇄ reset
+  // switching and offers Clerk above the email form when the backend
+  // advertises it. Register/password-reset stay Django-only (Clerk runs its
+  // own flows).
 
   // If user is already signed in, redirect to home
   React.useEffect(() => {
@@ -21,29 +20,8 @@ const LoginPage = () => {
     }
   }, [isSignedIn, navigate]);
 
-  // Auto-open login modal on mount
-  React.useEffect(() => {
-    setShowLogin(true);
-  }, []);
-
   const handleLoginSuccess = () => {
-    setShowLogin(false);
     navigate('/');
-  };
-
-  const handleRegisterSuccess = () => {
-    setShowRegister(false);
-    setShowLogin(true); // Show login after successful registration
-  };
-
-  const handleSwitchToRegister = () => {
-    setShowLogin(false);
-    setShowRegister(true);
-  };
-
-  const handleSwitchToLogin = () => {
-    setShowRegister(false);
-    setShowLogin(true);
   };
 
   return (
@@ -68,38 +46,11 @@ const LoginPage = () => {
           Please sign in to continue
         </p>
 
-        {showLogin && (
-          <DjangoLoginForm
-            onSuccess={handleLoginSuccess}
-            onCancel={() => {}} // Don't allow closing in stealth mode
-            onSwitchToRegister={handleSwitchToRegister}
-            onForgotPassword={() => {
-              setShowLogin(false);
-              setShowPasswordResetRequest(true);
-            }}
-          />
-        )}
-
-        {showRegister && (
-          <DjangoRegisterForm
-            onSuccess={handleRegisterSuccess}
-            onCancel={() => {}} // Don't allow closing in stealth mode
-            onSwitchToLogin={handleSwitchToLogin}
-          />
-        )}
-
-        {showPasswordResetRequest && (
-          <DjangoPasswordResetRequest
-            onSuccess={() => {
-              setShowPasswordResetRequest(false);
-              setShowLogin(true);
-            }}
-            onCancel={() => {
-              setShowPasswordResetRequest(false);
-              setShowLogin(true);
-            }}
-          />
-        )}
+        <AuthModal
+          onSuccess={handleLoginSuccess}
+          // Stealth mode: there is nothing to go back to.
+          onCancel={() => {}}
+        />
       </div>
     </div>
   );

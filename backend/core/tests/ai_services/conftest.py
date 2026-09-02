@@ -119,10 +119,13 @@ def bad_api_key() -> str:
 @pytest.fixture
 def openrouter_api_key() -> str:
     """
-    API key loaded from ``core/tests/.env.test``
-    (``OPENROUTER_KEY_FOR_TESTS``).
+    API key loaded from ``core/tests/.env.test``.
+
+    Falls back to a dummy key: in replay mode (cassettes committed) the
+    value is never sent anywhere, it only needs to be non-empty so
+    ``invoke()`` doesn't short-circuit with "No OpenRouter API key".
     """
-    return os.getenv("OPENROUTER_KEY_FOR_TESTS", "")
+    return os.getenv("OPENROUTER_KEY_FOR_TESTS", "sk-or-v1-dummy-replay-key")
 
 
 @pytest.fixture

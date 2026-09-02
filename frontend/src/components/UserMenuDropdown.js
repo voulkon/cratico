@@ -4,20 +4,12 @@ import { useTranslation } from '../contexts/TranslationContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { Moon, Sun, LogOut, LogIn, Sparkles } from 'lucide-react';
+// Static import is safe: <SignOutButton> is only RENDERED when a Clerk
+// session exists (isClerkAuth), which implies ClerkProvider is mounted in
+// index.js. Sign-in goes through the unified DjangoLoginForm modal instead,
+// so SignInButton is no longer needed here.
+import { SignOutButton } from '@clerk/clerk-react';
 import './UserMenu.css';
-
-// Check if Clerk is available
-const isClerkAvailable = () => {
-  return !!process.env.REACT_APP_CLERK_PUBLISHABLE_KEY;
-};
-
-// Lazy load Clerk components only if available
-let SignInButton, SignOutButton;
-if (isClerkAvailable()) {
-  const clerkReact = require('@clerk/clerk-react');
-  SignInButton = clerkReact.SignInButton;
-  SignOutButton = clerkReact.SignOutButton;
-}
 
 const UserMenuDropdown = ({ onClose, onShowLogin }) => {
   const navigate = useNavigate();
@@ -89,8 +81,15 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
           <div className="user-info-centered">
             <div className="user-email-bold">{user?.primaryEmailAddress?.emailAddress || user?.email || ''}</div>
             {isClerkAuth ? (
+              // SignOutButton only ends the Clerk session; the combined
+              // signOut() also clears any residual Django token, so it runs
+              // alongside (not instead of) Clerk's own sign-out.
               <SignOutButton>
-                <button className="sign-out-inline" onClick={onClose} title={t('common.signOut')}>
+                <button
+                  className="sign-out-inline"
+                  onClick={() => { onClose(); signOut(); }}
+                  title={t('common.signOut')}
+                >
                   <LogOut size={14} />
                 </button>
               </SignOutButton>
@@ -182,26 +181,20 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
         </div>
       </div>
 
-      {/* Sign In Section (only when not signed in) */}
+      {/* Sign In Section (only when not signed in). One button: the Django
+          login modal itself offers every active method (Clerk + email), so no
+          stacked method buttons are needed here. */}
       {!isSignedIn && (
         <div className="menu-section">
-          {isClerkAuth ? (
-            <SignInButton mode="modal">
-              <button className="menu-action primary" onClick={onClose}>
-                <LogIn size={16} /> {t('common.signIn')}
-              </button>
-            </SignInButton>
-          ) : (
-            <button
-              className="menu-action primary"
-              onClick={() => {
-                onClose();
-                onShowLogin && onShowLogin();
-              }}
-            >
-              <LogIn size={16} /> {t('common.signIn')}
-            </button>
-          )}
+          <button
+            className="menu-action primary"
+            onClick={() => {
+              onClose();
+              onShowLogin && onShowLogin();
+            }}
+          >
+            <LogIn size={16} /> {t('common.signIn')}
+          </button>
         </div>
       )}
 

@@ -182,6 +182,9 @@ services:
       - GEMI_API_KEY=${GEMI_API_KEY}
       - STEALTH_MODE=${STEALTH_MODE:-false}
       - STEALTH_ALLOWLIST=${STEALTH_ALLOWLIST:-false}
+      # Clerk: backend owns all three Clerk values; the frontend receives the
+      # publishable key at runtime via /api/system/config/auth/
+      - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY:-}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME:-crati-backups}
@@ -273,7 +276,8 @@ services:
       context: .
       dockerfile: docker/Dockerfile.frontend.prod
       args:
-        REACT_APP_CLERK_PUBLISHABLE_KEY: ${REACT_APP_CLERK_PUBLISHABLE_KEY}
+        # No REACT_APP_CLERK_PUBLISHABLE_KEY: the backend advertises auth
+        # methods + the publishable key at runtime via /api/system/config/auth/
         REACT_APP_API_URL: ${REACT_APP_API_URL}
     networks:
       # Internal-only alias, same reasoning as backend-internal above.
