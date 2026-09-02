@@ -300,13 +300,16 @@ class FeatureFlagForm(forms.ModelForm):
                             f"  {model_key}: ERROR - {details['error']}"
                         )
                     else:
-                        total = details.get("total", 0)
-                        backfilled = details.get("backfilled", 0)
-                        percentage = details.get("percentage", 0)
-                        status = "[OK]" if percentage >= 95 else "[FAIL]"
-                        status_lines.append(
-                            f"  {status} {model_key}: {backfilled:,}/{total:,} ({percentage:.1f}%)"
-                        )
+                        if details.get("is_empty"):
+                            status = "[OK]"
+                            detail_text = "empty table (nothing to backfill)"
+                        elif details.get("backfilled"):
+                            status = "[OK]"
+                            detail_text = "backfilled"
+                        else:
+                            status = "[FAIL]"
+                            detail_text = "NULL search_vector rows found - partial backfill"
+                        status_lines.append(f"  {status} {model_key}: {detail_text}")
             status_lines.append("")
 
             # Summary message
