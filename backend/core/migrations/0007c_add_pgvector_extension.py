@@ -6,19 +6,21 @@ class Migration(migrations.Migration):
         ("core", "0007b_add_unaccent_extension"),
     ]
 
-    # Only attempt pgvector if we're using PostgreSQL
+    # Only attempt pgvector if we're using PostgreSQL.
+    # NOTE: the SQL extension is named "vector"; "pgvector" is the
+    # project/docker-image name.
     operations = []
     if connection.vendor == "postgresql":
         try:
             # Check if pgvector can be created
             with connection.cursor() as cursor:
                 cursor.execute(
-                    "SELECT COUNT(*) FROM pg_available_extensions WHERE name = 'pgvector'"
+                    "SELECT COUNT(*) FROM pg_available_extensions WHERE name = 'vector'"
                 )
                 if cursor.fetchone()[0] > 0:
                     operations = [
                         migrations.RunSQL(
-                            sql="CREATE EXTENSION IF NOT EXISTS pgvector;",
+                            sql="CREATE EXTENSION IF NOT EXISTS vector;",
                             reverse_sql="",
                         ),
                     ]

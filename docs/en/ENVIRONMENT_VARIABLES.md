@@ -138,12 +138,21 @@ No specific environment variables required. Configuration is file-based in `dock
 
 ### Clerk (Authentication Provider)
 
+Clerk is controlled **server-side**. The backend exposes the active auth
+methods and the publishable key at runtime via `GET /api/system/config/auth/`
+— the frontend needs no Clerk build-time variable.
+
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `CLERK_JWT_PUBLIC_KEY` | Production | - | Public key for JWT verification (PEM format) |
-| `CLERK_SECRET_KEY` | Production | - | Clerk secret key |
+| `USE_CLERK_AUTH` | No | `false` | Feature flag enabling Clerk authentication |
+| `CLERK_JWT_PUBLIC_KEY` | When Clerk enabled | - | Public key for JWT verification (PEM format) |
+| `CLERK_SECRET_KEY` | When Clerk enabled | - | Clerk secret key |
+| `CLERK_PUBLISHABLE_KEY` | When Clerk enabled | - | Clerk publishable key (backend-owned, delivered to the frontend at runtime) |
 | `CLERK_JWT_AUDIENCE` | Production | - | JWT audience claim (your Clerk instance URL) |
-| `REACT_APP_CLERK_PUBLISHABLE_KEY` | Frontend | - | Clerk publishable key for frontend |
+
+Clerk is only advertised to the frontend when `USE_CLERK_AUTH=true` **and** all
+three Clerk keys are set; otherwise the app runs Django-only with a single
+backend warning.
 
 ### Basic Authentication
 
@@ -214,10 +223,12 @@ No specific environment variables required. Configuration is file-based in `dock
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `REACT_APP_CLERK_PUBLISHABLE_KEY` | Yes | - | Clerk public key for authentication |
 | `REACT_APP_API_URL` | Yes | - | Backend API base URL |
 | `REACT_APP_STEALTH_MODE` | No | `false` | Enable frontend authentication |
 | `REACT_APP_STEALTH_ALLOWLIST` | No | `false` | Enable allowlist checks |
+
+Note: auth methods (Clerk/Django) are **not** frontend variables — they come
+from the backend at runtime via `/api/system/config/auth/`.
 
 ---
 

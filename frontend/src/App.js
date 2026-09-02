@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/clerk-react";
 import BrowsePage from "./pages/BrowsePage";
 import HomePage from "./pages/HomePage";
 import DevPage from "./pages/OrganizationsPage";
@@ -26,7 +25,7 @@ import LibrarySidebar from "./components/LibrarySidebar";
 import NotificationSidebar from "./components/NotificationSidebar";
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
-import { AuthConfigProvider, useAuthConfig } from './contexts/AuthConfigContext';
+import { useAuthConfig } from './contexts/AuthConfigContext';
 import { TranslationProvider } from './contexts/TranslationContext';
 import { useAllowlistCheck } from './hooks/useAllowlistCheck';
 import './App.css';
@@ -41,11 +40,6 @@ import { setTokenGetter } from './api/client';
 import { useTranslation } from './contexts/TranslationContext';
 import { useAuth } from './contexts/AuthContext';
 import PasswordResetPage from './pages/PasswordResetPage';
-
-// Check if Clerk is available
-const isClerkAvailable = () => {
-  return !!process.env.REACT_APP_CLERK_PUBLISHABLE_KEY;
-};
 
 // Separate component to access auth context
 function AuthenticatedApp({ controlsLayout }) {
@@ -267,20 +261,15 @@ function AuthenticatedApp({ controlsLayout }) {
 }
 
 // Main App component
+// AuthConfigProvider + ClerkProvider live in index.js (outermost), so both
+// useAuthConfig and useAuth are available anywhere below.
 function App({ controlsLayout = 'vertical-right' }) {
   // NOTE: Cannot use useTranslation here - this component creates the TranslationProvider
-  const clerkAvailable = isClerkAvailable();
-
   return (
     <TranslationProvider>
       <ThemeProvider>
         <AuthProvider>
-          <AuthConfigProvider>
-              <AppContent
-                controlsLayout={controlsLayout}
-                clerkAvailable={clerkAvailable}
-              />
-          </AuthConfigProvider>
+          <AppContent controlsLayout={controlsLayout} />
         </AuthProvider>
       </ThemeProvider>
     </TranslationProvider>
@@ -288,8 +277,8 @@ function App({ controlsLayout = 'vertical-right' }) {
 }
 
 // Separate component to access auth context
-function AppContent({ controlsLayout, clerkAvailable }) {
-  const { isLoaded, isSignedIn, isClerkAuth } = useAuth();
+function AppContent({ controlsLayout }) {
+  const { isLoaded, isSignedIn } = useAuth();
   const { stealthMode, loading: configLoading } = useAuthConfig();
 
   // Show loading state while checking authentication or fetching config
@@ -319,29 +308,16 @@ function AppContent({ controlsLayout, clerkAvailable }) {
         transition: 'background-color 0.3s ease, color 0.3s ease'
       }}>
         {stealthMode ? (
-          // Stealth mode ON - require authentication (Clerk OR Django)
-          <>
-            {clerkAvailable && isClerkAuth ? (
-              // Using Clerk authentication
-              <>
-                <SignedIn>
-                  <AuthenticatedApp controlsLayout={controlsLayout} />
-                </SignedIn>
-                <SignedOut>
-                  <RedirectToSignIn />
-                </SignedOut>
-              </>
-            ) : (
-              // Using Django authentication - show login page if not signed in
-              <>
-                {isSignedIn ? (
-                  <AuthenticatedApp controlsLayout={controlsLayout} />
-                ) : (
-                  <LoginPage />
-                )}
-              </>
-            )}
-          </>
+          // Stealth mode ON - require authentication. Plain conditional
+          // rendering against the combined auth state: LoginPage offers every
+          // active method (Clerk and/or Django). Clerk's
+          // SignedIn/SignedOut/RedirectToSignIn wrappers only make sense in a
+          // Clerk-only app and block dual-mode rendering, so they're gone.
+          isSignedIn ? (
+            <AuthenticatedApp controlsLayout={controlsLayout} />
+          ) : (
+            <LoginPage />
+          )
         ) : (
           // Stealth mode OFF - public access
           <AuthenticatedApp controlsLayout={controlsLayout} />

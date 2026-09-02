@@ -1,19 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+// Static import: Clerk hooks are only *called* inside ClerkStateReader, which
+// is only rendered under <ClerkProvider> — so "useUser outside ClerkProvider"
+// crashes are structurally impossible. No more conditional require().
+import { useUser, useAuth as useClerkAuth } from '@clerk/clerk-react';
+import { useAuthConfig } from './AuthConfigContext';
 
 const AuthContext = createContext();
-
-// Check if Clerk is available
-const isClerkAvailable = () => {
-  return !!process.env.REACT_APP_CLERK_PUBLISHABLE_KEY;
-};
-
-// Conditionally import Clerk at module level (not inside component)
-let useClerkUser, useClerkAuth;
-if (isClerkAvailable()) {
-  const clerkReact = require('@clerk/clerk-react');
-  useClerkUser = clerkReact.useUser;
-  useClerkAuth = clerkReact.useAuth;
-}
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -23,52 +15,47 @@ export const useAuth = () => {
   return context;
 };
 
-// Clerk-based AuthProvider (when Clerk is configured)
-const ClerkAuthProvider = ({ children }) => {
-  // Use the hooks imported at module level
-  const { user, isSignedIn, isLoaded } = useClerkUser();
+/**
+ * Reads the Clerk session and reports it upward.
+ *
+ * Rendered ONLY when the backend advertises "clerk" in auth_methods (which
+ * also means index.js has mounted <ClerkProvider>). When Clerk is inactive
+ * this component never renders, so zero Clerk code executes and zero network
+ * calls to clerk.accounts.dev are made.
+ */
+const ClerkStateReader = ({ onStateChange }) => {
+  const { user, isSignedIn, isLoaded } = useUser();
   const { getToken, signOut } = useClerkAuth();
 
-  const getAuthToken = async () => {
-    try {
-      if (isSignedIn && user) {
-        return await getToken();
-      }
-      return null;
-    } catch (error) {
-      console.error('Error getting Clerk token:', error);
-      return null;
-    }
-  };
+  useEffect(() => {
+    onStateChange({ user, isSignedIn, isLoaded, getToken, signOut });
+  }, [user, isSignedIn, isLoaded, getToken, signOut, onStateChange]);
 
-  const value = {
-    user,
-    isSignedIn: isSignedIn && isLoaded,
-    isLoaded,
-    getToken: getAuthToken,
-    signOut,
-    isClerkAuth: true,
-  };
-
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return null;
 };
 
-// Basic AuthProvider (when Clerk is NOT configured)
-// Uses Django session/token authentication
-const BasicAuthProvider = ({ children }) => {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [user, setUser] = useState(null);
-  const [isSignedIn, setIsSignedIn] = useState(false);
+/**
+ * Combined auth provider: serves Clerk and Django auth simultaneously.
+ *
+ * Merge logic:
+ *   1. Clerk active AND Clerk session signed in -> identity = Clerk user.
+ *   2. Else if a valid django_auth_token exists -> identity = Django user.
+ *   3. Else -> signed out.
+ *
+ * The Django methods (signIn/register/verifyEmail/requestPasswordReset/
+ * resetPassword) are exposed in EVERY mode — that's what makes dual auth
+ * usable. `isClerkAuth` tells consumers which mechanism produced the session.
+ */
+const CombinedAuthProvider = ({ clerkActive, clerkState, configLoading, children }) => {
+  const [djangoLoaded, setDjangoLoaded] = useState(false);
+  const [djangoUser, setDjangoUser] = useState(null);
+  const [djangoSignedIn, setDjangoSignedIn] = useState(false);
 
   // Use same base URL pattern as axios client
   const apiUrl = process.env.REACT_APP_API_URL || '/api';
 
   useEffect(() => {
-    // Check if user is authenticated via Django session
+    // Check if user is authenticated via a Django token
     const checkAuth = async () => {
       try {
         const token = localStorage.getItem('django_auth_token');
@@ -82,8 +69,8 @@ const BasicAuthProvider = ({ children }) => {
 
           if (response.ok) {
             const data = await response.json();
-            setUser(data.user);
-            setIsSignedIn(true);
+            setDjangoUser(data.user);
+            setDjangoSignedIn(true);
           } else {
             // Token invalid, clear it
             localStorage.removeItem('django_auth_token');
@@ -92,7 +79,7 @@ const BasicAuthProvider = ({ children }) => {
       } catch (error) {
         console.error('Error checking auth:', error);
       } finally {
-        setIsLoaded(true);
+        setDjangoLoaded(true);
       }
     };
     checkAuth();
@@ -114,8 +101,8 @@ const BasicAuthProvider = ({ children }) => {
       if (response.ok) {
         const data = await response.json();
         localStorage.setItem('django_auth_token', data.token);
-        setUser(data.user);
-        setIsSignedIn(true);
+        setDjangoUser(data.user);
+        setDjangoSignedIn(true);
 
         return { success: true };
       } else {
@@ -128,12 +115,12 @@ const BasicAuthProvider = ({ children }) => {
     }
   }, [apiUrl]);
 
-  const getAuthToken = useCallback(async () => {
+  const getDjangoToken = useCallback(async () => {
     // Return Django token for API requests
     return localStorage.getItem('django_auth_token');
   }, []);
 
-  const signOut = useCallback(async () => {
+  const djangoSignOut = useCallback(async () => {
     try {
       const token = localStorage.getItem('django_auth_token');
       if (token) {
@@ -148,8 +135,8 @@ const BasicAuthProvider = ({ children }) => {
       console.error('Logout error:', error);
     } finally {
       localStorage.removeItem('django_auth_token');
-      setUser(null);
-      setIsSignedIn(false);
+      setDjangoUser(null);
+      setDjangoSignedIn(false);
     }
   }, [apiUrl]);
 
@@ -180,11 +167,13 @@ const BasicAuthProvider = ({ children }) => {
           };
         }
 
-        // Old behavior: immediate login (for backward compatibility if verification is disabled)
+        // Verification disabled: the backend returns a token (and user) so we
+        // can sign the user in immediately — no email round-trip exists.
         if (data.token) {
           localStorage.setItem('django_auth_token', data.token);
-          setUser(data.user);
-          setIsSignedIn(true);
+          // Fall back to a minimal user object if the backend omits one.
+          setDjangoUser(data.user || { email: data.email, username: data.email });
+          setDjangoSignedIn(true);
         }
 
         return { success: true, verification_required: false };
@@ -214,8 +203,8 @@ const BasicAuthProvider = ({ children }) => {
         // Automatically log the user in after successful verification
         if (data.token) {
           localStorage.setItem('django_auth_token', data.token);
-          setUser(data.user);
-          setIsSignedIn(true);
+          setDjangoUser(data.user);
+          setDjangoSignedIn(true);
         }
 
         return { success: true, message: data.message };
@@ -268,8 +257,8 @@ const BasicAuthProvider = ({ children }) => {
         // Automatically log the user in after successful password reset
         if (data.token) {
           localStorage.setItem('django_auth_token', data.token);
-          setUser(data.user);
-          setIsSignedIn(true);
+          setDjangoUser(data.user);
+          setDjangoSignedIn(true);
         }
 
         return { success: true, message: data.message };
@@ -283,18 +272,53 @@ const BasicAuthProvider = ({ children }) => {
     }
   }, [apiUrl]);
 
+  // ── Merge Clerk and Django sessions ──────────────────────────────────────
+  const clerkReady = clerkActive && clerkState?.isLoaded;
+  const useClerkSession = Boolean(clerkReady && clerkState.isSignedIn);
+
+  const getClerkToken = useCallback(async () => {
+    try {
+      return await clerkState.getToken();
+    } catch (error) {
+      console.error('Error getting Clerk token:', error);
+      return null;
+    }
+  }, [clerkState]);
+
+  // Sign out of whichever mechanism is active — and clear the other one too,
+  // so "sign out" never leaves a residual session behind.
+  const signOut = useCallback(async () => {
+    if (clerkActive && clerkState?.signOut) {
+      try {
+        await clerkState.signOut();
+      } catch (error) {
+        console.error('Clerk sign-out error:', error);
+      }
+    }
+    await djangoSignOut();
+  }, [clerkActive, clerkState, djangoSignOut]);
+
+  // Not loaded until (a) the runtime auth config has arrived, (b) the Django
+  // token check has finished, and (c) — when Clerk is active — Clerk has
+  // reported its session state. Gating on the config prevents a flash of
+  // signed-out Django UI while /api/system/config/auth/ is still in flight.
+  const isLoaded =
+    !configLoading &&
+    djangoLoaded &&
+    (!clerkActive || Boolean(clerkState?.isLoaded));
+
   const value = {
-    user,
-    isSignedIn,
+    user: useClerkSession ? clerkState.user : djangoUser,
+    isSignedIn: useClerkSession ? true : djangoSignedIn,
     isLoaded,
-    getToken: getAuthToken,
+    getToken: useClerkSession ? getClerkToken : getDjangoToken,
     signIn,
     signOut,
     register,
     verifyEmail,
     requestPasswordReset,
     resetPassword,
-    isClerkAuth: false,
+    isClerkAuth: useClerkSession,
   };
 
   return (
@@ -304,11 +328,29 @@ const BasicAuthProvider = ({ children }) => {
   );
 };
 
-// Main AuthProvider that switches between Clerk and Basic auth
+/**
+ * Runtime-driven auth provider. Which mechanisms are active comes from
+ * /api/system/config/auth/ (via AuthConfigContext) — never from build-time
+ * environment variables.
+ *
+ * Must be rendered inside AuthConfigProvider, and inside ClerkProvider when
+ * the config advertises Clerk (index.js guarantees both).
+ */
 export const AuthProvider = ({ children }) => {
-  if (isClerkAvailable()) {
-    return <ClerkAuthProvider>{children}</ClerkAuthProvider>;
-  } else {
-    return <BasicAuthProvider>{children}</BasicAuthProvider>;
-  }
+  const { authMethods, loading: configLoading } = useAuthConfig();
+  const clerkActive = !configLoading && authMethods.includes('clerk');
+  const [clerkState, setClerkState] = useState(null);
+
+  return (
+    <>
+      {clerkActive && <ClerkStateReader onStateChange={setClerkState} />}
+      <CombinedAuthProvider
+        clerkActive={clerkActive}
+        clerkState={clerkState}
+        configLoading={configLoading}
+      >
+        {children}
+      </CombinedAuthProvider>
+    </>
+  );
 };

@@ -1,16 +1,27 @@
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useAuthConfig } from '../contexts/AuthConfigContext';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useTheme } from '../contexts/ThemeContext';
+// Static import is safe: <SignInButton> is only RENDERED when the backend
+// advertises "clerk" in auth_methods (so ClerkProvider is mounted in index.js).
+import { SignInButton } from '@clerk/clerk-react';
 import './DjangoLoginForm.css';
 
 /**
- * Django Login Form
- * Simple email/password form for Django authentication when Clerk is not available
+ * Unified Login Modal
+ *
+ * Email/password form for Django authentication — plus a "Sign in with Clerk"
+ * option at the top when the backend advertises Clerk. This makes the modal
+ * the single dual-auth entry point for every call site (user menu, UserAuth,
+ * AuthPromptModal, LoginPage): one button anywhere opens one modal offering
+ * every active method.
  */
 function DjangoLoginForm({ onSuccess, onCancel, onSwitchToRegister, onForgotPassword }) {
   const { signIn } = useAuth();
+  const { authMethods } = useAuthConfig();
+  const clerkActive = authMethods.includes('clerk');
   const { t } = useTranslation();
   const { isDarkMode } = useTheme();
   const [email, setEmail] = useState('');
@@ -57,6 +68,48 @@ function DjangoLoginForm({ onSuccess, onCancel, onSwitchToRegister, onForgotPass
             <div className="django-login-error">
               {error}
             </div>
+          )}
+
+          {/* Dual auth: Clerk option above the email form, visually separated.
+              Clerk opens its own modal; onSuccess fires via the combined
+              AuthContext when the Clerk session lands. */}
+          {clerkActive && (
+            <>
+              <SignInButton mode="modal">
+                <button
+                  type="button"
+                  className="django-login-clerk"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    marginBottom: '4px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: 'var(--accent-color, #4a90d9)',
+                    color: 'white',
+                    cursor: 'pointer',
+                    fontSize: '15px',
+                    fontWeight: '500'
+                  }}
+                >
+                  {t('auth.signInWithClerk') || 'Sign in with Clerk'}
+                </button>
+              </SignInButton>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  margin: '12px 0',
+                  color: 'var(--text-muted, #888)',
+                  fontSize: '13px'
+                }}
+              >
+                <span style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-color, #e0e0e0)' }} />
+                {t('auth.orContinueWithEmail') || 'or continue with email'}
+                <span style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-color, #e0e0e0)' }} />
+              </div>
+            </>
           )}
 
           <div className="django-login-field">
@@ -120,6 +173,7 @@ function DjangoLoginForm({ onSuccess, onCancel, onSwitchToRegister, onForgotPass
           <p>
             {t('auth.noAccount')}{' '}
             <button
+              type="button"
               onClick={onSwitchToRegister}
               className="django-login-switch"
               disabled={loading}

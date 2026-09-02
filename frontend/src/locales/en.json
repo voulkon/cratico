@@ -532,7 +532,9 @@
     "forgotPassword": "Forgot password?",
     "signingIn": "Signing in...",
     "noAccount": "Don't have an account?",
-    "createAccount": "Create Account"
+    "createAccount": "Create Account",
+    "signInWithClerk": "Sign in with Clerk",
+    "orContinueWithEmail": "or continue with email"
   },
   "counterparts": {
     "topOrganizations": "Top Organizations",

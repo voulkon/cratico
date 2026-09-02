@@ -1,3 +1,4 @@
+import importlib.util
 import os
 from pathlib import Path
 
@@ -25,6 +26,16 @@ def _is_light_worker_mode() -> bool:
         return False
 
 
+def _docling_available() -> bool:
+    """Check whether the docling package is actually importable.
+
+    The LIGHT_WORKER env flag alone is not reliable: a container can run in
+    full mode (flag unset) but still be built without the optional 'docling'
+    poetry group (e.g. CI or a light image), so we check the real package.
+    """
+    return importlib.util.find_spec("docling") is not None
+
+
 def _get_extractor(
     processor_service: TextExtractionProcessor, provider: ProcessingProvider
 ):
@@ -37,6 +48,11 @@ def _get_extractor(
     if provider == ProcessingProvider.DOCLING:
         if _is_light_worker_mode():
             pytest.skip("Docling is disabled in LIGHT_WORKER mode")
+        if not _docling_available():
+            pytest.skip(
+                "docling package is not installed "
+                "(install the optional 'docling' poetry group)"
+            )
         return processor_service._get_docling_extractor()
     return processor_service.extractors[provider]
 

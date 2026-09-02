@@ -167,6 +167,9 @@ services:
       - OPENSEARCH_URL=${OPENSEARCH_URL:-http://opensearch:9200}
       - STEALTH_MODE=${STEALTH_MODE:-false}
       - STEALTH_ALLOWLIST=${STEALTH_ALLOWLIST:-false}
+      # Clerk: backend owns all three Clerk values; the frontend receives the
+      # publishable key at runtime via /api/system/config/auth/
+      - CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY:-}
     networks:
       # Alias exists ONLY on the internal network. Nginx proxies to
       # 'backend-internal', a name that can never resolve on the shared
@@ -261,7 +264,8 @@ services:
       context: .
       dockerfile: docker/Dockerfile.frontend.prod
       args:
-        REACT_APP_CLERK_PUBLISHABLE_KEY: ${REACT_APP_CLERK_PUBLISHABLE_KEY}
+        # No REACT_APP_CLERK_PUBLISHABLE_KEY: the backend advertises auth
+        # methods + the publishable key at runtime via /api/system/config/auth/
         REACT_APP_API_URL: ${REACT_APP_API_URL}
     networks:
       # Internal-only alias, same reasoning as backend-internal above.

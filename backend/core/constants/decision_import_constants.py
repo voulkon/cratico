@@ -1,6 +1,12 @@
+from pathlib import Path
+
 from loguru import logger
 
-PICKLE_DIR = "/code/logs/pickles"
+# Recovery/pickle storage directory, resolved relative to the backend project root.
+# This works both inside Docker (where the backend lives at /code, so this resolves
+# to /code/logs/pickles) and locally (backend/logs/pickles) without any configuration.
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+PICKLE_DIR = str(BACKEND_ROOT / "logs" / "pickles")
 
 # Diavgeia API Search Parameter Field Names
 # These constants centralize the field names used when searching the Diavgeia API.

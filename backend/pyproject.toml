@@ -97,6 +97,36 @@ pylint = "^4.0.5"
 bandit = "^1.9.4"
 pytest-mock = "^3.15.1"
 # pre-commit = "^4.6.0" # Install it locally when needed
+diff-cover = "^10.5.1"
+
+[tool.coverage.run]
+branch = true
+omit = [
+    # Tests: executing them inflates coverage, don't count them.
+    "*/tests/*",
+    "*/test_*.py",
+    "*/conftest.py",
+    # Infrastructure that should never count toward app coverage.
+    "*/migrations/*",
+    "*/management/*",
+    "pothen/*",
+    "gemi/*",
+    "experiments/*",
+    "staticfiles/*",
+    "logs/*",
+    "manage.py",
+    "debug_command.py",
+    "*/settings/*",
+    "*/asgi.py",
+    "*/wsgi.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

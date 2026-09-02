@@ -85,6 +85,24 @@ def mock_celery_task():
         yield mock_task
 
 
+@pytest.fixture
+def mock_post_import_orchestrator():
+    """
+    Mock the post-import orchestrator task.
+
+    on_job_completed() triggers post_daily_import_orchestrator.apply_async()
+    for global daily imports, which would otherwise attempt a real broker
+    connection (RabbitMQ) and fail in CI where no broker is available.
+    """
+    with patch(
+        "core.tasks.tasks_post_import.post_daily_import_orchestrator"
+    ) as mock_task:
+        mock_result = MagicMock()
+        mock_result.id = "test-orchestrator-task-id"
+        mock_task.apply_async.return_value = mock_result
+        yield mock_task
+
+
 # ============================================================================
 # Test: Basic Queue Operations
 # ============================================================================
@@ -398,7 +416,12 @@ class TestOnJobCompleted:
     """Test auto-dispatch on job completion"""
 
     def test_on_completion_dispatches_next_queued_job(
-        self, queue, sample_date, mock_celery_task, clear_import_queue
+        self,
+        queue,
+        sample_date,
+        mock_celery_task,
+        mock_post_import_orchestrator,
+        clear_import_queue,
     ):
         """Completing a job should auto-dispatch next pending job"""
         # Create a completed job
@@ -425,7 +448,12 @@ class TestOnJobCompleted:
         mock_celery_task.delay.assert_called_once()
 
     def test_on_completion_with_no_pending_jobs(
-        self, queue, sample_date, mock_celery_task, clear_import_queue
+        self,
+        queue,
+        sample_date,
+        mock_celery_task,
+        mock_post_import_orchestrator,
+        clear_import_queue,
     ):
         """Should handle completion gracefully when queue is empty"""
         job = ImportJob.objects.create(
@@ -440,7 +468,12 @@ class TestOnJobCompleted:
         mock_celery_task.delay.assert_not_called()
 
     def test_on_completion_when_still_at_capacity(
-        self, queue, sample_date, mock_celery_task, clear_import_queue
+        self,
+        queue,
+        sample_date,
+        mock_celery_task,
+        mock_post_import_orchestrator,
+        clear_import_queue,
     ):
         """Should not dispatch if still at capacity (another job running)"""
         # Two active jobs (at/over capacity)
