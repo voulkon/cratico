@@ -324,9 +324,14 @@ def get_entities_fast(query, **kwargs):
             search_service.search_afm_entities(transliterated_query, limit)
         )
         if transliterated_query != query:
-            fallback = list(
-                search_service.search_afm_entities(query, limit)
-            )
+            fallback = list(search_service.search_afm_entities(query, limit))
+            if trace is not None:
+                trace.add(
+                    "fallback_search",
+                    type="afm_entity",
+                    reason="transliteration_changed",
+                    fallback_count=len(fallback),
+                )
             afm_entities = _merge_deduped_results(
                 afm_entities, fallback, lambda e: e.pk, limit
             )
