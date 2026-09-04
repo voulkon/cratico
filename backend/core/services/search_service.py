@@ -1121,21 +1121,27 @@ class SearchService:
         ).order_by("-total_appearances", "name")[:limit]
 
     def _search_afm_entities_fts(self, query: str, limit: int = 20) -> QuerySet:
-        """PostgreSQL Full-Text Search with smart language detection (Tier 2)"""
+        """
+        PostgreSQL Full-Text Search with smart language detection (Tier 2)
+
+        Ordering is by -total_appearances, name only — NOT by text relevance.
+        Rationale (measured with EXPLAIN ANALYZE on ~700K rows): per-row
+        ts_rank_cd over a broad prefix match (e.g. 'ΔΗΜ*' hits ~15K rows)
+        costs ~30ms warm / 200ms+ cold, while ordering by total_appearances
+        alone runs in ~8ms. For AFM entities (persons/companies), popularity
+        (number of decision appearances) is a better ranking signal than
+        text-relevance rank anyway.
+        """
         TransliterationService.detect_language(query)
         search_query = self._build_prefix_search_query(query)
-        weights = TransliterationService.get_search_rank_weights(query)
 
         qs = (
-            AFMEntity.objects.annotate(
-                rank=SearchRank(F("search_vector"), search_query, weights=weights)
-            )
-            .filter(search_vector=search_query)
-            .order_by("-rank", "-total_appearances", "name")[:limit]
+            AFMEntity.objects.filter(search_vector=search_query)
+            .order_by("-total_appearances", "name")[:limit]
         )
 
         # NOTE: Do not call qs.count() here for logging — the queryset is
-        # sliced and ranked, so count() re-executes the entire expensive
+        # sliced, so count() re-executes the entire expensive
         # FTS scan a second time.
         return qs
 
