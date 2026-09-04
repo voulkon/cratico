@@ -12,10 +12,15 @@ from core.services.opensearch_service import OpenSearchService
 from core.services.prerequisite_check_service import prerequisite_check
 from core.services.transliteration import TransliterationService
 from core.utils.performance import query_debugger
+from core.utils.search_trace import get_current_trace
 from django.contrib.postgres.search import SearchQuery, SearchRank
 from django.core.cache import cache
 from django.db.models import F, Q, QuerySet
 from loguru import logger
+
+# Module-level flag so the "document search disabled" warning is logged
+# only once per process instead of on every search request.
+_warned_document_search_disabled = False
 
 
 class SearchService:
@@ -64,6 +69,14 @@ class SearchService:
                     f"POSTGRES_FTS requested but prerequisites not met: {prereq['reason']}. "
                     f"Falling back to {SearchMethod.POSTGRES_SIMPLE}"
                 )
+                trace = get_current_trace()
+                if trace is not None:
+                    trace.add(
+                        "tier_downgrade",
+                        requested=requested_method,
+                        fallback=SearchMethod.POSTGRES_SIMPLE,
+                        reason=prereq["reason"],
+                    )
                 return SearchMethod.POSTGRES_SIMPLE
             return SearchMethod.POSTGRES_FTS
 
@@ -175,10 +188,21 @@ class SearchService:
             return self._search_organizations_opensearch(query, limit)
         elif method == SearchMethod.POSTGRES_FTS:
             if self._is_query_too_short_for_fts(query):
+                self._trace_tier(
+                    "organization", "postgres_simple", reason="query_too_short_for_fts"
+                )
                 return self._search_organizations_simple(query, limit)
+            self._trace_tier("organization", "postgres_fts")
             return self._search_organizations_fts(query, limit)
         else:  # POSTGRES_SIMPLE (default fallback)
+            self._trace_tier("organization", "postgres_simple", reason="configured_tier")
             return self._search_organizations_simple(query, limit)
+
+    def _trace_tier(self, entity_type: str, tier: str, reason: Optional[str] = None):
+        """Record the resolved tier for an entity type in the active search trace."""
+        trace = get_current_trace()
+        if trace is not None:
+            trace.add("tier", type=entity_type, tier=tier, reason=reason)
 
     def _search_organizations_simple(self, query: str, limit: int = 20) -> QuerySet:
         """Simple PostgreSQL ILIKE search (Tier 1)"""
@@ -408,11 +432,16 @@ class SearchService:
         # Skip OpenSearch if disabled, use PostgreSQL directly
         if not feature_flags.is_enabled("INDEX_THE_OPENSEARCH"):
             if not use_postgres_search:
-                # Both search methods disabled - return empty result
-                logger.warning(
-                    "Both OpenSearch and PostgreSQL search are disabled. "
-                    "Document content search unavailable. Only entity search is available."
-                )
+                # Both search methods disabled - return empty result.
+                # Log only once per process; this fires on every search
+                # request otherwise and floods the logs.
+                global _warned_document_search_disabled
+                if not _warned_document_search_disabled:
+                    _warned_document_search_disabled = True
+                    logger.warning(
+                        "Both OpenSearch and PostgreSQL search are disabled. "
+                        "Document content search unavailable. Only entity search is available."
+                    )
                 return {"results": [], "count": 0, "source": "none", "highlights": {}}
 
             logger.info("OpenSearch disabled, falling back to PostgreSQL search")

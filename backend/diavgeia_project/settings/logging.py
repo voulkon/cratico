@@ -31,6 +31,20 @@ DB_LOG_LEVEL = os.getenv(
     "DB_LOG_LEVEL", "WARNING"
 )  # Only show DB queries on WARNING+ unless explicitly enabled
 
+# Search pipeline instrumentation (Track A measurement / E6 slow-query alerting).
+# DEBUG_SEARCH_SERVICE=1 -> per-request search traces (search_id, tier decisions,
+#   transliteration, per-type timing/counts) logged at INFO as SEARCH_TRACE lines.
+# SEARCH_SLOW_QUERY_THRESHOLD (seconds, default 0=off) -> SLOW_SEARCH warnings for
+#   any decorated search call exceeding the threshold. Safe to leave on in prod.
+DEBUG_SEARCH_SERVICE = os.getenv("DEBUG_SEARCH_SERVICE", "False").lower() in (
+    "true",
+    "1",
+    "t",
+)
+SEARCH_SLOW_QUERY_THRESHOLD = float(
+    os.getenv("SEARCH_SLOW_QUERY_THRESHOLD", "0") or 0
+)
+
 # Backward compatibility: Keep JSON_LOGGING_LEVEL for now
 JSON_LOGGING_LEVEL = os.getenv("JSON_LOGGING_LEVEL", DJANGO_LOG_LEVEL)
 
