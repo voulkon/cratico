@@ -250,26 +250,30 @@ const SuperSearch = ({
 
       setIsLoading(true);
 
-      // Determine which categories to increase limits for
-      let newLimits = { ...categoryLimits };
+      // Determine which categories to increase limits for.
+      // Only categories being extended are requested from the API
+      // (others are set to 0 = not requested), so we never re-fetch
+      // results we already have.
+      const newLimits = { ...categoryLimits };
 
       if (selectedCategory === 'all') {
         // Increase all category limits that still have more results
         Object.keys(newLimits).forEach(key => {
           if (hasMoreResults[key]) {
             newLimits[key] += 5;
-            console.log(`Increasing ${key} limit to ${newLimits[key]}`);
+          } else {
+            newLimits[key] = 0;
           }
         });
       } else {
-        // Increase only the selected category limit
-        newLimits[selectedCategory] += 5;
-        console.log(`Increasing ${selectedCategory} limit to ${newLimits[selectedCategory]}`);
+        // Request ONLY the selected category
+        Object.keys(newLimits).forEach(key => {
+          newLimits[key] = key === selectedCategory ? newLimits[key] + 5 : 0;
+        });
       }
 
-      // Fetch with new limits
+      // Fetch with new limits (only extended categories are sent to the API)
       const newResults = await searchCategories(query, newLimits, controller.signal);
-      console.log('Received results:', newResults);
 
       // Check which categories have reached their end
       const newHasMoreResults = { ...hasMoreResults };
@@ -281,13 +285,28 @@ const SuperSearch = ({
         // If we got fewer results than requested, we've reached the end
         if (currentCount < requestedLimit) {
           newHasMoreResults[category] = false;
-          console.log(`Category ${category} exhausted (${currentCount} < ${requestedLimit})`);
-        } else {
-          console.log(`Category ${category} still has more (${currentCount} >= ${requestedLimit})`);
         }
       });
 
-      setResults(newResults);
+      // Merge: keep results from categories we did NOT re-request,
+      // replace the ones we extended with the fresh (longer) lists.
+      setResults(prevResults => {
+        if (!prevResults) return newResults;
+        const mergedResults = { ...prevResults.results };
+        Object.entries(newResults.results).forEach(([category, items]) => {
+          if (newLimits[category] > 0) {
+            mergedResults[category] = items;
+          }
+        });
+        return {
+          ...prevResults,
+          results: mergedResults,
+          total_count: Object.values(mergedResults).reduce(
+            (sum, items) => sum + (items?.length || 0),
+            0
+          )
+        };
+      });
       setCategoryLimits(newLimits);
       setHasMoreResults(newHasMoreResults);
       setIsLoading(false);

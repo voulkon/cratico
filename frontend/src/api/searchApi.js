@@ -266,6 +266,8 @@ export const searchCategories = async (query, categoryLimits = {}, signal = null
 
   try {
     // Fetch entities with the max limit to avoid multiple calls
+    // (A limit of 0 means "don't fetch this category" — used by load-more
+    // to only re-request the category that needs more results.)
     const entityParams = new URLSearchParams({
       q: query,
       types: entityTypes.join(','),
