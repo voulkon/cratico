@@ -4,6 +4,7 @@ import { streamSearch, getDefaultSuggestions, searchCategories, trackSearchSelec
 import { TimerIcon, TrashIcon, SearchIcon } from './Icons.js';
 import CategoryTabs from './CategoryTabs';
 import { getCategoryIcon, getCategoryLabel } from '../constants/categoryDefinitions';
+import { useAuthConfig } from '../contexts/AuthConfigContext';
 import './SuperSearch.css';
 
 const SuperSearch = ({
@@ -40,6 +41,12 @@ const SuperSearch = ({
   });
 
   const navigate = useNavigate();
+  // Backend-controlled search debounce (SEARCH_DEBOUNCE_MS feature flag,
+  // delivered via /api/system/config/auth/). Falls back to 300ms while the
+  // config is loading or if the endpoint is unavailable.
+  const { searchDebounceMs } = useAuthConfig();
+  const debounceMsRef = useRef(300);
+  debounceMsRef.current = searchDebounceMs ?? 300;
   const inputRef = useRef(null);
   const resultsRef = useRef(null);
   const searchTimeoutRef = useRef(null);
@@ -377,7 +384,7 @@ const SuperSearch = ({
     // Set new timeout for search
     searchTimeoutRef.current = setTimeout(() => {
       performSearch(newQuery);
-    }, 300); // 300ms debounce
+    }, debounceMsRef.current); // SEARCH_DEBOUNCE_MS feature flag (default 300ms)
   };
 
   // Handle input focus
