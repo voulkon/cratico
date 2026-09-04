@@ -173,6 +173,12 @@ def _merge_deduped_results(primary_results, fallback_results, id_getter, limit):
     return merged[:limit]
 
 
+# Minimum query length for entity search. Below this, ILIKE prefix searches on
+# single characters return broad top-N rows (slow on signers/units, low value),
+# so we short-circuit with an empty result.
+MIN_ENTITY_QUERY_LENGTH = 3
+
+
 def get_entities_fast(query, **kwargs):
     """
     Fast entity search - returns organizations, signers, units, companies, and company_persons
@@ -205,7 +211,13 @@ def get_entities_fast(query, **kwargs):
 
     results = {"query": query, "results": {}, "total_count": 0, "type": "entities"}
 
-    if not query:
+    if not query or len(query.strip()) < MIN_ENTITY_QUERY_LENGTH:
+        if trace is not None:
+            trace.add(
+                "skipped",
+                reason="query_too_short",
+                min_length=MIN_ENTITY_QUERY_LENGTH,
+            )
         finish_search_trace(trace)
         return results
 
