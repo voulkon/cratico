@@ -7,13 +7,10 @@ from loguru import logger
 
 from core.utils.search_trace import get_current_trace
 
-# Toggles live in settings/logging.py (DEBUG_SEARCH_SERVICE,
-# SEARCH_SLOW_QUERY_THRESHOLD). Read lazily so import order doesn't matter
-# and tests can override via override_settings.
-
-
-def _debug_search_service() -> bool:
-    return getattr(settings, "DEBUG_SEARCH_SERVICE", False)
+# SEARCH_SLOW_QUERY_THRESHOLD lives in settings/logging.py (seconds, 0=off).
+# Read lazily so tests can override via override_settings. The debug-trace
+# toggle is the DEBUG_SEARCH_SERVICE feature flag, checked once per request
+# inside start_search_trace (see search_trace.py).
 
 
 def _slow_query_threshold() -> float:
@@ -23,11 +20,11 @@ def _slow_query_threshold() -> float:
 def query_debugger(func):
     @functools.wraps(func)
     def inner_func(*args, **kwargs):
-        if not _debug_search_service() and not _slow_query_threshold():
-            return func(*args, **kwargs)
-
         SLOW_THRESHOLD = _slow_query_threshold()
         trace = get_current_trace()
+
+        if trace is None and not SLOW_THRESHOLD:
+            return func(*args, **kwargs)
 
         reset_queries()
 
@@ -72,7 +69,7 @@ def query_debugger(func):
                     dur=duration,
                     qc=end_queries - start_queries,
                 )
-            elif _debug_search_service():
+            elif trace is not None:
                 logger.info(
                     "SEARCH_TIMING func={func} duration={dur:.3f}s queries={qc}",
                     func=func.__name__,

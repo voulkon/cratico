@@ -32,15 +32,11 @@ DB_LOG_LEVEL = os.getenv(
 )  # Only show DB queries on WARNING+ unless explicitly enabled
 
 # Search pipeline instrumentation (Track A measurement / E6 slow-query alerting).
-# DEBUG_SEARCH_SERVICE=1 -> per-request search traces (search_id, tier decisions,
-#   transliteration, per-type timing/counts) logged at INFO as SEARCH_TRACE lines.
+# DEBUG_SEARCH_SERVICE is now a feature flag (DB → env → default, Redis-cached).
+#   Toggle it at runtime in the admin under Feature Flags → Search.
+#   The env var below still works as the fallback/initial value.
 # SEARCH_SLOW_QUERY_THRESHOLD (seconds, default 0=off) -> SLOW_SEARCH warnings for
 #   any decorated search call exceeding the threshold. Safe to leave on in prod.
-DEBUG_SEARCH_SERVICE = os.getenv("DEBUG_SEARCH_SERVICE", "False").lower() in (
-    "true",
-    "1",
-    "t",
-)
 SEARCH_SLOW_QUERY_THRESHOLD = float(
     os.getenv("SEARCH_SLOW_QUERY_THRESHOLD", "0") or 0
 )

@@ -315,6 +315,31 @@ class FeatureFlagService:
             "requires_restart": False,
             "value_type": "integer",
         },
+        # ── Search UX ────────────────────────────────────────────────────
+        "DEBUG_SEARCH_SERVICE": {
+            "name": "Search Service Debug Tracing",
+            "description": "Enable per-request search traces (search_id, tier resolution, "
+            "transliteration, per-type timing, fallback merges) logged as single "
+            "structured SEARCH_TRACE lines for Loki/Grafana. "
+            "Adds small overhead per search request — leave off in production "
+            "unless actively debugging.",
+            "default": False,
+            "env_var": "DEBUG_SEARCH_SERVICE",
+            "category": "search",
+            "requires_restart": False,
+        },
+        "SEARCH_DEBOUNCE_MS": {
+            "name": "Search Debounce (ms)",
+            "description": "How long the frontend waits (in milliseconds) after the "
+            "last keystroke before firing a search-as-you-type request. "
+            "Higher = fewer intermediate requests but less 'live' feel. "
+            "Delivered to the frontend via /api/system/config/auth/.",
+            "default": 300,
+            "env_var": "SEARCH_DEBOUNCE_MS",
+            "category": "search",
+            "requires_restart": False,
+            "value_type": "integer",
+        },
         # ── Security & Threat Detection ───────────────────────────────
         "SECURITY_MONITORING_ENABLED": {
             "name": "Security Monitoring",
