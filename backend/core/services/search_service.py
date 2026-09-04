@@ -237,9 +237,9 @@ class SearchService:
             .order_by("-rank", "label")[:limit]
         )
 
-        logger.debug(
-            f"Organization FTS: query='{query}', lang={query_lang}, found={qs.count()}"
-        )
+        # NOTE: Do not call qs.count() here for logging — the queryset is
+        # sliced and ranked, so count() re-executes the entire expensive
+        # FTS scan a second time.
         return qs
 
     def _search_organizations_opensearch(self, query: str, limit: int = 20) -> QuerySet:
@@ -315,9 +315,9 @@ class SearchService:
 
         qs = qs.select_related("organization").order_by("-rank", "label")[:limit]
 
-        logger.debug(
-            f"Unit FTS: query='{query}', found={qs.count()}"
-        )
+        # NOTE: Do not call qs.count() here for logging — the queryset is
+        # sliced and ranked, so count() re-executes the entire expensive
+        # FTS scan a second time.
         return qs
 
     def _search_units_opensearch(
@@ -392,9 +392,9 @@ class SearchService:
             "-rank", "last_name", "first_name"
         )[:limit]
 
-        logger.debug(
-            f"Signer FTS: query='{query}', found={qs.count()}"
-        )
+        # NOTE: Do not call qs.count() here for logging — the queryset is
+        # sliced and ranked, so count() re-executes the entire expensive
+        # FTS scan a second time.
         return qs
 
     def _search_signers_opensearch(
@@ -999,9 +999,9 @@ class SearchService:
             .order_by("-rank", "co_name_el")[:limit]
         )
 
-        logger.debug(
-            f"Company FTS: query='{query}', found={qs.count()}"
-        )
+        # NOTE: Do not call qs.count() here for logging — the queryset is
+        # sliced and ranked, so count() re-executes the entire expensive
+        # FTS scan a second time.
         return qs
 
     def _search_companies_opensearch(self, query: str, limit: int = 20) -> QuerySet:
@@ -1072,9 +1072,9 @@ class SearchService:
 
         qs = qs.select_related("company").order_by("-rank", "person_name")[:limit]
 
-        logger.debug(
-            f"CompanyPerson FTS: query='{query}', found={qs.count()}"
-        )
+        # NOTE: Do not call qs.count() here for logging — the queryset is
+        # sliced and ranked, so count() re-executes the entire expensive
+        # FTS scan a second time.
         return qs
 
     def _search_company_persons_opensearch(
@@ -1134,9 +1134,9 @@ class SearchService:
             .order_by("-rank", "-total_appearances", "name")[:limit]
         )
 
-        logger.debug(
-            f"AFMEntity FTS: query='{query}', found={qs.count()}"
-        )
+        # NOTE: Do not call qs.count() here for logging — the queryset is
+        # sliced and ranked, so count() re-executes the entire expensive
+        # FTS scan a second time.
         return qs
 
     def _search_afm_entities_opensearch(
