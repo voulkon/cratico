@@ -1,4 +1,5 @@
 import json
+import time
 from typing import Any, Dict, List, Optional
 
 from core.constants.search_service import SearchMethod
@@ -63,7 +64,20 @@ class SearchService:
         if requested_method == SearchMethod.POSTGRES_FTS:
             # For entity searches, check if prerequisites are met (migration + backfill)
             # Note: INDEX_THE_POSTGRES is only for document content, not entities
+            flag_start = time.perf_counter()
             prereq = prerequisite_check.check_postgres_fts_prerequisites()
+            flag_ms = round((time.perf_counter() - flag_start) * 1000, 1)
+
+            # Record so a slow prerequisite recompute is visible inside the
+            # request's SEARCH_TRACE line (correlates with type_search timing).
+            _trace = get_current_trace()
+            if _trace is not None:
+                _trace.add(
+                    "prereq_check",
+                    method=requested_method,
+                    duration_ms=flag_ms,
+                    available=prereq["available"],
+                )
             if not prereq["available"]:
                 logger.warning(
                     f"POSTGRES_FTS requested but prerequisites not met: {prereq['reason']}. "
