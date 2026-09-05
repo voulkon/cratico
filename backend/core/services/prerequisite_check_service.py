@@ -15,9 +15,30 @@ from typing import Any, Dict
 from core.constants.search_service import (
     POSTGRES_FTS_MIGRATION, POSTGRES_FTS_MODELS
     )
+import time
+
 from django.core.cache import cache
 from django.db import connection
 from loguru import logger
+
+from core.utils.search_trace import get_current_trace
+
+# Log a warning if a single table probe takes longer than this (seconds).
+# A healthy probe against a fully-backfilled table with a partial NULL-index
+# is sub-millisecond; a seq scan over a big table is seconds.
+SLOW_TABLE_PROBE_SECONDS = 1.0
+
+
+def _trace_prereq(event_type: str, **data) -> None:
+    """Record a prerequisite-check event in the active SearchTrace (if any).
+
+    The prerequisite check runs inside search requests, so its events land in
+    the same SEARCH_TRACE line as the type_search timings — making it directly
+    visible when a slow search is actually a slow prerequisite recompute.
+    """
+    trace = get_current_trace()
+    if trace is not None:
+        trace.add(event_type, **data)
 
 
 class PrerequisiteCheckService:
@@ -97,6 +118,7 @@ class PrerequisiteCheckService:
                 table = config["table"]
                 quoted_table = connection.ops.quote_name(table)
 
+                probe_start = time.perf_counter()
                 try:
                     # Fast probe: does at least one row have a NULL search_vector?
                     # LIMIT 1 lets the planner stop scanning as soon as it finds one.
@@ -115,6 +137,39 @@ class PrerequisiteCheckService:
                     """,  # nosec: B608 - Using Django's quote_name() for identifier safety
                     )
                     has_null, has_any = cursor.fetchone()
+                    probe_ms = round((time.perf_counter() - probe_start) * 1000, 1)
+
+                    # Same info into the per-request search trace.
+                    _trace_prereq(
+                        "prereq_probe",
+                        table=table,
+                        probe_ms=probe_ms,
+                        has_null=has_null,
+                    )
+
+                    # Make cold-cache probe cost visible: these probes seq-scan
+                    # the whole table when fully backfilled (no index can serve
+                    # `search_vector IS NULL` without a partial index).
+                    if probe_ms > SLOW_TABLE_PROBE_SECONDS * 1000:
+                        logger.warning(
+                            "FTS prerequisite probe SLOW table={table} "
+                            "probe_ms={probe_ms} has_null={has_null} "
+                            "(consider partial index on (search_vector) "
+                            "WHERE search_vector IS NULL)",
+                            table=table,
+                            probe_ms=probe_ms,
+                            has_null=has_null,
+                        )
+                    else:
+                        logger.info(
+                            "FTS prerequisite probe table={table} "
+                            "probe_ms={probe_ms} has_null={has_null} "
+                            "has_any={has_any}",
+                            table=table,
+                            probe_ms=probe_ms,
+                            has_null=has_null,
+                            has_any=has_any,
+                        )
 
                     # A table is considered backfilled if it has at least one
                     # populated row and no NULL rows (has_null is False).
@@ -187,6 +242,17 @@ class PrerequisiteCheckService:
         if cached_result is not None:
             return cached_result
 
+        # Cold-cache recompute: make this visible in logs. If this line shows
+        # up alongside a ~30s search_organizations duration, the prerequisite
+        # check (not the search query) is the culprit.
+        logger.warning(
+            "FTS prerequisite cache MISS — running migration + backfill probes "
+            "(this can take tens of seconds on large tables). "
+            "Concurrent requests during this window will EACH recompute."
+        )
+        _trace_prereq("prereq_cache_miss")
+        check_start = time.perf_counter()
+
         # Check migration
         migration_applied = PrerequisiteCheckService.check_postgres_fts_migration()
 
@@ -215,6 +281,12 @@ class PrerequisiteCheckService:
                 "missing_models": backfill_status["missing_models"],
             }
             cache.set(cache_key, result, PrerequisiteCheckService.CACHE_TIMEOUT)
+            total_ms = round((time.perf_counter() - check_start) * 1000, 1)
+            logger.warning(
+                "FTS prerequisite check DONE (not ready) total_ms={total_ms}",
+                total_ms=total_ms,
+            )
+            _trace_prereq("prereq_done", ready=False, total_ms=total_ms)
             return result
 
         # All good!
@@ -227,6 +299,12 @@ class PrerequisiteCheckService:
         }
 
         cache.set(cache_key, result, PrerequisiteCheckService.CACHE_TIMEOUT)
+        total_ms = round((time.perf_counter() - check_start) * 1000, 1)
+        logger.info(
+            "FTS prerequisite check DONE (ready) total_ms={total_ms}",
+            total_ms=total_ms,
+        )
+        _trace_prereq("prereq_done", ready=True, total_ms=total_ms)
         return result
 
     @staticmethod
