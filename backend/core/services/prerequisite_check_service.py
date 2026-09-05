@@ -7,8 +7,8 @@ This service is independent to avoid circular dependencies between SearchService
 
 from api.redis_keys import (
     PREREQUISITE_CHECK_CACHE_MIGRATION,
-    PREREQUISITE_CHECK_CACHE_BACKFILL_STATUS,  
-    PREREQUISITE_CHECK_CACHE_FULL_CHECK
+    PREREQUISITE_CHECK_CACHE_BACKFILL_STATUS_PREFIX,
+    PREREQUISITE_CHECK_CACHE_FULL_CHECK_PREFIX,
 )
 from typing import Any, Dict
 
@@ -27,6 +27,16 @@ from core.utils.search_trace import get_current_trace
 # A healthy probe against a fully-backfilled table with a partial NULL-index
 # is sub-millisecond; a seq scan over a big table is seconds.
 SLOW_TABLE_PROBE_SECONDS = 1.0
+
+# Search scopes. Each scope probes only the tables it actually searches,
+# so entity searches never pay for the huge document tables.
+SCOPE_ENTITY = "entity"
+SCOPE_DOCUMENT = "document"
+
+# Tables that only matter for document-content search (raw text extraction).
+# These are the multi-million-row tables whose `search_vector IS NULL` probe
+# is a 35-70s seq scan when fully backfilled.
+DOCUMENT_ONLY_MODELS = {"extraction", "decision"}
 
 
 def _trace_prereq(event_type: str, **data) -> None:
@@ -84,9 +94,13 @@ class PrerequisiteCheckService:
             return False
 
     @staticmethod
-    def check_postgres_fts_backfill_status() -> Dict[str, Any]:
+    def check_postgres_fts_backfill_status(scope: str = SCOPE_DOCUMENT) -> Dict[str, Any]:
         """
-        Check if required search_vector fields are backfilled.
+        Check if required search_vector fields are backfilled for a scope.
+
+        Args:
+            scope: 'entity' probes only entity tables (fast); 'document' probes
+                all tables including core_decision/core_documentextraction.
 
         Returns:
             Dict with:
@@ -95,7 +109,7 @@ class PrerequisiteCheckService:
                 - 'missing_models': list - Models that need backfilling
                 - 'summary': str - Human-readable summary
         """
-        cache_key = PREREQUISITE_CHECK_CACHE_BACKFILL_STATUS
+        cache_key = f"{PREREQUISITE_CHECK_CACHE_BACKFILL_STATUS_PREFIX}:{scope}"
         cached_result = cache.get(cache_key)
 
         if cached_result is not None:
@@ -104,17 +118,22 @@ class PrerequisiteCheckService:
         details = {}
         missing_models = []
 
+        # Scope filtering: entity search never touches document tables, so
+        # it must not pay for their (very expensive) probes.
+        models_to_check = {
+            key: config
+            for key, config in POSTGRES_FTS_MODELS.items()
+            if config.get("required_for_fts", True)
+            and not (scope == SCOPE_ENTITY and key in DOCUMENT_ONLY_MODELS)
+        }
+
         # IMPORTANT: We use EXISTS (LIMIT 1) instead of COUNT(*) because
         # counting NULLs across millions of rows (e.g. core_documentextraction,
         # core_decision) takes ~30s on a cold cache. We only need to know
         # WHETHER backfill is incomplete, not the exact count, so a single
         # row probe is enough and short-circuits in milliseconds.
         with connection.cursor() as cursor:
-            for model_key, config in POSTGRES_FTS_MODELS.items():
-                # Skip models not required for FTS
-                if not config.get("required_for_fts", True):
-                    continue
-
+            for model_key, config in models_to_check.items():
                 table = config["table"]
                 quoted_table = connection.ops.quote_name(table)
 
@@ -222,10 +241,19 @@ class PrerequisiteCheckService:
 
         return result
 
+    # How long a waiter waits for the recompute lock holder before falling
+    # back to "assume available" (avoids cascading slow requests during a
+    # genuinely long recompute).
+    LOCK_WAIT_SECONDS = 30
+
     @staticmethod
-    def check_postgres_fts_prerequisites() -> Dict[str, Any]:
+    def check_postgres_fts_prerequisites(scope: str = SCOPE_DOCUMENT) -> Dict[str, Any]:
         """
-        Check all PostgreSQL FTS prerequisites (migration + backfill).
+        Check PostgreSQL FTS prerequisites (migration + backfill) for a scope.
+
+        Args:
+            scope: 'entity' checks only entity tables (fast, no document
+                tables); 'document' checks everything.
 
         Returns:
             Dict with:
@@ -236,21 +264,54 @@ class PrerequisiteCheckService:
                 - 'backfill_ready': bool - Backfill status
         """
         # TODO: Replace with centralized value
-        cache_key = PREREQUISITE_CHECK_CACHE_FULL_CHECK
+        cache_key = f"{PREREQUISITE_CHECK_CACHE_FULL_CHECK_PREFIX}:{scope}"
         cached_result = cache.get(cache_key)
 
         if cached_result is not None:
             return cached_result
 
+        # Dogpile protection: only ONE request per scope should recompute.
+        # Concurrent requests either wait briefly or assume OK and retry.
+        lock_key = f"{cache_key}:lock"
+        lock_acquired = cache.add(
+            lock_key, "recomputing", PrerequisiteCheckService.LOCK_WAIT_SECONDS
+        )
+        if not lock_acquired:
+            # Another request is already recomputing. Wait a bounded time for
+            # it to finish and populate the cache.
+            wait_start = time.perf_counter()
+            while (time.perf_counter() - wait_start) < PrerequisiteCheckService.LOCK_WAIT_SECONDS:
+                time.sleep(0.25)
+                cached_result = cache.get(cache_key)
+                if cached_result is not None:
+                    return cached_result
+            # Lock holder is slow/stuck — proceed with a fresh recompute
+            # rather than blocking forever.
+            logger.warning(
+                "FTS prerequisite lock wait timed out for scope={scope}; "
+                "recomputing anyway",
+                scope=scope,
+            )
+
+        try:
+            return PrerequisiteCheckService._compute_postgres_fts_prerequisites(
+                scope, cache_key
+            )
+        finally:
+            cache.delete(lock_key)
+
+    @staticmethod
+    def _compute_postgres_fts_prerequisites(scope: str, cache_key: str) -> Dict[str, Any]:
+        """Actual prerequisite computation (called under the dogpile lock)."""
         # Cold-cache recompute: make this visible in logs. If this line shows
         # up alongside a ~30s search_organizations duration, the prerequisite
         # check (not the search query) is the culprit.
         logger.warning(
-            "FTS prerequisite cache MISS — running migration + backfill probes "
-            "(this can take tens of seconds on large tables). "
-            "Concurrent requests during this window will EACH recompute."
+            "FTS prerequisite cache MISS scope={scope} — running migration + "
+            "backfill probes",
+            scope=scope,
         )
-        _trace_prereq("prereq_cache_miss")
+        _trace_prereq("prereq_cache_miss", scope=scope)
         check_start = time.perf_counter()
 
         # Check migration
@@ -268,7 +329,9 @@ class PrerequisiteCheckService:
             return result
 
         # Check backfill status
-        backfill_status = PrerequisiteCheckService.check_postgres_fts_backfill_status()
+        backfill_status = PrerequisiteCheckService.check_postgres_fts_backfill_status(
+            scope=scope
+        )
 
         if not backfill_status["ready"]:
             missing = ", ".join(backfill_status["missing_models"])
@@ -283,10 +346,12 @@ class PrerequisiteCheckService:
             cache.set(cache_key, result, PrerequisiteCheckService.CACHE_TIMEOUT)
             total_ms = round((time.perf_counter() - check_start) * 1000, 1)
             logger.warning(
-                "FTS prerequisite check DONE (not ready) total_ms={total_ms}",
+                "FTS prerequisite check DONE (not ready) scope={scope} "
+                "total_ms={total_ms}",
+                scope=scope,
                 total_ms=total_ms,
             )
-            _trace_prereq("prereq_done", ready=False, total_ms=total_ms)
+            _trace_prereq("prereq_done", scope=scope, ready=False, total_ms=total_ms)
             return result
 
         # All good!
@@ -301,18 +366,21 @@ class PrerequisiteCheckService:
         cache.set(cache_key, result, PrerequisiteCheckService.CACHE_TIMEOUT)
         total_ms = round((time.perf_counter() - check_start) * 1000, 1)
         logger.info(
-            "FTS prerequisite check DONE (ready) total_ms={total_ms}",
+            "FTS prerequisite check DONE (ready) scope={scope} total_ms={total_ms}",
+            scope=scope,
             total_ms=total_ms,
         )
-        _trace_prereq("prereq_done", ready=True, total_ms=total_ms)
+        _trace_prereq("prereq_done", scope=scope, ready=True, total_ms=total_ms)
         return result
 
     @staticmethod
     def clear_cache():
         """Clear all prerequisite check caches."""
         cache.delete(PREREQUISITE_CHECK_CACHE_MIGRATION)
-        cache.delete(PREREQUISITE_CHECK_CACHE_BACKFILL_STATUS)
-        cache.delete(PREREQUISITE_CHECK_CACHE_FULL_CHECK)
+        for scope in (SCOPE_ENTITY, SCOPE_DOCUMENT):
+            cache.delete(f"{PREREQUISITE_CHECK_CACHE_BACKFILL_STATUS_PREFIX}:{scope}")
+            cache.delete(f"{PREREQUISITE_CHECK_CACHE_FULL_CHECK_PREFIX}:{scope}")
+            cache.delete(f"{PREREQUISITE_CHECK_CACHE_FULL_CHECK_PREFIX}:{scope}:lock")
         logger.info("Cleared all prerequisite check caches")
 
 

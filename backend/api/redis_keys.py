@@ -82,8 +82,14 @@ SEARCH_HISTORY_EXPIRE = 60 * 60 * 24 * 90  # 90 days (recent searches)
 
 PREREQUISITE_CHECK_CACHE_PREFIX = "prerequisite:postgres_fts"
 PREREQUISITE_CHECK_CACHE_MIGRATION = f"{PREREQUISITE_CHECK_CACHE_PREFIX}:migration"
-PREREQUISITE_CHECK_CACHE_BACKFILL_STATUS = f"{PREREQUISITE_CHECK_CACHE_PREFIX}:backfill_status"
-PREREQUISITE_CHECK_CACHE_FULL_CHECK = f"{PREREQUISITE_CHECK_CACHE_PREFIX}:full_check"
+# Scope-specific keys: ":entity" and ":document" are appended at runtime.
+# (Keys without a scope suffix are legacy and no longer written.)
+PREREQUISITE_CHECK_CACHE_BACKFILL_STATUS_PREFIX = (
+    f"{PREREQUISITE_CHECK_CACHE_PREFIX}:backfill_status"
+)
+PREREQUISITE_CHECK_CACHE_FULL_CHECK_PREFIX = (
+    f"{PREREQUISITE_CHECK_CACHE_PREFIX}:full_check"
+)
 
 # API Response Cache (cached view responses for expensive queries)
 API_CACHE_NS = "api_cache"

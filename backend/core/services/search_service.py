@@ -10,7 +10,11 @@ from core.models.entities import AFMEntity
 from core.models.organizations import Organization, Signer, Unit
 from core.services.feature_flag_service import feature_flags
 from core.services.opensearch_service import OpenSearchService
-from core.services.prerequisite_check_service import prerequisite_check
+from core.services.prerequisite_check_service import (
+    SCOPE_DOCUMENT,
+    SCOPE_ENTITY,
+    prerequisite_check,
+)
 from core.services.transliteration import TransliterationService
 from core.utils.performance import query_debugger
 from core.utils.search_trace import get_current_trace
@@ -45,13 +49,18 @@ class SearchService:
 
     # ==================== PREREQUISITE CHECKING ====================
 
-    def _get_validated_search_method(self, requested_method: str) -> str:
+    def _get_validated_search_method(
+        self, requested_method: str, scope: str = SCOPE_ENTITY
+    ) -> str:
         """
         Validate that the requested search method's prerequisites are met.
         Falls back to POSTGRES_SIMPLE if prerequisites are not satisfied.
 
         Args:
             requested_method: The search method to validate
+            scope: Which prerequisite scope to validate. Entity searches use
+                'entity' (skips the multi-second document-table probes);
+                document search uses 'document' (all tables).
 
         Returns:
             The validated method (may be downgraded to POSTGRES_SIMPLE)
@@ -65,7 +74,7 @@ class SearchService:
             # For entity searches, check if prerequisites are met (migration + backfill)
             # Note: INDEX_THE_POSTGRES is only for document content, not entities
             flag_start = time.perf_counter()
-            prereq = prerequisite_check.check_postgres_fts_prerequisites()
+            prereq = prerequisite_check.check_postgres_fts_prerequisites(scope=scope)
             flag_ms = round((time.perf_counter() - flag_start) * 1000, 1)
 
             # Record so a slow prerequisite recompute is visible inside the
@@ -440,6 +449,10 @@ class SearchService:
         if not query:
             return {"results": [], "count": 0, "source": "none", "highlights": {}}
 
+        # Document search must validate the full (document) prerequisite scope.
+        # Entity search methods below use the lighter 'entity' scope via
+        # _get_validated_search_method's default.
+        #
         # Check if PostgreSQL search is enabled
         use_postgres_search = feature_flags.is_enabled("INDEX_THE_POSTGRES")
 
@@ -762,7 +775,12 @@ class SearchService:
         requested_method = feature_flags.get_value(
             "ENTITY_SEARCH_METHOD", SearchMethod.DEFAULT
         )
-        method = self._get_validated_search_method(requested_method)
+        # Decision search filters Decision.search_vector (and
+        # text_extraction.search_vector), so it must validate the document
+        # scope — core_decision/core_documentextraction backfill matters here.
+        method = self._get_validated_search_method(
+            requested_method, scope=SCOPE_DOCUMENT
+        )
 
         if method == SearchMethod.POSTGRES_FTS:
             fts_query = self._build_prefix_search_query(query)

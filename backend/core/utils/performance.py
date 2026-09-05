@@ -37,6 +37,9 @@ def query_debugger(func):
 
         # If the decorated function returns a lazy QuerySet, force evaluation
         # so the timing reflects the actual SQL, not just query construction.
+        # NOTE: end_queries is re-captured AFTER evaluation so the trace's
+        # query_count includes the actual search SQL, not just queries run
+        # during query construction (e.g. prerequisite checks).
         result_count = None
         if trace is not None and hasattr(result, "__iter__") and hasattr(
             result, "query"
@@ -44,6 +47,7 @@ def query_debugger(func):
             result = list(result)
             result_count = len(result)
             duration = time.perf_counter() - start
+            end_queries = len(connection.queries)
 
         if trace is not None:
             trace.add(
