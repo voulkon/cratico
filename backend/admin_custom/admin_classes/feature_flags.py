@@ -124,6 +124,15 @@ class FeatureFlagForm(forms.ModelForm):
         label="Recording Mode",
     )
 
+    # Dynamic field for integer-type flags (e.g., SEARCH_DEBOUNCE_MS)
+    selected_integer = forms.IntegerField(
+        required=False,
+        min_value=0,
+        widget=forms.NumberInput(attrs={"style": "max-width: 200px;"}),
+        help_text="Enter a whole number value for this flag.",
+        label="Integer Value",
+    )
+
     # Read-only display of prerequisite status for ENTITY_SEARCH_METHOD
     prerequisite_status_display = forms.CharField(
         required=False,
@@ -339,6 +348,13 @@ class FeatureFlagForm(forms.ModelForm):
                     self.instance.string_value
                 )
 
+        # If this is an integer-type flag, pre-fill the integer field from string_value
+        if self.instance and self.instance.pk and self.instance.value_type == "integer":
+            try:
+                self.fields["selected_integer"].initial = int(self.instance.string_value)
+            except (TypeError, ValueError):
+                pass
+
         # Show/hide fields based on value_type
         if self.instance and self.instance.pk:
             if self.instance.value_type == "boolean":
@@ -447,6 +463,21 @@ class FeatureFlagForm(forms.ModelForm):
                         forms.HiddenInput()
                     )
                     self.fields["selected_recording_mode"].widget = forms.HiddenInput()
+            elif self.instance.value_type == "integer":
+                # Show the integer field, hide everything else
+                self.fields["enabled"].widget = forms.HiddenInput()
+                self.fields["list_value"].widget = forms.HiddenInput()
+                self.fields["string_value"].widget = forms.HiddenInput()
+                self.fields["selected_decision_types"].widget = forms.HiddenInput()
+                self.fields["selected_exempt_prefixes"].widget = forms.HiddenInput()
+                self.fields["always_exempt_prefixes_display"].widget = (
+                    forms.HiddenInput()
+                )
+                self.fields["selected_users"].widget = forms.HiddenInput()
+                self.fields["additional_emails"].widget = forms.HiddenInput()
+                self.fields["selected_search_method"].widget = forms.HiddenInput()
+                self.fields["prerequisite_status_display"].widget = forms.HiddenInput()
+                self.fields["selected_recording_mode"].widget = forms.HiddenInput()
 
     def clean(self):
         cleaned_data = super().clean()
@@ -518,15 +549,25 @@ class FeatureFlagForm(forms.ModelForm):
                         )
 
         # For SEARCH_HISTORY_RECORDING_MODE, sync selected_recording_mode to string_value
-        if cleaned_data.get(
-            "key"
-        ) == "SEARCH_HISTORY_RECORDING_MODE" and cleaned_data.get("value_type") in (
-            "string",
-            "choice",
+        if (
+            cleaned_data.get("key")
+            == "SEARCH_HISTORY_RECORDING_MODE"
+            and cleaned_data.get("value_type") in (
+                "string",
+                "choice",
+            )
         ):
             selected_mode = cleaned_data.get("selected_recording_mode")
             if selected_mode:
                 cleaned_data["string_value"] = selected_mode
+
+        # For integer-type flags, sync selected_integer to string_value (stored as text)
+        if cleaned_data.get("value_type") == "integer":
+            selected_integer = cleaned_data.get("selected_integer")
+            if selected_integer is not None:
+                cleaned_data["string_value"] = str(selected_integer)
+            else:
+                cleaned_data["string_value"] = ""
 
         return cleaned_data
 
@@ -612,6 +653,7 @@ class FeatureFlagAdmin(admin.ModelAdmin):
                     "selected_search_method",
                     "prerequisite_status_display",
                     "selected_recording_mode",
+                    "selected_integer",
                 ),
                 "description": "Configure the value based on the value type selected above.",
             },

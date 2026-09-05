@@ -142,9 +142,20 @@ export const streamSearch = (query, options = {}) => {
     onError = () => {}
   } = options;
 
+  // Minimum query length: skip the request for 1-char queries (broad top-N
+  // results of dubious value, expensive on the backend).
+  const MIN_QUERY_LENGTH = 3;
+
   // Immediately start the fast entity search
   (async () => {
     try {
+      if (!query || query.trim().length < MIN_QUERY_LENGTH) {
+        // Treat as empty search: no results, nothing to load
+        onEntities({ query, results: {}, total_count: 0, type: 'entities' });
+        onDone({ query, skipped: 'query_too_short' });
+        return;
+      }
+
       // Phase 1: Fast entity search
       const entityResults = await searchEntitiesFast(query, limit, signal);
 
@@ -255,6 +266,8 @@ export const searchCategories = async (query, categoryLimits = {}, signal = null
 
   try {
     // Fetch entities with the max limit to avoid multiple calls
+    // (A limit of 0 means "don't fetch this category" — used by load-more
+    // to only re-request the category that needs more results.)
     const entityParams = new URLSearchParams({
       q: query,
       types: entityTypes.join(','),

@@ -37,6 +37,7 @@ class FeatureFlag(models.Model):
         ("list", "List (Multiple Values)"),
         ("string", "String (Text)"),
         ("choice", "Choice (String from Predefined List)"),
+        ("integer", "Integer (Whole Number)"),
     ]
 
     # Core fields
@@ -66,7 +67,8 @@ class FeatureFlag(models.Model):
     )
 
     string_value = models.TextField(
-        blank=True, help_text="For string-type flags: text value"
+        blank=True,
+        help_text="For string/choice/integer-type flags: text value (integers stored as text)",
     )
 
     # Metadata
@@ -146,6 +148,12 @@ class FeatureFlag(models.Model):
             return self.string_value
         elif self.value_type == "choice":
             return self.string_value
+        elif self.value_type == "integer":
+            # Integers are stored in string_value as text; coerce on read
+            try:
+                return int(self.string_value)
+            except (TypeError, ValueError):
+                return None
         return None
 
     def save(self, *args, **kwargs):

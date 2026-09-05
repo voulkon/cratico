@@ -15,21 +15,19 @@ import contextvars
 import uuid
 from typing import Any, Dict, Optional
 
-from django.conf import settings
 from loguru import logger
 
-try:
-    DEBUG_SEARCH_SERVICE = settings.DEBUG_SEARCH_SERVICE
-except AttributeError:
-    # Settings not loaded yet (e.g. imported during app loading) — fall back
-    # to the env var directly.
-    import os
 
-    DEBUG_SEARCH_SERVICE = os.getenv("DEBUG_SEARCH_SERVICE", "False").lower() in (
-        "true",
-        "1",
-        "t",
-    )
+def _is_debug_enabled() -> bool:
+    """Check the DEBUG_SEARCH_SERVICE feature flag (DB → env → default).
+
+    Called once per search request (in start_search_trace), not on every
+    trace.add(), so the Redis-cached flag lookup costs a single GET.
+    """
+    from core.services.feature_flag_service import feature_flags
+
+    return feature_flags.is_enabled("DEBUG_SEARCH_SERVICE")
+
 
 # The active trace for this request/task. Contextvar so it survives
 # async contexts and doesn't leak between threads.
@@ -87,14 +85,18 @@ class SearchTrace:
 
 
 def get_current_trace() -> Optional[SearchTrace]:
-    if not DEBUG_SEARCH_SERVICE:
-        return None
+    # No flag lookup here: if a trace exists, tracing was already enabled
+    # by start_search_trace for this request. Zero overhead when disabled.
     return _current_trace.get()
 
 
 def start_search_trace(query: str) -> Optional[SearchTrace]:
-    """Begin tracing a search request. Returns the trace (or None if disabled)."""
-    if not DEBUG_SEARCH_SERVICE:
+    """Begin tracing a search request. Returns the trace (or None if disabled).
+
+    This is the single point where the DEBUG_SEARCH_SERVICE feature flag
+    is checked per request (Redis-cached, ~one GET).
+    """
+    if not _is_debug_enabled():
         return None
     trace = SearchTrace(query)
     _current_trace.set(trace)

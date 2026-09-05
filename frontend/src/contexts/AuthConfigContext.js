@@ -26,6 +26,10 @@ export const AuthConfigProvider = ({ children }) => {
     auth_methods: ['django'],
     // Only set when 'clerk' is in auth_methods; otherwise null.
     clerk_publishable_key: null,
+    // Search UX tunables (feature-flag driven, backend-controlled).
+    search: {
+      debounce_ms: 300,
+    },
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -56,6 +60,7 @@ export const AuthConfigProvider = ({ children }) => {
     minPasswordLength: config.password_requirements.min_length,
     authMethods: config.auth_methods ?? ['django'],
     clerkPublishableKey: config.clerk_publishable_key ?? null,
+    searchDebounceMs: config.search?.debounce_ms ?? 300,
     loading,
     error,
     refetch: fetchAuthConfig,
