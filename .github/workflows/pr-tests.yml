@@ -15,8 +15,46 @@ permissions:
   pull-requests: write
 
 jobs:
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      e2e: ${{ steps.filter.outputs.e2e }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Check which paths changed
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          # For push events dorny compares against the previous commit on the
+          # branch; for PRs it diffs against the base branch automatically.
+          filters: |
+            backend:
+              - 'backend/**'
+              - 'scripts/ci/**'
+              - '.github/workflows/pr-tests.yml'
+              - '.github/actions/**'
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/pr-tests.yml'
+              - '.github/actions/**'
+            e2e:
+              - 'backend/**'
+              - 'frontend/**'
+              - 'scripts/ci/**'
+              - 'docker/**'
+              - 'Makefile'
+              - '.github/workflows/pr-tests.yml'
+              - '.github/actions/**'
+
   backend:
     name: Backend tests + coverage diff
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -136,6 +174,8 @@ jobs:
 
   frontend:
     name: Frontend tests
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -155,6 +195,8 @@ jobs:
 
   e2e-auth:
     name: E2E auth matrix (non-blocking)
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     # Task 05 gate decision: non-blocking for 2 weeks, then flip to blocking.
     continue-on-error: true
