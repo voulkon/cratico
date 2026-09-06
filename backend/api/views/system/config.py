@@ -35,5 +35,8 @@ def auth_config(request):
             },
             "auth_methods": get_auth_methods(),
             "clerk_publishable_key": get_clerk_publishable_key(),
+            "search": {
+                "debounce_ms": feature_flags.get_value("SEARCH_DEBOUNCE_MS", 300),
+            },
         }
     )

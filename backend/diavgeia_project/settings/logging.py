@@ -31,6 +31,16 @@ DB_LOG_LEVEL = os.getenv(
     "DB_LOG_LEVEL", "WARNING"
 )  # Only show DB queries on WARNING+ unless explicitly enabled
 
+# Search pipeline instrumentation (Track A measurement / E6 slow-query alerting).
+# DEBUG_SEARCH_SERVICE is now a feature flag (DB → env → default, Redis-cached).
+#   Toggle it at runtime in the admin under Feature Flags → Search.
+#   The env var below still works as the fallback/initial value.
+# SEARCH_SLOW_QUERY_THRESHOLD (seconds, default 0=off) -> SLOW_SEARCH warnings for
+#   any decorated search call exceeding the threshold. Safe to leave on in prod.
+SEARCH_SLOW_QUERY_THRESHOLD = float(
+    os.getenv("SEARCH_SLOW_QUERY_THRESHOLD", "0") or 0
+)
+
 # Backward compatibility: Keep JSON_LOGGING_LEVEL for now
 JSON_LOGGING_LEVEL = os.getenv("JSON_LOGGING_LEVEL", DJANGO_LOG_LEVEL)
 
