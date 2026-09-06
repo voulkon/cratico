@@ -84,8 +84,11 @@ EXTRACT_THE_DOCS_FROM_PDFS=false
 ### 3. Start Services
 
 ```bash
-# Start all services
+# Start minimal stack (no observability)
 docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets up -d
+
+# Full stack with observability (Jaeger, Loki, Promtail, Grafana)
+docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets --profile observability up -d
 
 # Or use the provided task
 # (VS Code: Tasks: Run Task > Docker Compose (with DB) Up)
@@ -108,14 +111,21 @@ docker-compose exec backend python manage.py createsuperuser
 - **Frontend**: http://localhost (via Nginx)
 - **Backend API**: http://localhost/api/
 - **Django Admin**: http://localhost/admin/
-- **Flower (Celery)**: http://localhost/flower/
+- **Flower (Celery)**: http://localhost:5555 (direct host port — media/assets are not served correctly through the nginx proxy)
+
+Only when started with `--profile observability`:
+
 - **Grafana**: http://localhost:3001
 - **Jaeger**: http://localhost:16686
 
 ### 7. Stop Services
 
 ```bash
+# Minimal stack
 docker-compose -f docker/docker-compose.yml down
+
+# Full stack started with profiles (stops observability & search too)
+docker-compose -f docker/docker-compose.yml --profile observability --profile search down
 ```
 
 ---
@@ -467,10 +477,21 @@ docker-compose exec redis redis-cli ping
 
 ### Accessing Monitoring Tools
 
-- **Grafana**: `https://app.example.com/grafana/` (if proxied via Nginx)
-- **Jaeger**: `https://app.example.com/jaeger/`
-- **Flower**: `https://app.example.com/flower/`
+The monitoring UIs are **not proxied through Nginx** — Grafana's assets don't work
+reliably behind the app's reverse proxy, and Flower's proxy location is commented
+out in `nginx/default.conf`. Access them via one of the following:
+
+- **Coolify (recommended for production)**: attach each service to a dedicated
+  domain (e.g. `grafana.example.com`, `flower.example.com`) and let Coolify's
+  proxy handle TLS and routing.
+- **Direct host port**: `http://<host>:3001` (Grafana), `http://<host>:5555`
+  (Flower), `http://<host>:15672` (RabbitMQ Management).
+- **Jaeger**: `http://<host>:16686`
 - **OpenSearch Dashboards**: `http://search-server:5601`
+
+All admin UIs remain protected by their own basic auth (`FLOWER_BASIC_AUTH`,
+`GRAFANA_ADMIN_PASSWORD`, RabbitMQ credentials) — see
+[Architecture → Admin UI Access](./ARCHITECTURE.md#admin-ui-access).
 
 ### Setting Up Alerts
 

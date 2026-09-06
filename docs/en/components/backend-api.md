@@ -442,7 +442,7 @@ DEBUG=true docker-compose up backend
 TRANSMIT_TO_JAEGER=true
 ```
 
-**View traces in Jaeger UI**: `http://localhost:16686`
+**View traces in Jaeger UI**: `http://localhost:16686` (only when the stack is running with `--profile observability`; tracing is a no-op otherwise — see the reachability guard)
 
 **Check database slow query log:**
 ```bash
