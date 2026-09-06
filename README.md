@@ -46,8 +46,11 @@ cd crati
 # Copy environment file / Αντιγράψτε το αρχείο περιβάλλοντος
 cp .env_files/.env.local.secrets.example .env_files/.env.local.secrets
 
-# Start services / Εκκινήστε τις υπηρεσίες
+# Start services (minimal) / Εκκινήστε τις υπηρεσίες (ελαχιστοποιημένο σύστημα)
 docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets up -d
+
+# Full stack with observability / Πλήρες σύστημα με πλήρη ορατότητα
+docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets --profile observability up -d
 ```
 
 For detailed instructions, see the documentation in your preferred language.

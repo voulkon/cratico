@@ -190,17 +190,21 @@ Django API → RabbitMQ → Celery Worker → PostgreSQL
 
 ## Modularity & Feature Flags
 
-The architecture is designed to be highly modular. Key feature flags:
+The architecture is designed to be highly modular. Flags most relevant to the architecture:
 
 | Environment Variable | Default | Purpose |
 |---------------------|---------|---------|
 | `INDEX_THE_OPENSEARCH` | `true` | Enable/disable OpenSearch indexing |
-| `TRANSMIT_TO_JAEGER` | `true` | Enable/disable distributed tracing |
+| `TRANSMIT_TO_JAEGER` | `false` | Enable/disable distributed tracing (requires service restart) |
 | `EXTRACT_THE_DOCS_FROM_PDFS` | `true` | Enable/disable PDF text extraction |
 | `HAVE_AFM_FETCH_JOB` | `true` | Enable/disable company data fetching |
 | `LIGHT_WORKER` | `false` | Use lightweight worker without PDF dependencies |
 | `STEALTH_MODE` | `false` | Enable authentication/authorization |
 | `DEBUG` | `false` | Django debug mode |
+
+> **Single source of truth:** the full list of flags (with descriptions, defaults and
+> categories) lives in `KNOWN_FLAGS` in
+> [`backend/core/services/feature_flag_service.py`](../../backend/core/services/feature_flag_service.py).
 
 See [Environment Variables Reference](./ENVIRONMENT_VARIABLES.md) for complete list.
 
