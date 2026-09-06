@@ -477,10 +477,21 @@ docker-compose exec redis redis-cli ping
 
 ### Accessing Monitoring Tools
 
-- **Grafana**: `https://app.example.com/grafana/` (if proxied via Nginx)
-- **Jaeger**: `https://app.example.com/jaeger/`
-- **Flower**: `https://app.example.com/flower/`
+The monitoring UIs are **not proxied through Nginx** — Grafana's assets don't work
+reliably behind the app's reverse proxy, and Flower's proxy location is commented
+out in `nginx/default.conf`. Access them via one of the following:
+
+- **Coolify (recommended for production)**: attach each service to a dedicated
+  domain (e.g. `grafana.example.com`, `flower.example.com`) and let Coolify's
+  proxy handle TLS and routing.
+- **Direct host port**: `http://<host>:3001` (Grafana), `http://<host>:5555`
+  (Flower), `http://<host>:15672` (RabbitMQ Management).
+- **Jaeger**: `http://<host>:16686`
 - **OpenSearch Dashboards**: `http://search-server:5601`
+
+All admin UIs remain protected by their own basic auth (`FLOWER_BASIC_AUTH`,
+`GRAFANA_ADMIN_PASSWORD`, RabbitMQ credentials) — see
+[Architecture → Admin UI Access](./ARCHITECTURE.md#admin-ui-access).
 
 ### Setting Up Alerts
 

@@ -7,52 +7,46 @@ This directory contains detailed documentation for each component of the Crati.C
 These services are essential for the platform to function:
 
 - **[Backend API](./backend-api.md)** - Django REST API, business logic, and data models
-- **[Celery Worker](./celery-worker.md)** - Asynchronous task processing and background jobs
-- **[PostgreSQL](./postgresql.md)** - Primary relational database with pgvector
-- **[Redis](./redis.md)** - Caching and Celery result backend
-- **[RabbitMQ](./rabbitmq.md)** - Message broker for task queue
-- **[Nginx](./nginx.md)** - Reverse proxy and load balancer
-- **[Frontend](./frontend.md)** - React application
+- **Celery Worker** - Asynchronous task processing and background jobs
+- **Celery Beat** - Scheduled task dispatcher (publishes via the broker, reads schedule from PostgreSQL)
+- **Flower** - Celery task monitoring
+- **Nginx** - Reverse proxy and load balancer
+- **Frontend** - React application
+
+## Data Network (Required in dev, externalizable in prod)
+
+Stateful services that can be split out and run externally in production:
+
+- **PostgreSQL** - Primary relational database with pgvector
+- **Redis** - Caching and Celery result backend
+- **RabbitMQ** - Message broker for task queue
+- **PgBouncer** - PostgreSQL connection pooler (production only)
 
 ## Optional Services
 
 These services can be disabled via environment variables:
 
 ### Search Layer
-- **[OpenSearch](./opensearch.md)** - Full-text search engine (disable with `INDEX_THE_OPENSEARCH=false`)
-- **[OpenSearch Dashboards](./opensearch-dashboards.md)** - Search UI and exploration tool
+- **OpenSearch** - Full-text search engine (disable with `INDEX_THE_OPENSEARCH=false`)
+- **OpenSearch Dashboards** - Search UI and exploration tool
 
 ### Observability Stack
-- **[Jaeger](./jaeger.md)** - Distributed tracing (disable with `TRANSMIT_TO_JAEGER=false`)
-- **[Loki](./loki.md)** - Log aggregation
-- **[Promtail](./promtail.md)** - Log collection agent
-- **[Grafana](./grafana.md)** - Unified observability dashboard
-- **[Flower](./flower.md)** - Celery task monitoring
+- **Jaeger** - Distributed tracing (disable with `TRANSMIT_TO_JAEGER=false`)
+- **Loki** - Log aggregation
+- **Promtail** - Log collection agent
+- **Grafana** - Unified observability dashboard
 
-## Production-Only Services
+> **Note**: Detailed per-component pages are being added incrementally. Currently
+> available: [Backend API](./backend-api.md). For the full architecture and
+> component relationships, see the [Architecture Overview](../ARCHITECTURE.md).
 
-- **[PgBouncer](./pgbouncer.md)** - PostgreSQL connection pooler
+## Component Relationships
 
-## Component Dependency Map
+For the authoritative component dependency map and service communication matrix,
+see the [Architecture Overview diagram](../ARCHITECTURE.md#high-level-architecture-diagram).
+Keeping a single source of truth avoids drift between docs.
 
-```
-Frontend → Nginx → Backend API
-                     ├── PostgreSQL (via PgBouncer in prod)
-                     ├── Redis
-                     ├── RabbitMQ
-                     ├── OpenSearch (optional)
-                     └── Jaeger (optional)
-
-Worker → RabbitMQ
-         ├── PostgreSQL (via PgBouncer in prod)
-         ├── Redis
-         ├── OpenSearch (optional)
-         └── Jaeger (optional)
-
-Promtail → Loki → Grafana
-```
-
-## Service Communication
+## Health Check Endpoints
 
 | From | To | Protocol | Port | Purpose |
 |------|-----|----------|------|---------|
