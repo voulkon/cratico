@@ -3,8 +3,19 @@ name: Code Quality Checks
 on:
   push:
     branches: [ "main", "dev" ]
+    # Docs-only commits have nothing for the detectors to scan.
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'notes/**'
+      - '.github/**'
   pull_request:
     branches: [ "main", "dev" ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'notes/**'
+      - '.github/**'
 
 jobs:
   detect-ai-slop:
