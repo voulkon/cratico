@@ -8,86 +8,85 @@ The Crati.Co platform is a modular, microservices-based application designed for
 
 ```mermaid
 graph TB
-    subgraph "Client Layer"
-        FE[Frontend<br/>React App]
-    end
+    FE[Frontend<br/>React App] --> NGINX[Nginx<br/>Reverse Proxy]
 
-    subgraph "Gateway Layer"
-        NGINX[Nginx<br/>Reverse Proxy]
-    end
-
-    subgraph "Core Services - Required"
+    subgraph APP["Django Application Layer"]
+        direction TB
         API[Backend API<br/>Django + DRF]
         WORKER[Celery Worker<br/>Task Processing]
-        REDIS[(Redis<br/>Cache & Queue)]
-        DB[(PostgreSQL<br/>Primary Database)]
-        RABBIT[RabbitMQ<br/>Message Broker]
+        BEAT[Celery Beat<br/>Scheduler]
+        FLOWER["Flower<br/>Celery Monitoring<br/>(direct port / Coolify)"]
     end
 
-    subgraph "Search Layer - Optional"
+    subgraph DATA["Data Network — can be external/separate"]
+        direction TB
+        PGBOUNCER[PgBouncer<br/>Connection Pooler]
+        DB[(PostgreSQL<br/>+ pgvector)]
+        subgraph BROKERAGE["Assisting Services"]
+            REDIS[(Redis<br/>Cache & Result Backend)]
+            RABBIT[RabbitMQ<br/>Task Broker]
+        end
+    end
+
+    subgraph OBS["Observability Stack - Optional"]
+        JAEGER[Jaeger<br/>Distributed Tracing]
+        LOKI[Loki<br/>Log Aggregation]
+        GRAFANA[Grafana<br/>Visualization]
+        PROMTAIL[Promtail<br/>Log Collector]
+    end
+
+    subgraph SEARCH["Search Layer - Optional"]
         OS[OpenSearch<br/>Full-Text Search]
         OSD[OpenSearch<br/>Dashboards]
     end
 
-    subgraph "Observability Stack - Optional"
-        JAEGER[Jaeger<br/>Distributed Tracing]
-        LOKI[Loki<br/>Log Aggregation]
-        PROMTAIL[Promtail<br/>Log Collector]
-        GRAFANA[Grafana<br/>Visualization]
-        FLOWER[Flower<br/>Celery Monitoring]
-    end
-
-    subgraph "Connection Pooling - Production"
-        PGBOUNCER[PgBouncer<br/>Connection Pooler]
-    end
-
-    subgraph "External Services"
+    subgraph EXT["External Services"]
         S3[AWS S3<br/>Backups]
         GEMI[GEMI API<br/>Company Data]
         DIAVGEIA[Diavgeia API<br/>Gov Documents]
     end
 
-    FE --> NGINX
     NGINX --> API
-    NGINX --> FLOWER
-    NGINX --> JAEGER
-    NGINX --> GRAFANA
+    NGINX -.-> GRAFANA
 
-    API --> REDIS
+    %% Task dispatch
     API --> RABBIT
-    API --> OS
-    API -.-> JAEGER
-    API -.-> LOKI
+    RABBIT --> WORKER
+    RABBIT --> BEAT
+    BEAT -.->|schedule from DB| DB
+
+    %% Cache / results (both apps)
+    API --> REDIS
+    WORKER -.-> REDIS
+
+    %% Data access through pooler
     API --> PGBOUNCER
-    API --> S3
-    API --> GEMI
-    API --> DIAVGEIA
-
-    WORKER --> RABBIT
-    WORKER --> REDIS
-    WORKER --> OS
-    WORKER -.-> JAEGER
     WORKER --> PGBOUNCER
-    WORKER --> S3
-    WORKER --> GEMI
-    WORKER --> DIAVGEIA
-
     PGBOUNCER --> DB
 
+    %% Search
+    WORKER -.-> OS
+    API -.-> OS
+
+    %% Observability as one grouped edge
+    APP -.->|"traces & logs"| OBS
+
+    %% External integrations
+    WORKER -.-> EXT
+    API -.-> DIAVGEIA
+
+    OSD --> OS
     PROMTAIL --> LOKI
     GRAFANA --> LOKI
-    OSD --> OS
 
-    style API fill:#4CAF50
-    style WORKER fill:#4CAF50
     style DB fill:#2196F3
     style REDIS fill:#2196F3
     style RABBIT fill:#2196F3
+    style PGBOUNCER fill:#607D8B
     style OS fill:#FFA726
     style JAEGER fill:#9C27B0
     style LOKI fill:#9C27B0
     style GRAFANA fill:#9C27B0
-    style PGBOUNCER fill:#607D8B
 ```
 
 ## Architecture Layers
@@ -97,10 +96,17 @@ These services form the essential backbone of the application and cannot be disa
 
 - **Backend API (Django)**: REST API handling authentication, business logic, and data access
 - **Celery Worker**: Asynchronous task processing for document ingestion, PDF extraction, and data processing
+- **Celery Beat**: Scheduled task dispatcher — publishes periodic tasks via the broker and reads its schedule from the database
+- **Flower**: Real-time Celery task monitoring (part of the Celery constellation; see [Admin UI Access](#admin-ui-access))
+- **Nginx**: Reverse proxy and load balancer for the application traffic
+
+### 2. **Data Network** (Required in dev, externalizable in prod)
+Stateful services bundled with the stack in development, but designed to be split out and run externally in production (see the `prod-no-db` topology):
+
 - **PostgreSQL**: Primary relational database with pgvector extension for vector embeddings
-- **Redis**: In-memory cache and Celery result backend
-- **RabbitMQ**: Message broker for Celery task queue
-- **Nginx**: Reverse proxy and load balancer
+- **Redis**: In-memory cache and Celery result backend (used by both the API and the worker)
+- **RabbitMQ**: Message broker connecting the API to the worker and beat
+- **PgBouncer**: PostgreSQL connection pooler — sits between the Django apps and the database (production only)
 
 ### 2. **Search Layer** (Optional)
 Full-text search capabilities using OpenSearch:
@@ -117,19 +123,46 @@ Monitoring, logging, and tracing infrastructure:
 - **Loki**: Centralized log aggregation
 - **Promtail**: Log collection agent that ships logs to Loki
 - **Grafana**: Unified dashboard for logs, traces, and metrics
-- **Flower**: Real-time Celery task monitoring
 
 **Control**:
 - Set `TRANSMIT_TO_JAEGER=false` to disable distributed tracing
 - Remove observability services from docker-compose for full disablement
 
-### 4. **Connection Pooling** (Production Only)
-- **PgBouncer**: PostgreSQL connection pooler to optimize database connections in production
+### 4. **Search Layer** (Optional)
+Full-text search capabilities using OpenSearch:
+
+- **OpenSearch**: Elasticsearch-compatible search engine for document indexing
+- **OpenSearch Dashboards**: UI for exploring search indices
 
 ### 5. **External Services**
 - **AWS S3**: Backup storage
 - **GEMI API**: Greek company registry data integration
 - **Diavgeia API**: Greek government transparency portal
+
+### Admin UI Access
+
+Nginx proxies **application traffic only** (frontend, API, Django admin, static assets).
+The administrative/observability UIs — Grafana, Flower, and RabbitMQ's management
+interface — are **not** served through Nginx:
+
+- Grafana's media/assets don't work reliably behind the app's reverse proxy
+  (it's designed for its own root path), so its Nginx location is intentionally
+  omitted.
+- Flower's proxy location is commented out in `nginx/default.conf` for the same
+  reason (see the service communication table in [Component Details](./components/)).
+
+Instead, these UIs are reached in one of two ways:
+
+1. **Direct host port** (development/staging): e.g. `http://<host>:3001` for
+   Grafana, `http://<host>:5555` for Flower, `http://<host>:15672` for RabbitMQ
+   Management.
+2. **Coolify** (production): these services are attached to dedicated domains
+   and proxied by [Coolify](https://coolify.io) — an open-source Heroku
+   alternative — which handles TLS termination and reverse proxying for each
+   subdomain (e.g. `grafana.example.com`, `flower.example.com`).
+
+In both cases the UIs remain protected by their own basic authentication
+(`FLOWER_BASIC_AUTH`, `GRAFANA_ADMIN_PASSWORD`, RabbitMQ credentials).
 
 ## Deployment Topologies
 
@@ -190,17 +223,21 @@ Django API → RabbitMQ → Celery Worker → PostgreSQL
 
 ## Modularity & Feature Flags
 
-The architecture is designed to be highly modular. Key feature flags:
+The architecture is designed to be highly modular. Flags most relevant to the architecture:
 
 | Environment Variable | Default | Purpose |
 |---------------------|---------|---------|
 | `INDEX_THE_OPENSEARCH` | `true` | Enable/disable OpenSearch indexing |
-| `TRANSMIT_TO_JAEGER` | `true` | Enable/disable distributed tracing |
+| `TRANSMIT_TO_JAEGER` | `false` | Enable/disable distributed tracing (requires service restart) |
 | `EXTRACT_THE_DOCS_FROM_PDFS` | `true` | Enable/disable PDF text extraction |
 | `HAVE_AFM_FETCH_JOB` | `true` | Enable/disable company data fetching |
 | `LIGHT_WORKER` | `false` | Use lightweight worker without PDF dependencies |
 | `STEALTH_MODE` | `false` | Enable authentication/authorization |
 | `DEBUG` | `false` | Django debug mode |
+
+> **Single source of truth:** the full list of flags (with descriptions, defaults and
+> categories) lives in `KNOWN_FLAGS` in
+> [`backend/core/services/feature_flag_service.py`](../../backend/core/services/feature_flag_service.py).
 
 See [Environment Variables Reference](./ENVIRONMENT_VARIABLES.md) for complete list.
 
@@ -263,4 +300,4 @@ See [Environment Variables Reference](./ENVIRONMENT_VARIABLES.md) for complete l
 - [Component Details](./components/) - Deep dive into each service
 - [Environment Variables](./ENVIRONMENT_VARIABLES.md) - Complete configuration reference
 - [Deployment Guide](./DEPLOYMENT.md) - Step-by-step deployment instructions
-- [Development Setup](./DEVELOPMENT.md) - Local development environment setup
+- [Contributing & Development](../../CONTRIBUTING.md) - Local development setup and workflow

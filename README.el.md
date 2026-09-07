@@ -72,25 +72,33 @@ INDEX_THE_OPENSEARCH=false
 TRANSMIT_TO_JAEGER=false
 ```
 
-3. **Εκκίνηση της στοίβας**
+3. **Εκκίνηση του συστήματος**
+
+Ελάχιστη στοίβα (χωρίς observability):
 
 ```bash
 docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets up -d
 ```
 
-4. **Εκτέλεση migrations και δημιουργία superuser**
+Πλήρης στοίβα με observability (Jaeger, Loki, Promtail, Grafana):
 
 ```bash
-docker-compose exec backend python manage.py migrate
-docker-compose exec backend python manage.py createsuperuser
+docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets --profile observability up -d
 ```
 
-5. **Πρόσβαση στην εφαρμογή**
+4. **Πρόσβαση στην εφαρμογή**
+
+Τα migrations, η δημιουργία superuser, η αρχικοποίηση των feature flags και η
+συλλογή static files εκτελούνται αυτόματα στην εκκίνηση του backend (βλ.
+[`backend/entrypoint.sh`](backend/entrypoint.sh)) — δεν χρειάζονται χειροκίνητα βήματα.
 
 - **Frontend**: http://localhost
 - **API**: http://localhost/api/
 - **Admin**: http://localhost/admin/
-- **Flower**: http://localhost/flower/
+- **Flower (Celery)**: http://localhost:5555 (απευθείας port — τα static assets δεν σερβίρονται σωστά μέσω nginx)
+
+Μόνο με `--profile observability`:
+
 - **Grafana**: http://localhost:3001
 - **Jaeger**: http://localhost:16686
 

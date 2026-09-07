@@ -2,6 +2,7 @@ import re
 
 from core.services.search_service import SearchService
 from core.services.transliteration import TransliterationService
+from core.utils.search_trace import finish_search_trace, start_search_trace
 
 
 def determine_matched_field(entity_type, entity, query):
@@ -172,6 +173,12 @@ def _merge_deduped_results(primary_results, fallback_results, id_getter, limit):
     return merged[:limit]
 
 
+# Minimum query length for entity search. Below this, ILIKE prefix searches on
+# single characters return broad top-N rows (slow on signers/units, low value),
+# so we short-circuit with an empty result.
+MIN_ENTITY_QUERY_LENGTH = 3
+
+
 def get_entities_fast(query, **kwargs):
     """
     Fast entity search - returns organizations, signers, units, companies, and company_persons
@@ -185,6 +192,15 @@ def get_entities_fast(query, **kwargs):
 
     search_service = SearchService()
 
+    # Start a per-request trace (no-op unless DEBUG_SEARCH_SERVICE=1)
+    trace = start_search_trace(query)
+    if trace is not None:
+        trace.add(
+            "transliteration",
+            transliterated=transliterated_query,
+            changed=(transliterated_query != query),
+        )
+
     # Extract parameters
     entity_types = kwargs.get(
         "entity_types", ["organization", "signer", "unit", "company", "company_person"]
@@ -195,100 +211,109 @@ def get_entities_fast(query, **kwargs):
 
     results = {"query": query, "results": {}, "total_count": 0, "type": "entities"}
 
-    if not query:
+    if not query or len(query.strip()) < MIN_ENTITY_QUERY_LENGTH:
+        if trace is not None:
+            trace.add(
+                "skipped",
+                reason="query_too_short",
+                min_length=MIN_ENTITY_QUERY_LENGTH,
+            )
+        finish_search_trace(trace)
         return results
+
+    def _search_with_fallback(search_fn, id_getter, type_name, *args):
+        """
+        Search with the transliterated query, optionally supplementing with the
+        original query. The fallback is only worth running when BOTH:
+          - the original query is Latin-script (fallback exists for Latin/English
+            input like "nova"; Greek input can never match via the fallback), and
+          - the primary search did not already fill the limit (no room left).
+        """
+        primary = list(search_fn(transliterated_query, *args, limit))
+        if (
+            transliterated_query != query
+            and query.isascii()
+            and len(primary) < limit
+        ):
+            fallback = list(search_fn(query, *args, limit))
+            if trace is not None:
+                trace.add(
+                    "fallback_search",
+                    type=type_name,
+                    reason="transliteration_changed",
+                    fallback_count=len(fallback),
+                )
+            primary = _merge_deduped_results(primary, fallback, id_getter, limit)
+        return primary
 
     # Search entities based on requested types
     # For each type, search with transliterated query (Greek) and supplement with
     # original query (Latin/English) results, deduplicating by entity ID.
     if "organization" in entity_types:
-        orgs = list(search_service.search_organizations(transliterated_query, limit))
-        if transliterated_query != query:
-            fallback = list(search_service.search_organizations(query, limit))
-            orgs = _merge_deduped_results(
-                orgs, fallback, lambda o: o.uid, limit
-            )
+        orgs = _search_with_fallback(
+            search_service.search_organizations, lambda o: o.uid, "organization"
+        )
         results["results"]["organizations"] = [
             format_organization(org, query) for org in orgs
         ]
         results["total_count"] += len(orgs)
 
     if "signer" in entity_types:
-        signers = list(
-            search_service.search_signers(transliterated_query, organization_id, limit)
+        signers = _search_with_fallback(
+            lambda q, l: search_service.search_signers(q, organization_id, l),
+            lambda s: s.uid,
+            "signer",
         )
-        if transliterated_query != query:
-            fallback = list(
-                search_service.search_signers(query, organization_id, limit)
-            )
-            signers = _merge_deduped_results(
-                signers, fallback, lambda s: s.uid, limit
-            )
         results["results"]["signers"] = [
             format_signer(signer, query) for signer in signers
         ]
         results["total_count"] += len(signers)
 
     if "unit" in entity_types:
-        units = list(
-            search_service.search_units(transliterated_query, organization_id, limit)
+        units = _search_with_fallback(
+            lambda q, l: search_service.search_units(q, organization_id, l),
+            lambda u: u.uid,
+            "unit",
         )
-        if transliterated_query != query:
-            fallback = list(
-                search_service.search_units(query, organization_id, limit)
-            )
-            units = _merge_deduped_results(
-                units, fallback, lambda u: u.uid, limit
-            )
         results["results"]["units"] = [format_unit(unit, query) for unit in units]
         results["total_count"] += len(units)
 
     if "company" in entity_types:
-        companies = list(search_service.search_companies(transliterated_query, limit))
-        if transliterated_query != query:
-            fallback = list(search_service.search_companies(query, limit))
-            companies = _merge_deduped_results(
-                companies, fallback, lambda c: c.ar_gemi, limit
-            )
+        companies = _search_with_fallback(
+            search_service.search_companies,
+            lambda c: c.ar_gemi,
+            "company",
+        )
         results["results"]["companies"] = [
             format_company(company, query) for company in companies
         ]
         results["total_count"] += len(companies)
 
     if "company_person" in entity_types:
-        company_persons = list(
-            search_service.search_company_persons(
-                transliterated_query, company_id, limit
-            )
+        company_persons = _search_with_fallback(
+            lambda q, l: search_service.search_company_persons(q, company_id, l),
+            lambda p: p.pk,
+            "company_person",
         )
-        if transliterated_query != query:
-            fallback = list(
-                search_service.search_company_persons(query, company_id, limit)
-            )
-            company_persons = _merge_deduped_results(
-                company_persons, fallback, lambda p: p.pk, limit
-            )
         results["results"]["company_persons"] = [
             format_company_person(person, query) for person in company_persons
         ]
         results["total_count"] += len(company_persons)
 
     if "afmentity" in entity_types:
-        afm_entities = list(
-            search_service.search_afm_entities(transliterated_query, limit)
+        afm_entities = _search_with_fallback(
+            search_service.search_afm_entities,
+            lambda e: e.pk,
+            "afm_entity",
         )
-        if transliterated_query != query:
-            fallback = list(
-                search_service.search_afm_entities(query, limit)
-            )
-            afm_entities = _merge_deduped_results(
-                afm_entities, fallback, lambda e: e.pk, limit
-            )
         results["results"]["afm_entities"] = [
             format_afmentity(entity, query) for entity in afm_entities
         ]
         results["total_count"] += len(afm_entities)
 
+    if trace is not None:
+        trace.add("done", total_count=results["total_count"])
+    finish_search_trace(trace)
     return results
 
 

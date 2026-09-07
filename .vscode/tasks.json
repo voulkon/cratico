@@ -51,6 +51,12 @@
             "problemMatcher": []
         },
         {
+            "label": "Docker Compose (with DB) Up (Minimal) + Build",
+            "type": "shell",
+            "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets up --build -d",
+            "problemMatcher": []
+        },
+        {
             "label": "Docker Compose (with DB) Down (Minimal)",
             "type": "shell",
             "command": "docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets down",

@@ -3,12 +3,12 @@ FROM node:20-alpine as build
 
 WORKDIR /app
 
-# Add ARG instructions for Clerk and API URL
-ARG REACT_APP_CLERK_PUBLISHABLE_KEY
+# The API URL is the only remaining build-time var. Clerk config is NOT a
+# build arg anymore — the backend owns it and the frontend receives it at
+# runtime via /api/system/config/auth/ (no rebuild needed on key rotation).
 ARG REACT_APP_API_URL
 
-# Make them available as environment variables
-ENV REACT_APP_CLERK_PUBLISHABLE_KEY=$REACT_APP_CLERK_PUBLISHABLE_KEY
+# Make it available as an environment variable
 ENV REACT_APP_API_URL=$REACT_APP_API_URL
 
 # Install dependencies
@@ -18,7 +18,7 @@ RUN npm ci
 # Copy source code and build
 COPY frontend/ .
 
-RUN echo "CLERK=$REACT_APP_CLERK_PUBLISHABLE_KEY" && echo "API=$REACT_APP_API_URL"
+RUN echo "API=$REACT_APP_API_URL"
 
 RUN npm run build
 

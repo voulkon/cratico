@@ -1,240 +1,200 @@
-# Authentication Fallback Configuration
+# Authentication Configuration
 
 ## Overview
 
-The application now supports **flexible authentication** with automatic fallback from Clerk to Django's built-in authentication system. This allows the application to run without requiring Clerk configuration.
+The application supports **flexible authentication** with Django's built-in
+authentication and Clerk coexisting. Which providers are active is decided
+**server-side at runtime** and delivered to the frontend via
+`GET /api/system/config/auth/` — there are no build-time auth variables in the
+frontend, so the same image serves Clerk and non-Clerk deployments.
 
 ## How It Works
 
 ### Backend (Django)
 
-The backend checks for Clerk environment variables and:
-- **If present**: Enables Clerk JWT authentication alongside Django's standard auth methods
-- **If missing**: Uses only Django's built-in authentication (Session, Token, Basic Auth)
+The decision function (`backend/api/utils/auth_methods.py`) computes:
+
+```
+auth_methods = []
+if USE_CLERK_AUTH and CLERK_JWT_PUBLIC_KEY and CLERK_SECRET_KEY and CLERK_PUBLISHABLE_KEY:
+    auth_methods += ["clerk"]
+auth_methods += ["django"]    # always available (token/session + email login)
+```
+
+- `GET /api/system/config/auth/` returns `{ auth_methods, clerk_publishable_key, ... }`.
+- The publishable key is a **backend** env var (`CLERK_PUBLISHABLE_KEY`),
+  delivered at runtime — no frontend rebuild needed on key rotation.
+- DRF always registers Django Token/Session auth; `ClerkAuthentication` is
+  appended only when the flag is on, so both mechanisms coexist at the HTTP
+  layer.
 
 ### Frontend (React)
 
-The frontend checks for Clerk configuration and:
-- **If present**: Wraps the app with `ClerkProvider` and uses Clerk authentication UI
-- **If missing**: Runs without Clerk components and allows public access or Django session-based auth
+- `AuthConfigProvider` fetches `/api/system/config/auth/` at boot.
+- `index.js` mounts `ClerkProvider` **only** when the backend advertises
+  `"clerk"` in `auth_methods` (with the runtime publishable key).
+- `AuthContext` is a combined provider: a Clerk session wins when present,
+  otherwise the Django token in `localStorage` is used. Django methods
+  (signIn/register/verifyEmail/password reset) are available in every mode.
+- The login modal (`DjangoLoginForm`) is the single dual-auth entry point:
+  when Clerk is active it offers "Sign in with Clerk" above the email form.
 
 ## Environment Variables
 
-### Frontend Variables
-
-- `REACT_APP_CLERK_PUBLISHABLE_KEY` - Clerk publishable key
-- `REACT_APP_API_URL` - Backend API URL
-
 ### Backend Variables
 
-- `CLERK_JWT_PUBLIC_KEY` - Clerk JWT verification public key
-- `CLERK_SECRET_KEY` - Clerk secret key
+- `USE_CLERK_AUTH` — feature flag (`true`/`false`)
+- `CLERK_JWT_PUBLIC_KEY` — Clerk JWT verification public key (PEM)
+- `CLERK_SECRET_KEY` — Clerk secret key
+- `CLERK_PUBLISHABLE_KEY` — Clerk publishable key (not a secret; backend-owned)
+
+### Frontend Variables
+
+- `REACT_APP_API_URL` — Backend API URL (the only remaining build-time auth-
+  related variable; auth methods themselves come from the backend at runtime)
 
 ## Usage Scenarios
 
-### Scenario 1: Full Clerk Authentication (Production)
-
-Set all Clerk environment variables on both frontend and backend:
-
-**Frontend (.env)**
-```bash
-REACT_APP_CLERK_PUBLISHABLE_KEY=pk_live_xxx
-REACT_APP_API_URL=https://api.example.com
-```
+### Scenario 1: Full Clerk + Django (dual auth)
 
 **Backend (.env)**
 ```bash
+USE_CLERK_AUTH=true
 CLERK_JWT_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----..."
 CLERK_SECRET_KEY=sk_live_xxx
+CLERK_PUBLISHABLE_KEY=pk_live_xxx
 ```
 
-**Result**: Full Clerk authentication with sign-in/sign-up UI, JWT tokens, and user management.
-
----
+**Result**: `auth_methods = ["clerk", "django"]`. The login modal offers both
+Clerk sign-in and the email/password form; both authenticate against the API.
 
 ### Scenario 2: Django Authentication Only (Development/Testing)
 
-**Don't set** Clerk environment variables:
-
-**Frontend (.env)**
-```bash
-# REACT_APP_CLERK_PUBLISHABLE_KEY not set
-REACT_APP_API_URL=http://localhost:8000
-```
-
 **Backend (.env)**
 ```bash
-# CLERK_JWT_PUBLIC_KEY not set
-# CLERK_SECRET_KEY not set
+USE_CLERK_AUTH=false
 ```
 
-**Result**:
-- Frontend runs in public mode without Clerk UI
-- Backend accepts Django Session Auth, Token Auth, and Basic Auth
-- Perfect for development without needing Clerk setup
+**Result**: `auth_methods = ["django"]`. No Clerk JS is loaded (zero requests
+to `clerk.accounts.dev`), the login modal shows only the email form.
 
----
+### Scenario 3: Flag on but keys missing/invalid
 
-### Scenario 3: Stealth Mode
+**Result**: `auth_methods = ["django"]` + a single backend warning. The app
+still boots Django-only — never a white page.
+
+### Scenario 4: Stealth Mode
 
 Control public access with `STEALTH_MODE`:
 
-**With Clerk (Private App)**
 ```bash
-# Frontend
-REACT_APP_CLERK_PUBLISHABLE_KEY=pk_live_xxx
-REACT_APP_STEALTH_MODE=true
-
-# Backend
-CLERK_JWT_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----..."
 STEALTH_MODE=true
 ```
-**Result**: Requires Clerk authentication for all access
 
-**Without Clerk (Public App)**
-```bash
-# Frontend
-# REACT_APP_CLERK_PUBLISHABLE_KEY not set
-REACT_APP_STEALTH_MODE=false
-
-# Backend
-# CLERK_JWT_PUBLIC_KEY not set
-STEALTH_MODE=false
-```
-**Result**: Public access without authentication requirements
+**Result**: All routes require authentication. The login gate renders from the
+same runtime config (`/api/system/config/auth/` stays reachable before login),
+offering whichever methods the backend advertises.
 
 ## Technical Details
 
-### Backend Changes
+### Backend
 
-**File: `backend/diavgeia_project/settings/rest_framework.py`**
-- Dynamically builds authentication class list
-- Only includes `ClerkAuthentication` if Clerk credentials are present
-- Always includes Django's standard auth methods as fallback
+- `backend/api/utils/auth_methods.py` — single source of truth
+  (`clerk_is_fully_configured`, `get_auth_methods`, `get_clerk_publishable_key`)
+- `backend/api/views/system/config.py` — public `auth_config` endpoint
+- `backend/diavgeia_project/settings/orchestrator.py` — Clerk key loading +
+  the single misconfiguration warning
+- `backend/api/authentication.py` — `ClerkAuthentication` double-guards
+  (flag + key present) and returns `None` otherwise, letting Django auth handle
+  the request
 
-**File: `backend/diavgeia_project/settings/orchestrator.py`**
-- Checks for Clerk public key before validation
-- Logs informational message when Clerk is not configured
-- Doesn't fail if Clerk variables are missing
+### Frontend
 
-**File: `backend/api/authentication.py`**
-- `ClerkAuthentication.authenticate()` returns `None` if Clerk key is not configured
-- Allows other authentication methods to handle the request
-
-### Frontend Changes
-
-**File: `frontend/src/index.js`**
-- Conditionally wraps app with `ClerkProvider` only if publishable key exists
-- Logs authentication mode for debugging
-
-**File: `frontend/src/contexts/AuthContext.js`**
-- `ClerkAuthProvider`: Used when Clerk is available
-- `BasicAuthProvider`: Used when Clerk is not available
-- Unified interface through `useAuth()` hook
-- Added `isClerkAuth` flag to differentiate authentication mode
-
-**File: `frontend/src/App.js`**
-- Lazy-loads Clerk components only when needed
-- Conditionally uses `SignedIn`, `SignedOut`, `RedirectToSignIn`
-- Falls back to direct rendering without Clerk wrapper
-
-**File: `frontend/src/components/AuthPromptModal.js`**
-- Only renders auth prompt when Clerk is available
-- Lazy-loads `SignInButton` component
-
-**File: `frontend/src/components/AccessDenied.js`**
-- Supports both Clerk and non-Clerk user objects
-- Lazy-loads Clerk's `useUser` hook
-
-**File: `frontend/src/hooks/useAllowlistCheck.js`**
-- Skips allowlist check when Clerk is not available
-- Uses unified `useAuth` hook from context
-
-**File: `frontend/src/components/UserAuth.js`**
-- Returns `null` when Clerk is not available
-- Lazy-loads Clerk button components
-
-**File: `frontend/src/components/UserMenu.js`**
-- Conditionally renders sign-in/sign-out buttons
-- Supports both Clerk and basic auth sign-out
+- `frontend/src/contexts/AuthConfigContext.js` — runtime config fetch
+  (`authMethods`, `clerkPublishableKey`)
+- `frontend/src/index.js` — `ClerkGate` mounts `ClerkProvider` only when the
+  backend advertises Clerk
+- `frontend/src/contexts/AuthContext.js` — combined provider (Clerk session
+  first, Django token fallback; `isClerkAuth` reports which mechanism won)
+- `frontend/src/components/DjangoLoginForm.js` — unified login modal with the
+  optional Clerk option
+- `frontend/src/App.js` — plain conditional rendering against the combined
+  `useAuth()` state (no Clerk `SignedIn`/`SignedOut` wrappers)
 
 ## Authentication Methods Available
 
 ### With Clerk Configured
-1. **Clerk JWT Authentication** - Primary method via Bearer tokens
-2. **Django Session Authentication** - Fallback for admin/browsable API
-3. **Django Token Authentication** - For API keys
-4. **Basic Authentication** - For development/testing
-5. **API Key Authentication** - For service-to-service
+1. **Clerk JWT Authentication** — Bearer tokens via `ClerkAuthentication`
+2. **Django Token Authentication** — for API keys (works alongside Clerk)
+3. **Django Session Authentication** — for admin/browsable API
+4. **Basic Authentication** — for development/testing
+5. **API Key Authentication** — for service-to-service
 
 ### Without Clerk Configured
-1. **Django Session Authentication** - Primary for logged-in users
-2. **Django Token Authentication** - For API access
-3. **Basic Authentication** - For simple auth
-4. **API Key Authentication** - For service-to-service
+1. **Django Session Authentication** — primary for logged-in users
+2. **Django Token Authentication** — for API access
+3. **Basic Authentication** — for simple auth
+4. **API Key Authentication** — for service-to-service
 
 ## Migration Guide
 
 ### Disabling Clerk for Development
 
-1. Comment out or remove Clerk variables from `.env` files:
-   ```bash
-   # REACT_APP_CLERK_PUBLISHABLE_KEY=pk_test_xxx
-   # CLERK_JWT_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----..."
-   # CLERK_SECRET_KEY=sk_test_xxx
-   ```
-
-2. Restart frontend and backend services
-
-3. Application will run in public mode without Clerk UI
+1. Set `USE_CLERK_AUTH=false` (or clear any of the three Clerk keys) in the
+   backend `.env`.
+2. Restart the backend. No frontend rebuild is needed.
 
 ### Re-enabling Clerk for Production
 
-1. Set Clerk environment variables in production environment
-2. Deploy updated configuration
-3. Clerk authentication will be automatically enabled
+1. Set `USE_CLERK_AUTH=true` plus all three Clerk keys in the backend env.
+2. Restart the backend. The frontend picks the change up on the next page
+   load — no rebuild.
 
 ## Logging
 
-The system logs authentication mode on startup:
-
 **Backend logs:**
-- `✓ Clerk authentication configured` - When Clerk is enabled
-- `ℹ️  Clerk authentication not configured (missing CLERK_JWT_PUBLIC_KEY). Using Django default authentication.` - When Clerk is disabled
+- `[OK] Clerk JWT public key loaded` — when the flag is on and the key parses
+- `[AUTH] Clerk authentication disabled (USE_CLERK_AUTH feature flag is off).` — Django-only
+- `[WARN] USE_CLERK_AUTH is enabled but Clerk is not fully configured ...` —
+  exactly one line when the flag is on but any key is missing
 
 **Frontend console logs:**
-- `✓ Clerk authentication enabled` - When Clerk is available
-- `ℹ️ Clerk authentication not configured. Using Django default authentication.` - When Clerk is not available
+- `✓ Clerk authentication enabled` — when the backend advertises Clerk
+- `ℹ️ Clerk authentication not configured. Using Django default authentication.` — Django-only
 
 ## Best Practices
 
-1. **Production**: Always use Clerk for proper user management and security
-2. **Development**: Can disable Clerk for faster iteration
-3. **Testing**: Use Django auth for integration tests
-4. **CI/CD**: Configure based on environment (staging vs production)
+1. **Production**: enable Clerk if you need managed user flows; Django auth
+   remains available regardless.
+2. **Development**: run Django-only (`USE_CLERK_AUTH=false`) for faster
+   iteration with zero Clerk network traffic.
+3. **Testing**: use Django auth for integration tests.
+4. **CI/CD**: configure only backend env vars — the frontend image is
+   auth-agnostic.
 
 ## Troubleshooting
 
 ### Issue: "Clerk not loading but variables are set"
 
 **Check:**
-- Verify environment variables are properly loaded (check browser console and backend logs)
-- Ensure no typos in variable names
-- Restart services after changing environment variables
+- All three keys (`CLERK_JWT_PUBLIC_KEY`, `CLERK_SECRET_KEY`,
+  `CLERK_PUBLISHABLE_KEY`) must be non-empty **and** `USE_CLERK_AUTH=true`.
+- Verify `GET /api/system/config/auth/` returns `"clerk"` in `auth_methods`.
+- Check the backend startup log for the single `[WARN]` misconfiguration line.
 
 ### Issue: "Can't authenticate without Clerk"
 
 **Solution:**
 - Use Django admin to create users: `python manage.py createsuperuser`
-- Use Django Token Authentication with `X-API-KEY` header
-- Enable API key authentication for programmatic access
+- Use the email/password form (Django token auth) — it is always available.
 
 ### Issue: "Sign-in button doesn't appear"
 
 **Expected behavior:**
-- Without Clerk configured, sign-in UI is hidden
-- App runs in public mode or relies on Django session authentication
-- To add authentication UI, configure Clerk environment variables
+- With `STEALTH_MODE=false` and no protected feature triggered, no sign-in UI
+  is shown — the app runs in public mode.
+- In stealth mode the login page always renders, offering the advertised
+  methods.
 
 ## Security Considerations
 
@@ -242,10 +202,12 @@ The system logs authentication mode on startup:
 2. **Protected Mode**: Set `STEALTH_MODE=true` even without Clerk to require Django authentication
 3. **API Keys**: Always use API keys for service-to-service communication
 4. **Production**: Always use HTTPS with proper JWT verification
+5. **Key rotation**: rotate `CLERK_PUBLISHABLE_KEY` backend-side only — the
+   frontend receives it at runtime, no rebuild required
 
 ## References
 
 - [Clerk Documentation](https://clerk.com/docs)
 - [Django REST Framework Authentication](https://www.django-rest-framework.org/api-guide/authentication/)
-- [ARCHITECTURE.md](./ARCHITECTURE.md) - System architecture overview
 - [ENVIRONMENT_VARIABLES.md](./ENVIRONMENT_VARIABLES.md) - Complete environment variable reference
+- [Unified auth implementation plan](../implementation-tasks/04.%20unified-auth/00-overview.md)

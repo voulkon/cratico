@@ -1,4 +1,5 @@
 import json
+import time
 from typing import Any, Dict, List, Optional
 
 from core.constants.search_service import SearchMethod
@@ -9,13 +10,22 @@ from core.models.entities import AFMEntity
 from core.models.organizations import Organization, Signer, Unit
 from core.services.feature_flag_service import feature_flags
 from core.services.opensearch_service import OpenSearchService
-from core.services.prerequisite_check_service import prerequisite_check
+from core.services.prerequisite_check_service import (
+    SCOPE_DOCUMENT,
+    SCOPE_ENTITY,
+    prerequisite_check,
+)
 from core.services.transliteration import TransliterationService
 from core.utils.performance import query_debugger
+from core.utils.search_trace import get_current_trace
 from django.contrib.postgres.search import SearchQuery, SearchRank
 from django.core.cache import cache
 from django.db.models import F, Q, QuerySet
 from loguru import logger
+
+# Module-level flag so the "document search disabled" warning is logged
+# only once per process instead of on every search request.
+_warned_document_search_disabled = False
 
 
 class SearchService:
@@ -39,13 +49,18 @@ class SearchService:
 
     # ==================== PREREQUISITE CHECKING ====================
 
-    def _get_validated_search_method(self, requested_method: str) -> str:
+    def _get_validated_search_method(
+        self, requested_method: str, scope: str = SCOPE_ENTITY
+    ) -> str:
         """
         Validate that the requested search method's prerequisites are met.
         Falls back to POSTGRES_SIMPLE if prerequisites are not satisfied.
 
         Args:
             requested_method: The search method to validate
+            scope: Which prerequisite scope to validate. Entity searches use
+                'entity' (skips the multi-second document-table probes);
+                document search uses 'document' (all tables).
 
         Returns:
             The validated method (may be downgraded to POSTGRES_SIMPLE)
@@ -58,12 +73,33 @@ class SearchService:
         if requested_method == SearchMethod.POSTGRES_FTS:
             # For entity searches, check if prerequisites are met (migration + backfill)
             # Note: INDEX_THE_POSTGRES is only for document content, not entities
-            prereq = prerequisite_check.check_postgres_fts_prerequisites()
+            flag_start = time.perf_counter()
+            prereq = prerequisite_check.check_postgres_fts_prerequisites(scope=scope)
+            flag_ms = round((time.perf_counter() - flag_start) * 1000, 1)
+
+            # Record so a slow prerequisite recompute is visible inside the
+            # request's SEARCH_TRACE line (correlates with type_search timing).
+            _trace = get_current_trace()
+            if _trace is not None:
+                _trace.add(
+                    "prereq_check",
+                    method=requested_method,
+                    duration_ms=flag_ms,
+                    available=prereq["available"],
+                )
             if not prereq["available"]:
                 logger.warning(
                     f"POSTGRES_FTS requested but prerequisites not met: {prereq['reason']}. "
                     f"Falling back to {SearchMethod.POSTGRES_SIMPLE}"
                 )
+                trace = get_current_trace()
+                if trace is not None:
+                    trace.add(
+                        "tier_downgrade",
+                        requested=requested_method,
+                        fallback=SearchMethod.POSTGRES_SIMPLE,
+                        reason=prereq["reason"],
+                    )
                 return SearchMethod.POSTGRES_SIMPLE
             return SearchMethod.POSTGRES_FTS
 
@@ -175,10 +211,21 @@ class SearchService:
             return self._search_organizations_opensearch(query, limit)
         elif method == SearchMethod.POSTGRES_FTS:
             if self._is_query_too_short_for_fts(query):
+                self._trace_tier(
+                    "organization", "postgres_simple", reason="query_too_short_for_fts"
+                )
                 return self._search_organizations_simple(query, limit)
+            self._trace_tier("organization", "postgres_fts")
             return self._search_organizations_fts(query, limit)
         else:  # POSTGRES_SIMPLE (default fallback)
+            self._trace_tier("organization", "postgres_simple", reason="configured_tier")
             return self._search_organizations_simple(query, limit)
+
+    def _trace_tier(self, entity_type: str, tier: str, reason: Optional[str] = None):
+        """Record the resolved tier for an entity type in the active search trace."""
+        trace = get_current_trace()
+        if trace is not None:
+            trace.add("tier", type=entity_type, tier=tier, reason=reason)
 
     def _search_organizations_simple(self, query: str, limit: int = 20) -> QuerySet:
         """Simple PostgreSQL ILIKE search (Tier 1)"""
@@ -213,9 +260,9 @@ class SearchService:
             .order_by("-rank", "label")[:limit]
         )
 
-        logger.debug(
-            f"Organization FTS: query='{query}', lang={query_lang}, found={qs.count()}"
-        )
+        # NOTE: Do not call qs.count() here for logging — the queryset is
+        # sliced and ranked, so count() re-executes the entire expensive
+        # FTS scan a second time.
         return qs
 
     def _search_organizations_opensearch(self, query: str, limit: int = 20) -> QuerySet:
@@ -291,9 +338,9 @@ class SearchService:
 
         qs = qs.select_related("organization").order_by("-rank", "label")[:limit]
 
-        logger.debug(
-            f"Unit FTS: query='{query}', found={qs.count()}"
-        )
+        # NOTE: Do not call qs.count() here for logging — the queryset is
+        # sliced and ranked, so count() re-executes the entire expensive
+        # FTS scan a second time.
         return qs
 
     def _search_units_opensearch(
@@ -368,9 +415,9 @@ class SearchService:
             "-rank", "last_name", "first_name"
         )[:limit]
 
-        logger.debug(
-            f"Signer FTS: query='{query}', found={qs.count()}"
-        )
+        # NOTE: Do not call qs.count() here for logging — the queryset is
+        # sliced and ranked, so count() re-executes the entire expensive
+        # FTS scan a second time.
         return qs
 
     def _search_signers_opensearch(
@@ -402,17 +449,26 @@ class SearchService:
         if not query:
             return {"results": [], "count": 0, "source": "none", "highlights": {}}
 
+        # Document search must validate the full (document) prerequisite scope.
+        # Entity search methods below use the lighter 'entity' scope via
+        # _get_validated_search_method's default.
+        #
         # Check if PostgreSQL search is enabled
         use_postgres_search = feature_flags.is_enabled("INDEX_THE_POSTGRES")
 
         # Skip OpenSearch if disabled, use PostgreSQL directly
         if not feature_flags.is_enabled("INDEX_THE_OPENSEARCH"):
             if not use_postgres_search:
-                # Both search methods disabled - return empty result
-                logger.warning(
-                    "Both OpenSearch and PostgreSQL search are disabled. "
-                    "Document content search unavailable. Only entity search is available."
-                )
+                # Both search methods disabled - return empty result.
+                # Log only once per process; this fires on every search
+                # request otherwise and floods the logs.
+                global _warned_document_search_disabled
+                if not _warned_document_search_disabled:
+                    _warned_document_search_disabled = True
+                    logger.warning(
+                        "Both OpenSearch and PostgreSQL search are disabled. "
+                        "Document content search unavailable. Only entity search is available."
+                    )
                 return {"results": [], "count": 0, "source": "none", "highlights": {}}
 
             logger.info("OpenSearch disabled, falling back to PostgreSQL search")
@@ -719,7 +775,12 @@ class SearchService:
         requested_method = feature_flags.get_value(
             "ENTITY_SEARCH_METHOD", SearchMethod.DEFAULT
         )
-        method = self._get_validated_search_method(requested_method)
+        # Decision search filters Decision.search_vector (and
+        # text_extraction.search_vector), so it must validate the document
+        # scope — core_decision/core_documentextraction backfill matters here.
+        method = self._get_validated_search_method(
+            requested_method, scope=SCOPE_DOCUMENT
+        )
 
         if method == SearchMethod.POSTGRES_FTS:
             fts_query = self._build_prefix_search_query(query)
@@ -970,9 +1031,9 @@ class SearchService:
             .order_by("-rank", "co_name_el")[:limit]
         )
 
-        logger.debug(
-            f"Company FTS: query='{query}', found={qs.count()}"
-        )
+        # NOTE: Do not call qs.count() here for logging — the queryset is
+        # sliced and ranked, so count() re-executes the entire expensive
+        # FTS scan a second time.
         return qs
 
     def _search_companies_opensearch(self, query: str, limit: int = 20) -> QuerySet:
@@ -1043,9 +1104,9 @@ class SearchService:
 
         qs = qs.select_related("company").order_by("-rank", "person_name")[:limit]
 
-        logger.debug(
-            f"CompanyPerson FTS: query='{query}', found={qs.count()}"
-        )
+        # NOTE: Do not call qs.count() here for logging — the queryset is
+        # sliced and ranked, so count() re-executes the entire expensive
+        # FTS scan a second time.
         return qs
 
     def _search_company_persons_opensearch(
@@ -1092,22 +1153,28 @@ class SearchService:
         ).order_by("-total_appearances", "name")[:limit]
 
     def _search_afm_entities_fts(self, query: str, limit: int = 20) -> QuerySet:
-        """PostgreSQL Full-Text Search with smart language detection (Tier 2)"""
+        """
+        PostgreSQL Full-Text Search with smart language detection (Tier 2)
+
+        Ordering is by -total_appearances, name only — NOT by text relevance.
+        Rationale (measured with EXPLAIN ANALYZE on ~700K rows): per-row
+        ts_rank_cd over a broad prefix match (e.g. 'ΔΗΜ*' hits ~15K rows)
+        costs ~30ms warm / 200ms+ cold, while ordering by total_appearances
+        alone runs in ~8ms. For AFM entities (persons/companies), popularity
+        (number of decision appearances) is a better ranking signal than
+        text-relevance rank anyway.
+        """
         TransliterationService.detect_language(query)
         search_query = self._build_prefix_search_query(query)
-        weights = TransliterationService.get_search_rank_weights(query)
 
         qs = (
-            AFMEntity.objects.annotate(
-                rank=SearchRank(F("search_vector"), search_query, weights=weights)
-            )
-            .filter(search_vector=search_query)
-            .order_by("-rank", "-total_appearances", "name")[:limit]
+            AFMEntity.objects.filter(search_vector=search_query)
+            .order_by("-total_appearances", "name")[:limit]
         )
 
-        logger.debug(
-            f"AFMEntity FTS: query='{query}', found={qs.count()}"
-        )
+        # NOTE: Do not call qs.count() here for logging — the queryset is
+        # sliced, so count() re-executes the entire expensive
+        # FTS scan a second time.
         return qs
 
     def _search_afm_entities_opensearch(

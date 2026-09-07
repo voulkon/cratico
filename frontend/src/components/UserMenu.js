@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import DjangoLoginForm from './DjangoLoginForm';
-import DjangoPasswordResetRequest from './DjangoPasswordResetRequest';
+import AuthModal from './AuthModal';
 import UserMenuDropdown from './UserMenuDropdown';
 import SplitButton from './SplitButton';
 import { UserIcon } from './Icons';
@@ -10,7 +9,6 @@ import './UserMenu.css';
 
 const UserMenu = ({ isOpen, onToggle }) => {
   const [showLoginForm, setShowLoginForm] = useState(false);
-  const [showPasswordResetRequest, setShowPasswordResetRequest] = useState(false);
   const { palette, palettes, theme } = useTheme();
   const { user, isSignedIn, isClerkAuth } = useAuth();
 
@@ -71,23 +69,11 @@ const UserMenu = ({ isOpen, onToggle }) => {
           />
         )}
 
-        {/* Django Login Form Modal */}
+        {/* Auth modal — self-contained login/register/reset switching */}
         {showLoginForm && !isClerkAuth && (
-          <DjangoLoginForm
+          <AuthModal
             onSuccess={() => setShowLoginForm(false)}
             onCancel={() => setShowLoginForm(false)}
-            onForgotPassword={() => {
-              setShowLoginForm(false);
-              setShowPasswordResetRequest(true);
-            }}
-          />
-        )}
-
-        {/* Django Password Reset Request Modal */}
-        {showPasswordResetRequest && !isClerkAuth && (
-          <DjangoPasswordResetRequest
-            onSuccess={() => setShowPasswordResetRequest(false)}
-            onCancel={() => setShowPasswordResetRequest(false)}
           />
         )}
       </div>

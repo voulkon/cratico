@@ -21,6 +21,15 @@ export const AuthConfigProvider = ({ children }) => {
     password_requirements: {
       min_length: 8,
     },
+    // Which auth providers the backend reports as active.
+    // Consumed by AuthContext to decide which providers/buttons to render.
+    auth_methods: ['django'],
+    // Only set when 'clerk' is in auth_methods; otherwise null.
+    clerk_publishable_key: null,
+    // Search UX tunables (feature-flag driven, backend-controlled).
+    search: {
+      debounce_ms: 300,
+    },
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -49,6 +58,9 @@ export const AuthConfigProvider = ({ children }) => {
     stealthMode: config.authentication.required,
     stealthAllowlist: config.authentication.allowlist_enabled,
     minPasswordLength: config.password_requirements.min_length,
+    authMethods: config.auth_methods ?? ['django'],
+    clerkPublishableKey: config.clerk_publishable_key ?? null,
+    searchDebounceMs: config.search?.debounce_ms ?? 300,
     loading,
     error,
     refetch: fetchAuthConfig,
@@ -66,7 +78,7 @@ export const AuthConfigProvider = ({ children }) => {
  *
  * Usage:
  * ```
- * const { stealthMode, stealthAllowlist, minPasswordLength } = useAuthConfig();
+ * const { stealthMode, stealthAllowlist, minPasswordLength, authMethods, clerkPublishableKey } = useAuthConfig();
  * ```
  */
 export const useAuthConfig = () => {
