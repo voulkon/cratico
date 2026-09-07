@@ -24,6 +24,10 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", default_unsafe_secret_key)
 DEBUG_ENV = os.getenv("DEBUG", "False")  # Get it as a string
 DEBUG = DEBUG_ENV.lower() in ("true", "1", "t")  # Convert to boolean
 
+# Anonymous (unauthenticated) per-IP daily API request limit applied by
+# RateLimitMiddleware (backend/api/middleware/rate_limit.py).
+ANON_API_DAILY_LIMIT = int(os.getenv("ANON_API_DAILY_LIMIT", "300"))
+
 # Stealth mode - requires authentication for all API endpoints
 STEALTH_MODE = os.getenv("STEALTH_MODE", "False").lower() in ("true", "1", "t")
 

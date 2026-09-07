@@ -340,6 +340,23 @@ class FeatureFlagService:
             "requires_restart": False,
             "value_type": "integer",
         },
+        # ── Anonymous API rate limiting ────────────────────────────────
+        # Daily per-IP quota for anonymous (unauthenticated) API requests,
+        # enforced by api.middleware.rate_limit.RateLimitMiddleware (HTTP 429).
+        # Effective value: DB FeatureFlag row (admin) > env var >
+        # settings.ANON_API_DAILY_LIMIT > KNOWN_FLAGS default (100).
+        "ANON_API_DAILY_LIMIT": {
+            "name": "Anonymous API Daily Limit (per IP)",
+            "description": "Maximum API requests per day from a single anonymous IP "
+            "before RateLimitMiddleware returns HTTP 429. Tune here (admin) to "
+            "override the deployment-level ANON_API_DAILY_LIMIT setting.",
+            "default": 300,
+            "env_var": "ANON_API_DAILY_LIMIT",
+            "category": "security",
+            "requires_restart": False,
+            "value_type": "integer",
+        },
+
         # ── Security & Threat Detection ───────────────────────────────
         "SECURITY_MONITORING_ENABLED": {
             "name": "Security Monitoring",

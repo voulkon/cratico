@@ -16,7 +16,7 @@ from api.redis_keys import (
     get_method_key,
     get_user_ratelimit_key,
 )
-from api.utils.ip import get_client_ip
+from api.utils.ip import get_client_ip, is_infrastructure_ip
 from diavgeia_project.security_tracing import security_tracer
 from django.conf import settings
 from django.core.cache import cache
@@ -55,16 +55,23 @@ class RateLimitMiddleware:
             response = self.get_response(request)
             return self.add_cors_headers(response)
 
-        # Skip rate limiting in development, for staff users, or local/private IPs
+        # Skip rate limiting in development, for staff users, or when the
+        # RESOLVED client IP is missing/local/private. We decide exclusively
+        # from get_client_ip(): nginx's REMOTE_ADDR is a private compose/CF
+        # gateway in every real stack, so it must not drive the exemption.
         client_ip = get_client_ip(request)
-        remote_addr = request.META.get("REMOTE_ADDR", "")
-        local_ips = ("127.", "10.", "172.", "192.168.", "::1", "localhost")
-        is_local = (client_ip and client_ip.startswith(local_ips)) or remote_addr.startswith(local_ips)
         is_staff_user = request.user.is_authenticated and request.user.is_staff
-        if settings.DEBUG or is_staff_user or is_local:
+        if (
+            settings.DEBUG
+            or is_staff_user
+            or not client_ip
+            or is_infrastructure_ip(client_ip)
+        ):
             return self.get_response(request)
 
         # ── Diagnostic log (remove once confirmed working) ────────────────
+        # nginx's REMOTE_ADDR is only logged for diagnostics — it no longer
+        # drives the exemption (see the gate above).
         logger.warning(
             "RateLimitMiddleware applying limit: path={} user={} is_staff={} "
             "client_ip={} remote_addr={}",
@@ -72,7 +79,7 @@ class RateLimitMiddleware:
             getattr(request.user, "username", "anonymous"),
             request.user.is_staff if request.user.is_authenticated else False,
             client_ip,
-            remote_addr,
+            request.META.get("REMOTE_ADDR", ""),
         )
 
         if request.user.is_authenticated:
@@ -127,8 +134,16 @@ class RateLimitMiddleware:
             key = get_ip_ratelimit_key(ip)
             usage = cache.get(key, {"count": 0, "reset_time": time.time() + 86400})
 
-            # Check if limit reached
-            limit = 100  # Set your daily limit for anonymous users
+            # Check if limit reached.
+            # Anonymous daily cap is a FeatureFlag (admin-tunable, env-backed)
+            # whose effective default is the ANON_API_DAILY_LIMIT setting. Local
+            # import keeps this middleware decoupled from app-load ordering.
+            from core.services.feature_flag_service import feature_flags
+
+            limit = feature_flags.get_value(
+                "ANON_API_DAILY_LIMIT",
+                default=getattr(settings, "ANON_API_DAILY_LIMIT", 100),
+            )
             if usage["count"] >= limit:
                 remaining = int(usage["reset_time"] - time.time())
                 if remaining <= 0:
