@@ -25,13 +25,20 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+        with:
+          # Full history so dorny can resolve github.event.before on pushes.
+          fetch-depth: 0
 
       - name: Check which paths changed
         uses: dorny/paths-filter@v3
         id: filter
         with:
-          # For push events dorny compares against the previous commit on the
-          # branch; for PRs it diffs against the base branch automatically.
+          # PR events: dorny diffs the PR against its base branch (omitted base
+          # = auto-detect). Push events: dorny's default base is the repo's
+          # DEFAULT branch (main), which would diff main...dev and re-run
+          # everything on every push to dev. github.event.before is the commit
+          # the branch pointed to before the push, so we diff only that push.
+          base: ${{ github.event_name == 'push' && github.event.before || '' }}
           filters: |
             backend:
               - 'backend/**'
