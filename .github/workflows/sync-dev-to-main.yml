@@ -1,0 +1,55 @@
+name: Sync dev to main
+
+# Keeps main from drifting: whenever dev moves ahead of main, open (or
+# update) a single PR "dev -> main". Nothing is merged automatically —
+# pr-tests.yml runs on that PR as usual and you click merge. This only
+# removes the "oops, I forgot to propagate to main" step.
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: sync-dev-to-main
+  cancel-in-progress: false
+
+jobs:
+  sync-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Skip if dev is not ahead of main
+        id: ahead
+        run: |
+          git fetch origin main dev
+          count=$(git rev-list --count origin/main..origin/dev)
+          echo "dev is $count commit(s) ahead of main"
+          echo "ahead=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update dev -> main PR
+        if: steps.ahead.outputs.ahead != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Reuse an existing open PR if there is one, so pushes to dev keep
+          # refreshing the same PR instead of piling up duplicates.
+          existing=$(gh pr list --base main --head dev --state open --json number --jq '.[0].number' || true)
+          if [ -n "$existing" ]; then
+            echo "Updating existing PR #$existing"
+          else
+            echo "Creating dev -> main PR"
+            gh pr create \
+              --base main \
+              --head dev \
+              --title "chore: sync dev to main" \
+              --body "Automated PR to keep main in sync with dev. Created by the sync-dev-to-main workflow after a push to dev."
+          fi
