@@ -38,6 +38,9 @@ from django.test import Client
 
 FF_PATH = "core.services.feature_flag_service.feature_flags"
 TASK_PATH = "api.tasks.security.persist_endpoint_access_log.delay"
+# security.py imports security_service locally (inside the function), so the
+# patch target is its definition module, not the middleware module.
+SEC_SVC = "api.services.security_service.security_service"
 
 
 def _flags_enabled(*flag_names):
@@ -506,3 +509,147 @@ class TestAlreadyBannedFlag:
         mock_eval.assert_not_called()
         mock_ban.assert_not_called()
         assert response.status_code != 403
+
+
+# ---------------------------------------------------------------------------
+# 8. Path-probe strikes (dotfile/sensitive-file scanning via request path)
+# ---------------------------------------------------------------------------
+
+
+class TestPathProbeStrikes:
+    """
+    Requests FOR well-known sensitive targets (/api/.env, /api/.git/config,
+    wp-admin, ...) are never legitimate API paths here. Each hit must record
+    a strike via the same pipeline as param attacks, so a burst of probes
+    crosses SECURITY_STRIKE_THRESHOLD and auto-bans the IP.
+
+    Regression context: /api/.env, /api/v1/.env, /api/v2/.env were observed
+    live on preview-test and generated ZERO strikes — the param scanner never
+    sees the request path, and 3 distinct endpoints is far below the scan
+    threshold (80).
+    """
+
+    PROBE_PATHS = [
+        "/api/.env",
+        "/api/v1/.env",
+        "/api/v2/.env",
+        "/api/.env.bak",
+        "/api/.git/config",
+        "/api/.aws/credentials",
+        "/api/wp-admin/setup.php",
+        "/api/phpmyadmin/index.php",
+        "/api/backup.sql",
+        "/api/id_rsa",
+        "/api/.htaccess",
+        "/api/composer.json",
+    ]
+
+    def test_each_probe_path_records_a_strike(self):
+        """Every probe pattern fires record_strike exactly once per request."""
+        for probe in self.PROBE_PATHS:
+            client = Client(REMOTE_ADDR="10.0.0.220")
+
+            with (
+                patch(
+                    f"{FF_PATH}.is_enabled",
+                    side_effect=_flags_enabled("SECURITY_MONITORING_ENABLED"),
+                ),
+                patch(
+                    f"{SEC_SVC}.record_strike",
+                    return_value=1,
+                ) as mock_strike,
+                patch(
+                    f"{SEC_SVC}.ban_ip"
+                ) as mock_ban,
+            ):
+                response = client.get(probe)
+
+            # The path doesn't exist -> 404 is fine; the point is the strike.
+            assert response.status_code != 403
+            mock_strike.assert_called_once()
+            event_type = mock_strike.call_args.kwargs["event_type"]
+            assert event_type.startswith("path_probe:"), (
+                f"{probe} did not record a path_probe strike (got {event_type!r})"
+            )
+            mock_ban.assert_not_called()  # strike 1 < threshold 5
+
+    def test_probe_burst_crosses_threshold_and_bans(self):
+        """5+ probes from one IP -> ban_ip called with reason 'strikes'."""
+        import itertools
+
+        _strike_counter = itertools.count(start=1)  # 1, 2, 3, ...
+        client = Client(REMOTE_ADDR="10.0.0.221")
+
+        with (
+            patch(
+                f"{FF_PATH}.is_enabled",
+                side_effect=_flags_enabled(
+                    "SECURITY_MONITORING_ENABLED", "SECURITY_AUTO_BAN_ENABLED"
+                ),
+            ),
+            patch(
+                f"{SEC_SVC}.record_strike",
+                # Realistic increment: 1, 2, 3, 4, 5 — the ban fires only when
+                # the count reaches the threshold (5), i.e. on the last probe.
+                # (itertools.count is stateful across calls, unlike a lambda
+                # that rebuilds its list each time.)
+                side_effect=lambda ip, event_type: next(_strike_counter),
+            ) as mock_strike,
+            patch(
+                f"{SEC_SVC}.ban_ip"
+            ) as mock_ban,
+        ):
+            for probe in ("/api/.env", "/api/.git/config", "/api/wp-login.php",
+                          "/api/.aws/credentials", "/api/backup.sql"):
+                client.get(probe)
+
+        assert mock_strike.call_count == 5
+        mock_ban.assert_called_once()
+        call_args, call_kwargs = mock_ban.call_args
+        assert call_args[0] == "10.0.0.221"
+        assert call_args[1] == "strikes"
+        assert call_kwargs.get("strike_count") == 5
+
+    def test_legitimate_paths_never_match_probe_patterns(self):
+        """Normal API paths (including ones with dots/numbers) must not trip
+        the probe patterns.
+
+        Pure pattern-level check (no live views): real views crash on
+        AnonymousUser filtering for nonexistent objects, which is orthogonal
+        to what we're asserting — that the probe REGEXES don't match.
+        """
+        from api.middleware.security import SecurityMonitoringMiddleware
+
+        legitimate = [
+            "/api/system/config/auth/",
+            "/api/search/autocomplete/",
+            "/api/decisions/31946583/",
+            "/api/notifications/batches/280/summary/",
+            "/api/browse/entities/",
+            "/api/user-data/bookmarks/",
+            "/api/auth/login/",
+            "/api/system/rate-limit/status/1/",
+            "/api/some.endpoint/",  # a dot mid-path, not a trailing extension
+        ]
+        middleware = SecurityMonitoringMiddleware(lambda r: None)
+        for path in legitimate:
+            assert not any(
+                p.search(path) for p in middleware.compiled_path_patterns
+            ), f"Legitimate path {path} matched a probe pattern"
+
+    def test_probe_strike_gated_by_security_flag(self):
+        """With SECURITY_MONITORING_ENABLED off, probes record no strikes."""
+        client = Client(REMOTE_ADDR="10.0.0.223")
+
+        with (
+            patch(
+                f"{FF_PATH}.is_enabled",
+                side_effect=_all_flags_disabled(),
+            ),
+            patch(
+                f"{SEC_SVC}.record_strike"
+            ) as mock_strike,
+        ):
+            client.get("/api/.env")
+
+        mock_strike.assert_not_called()

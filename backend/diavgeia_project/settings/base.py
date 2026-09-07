@@ -28,6 +28,13 @@ DEBUG = DEBUG_ENV.lower() in ("true", "1", "t")  # Convert to boolean
 # RateLimitMiddleware (backend/api/middleware/rate_limit.py).
 ANON_API_DAILY_LIMIT = int(os.getenv("ANON_API_DAILY_LIMIT", "300"))
 
+# When True, /api/system/config/auth/ includes a read-only "throttle" block
+# (anon limit + live security thresholds) for the throttling/auto-ban E2E
+# stacks. Keep OFF in production.
+EXPOSE_E2E_OPERATIONAL_CONFIG = os.getenv(
+    "EXPOSE_E2E_OPERATIONAL_CONFIG", "False"
+).lower() in ("true", "1", "t")
+
 # Stealth mode - requires authentication for all API endpoints
 STEALTH_MODE = os.getenv("STEALTH_MODE", "False").lower() in ("true", "1", "t")
 
