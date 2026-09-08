@@ -26,7 +26,9 @@ DEBUG = DEBUG_ENV.lower() in ("true", "1", "t")  # Convert to boolean
 
 # Anonymous (unauthenticated) per-IP daily API request limit applied by
 # RateLimitMiddleware (backend/api/middleware/rate_limit.py).
-ANON_API_DAILY_LIMIT = int(os.getenv("ANON_API_DAILY_LIMIT", "300"))
+from api.constants import DEFAULT_ANON_API_DAILY_LIMIT
+
+ANON_API_DAILY_LIMIT = int(os.getenv("ANON_API_DAILY_LIMIT", str(DEFAULT_ANON_API_DAILY_LIMIT)))
 
 # When True, /api/system/config/auth/ includes a read-only "throttle" block
 # (anon limit + live security thresholds) for the throttling/auto-ban E2E

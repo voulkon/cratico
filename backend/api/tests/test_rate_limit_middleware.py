@@ -52,7 +52,8 @@ PUBLIC_CLIENT_B = "1.1.1.1"
 # test client's "testserver" Host header is accepted.
 ENFORCED = dict(DEBUG=False, ALLOWED_HOSTS=["*"])
 # Same, with a small tunable anonymous limit so a burst reaches 429 quickly.
-ENFORCED_LIMIT_3 = dict(ENFORCED, ANON_API_DAILY_LIMIT=3)
+from api.constants import DEFAULT_ANON_API_DAILY_LIMIT
+ENFORCED_LIMIT_3 = dict(ENFORCED, ANON_API_DAILY_LIMIT=DEFAULT_ANON_API_DAILY_LIMIT)
 
 FF_PATH = "core.services.feature_flag_service.feature_flags.is_enabled"
 
@@ -222,7 +223,7 @@ class TestHybridFlagRegistration:
         known = ffs.feature_flags.KNOWN_FLAGS["ANON_API_DAILY_LIMIT"]
         assert known["value_type"] == "integer"
         assert known["env_var"] == "ANON_API_DAILY_LIMIT"
-        assert known["default"] == 100
+        assert known["default"] == DEFAULT_ANON_API_DAILY_LIMIT
         assert known["requires_restart"] is False
 
 
@@ -230,7 +231,7 @@ class TestHybridFlagRegistration:
 class TestHybridFlagOverride:
     @override_settings(**ENFORCED)
     def test_flag_override_takes_precedence_over_settings_default(self):
-        """When no DB row exists the cap is the settings default (100); a
+        """When no DB row exists the cap is the settings default; a
         FeatureFlag override must win over that default and drive the 429."""
         client = _gateway_client()
         real_get_value = ffs.feature_flags.get_value
@@ -246,7 +247,7 @@ class TestHybridFlagOverride:
             for _ in range(3):
                 response = client.get(API_PATH, **_as(PUBLIC_CLIENT_A))
                 assert response.status_code == 200
-                # 3 (the flag override), not the settings default (100).
+                # 3 (the flag override), not the settings default.
                 assert int(response["X-RateLimit-Limit"]) == 3
 
             response = client.get(API_PATH, **_as(PUBLIC_CLIENT_A))

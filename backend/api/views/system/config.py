@@ -43,8 +43,10 @@ def auth_config(request):
     # Absent unless EXPOSE_E2E_OPERATIONAL_CONFIG is set — nothing new is
     # exposed in production by default.
     if getattr(settings, "EXPOSE_E2E_OPERATIONAL_CONFIG", False):
+        from api.constants import DEFAULT_ANON_API_DAILY_LIMIT
+        
         payload["throttle"] = {
-            "anon_daily_limit": getattr(settings, "ANON_API_DAILY_LIMIT", 100),
+            "anon_daily_limit": getattr(settings, "ANON_API_DAILY_LIMIT", DEFAULT_ANON_API_DAILY_LIMIT),
             "security_monitoring_enabled": feature_flags.is_enabled(
                 "SECURITY_MONITORING_ENABLED"
             ),

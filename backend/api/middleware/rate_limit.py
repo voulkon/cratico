@@ -139,10 +139,11 @@ class RateLimitMiddleware:
             # whose effective default is the ANON_API_DAILY_LIMIT setting. Local
             # import keeps this middleware decoupled from app-load ordering.
             from core.services.feature_flag_service import feature_flags
+            from api.constants import DEFAULT_ANON_API_DAILY_LIMIT
 
             limit = feature_flags.get_value(
                 "ANON_API_DAILY_LIMIT",
-                default=getattr(settings, "ANON_API_DAILY_LIMIT", 100),
+                default=getattr(settings, "ANON_API_DAILY_LIMIT", DEFAULT_ANON_API_DAILY_LIMIT),
             )
             if usage["count"] >= limit:
                 remaining = int(usage["reset_time"] - time.time())

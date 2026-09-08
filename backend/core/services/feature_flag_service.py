@@ -8,7 +8,7 @@ Provides a centralized service for checking feature flags with a fallback mechan
 
 This service includes caching for performance and supports runtime updates.
 """
-
+from api.constants import DEFAULT_ANON_API_DAILY_LIMIT
 import os
 from typing import Any, Dict, Optional
 
@@ -344,13 +344,13 @@ class FeatureFlagService:
         # Daily per-IP quota for anonymous (unauthenticated) API requests,
         # enforced by api.middleware.rate_limit.RateLimitMiddleware (HTTP 429).
         # Effective value: DB FeatureFlag row (admin) > env var >
-        # settings.ANON_API_DAILY_LIMIT > KNOWN_FLAGS default (100).
+        # settings.ANON_API_DAILY_LIMIT > KNOWN_FLAGS default (DEFAULT_ANON_API_DAILY_LIMIT).
         "ANON_API_DAILY_LIMIT": {
             "name": "Anonymous API Daily Limit (per IP)",
             "description": "Maximum API requests per day from a single anonymous IP "
             "before RateLimitMiddleware returns HTTP 429. Tune here (admin) to "
             "override the deployment-level ANON_API_DAILY_LIMIT setting.",
-            "default": 300,
+            "default": DEFAULT_ANON_API_DAILY_LIMIT,
             "env_var": "ANON_API_DAILY_LIMIT",
             "category": "security",
             "requires_restart": False,

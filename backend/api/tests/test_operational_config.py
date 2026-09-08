@@ -21,6 +21,7 @@ from unittest.mock import patch
 
 import core.services.feature_flag_service as ffs
 import pytest
+from api.constants import DEFAULT_ANON_API_DAILY_LIMIT
 from django.conf import settings
 from django.test import override_settings
 
@@ -78,9 +79,9 @@ class TestThrottleBlockExposed:
 
     @override_settings(EXPOSE_E2E_OPERATIONAL_CONFIG=True)
     def test_anon_daily_limit_defaults_to_100_when_setting_missing(self, api_client):
-        """The view's getattr fallback (100) when the setting is absent."""
+        """The view's getattr fallback (DEFAULT_ANON_API_DAILY_LIMIT) when the setting is absent."""
         # The setting exists in base.py (300), so remove it to exercise the
-        # view's getattr(..., 100) fallback.
+        # view's getattr(..., DEFAULT_ANON_API_DAILY_LIMIT) fallback.
         had_setting = hasattr(settings, "ANON_API_DAILY_LIMIT")
         if had_setting:
             del settings.ANON_API_DAILY_LIMIT
@@ -91,7 +92,10 @@ class TestThrottleBlockExposed:
             if had_setting:
                 settings.ANON_API_DAILY_LIMIT = 300
         assert response.status_code == 200
-        assert response.json()["throttle"]["anon_daily_limit"] == 100
+        assert (
+            response.json()["throttle"]["anon_daily_limit"]
+            == DEFAULT_ANON_API_DAILY_LIMIT
+        )
 
     @override_settings(EXPOSE_E2E_OPERATIONAL_CONFIG=True)
     def test_security_values_read_through_feature_flag_service(self, api_client):
