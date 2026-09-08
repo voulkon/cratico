@@ -99,5 +99,24 @@ case "$BRANCH" in
   *)    fixed BACKEND_LOG_LEVEL 'DEBUG' ;;
 esac
 
+# ── Throttling E2E stacks (opt-in) ─────────────────────────────────────────
+# The rate limiter is a no-op under DEBUG=True, so the throttling suite needs
+# its own stack(s). Suites B (429) and C (403) are mutually exclusive on one
+# stack (auto-ban must be off for a deterministic 429, on for the 403 path),
+# so two opt-in variants exist:
+#   ENABLE_THROTTLE_E2E=true    -> DEBUG off + throttle config exposed,
+#                                  auto-ban OFF (suites A + B).
+#   ENABLE_AUTOBAN_E2E=true     -> same, but auto-ban ON + low velocity
+#                                  threshold (suites A + C).
+if [ "${ENABLE_THROTTLE_E2E:-false}" = "true" ] || [ "${ENABLE_AUTOBAN_E2E:-false}" = "true" ]; then
+  fixed EXPOSE_E2E_OPERATIONAL_CONFIG 'True'
+  fixed ANON_API_DAILY_LIMIT          '8'
+fi
+if [ "${ENABLE_AUTOBAN_E2E:-false}" = "true" ]; then
+  fixed SECURITY_MONITORING_ENABLED   'True'
+  fixed SECURITY_AUTO_BAN_ENABLED     'True'
+  fixed SECURITY_VELOCITY_THRESHOLD   '5'
+fi
+
 echo "Generated $OUT (branch: $BRANCH):"
 printf '  %s\n' "${PROVENANCE[@]}"
