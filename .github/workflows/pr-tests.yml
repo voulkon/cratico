@@ -200,85 +200,48 @@ jobs:
         env:
           CI: 'true'
 
-  e2e-auth:
-    name: E2E auth matrix (non-blocking)
+  # One job, one composite action (.github/actions/e2e-suite) per matrix
+  # entry. To add a new E2E suite: add a matrix line, not a new job.
+  # extra_env carries flags read by scripts/ci/create_env_file.sh to shape
+  # the stack (e.g. ENABLE_THROTTLE_E2E=true) — see that script for options.
+  e2e:
+    name: E2E ${{ matrix.suite }} (non-blocking)
     needs: changes
     if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
     # Task 05 gate decision: non-blocking for 2 weeks, then flip to blocking.
     continue-on-error: true
-    defaults:
-      run:
-        working-directory: frontend
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: auth
+            spec: 'e2e/auth.spec.js e2e/clerk.spec.js'
+            extra_env: ''
+          - suite: throttling
+            spec: 'e2e/free-access-throttling.spec.js'
+            extra_env: 'ENABLE_THROTTLE_E2E=true'
+          - suite: autoban
+            # --grep scopes to suite C only: suite A's real browser navigation
+            # (page.goto, no synthetic XFF) shares the low velocity threshold
+            # and would self-ban the runner's own gateway IP otherwise.
+            spec: "e2e/free-access-throttling.spec.js --grep 'suite C'"
+            extra_env: 'ENABLE_AUTOBAN_E2E=true'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Setup frontend (with Playwright)
-        uses: ./.github/actions/setup-frontend
+      - name: Run E2E suite
+        uses: ./.github/actions/e2e-suite
         with:
-          install-playwright: 'true'
-
-      - name: Generate CI env file
-        working-directory: .
-        env:
+          suite-name: ${{ matrix.suite }}
+          spec: ${{ matrix.spec }}
+          extra-env: ${{ matrix.extra_env }}
           # All optional — create_env_file.sh falls back to safe dummies.
-          # Provide all three CLERK_* secrets to flip the stack to row A.
-          GEMI_API_KEY: ${{ secrets.GEMI_API_KEY }}
-          CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
-          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
-          CLERK_JWT_PUBLIC_KEY: ${{ secrets.CLERK_JWT_PUBLIC_KEY }}
-        run: scripts/ci/create_env_file.sh .env_files/.env.ci
+          # Provide all three CLERK_* secrets to flip the auth stack to row A.
+          gemi-api-key: ${{ secrets.GEMI_API_KEY }}
+          clerk-publishable-key: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
+          clerk-secret-key: ${{ secrets.CLERK_SECRET_KEY }}
+          clerk-jwt-public-key: ${{ secrets.CLERK_JWT_PUBLIC_KEY }}
 
-      - name: Boot stack (with DB, Django-only row B)
-        working-directory: .
-        run: make stack-up-ci ENV_FILE=.env_files/.env.ci
-
-      - name: Run Playwright E2E
-        working-directory: .
-        run: make e2e
-        env:
-          E2E_BASE_URL: 'http://localhost'
-          CI: 'true'
-
-      # With DEBUG=False the full traceback of any unhandled 500 lands in the
-      # backend container logs. Capture them BEFORE teardown destroys the stack.
-      - name: Dump backend logs
-        if: always()
-        working-directory: .
-        run: |
-          set -x
-          docker compose -f docker/docker-compose.yml -p diavgeia-ci --env-file=.env_files/.env.ci ps -a || true
-          docker compose -f docker/docker-compose.yml -p diavgeia-ci --env-file=.env_files/.env.ci logs --no-color backend > backend-logs.txt 2> compose-logs-err.txt || true
-          # Fallback: raw container logs (works even if compose metadata is
-          # gone). Containers have no fixed names anymore, so resolve the
-          # name via compose (project-prefixed) and fall back to grep.
-          backend_cid=$(docker compose -f docker/docker-compose.yml -p diavgeia-ci --env-file=.env_files/.env.ci ps -q backend 2>/dev/null || true)
-          [ -n "$backend_cid" ] && docker logs "$backend_cid" >> backend-logs.txt 2>&1 || true
-          wc -c backend-logs.txt
-          cat compose-logs-err.txt || true
-          tail -c 100000 backend-logs.txt || true
-
-      - name: Tear down stack
-        if: always()
-        working-directory: .
-        run: make stack-down-ci ENV_FILE=.env_files/.env.ci || true
-
-      - name: Upload Playwright report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: frontend/playwright-report/
-          retention-days: 14
-
-      - name: Upload backend logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-logs
-          path: |
-            backend-logs.txt
-            compose-logs-err.txt
-          retention-days: 14

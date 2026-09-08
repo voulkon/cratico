@@ -285,7 +285,7 @@ npm test -- src/pages/__tests__/LoginPage.test.js
 
 #### E2E (Playwright)
 
-E2E specs live in `frontend/e2e/` (`auth.spec.js`, `clerk.spec.js`) and run against a real Docker stack — Playwright does not start the stack itself.
+E2E specs live in `frontend/e2e/` and run against a real Docker stack — Playwright does not start the stack itself. `make e2e`/`make e2e-headed` accept `SPEC="..."` to scope to specific files (default: all specs).
 
 ```bash
 # 1. Boot an isolated CI-style stack (separate compose project + volumes)
@@ -293,6 +293,8 @@ make stack-up-ci ENV_FILE=.env_files/.env.ci
 
 # 2. Run the E2E suite (or `make e2e-headed` to watch the browser)
 make e2e
+# ...or scope to specific specs:
+make e2e SPEC="e2e/auth.spec.js e2e/clerk.spec.js"
 
 # 3. Tear it down
 make stack-down-ci ENV_FILE=.env_files/.env.ci
@@ -301,7 +303,29 @@ make stack-down-ci ENV_FILE=.env_files/.env.ci
 cd frontend && npx playwright test --headed
 ```
 
-The auth matrix supports two configurations: dual-auth (Clerk + Django) and Django-only, selected via `USE_CLERK_AUTH` and `CLERK_*` env vars. See `docs/en/AUTHENTICATION_FALLBACK.md` and `frontend/playwright.config.ts`. In CI this job is currently **non-blocking** (`continue-on-error: true` in `pr-tests.yml`).
+The auth matrix (`auth.spec.js`, `clerk.spec.js`) supports two configurations: dual-auth (Clerk + Django) and Django-only, selected via `USE_CLERK_AUTH` and `CLERK_*` env vars. See `docs/en/AUTHENTICATION_FALLBACK.md` and `frontend/playwright.config.ts`.
+
+**Free-access & throttling** (`free-access-throttling.spec.js`) needs its own stack shape — the rate limiter is a no-op under `DEBUG=True`. `scripts/ci/create_env_file.sh` supports two opt-in flags that flip `DEBUG` off and shape the security config:
+
+```bash
+# Suites A (free access) + B (429 rate limiter) — auto-ban OFF
+ENABLE_THROTTLE_E2E=true scripts/ci/create_env_file.sh .env_files/.env.ci-throttling
+make stack-up-ci ENV_FILE=.env_files/.env.ci-throttling
+make e2e SPEC="e2e/free-access-throttling.spec.js"
+make stack-down-ci ENV_FILE=.env_files/.env.ci-throttling
+
+# Suite C (403 auto-ban) — MUST be grep-scoped: suite A's real browser
+# navigation shares the low velocity threshold and will self-ban the
+# runner's own gateway IP for 24h if it runs alongside suite C.
+ENABLE_AUTOBAN_E2E=true scripts/ci/create_env_file.sh .env_files/.env.ci-autoban
+make stack-up-ci ENV_FILE=.env_files/.env.ci-autoban
+make e2e SPEC="e2e/free-access-throttling.spec.js --grep 'suite C'"
+make stack-down-ci ENV_FILE=.env_files/.env.ci-autoban
+```
+
+Every spec self-skips (not fails) when the stack it needs isn't up — check `test.skip(...)` calls at the top of each `describe` block. VS Code tasks (`Tasks: Run Task`) automate all of the above: `E2E: Boot + Run Throttle Suites (A+B)`, `E2E: Boot + Run Autoban Suite (C)`, and their matching teardown tasks.
+
+In CI, all three suites run as one `e2e` job with a `strategy.matrix` (`.github/workflows/pr-tests.yml`), sharing the `.github/actions/e2e-suite` composite action for setup/boot/run/teardown/artifacts. **Add a new E2E suite by adding a matrix entry, not a new job.** This job is currently **non-blocking** (`continue-on-error: true`).
 
 #### Coverage gate on PRs
 

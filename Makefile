@@ -45,11 +45,12 @@ wait-for-api: ## Block until the auth-config endpoint answers
 
 # ───────────────────────── E2E (Playwright) ─────────────────────────
 
-e2e: ## Run Playwright E2E against the running stack
-	cd frontend && npx playwright test
+# SPEC scopes to specific files, e.g. make e2e SPEC="e2e/auth.spec.js e2e/clerk.spec.js"
+e2e: ## Run Playwright E2E against the running stack (override with SPEC=...)
+	cd frontend && npx playwright test $(SPEC)
 
 e2e-headed: ## Run Playwright E2E with a visible browser
-	cd frontend && npx playwright test --headed
+	cd frontend && npx playwright test --headed $(SPEC)
 
 # ───────────────────────── Linting (pre-commit) ─────────────────────────
 

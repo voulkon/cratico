@@ -7,6 +7,40 @@
  */
 export const TOKEN_KEY = 'django_auth_token';
 
+// ── Throttling / free-access helpers (task 03, free-access-throttling E2E) ──
+
+/**
+ * Throttle config from /api/system/config/auth/, or null when the stack
+ * doesn't expose it (EXPOSE_E2E_OPERATIONAL_CONFIG off — production default).
+ * Specs use this to self-skip on stacks without the throttle config.
+ */
+export async function getThrottleConfig(request) {
+  const res = await request.get(`${API_URL}/api/system/config/auth/`);
+  if (!res.ok()) return null;
+  return (await res.json()).throttle ?? null;
+}
+
+/**
+ * Unique-per-seed "public" client IP for synthetic X-Forwarded-For clients.
+ *
+ * Spreads the seed across octets 2-4 so ~65k distinct IPs are available
+ * before wrapping. NOTE: documentation ranges (198.51.100.0/24 etc.) are
+ * is_private=True in Python's ipaddress, so the backend's
+ * is_infrastructure_ip() would exempt them — use genuinely public-looking
+ * IPs like these instead.
+ */
+export function syntheticClientIP(seed) {
+  const o2 = 8 + (Math.floor(seed / 62500) % 247); // 8..254
+  const o3 = Math.floor(seed / 250) % 250;
+  const o4 = 1 + (seed % 250);
+  return `8.${o2}.${o3}.${o4}`;
+}
+
+/** GET through the real nginx→Django path while presenting a synthetic client IP. */
+export function anonApiGet(request, ip, path) {
+  return request.get(`${API_URL}${path}`, { headers: { 'X-Forwarded-For': ip } });
+}
+
 export const API_URL = process.env.E2E_API_URL || process.env.E2E_BASE_URL || 'http://localhost';
 
 export const TEST_EMAIL = process.env.E2E_EMAIL || `e2e-${Date.now()}@example.com`;
