@@ -1,4 +1,4 @@
-.PHONY: lint lint-install sample-data reset-db quality quality-report quality-check quality-ai quality-css quality-ai-report quality-css-report help stack-up stack-down stack-logs wait-for-api e2e e2e-headed
+.PHONY: lint lint-install sample-data reset-db quality quality-report quality-check quality-ai quality-css quality-ai-report quality-css-report help stack-up stack-down stack-logs wait-for-api e2e e2e-headed e2e-phase e2e-phases e2e-sweep
 
 # ───────────────────────── Help ─────────────────────────
 
@@ -45,11 +45,28 @@ wait-for-api: ## Block until the auth-config endpoint answers
 
 # ───────────────────────── E2E (Playwright) ─────────────────────────
 
-e2e: ## Run Playwright E2E against the running stack
-	cd frontend && npx playwright test
+# SPEC scopes to specific files, e.g. make e2e SPEC="e2e/auth.spec.js e2e/clerk.spec.js"
+e2e: ## Run Playwright E2E against the running stack (override with SPEC=...)
+	cd frontend && npx playwright test $(SPEC)
 
 e2e-headed: ## Run Playwright E2E with a visible browser
-	cd frontend && npx playwright test --headed
+	cd frontend && npx playwright test --headed $(SPEC)
+
+# Per-spec data lifecycle (called by frontend/e2e/lifecycle.js).
+# e2e-phase SPEC=auth PHASE=setup|teardown RUN_ID=abc123
+# Backend no-ops undeclared phases — parity lives in
+# backend/api/e2e_fixtures/__init__.py (REGISTRY).
+e2e-phase: ## Run backend e2e data phase: make e2e-phase SPEC=auth PHASE=setup RUN_ID=xyz
+	docker compose -f $(COMPOSE_FILE) --env-file=$(ENV_FILE) exec -T backend \
+	  python manage.py e2e_data --spec=$(SPEC) --phase=$(PHASE) --run-id=$(RUN_ID)
+
+e2e-phases: ## List the spec → phases registry
+	docker compose -f $(COMPOSE_FILE) --env-file=$(ENV_FILE) exec -T backend \
+	  python manage.py e2e_data --list
+
+e2e-sweep: ## GC abandoned e2e data (crashed runs older than HOURS=6)
+	docker compose -f $(COMPOSE_FILE) --env-file=$(ENV_FILE) exec -T backend \
+	  python manage.py e2e_data --sweep-stale --max-age-hours=$(HOURS)
 
 # ───────────────────────── Linting (pre-commit) ─────────────────────────
 

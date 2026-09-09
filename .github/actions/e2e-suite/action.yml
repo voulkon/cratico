@@ -1,0 +1,100 @@
+name: 'Run an isolated E2E suite'
+description: >
+  Boots a fresh CI stack (own compose project, own generated env file),
+  runs the given Playwright spec(s) against it, then tears it down and
+  uploads the report/logs. Shared by every entry in pr-tests.yml's e2e
+  matrix — add a new suite there, not a new job here.
+inputs:
+  suite-name:
+    description: 'Short id used for artifact names (e.g. auth, throttling)'
+    required: true
+  spec:
+    description: 'Playwright spec file(s), space-separated (e2e/foo.spec.js ...)'
+    required: true
+  extra-env:
+    description: >
+      Newline-separated KEY=true pairs exported before generating the env
+      file (e.g. ENABLE_THROTTLE_E2E=true). Empty for the default stack.
+    required: false
+    default: ''
+  gemi-api-key:
+    required: false
+    default: ''
+  clerk-publishable-key:
+    required: false
+    default: ''
+  clerk-secret-key:
+    required: false
+    default: ''
+  clerk-jwt-public-key:
+    required: false
+    default: ''
+runs:
+  using: 'composite'
+  steps:
+    - uses: ./.github/actions/setup-frontend
+      with:
+        install-playwright: 'true'
+
+    - name: Generate CI env file
+      shell: bash
+      env:
+        GEMI_API_KEY: ${{ inputs.gemi-api-key }}
+        CLERK_PUBLISHABLE_KEY: ${{ inputs.clerk-publishable-key }}
+        CLERK_SECRET_KEY: ${{ inputs.clerk-secret-key }}
+        CLERK_JWT_PUBLIC_KEY: ${{ inputs.clerk-jwt-public-key }}
+        EXTRA_ENV: ${{ inputs.extra-env }}
+      run: |
+        while IFS= read -r line; do
+          [ -n "$line" ] && export "$line"
+        done <<< "$EXTRA_ENV"
+        scripts/ci/create_env_file.sh ".env_files/.env.ci-${{ inputs.suite-name }}"
+
+    - name: Boot stack
+      shell: bash
+      run: make stack-up-ci ENV_FILE=".env_files/.env.ci-${{ inputs.suite-name }}"
+
+    - name: Run Playwright E2E
+      shell: bash
+      working-directory: frontend
+      env:
+        E2E_BASE_URL: 'http://localhost'
+        CI: 'true'
+        # Lifecycle phases (e2e/lifecycle.js -> make e2e-phase) must target
+        # this suite's CI stack, not the Makefile's local default env file.
+        E2E_ENV_FILE: '.env_files/.env.ci-${{ inputs.suite-name }}'
+        # stack-up-ci boots the stack as project "diavgeia-ci". Without this,
+        # `make e2e-phase`'s `docker compose exec` looks at the default
+        # project, finds no backend container, and setup fails in CI.
+        COMPOSE_PROJECT_NAME: 'diavgeia-ci'
+      run: npx playwright test ${{ inputs.spec }}
+
+    # With DEBUG=False the full traceback of any unhandled 500 lands in the
+    # backend container logs. Capture them BEFORE teardown destroys the stack.
+    - name: Dump backend logs
+      if: always()
+      shell: bash
+      run: |
+        docker compose -f docker/docker-compose.yml -p diavgeia-ci --env-file=".env_files/.env.ci-${{ inputs.suite-name }}" logs --no-color backend > backend-logs.txt 2>&1 || true
+        tail -c 100000 backend-logs.txt || true
+
+    - name: Tear down stack
+      if: always()
+      shell: bash
+      run: make stack-down-ci ENV_FILE=".env_files/.env.ci-${{ inputs.suite-name }}" || true
+
+    - name: Upload Playwright report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: playwright-report-${{ inputs.suite-name }}
+        path: frontend/playwright-report/
+        retention-days: 14
+
+    - name: Upload backend logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: backend-logs-${{ inputs.suite-name }}
+        path: backend-logs.txt
+        retention-days: 14

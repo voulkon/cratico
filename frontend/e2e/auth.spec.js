@@ -9,6 +9,7 @@
  * specs live in clerk.spec.js and self-skip when the stack is Django-only.
  */
 const { test, expect } = require('@playwright/test');
+const { wireLifecycle } = require('./lifecycle');
 const {
   API_URL,
   TEST_EMAIL,
@@ -21,6 +22,14 @@ const {
   isStealth,
   openDjangoLoginForm,
 } = require('./helpers');
+
+// Spec ↔ backend data parity: 'auth' phases live in backend/api/e2e_fixtures/auth.py.
+// Setup seeds a run-scoped user; teardown deletes it (and any users registered
+// through the public endpoint during the run) — afterAll runs even on failure.
+const lifecycle = wireLifecycle('auth');
+
+test.beforeAll(() => lifecycle.setup());
+test.afterAll(() => lifecycle.teardown());
 
 // ---------------------------------------------------------------------------
 // Spec 1 — boot smoke (would have caught the 2026-08-30 white page)

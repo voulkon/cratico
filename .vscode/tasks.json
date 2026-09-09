@@ -103,12 +103,88 @@
             "type": "shell",
             "command": "docker-compose -f docker/docker-compose-no-db.yml --env-file=.env_files/.env.local.no-db.secrets --profile observability down",
             "problemMatcher": []
+        },
+        {
+            "label": "E2E: Run Tests",
+            "type": "shell",
+            "command": "make e2e SPEC=\"${input:e2eSpec}\"",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "E2E: Boot Throttle Stack",
+            "detail": "Isolated CI stack for free-access-throttling.spec.js suites A+B (429, auto-ban off)",
+            "type": "shell",
+            "command": "ENABLE_THROTTLE_E2E=true scripts/ci/create_env_file.sh .env_files/.env.ci-throttling && make stack-up-ci ENV_FILE=.env_files/.env.ci-throttling",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "E2E: Teardown Throttle Stack",
+            "type": "shell",
+            "command": "make stack-down-ci ENV_FILE=.env_files/.env.ci-throttling",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "E2E: Boot Autoban Stack",
+            "detail": "Isolated CI stack for free-access-throttling.spec.js suite C (403, auto-ban on)",
+            "type": "shell",
+            "command": "ENABLE_AUTOBAN_E2E=true scripts/ci/create_env_file.sh .env_files/.env.ci-autoban && make stack-up-ci ENV_FILE=.env_files/.env.ci-autoban",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "E2E: Teardown Autoban Stack",
+            "type": "shell",
+            "command": "make stack-down-ci ENV_FILE=.env_files/.env.ci-autoban",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "E2E: Boot + Run Throttle Suites (A+B)",
+            "dependsOrder": "sequence",
+            "dependsOn": ["E2E: Boot Throttle Stack"],
+            "type": "shell",
+            "command": "make e2e SPEC=\"e2e/free-access-throttling.spec.js\"",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "E2E: Boot + Run Autoban Suite (C)",
+            "detail": "Scoped to suite C only — suite A's real browser navigation would self-ban the gateway IP on this low-velocity-threshold stack",
+            "dependsOrder": "sequence",
+            "dependsOn": ["E2E: Boot Autoban Stack"],
+            "type": "shell",
+            "command": "make e2e SPEC=\"e2e/free-access-throttling.spec.js --grep 'suite C'\"",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
         }
     ],
     "inputs": [
         {
             "id": "packageName",
             "description": "Package name to add",
+            "default": "",
+            "type": "promptString"
+        },
+        {
+            "id": "e2eSpec",
+            "description": "Playwright spec file(s) to run, space-separated (blank = all)",
             "default": "",
             "type": "promptString"
         }
