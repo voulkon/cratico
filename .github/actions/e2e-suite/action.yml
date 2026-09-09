@@ -60,6 +60,9 @@ runs:
       env:
         E2E_BASE_URL: 'http://localhost'
         CI: 'true'
+        # Lifecycle phases (e2e/lifecycle.js -> make e2e-phase) must target
+        # this suite's CI stack, not the Makefile's local default env file.
+        E2E_ENV_FILE: '.env_files/.env.ci-${{ inputs.suite-name }}'
       run: npx playwright test ${{ inputs.spec }}
 
     # With DEBUG=False the full traceback of any unhandled 500 lands in the

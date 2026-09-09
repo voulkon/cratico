@@ -22,8 +22,15 @@ const RUN_ID = process.env.E2E_RUN_ID || process.env.PLAYWRIGHT_RUN_ID ||
 
 function runPhase(spec, phase) {
   const make = process.platform === 'win32' ? 'make' : 'make';
+  // Forward stack identity: in CI, ENV_FILE points at the generated
+  // .env.ci-* file (the Makefile's default .env.local.secrets doesn't exist
+  // on runners). Locally the Makefile defaults apply when unset.
+  const envArgs = [
+    process.env.E2E_COMPOSE_FILE ? `COMPOSE_FILE=${process.env.E2E_COMPOSE_FILE}` : null,
+    process.env.E2E_ENV_FILE ? `ENV_FILE=${process.env.E2E_ENV_FILE}` : null,
+  ].filter(Boolean).join(' ');
   execSync(
-    `${make} e2e-phase SPEC=${spec} PHASE=${phase} RUN_ID=${RUN_ID}`,
+    `${make} ${envArgs} e2e-phase SPEC=${spec} PHASE=${phase} RUN_ID=${RUN_ID}`.trim(),
     { stdio: 'inherit', cwd: process.env.E2E_WORKSPACE_ROOT || WORKSPACE_ROOT },
   );
 }
