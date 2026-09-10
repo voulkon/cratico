@@ -269,8 +269,16 @@ app.conf.beat_schedule = {
     },
     # Daily amount correction — APPLIES corrections (dry_run=False) over
     # high-value decisions.  Runs on the worker; progress visible in admin.
+    #
+    # NOTE: the task is declared with an explicit short name in
+    # ``tasks_amount_correction.py``:
+    #     @shared_task(name="amount_correction.daily")
+    # Beat MUST reference that registered name.  Referencing the module path
+    # instead ("core.tasks.tasks_amount_correction.daily_amount_correction")
+    # silently yields "Received unregistered task of type …" — the job is
+    # dropped and NOTHING runs (no logs, no corrections).
     "daily-amount-correction": {
-        "task": "core.tasks.tasks_amount_correction.daily_amount_correction",
+        "task": "amount_correction.daily",
         "schedule": crontab(hour=3, minute=30),
     },
 }
