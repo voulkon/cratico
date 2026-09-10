@@ -680,7 +680,17 @@ class AmountCorrectionService:
             "read_if_missing": read_if_missing,
             "results": results,
         }
-        logger.info(f"AmountCorrection batch complete: {summary}")
+        # Log the COUNTS only — ``results`` holds one row per decision and
+        # bloats the log line (up to `limit` entries).  The full list is still
+        # returned to the caller (admin job / task) for the UI.
+        logger.info(
+            f"AmountCorrection batch complete: {total_candidates} candidate(s), "
+            f"{corrected} corrected, {afm_as_amount} afm_as_amount, "
+            f"{kae_as_amount} kae_as_amount, "
+            f"{non_monetary_value_as_amount} non_monetary_value_as_amount, "
+            f"{consistent} consistent, {no_text} no_text, {skipped} skipped, "
+            f"{errors} errors (dry_run={dry_run})"
+        )
         return summary
 
     # ------------------------------------------------------------------
