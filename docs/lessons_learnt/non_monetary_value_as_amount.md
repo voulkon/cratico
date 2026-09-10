@@ -191,6 +191,46 @@ KAE for higher precision.
 > KAE values shorter than 6 digits (e.g. the AFM case's `kae: "1311"`) are
 > ignored — too likely to collide with ordinary amounts.
 
+### 3. Treating them (write the invalid-amount marker)
+
+`find_amount_anomalies` only *reports*.  To actually mark the affected rows so
+they drop out of every monetary total and surface in the feedback pool:
+
+```bash
+# Preview — nothing is written (default)
+python manage.py fix_amount_anomalies
+
+# Apply
+python manage.py fix_amount_anomalies --apply
+
+# One decision
+python manage.py fix_amount_anomalies --ada Ψ0Α74690Β9-52Ρ --apply
+
+# Rollback
+python manage.py fix_amount_anomalies --clear --apply
+```
+
+The command is:
+
+- **dry-run by default** — `--apply` is required to write anything;
+- **DB-only** — no document is downloaded or read (the guard needs no text);
+- **idempotent** — re-running rewrites the same reason/value (`--only-new` skips
+  decisions whose fields are already flagged);
+- **reversible** — `--clear --apply` NULLs the marker; it never touches
+  `verified_amount`;
+- **auditable** — `--output flagged.json` records exactly what was (or would be)
+  changed, per field.
+
+It writes only `invalid_amount_reason` / `invalid_amount_value` /
+`invalid_amount_flagged_at`, never a monetary value — the real amount is unknown.
+The shared logic lives on `AmountCorrectionService`
+(`flag_non_monetary_values()` / `clear_non_monetary_markers()`), which the
+correction pipeline also uses, so the command and the pipeline cannot diverge.
+
+> Candidate selection mirrors `find_amount_anomalies` (same `--min-amount` /
+> `--max-amount` bounds, `--kind`, `--imported-since/--imported-until`,
+> `--ada`).  Keep the two in sync if either changes.
+
 ## Getting the real amount
 
 The guard can tell that `99370337` / `706273001` / `801380053` is *wrong*, but
