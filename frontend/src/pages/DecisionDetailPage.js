@@ -13,6 +13,7 @@ import './DecisionDetailPage.css';
 import '../components/StatCard.css';
 import EntityDisplay from '../components/EntityDisplay';
 import { formatAmount, formatDate } from '../utils/dateUtils';
+import { getHeroAmount, showInvalidAmountHero } from '../utils/decisionUtils';
 import { useDecisionAI } from '../hooks/useDecisionAI';
 import { useTextProcesses } from '../hooks/useTextProcesses';
 import CollapsibleCard from '../components/CollapsibleCard';
@@ -317,6 +318,9 @@ const DecisionDetailPage = () => {
     );
   }
 
+  const heroAmount = getHeroAmount(decision);
+  const invalidAmountOnly = showInvalidAmountHero(decision);
+
   return (
     <div className="decision-detail-page">
       {/* Top-bar decision header (rendered via TopBarSlot portal) —
@@ -482,8 +486,7 @@ const DecisionDetailPage = () => {
       )}
 
       {/* Hero amount */}
-      {decision.has_invalid_amount &&
-      !(decision.has_corrected_amounts && decision.corrected_amount != null) ? (
+      {invalidAmountOnly ? (
         /* The recorded amount is not money at all — it is a counterpart VAT
            number (ΑΦΜ) or a budget code (ΚΑΕ) mis-recorded in the amount
            field.  We cannot recover the real amount, so show an explicit
@@ -508,14 +511,11 @@ const DecisionDetailPage = () => {
             })}
           </p>
         </div>
-      ) : decision.amount != null && (
+      ) : heroAmount.value != null && (
         <div className="amount-hero">
           <div className="amount-hero-value">
-            {decision.has_corrected_amounts && decision.corrected_amount != null
-              ? formatAmount(decision.corrected_amount)
-              : formatAmount(decision.amount)
-            }
-            {decision.has_corrected_amounts && decision.corrected_amount != null && (
+            {formatAmount(heroAmount.value)}
+            {heroAmount.isCorrected && (
               <span
                 className="amount-corrected-badge"
                 tabIndex={0}
@@ -524,8 +524,8 @@ const DecisionDetailPage = () => {
                 <InfoIcon size={14} />
                 <div className="amount-corrected-popover">
                   {t('decisionDetail.amountCorrectedHint', {
-                    original: formatAmount(decision.amount),
-                    corrected: formatAmount(decision.corrected_amount),
+                    original: formatAmount(heroAmount.original),
+                    corrected: formatAmount(heroAmount.value),
                   })}
                 </div>
               </span>

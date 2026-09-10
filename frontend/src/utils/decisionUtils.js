@@ -95,6 +95,41 @@ export const getTotalAmount = (decision, entityRelationships, hasPreloadedEntity
 };
 
 /**
+ * Whether the hero should show the "amount is not a monetary value" warning
+ * INSTEAD of an amount.
+ *
+ * A corrected amount takes precedence: it is a real monetary value, and the
+ * flagged (ΑΦΜ/ΚΑΕ) field is merely one component excluded from it.  The
+ * warning is then shown as an additional note rather than replacing the hero.
+ *
+ * @param {Object} decision - The decision object
+ * @returns {boolean} True when the invalid-amount hero should replace the amount
+ */
+export const showInvalidAmountHero = (decision) =>
+  !!decision?.has_invalid_amount &&
+  !(decision?.has_corrected_amounts && decision?.corrected_amount != null);
+
+/**
+ * Resolve the amount to display in the detail hero.
+ *
+ * When a corrected (verified) amount exists it always wins — the raw `amount`
+ * may be a data-entry typo (e.g. ×100/÷100 shift) or a non-monetary value.
+ *
+ * @param {Object} decision - The decision object
+ * @returns {{ value: number|null, original: number|null, isCorrected: boolean }}
+ */
+export const getHeroAmount = (decision) => {
+  const isCorrected = !!(
+    decision?.has_corrected_amounts && decision?.corrected_amount != null
+  );
+  return {
+    value: isCorrected ? decision.corrected_amount : (decision?.amount ?? null),
+    original: decision?.amount ?? null,
+    isCorrected,
+  };
+};
+
+/**
  * Group entity relationships by role and AFM to eliminate duplicates
  * @param {Array} relationships - Array of relationship objects
  * @returns {Array} Processed relationships with occurrence counts
