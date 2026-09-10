@@ -231,6 +231,37 @@ correction pipeline also uses, so the command and the pipeline cannot diverge.
 > `--max-amount` bounds, `--kind`, `--imported-since/--imported-until`,
 > `--ada`).  Keep the two in sync if either changes.
 
+### 4. From the Django admin
+
+The same treatment is available without a shell. On the **Decision** changelist:
+
+- **Find Non-Monetary Amounts** (`…/batch-flag-anomalies/`) — a form that runs
+  `fix_amount_anomalies` verbatim (dry-run on by default). It does the whole-DB
+  scan bounded by amount range, import window, kind and a hard limit
+  (max 2000 candidates per run — use the CLI for larger sweeps).
+- **Non-Monetary Amounts Pool** (`…/flagged-amounts-pool/`) — paginated list of
+  every decision with the marker, showing the flag kind, the matched value and
+  the amount, with a per-row **Clear** (rollback) button.
+- **List actions** — select decisions and run
+  `[AMOUNT] Flag non-monetary amounts (AFM/KAE)` or
+  `[AMOUNT] Clear non-monetary flag (unflag)` (bounded to 100 rows).
+
+The admin calls the management command, so the UI and the CLI share one code
+path and cannot diverge.
+
+> `--limit` (and the admin form's limit) now bounds the **SQL** query, not just
+> the in-memory list — a bounded run never materialises the whole high-value
+> candidate set.
+
+**Automatic discovery (post-import).** There is *no* dedicated feature flag for
+the guard. Phase 3 (`_discover_non_monetary_values` in
+`tasks_post_import.verify_high_value_amounts`) only runs when the post-import
+orchestrator chain fires, which requires **`POST_IMPORT_ORCHESTRATOR_ENABLED`**
+(default **off**) and **`POST_IMPORT_AMOUNT_VERIFICATION_ENABLED`** (default on),
+and only after a **global DAILY** import (not backfill / entity-targeted). If
+you see no discovery logs, check those two flags — or just run the CLI/admin
+scan, which needs neither.
+
 ## Getting the real amount
 
 The guard can tell that `99370337` / `706273001` / `801380053` is *wrong*, but

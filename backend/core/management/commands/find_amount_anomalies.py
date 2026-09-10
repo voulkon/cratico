@@ -201,10 +201,19 @@ class Command(BaseCommand):
         min_amount = Decimal(str(options["min_amount"]))
         max_amount = Decimal(str(options["max_amount"]))
 
-        candidate_qs = DecisionAmountField.objects.filter(
-            amount__gte=min_amount,
-            amount__lt=max_amount,
-        ).values_list("decision_id", flat=True)
+        # NOTE: ``--limit`` is applied to the SQL query (not after
+        # materialising every candidate id) so a bounded run never pulls the
+        # whole high-value set into memory.  Mirrors fix_amount_anomalies —
+        # keep the two in sync.
+        candidate_qs = (
+            DecisionAmountField.objects.filter(
+                amount__gte=min_amount,
+                amount__lt=max_amount,
+            )
+            .order_by("decision_id")
+            .values_list("decision_id", flat=True)
+            .distinct()
+        )
 
         if options["imported_since"]:
             candidate_qs = candidate_qs.filter(
@@ -219,9 +228,10 @@ class Command(BaseCommand):
                 )
             )
 
-        decision_ids = list(candidate_qs.distinct())
         if options["limit"]:
-            decision_ids = decision_ids[: options["limit"]]
+            candidate_qs = candidate_qs[: options["limit"]]
+
+        decision_ids = list(candidate_qs)
         if not decision_ids:
             return Decision.objects.none(), 0
 

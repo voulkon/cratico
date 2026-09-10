@@ -52,6 +52,67 @@ class AmountCorrectionForm(forms.Form):
     )
 
 
+class NonMonetaryAnomalyForm(forms.Form):
+    """Form for the DB-only non-monetary (AFM/KAE) finder + marker.
+
+    Mirrors ``python manage.py fix_amount_anomalies``.  The admin view runs
+    that command verbatim, so the CLI and the admin can never diverge.
+    """
+
+    dry_run = forms.BooleanField(
+        required=False,
+        initial=True,
+        help_text="If checked, only report what WOULD be flagged (no writes).",
+    )
+    clear = forms.BooleanField(
+        required=False,
+        initial=False,
+        help_text=(
+            "Remove the invalid-amount marker instead of setting it "
+            "(rollback). Honours Dry run."
+        ),
+    )
+    kind = forms.ChoiceField(
+        choices=[
+            ("all", "All"),
+            ("afm", "AFM only (ΑΦΜ)"),
+            ("kae", "KAE only (ΚΑΕ)"),
+        ],
+        initial="all",
+        help_text="Restrict treatment to one anomaly kind.",
+    )
+    min_amount = forms.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        initial=100000,
+        help_text="Lower bound (€) for candidate amounts.",
+    )
+    max_amount = forms.DecimalField(
+        max_digits=20,
+        decimal_places=2,
+        initial=100000000000,
+        help_text="Upper bound (€) for candidate amounts.",
+    )
+    imported_since = forms.DateField(
+        required=False,
+        help_text="Optional: only decisions imported on/after this date.",
+    )
+    imported_until = forms.DateField(
+        required=False,
+        help_text="Optional: only decisions imported before this date.",
+    )
+    limit = forms.IntegerField(
+        required=False,
+        initial=500,
+        min_value=1,
+        max_value=2000,
+        help_text=(
+            "Stop after scanning this many candidate decisions (max 2000). "
+            "Use the management command for larger sweeps."
+        ),
+    )
+
+
 class DiavgeiaFeedbackForm(forms.Form):
     """Form for batch Diavgeia feedback reporting with configurable parameters."""
 
@@ -113,6 +174,41 @@ def _flagged_fields_count() -> int:
         .filter(invalid_amount_reason__isnull=False)
         .count()
     )
+
+
+def _flagged_decisions_count() -> int:
+    """Count distinct decisions with at least one non-monetary flagged amount.
+
+    Counts ``decision_id`` directly on the amount-field table (index-only scan
+    over ``idx_daf_invalid_amounts``) rather than a DISTINCT over a join.
+    """
+    from core.models.entities import DecisionAmountField
+
+    return (
+        DecisionAmountField.objects
+        .filter(invalid_amount_reason__isnull=False)
+        .values("decision_id")
+        .distinct()
+        .count()
+    )
+
+
+def _invalidate_flag_caches():
+    """Drop cached pool counts after the marker was written or cleared."""
+    from django.core.cache import cache
+
+    from core.services.response_cache_service import response_cache
+
+    for key in (
+        "admin:flagged_amounts_pool:stats:v1",
+        ADMIN_FEEDBACK_POOL_AMOUNT_ISSUE_DECISIONS_KEY,
+        "admin:batch_correct_amounts:stats:v2",
+    ):
+        try:
+            cache.delete(key)
+        except Exception:
+            pass
+    response_cache.invalidate_prefix("top_")
 
 
 def _has_amount_issue_q(prefix: str = ""):
@@ -347,6 +443,8 @@ class DecisionAdmin(admin.ModelAdmin):
         "fix_common_issues",
         "correct_amounts",
         "clear_verified_amounts",
+        "flag_non_monetary_amounts",
+        "clear_non_monetary_amounts",
         "report_feedback",
         "reset_feedback_reports",
     ]
@@ -358,6 +456,12 @@ class DecisionAdmin(admin.ModelAdmin):
         )
         extra_context["corrected_pool_url"] = reverse(
             "admin:decision_corrected_amounts_pool"
+        )
+        extra_context["batch_flag_url"] = reverse(
+            "admin:decision_batch_flag_anomalies"
+        )
+        extra_context["flagged_pool_url"] = reverse(
+            "admin:decision_flagged_amounts_pool"
         )
         extra_context["feedback_pool_url"] = reverse(
             "admin:decision_feedback_pool"
@@ -489,6 +593,72 @@ class DecisionAdmin(admin.ModelAdmin):
         from core.services.response_cache_service import response_cache
         response_cache.invalidate_prefix("top_")
 
+    # ── Non-monetary (AFM/KAE) marker actions ────────────────────────
+
+    @admin.action(description="[AMOUNT] Flag non-monetary amounts (AFM/KAE)")
+    def flag_non_monetary_amounts(self, request, queryset):
+        """
+        Run the DB-only non-monetary guard on selected decisions and write the
+        invalid-amount marker.
+
+        No document is downloaded or read, and ``verified_amount`` is never
+        touched — the real amount is unknown.  This is the same operation as
+        ``python manage.py fix_amount_anomalies --ada … --apply``.
+        """
+        from core.services.amount_correction_service import AmountCorrectionService
+
+        svc = AmountCorrectionService()
+        decisions = list(queryset)
+        if len(decisions) > 100:
+            messages.warning(
+                request,
+                f"Flagging limited to 100 decisions (selected {len(decisions)})",
+            )
+            decisions = decisions[:100]
+
+        flagged_decisions = 0
+        flagged_fields = 0
+        for decision in decisions:
+            anomalies = svc.flag_non_monetary_values(decision)
+            if anomalies:
+                flagged_decisions += 1
+                flagged_fields += len(anomalies)
+
+        if flagged_fields:
+            _invalidate_flag_caches()
+            messages.success(
+                request,
+                f"Flagged {flagged_fields} non-monetary amount field(s) across "
+                f"{flagged_decisions} decision(s).",
+            )
+        else:
+            messages.info(
+                request,
+                "No non-monetary amounts found in the selected decisions.",
+            )
+
+    @admin.action(description="[AMOUNT] Clear non-monetary flag (unflag)")
+    def clear_non_monetary_amounts(self, request, queryset):
+        """Remove the invalid-amount marker (rollback).
+
+        Never touches ``verified_amount``, so corrected values are unaffected.
+        """
+        from core.services.amount_correction_service import AmountCorrectionService
+
+        total = 0
+        for decision in queryset:
+            total += AmountCorrectionService.clear_non_monetary_markers(decision)
+
+        if total:
+            _invalidate_flag_caches()
+            messages.success(
+                request, f"Cleared {total} non-monetary marker(s)."
+            )
+        else:
+            messages.info(
+                request, "Selected decisions had no non-monetary markers."
+            )
+
     # ── Feedback reporting actions ───────────────────────────────────
 
     @admin.action(description="[FEEDBACK] Report corrected amounts to Diavgeia")
@@ -565,6 +735,22 @@ class DecisionAdmin(admin.ModelAdmin):
                 "corrected-amounts-pool/",
                 self.admin_site.admin_view(self.corrected_amounts_pool_view),
                 name="decision_corrected_amounts_pool",
+            ),
+            # ── Non-monetary amounts (AFM/KAE recorded as money) ──────
+            path(
+                "batch-flag-anomalies/",
+                self.admin_site.admin_view(self.batch_flag_anomalies_view),
+                name="decision_batch_flag_anomalies",
+            ),
+            path(
+                "flagged-amounts-pool/",
+                self.admin_site.admin_view(self.flagged_amounts_pool_view),
+                name="decision_flagged_amounts_pool",
+            ),
+            path(
+                "flagged-amounts-pool/<int:decision_id>/clear/",
+                self.admin_site.admin_view(self.clear_flagged_amount_view),
+                name="decision_flagged_amounts_clear",
             ),
             path(
                 "correction-job/<uuid:job_id>/",
@@ -733,6 +919,232 @@ class DecisionAdmin(admin.ModelAdmin):
             "opts": self.model._meta,
         }
         return render(request, "admin/decision_corrected_pool.html", context)
+
+    # ── Custom admin views: non-monetary amounts (AFM/KAE) ───────────
+
+    def batch_flag_anomalies_view(self, request):
+        """
+        Admin front-end for ``python manage.py fix_amount_anomalies``.
+
+        The command is DB-only (no document text), dry-run by default,
+        idempotent and reversible, so the view reuses it verbatim — there is a
+        single implementation, and the form and the CLI cannot diverge.
+        """
+        import io
+
+        from django.core.management import call_command
+
+        report_text = ""
+        applied = False
+
+        if request.method == "POST":
+            form = NonMonetaryAnomalyForm(request.POST)
+            if form.is_valid():
+                data = form.cleaned_data
+                args = ["--kind", data["kind"]]
+                if data.get("clear"):
+                    args.append("--clear")
+                if not data.get("dry_run"):
+                    args.append("--apply")
+                    applied = True
+                args += [
+                    "--min-amount", str(data["min_amount"]),
+                    "--max-amount", str(data["max_amount"]),
+                ]
+                if data.get("imported_since"):
+                    args += [
+                        "--imported-since",
+                        data["imported_since"].isoformat(),
+                    ]
+                if data.get("imported_until"):
+                    args += [
+                        "--imported-until",
+                        data["imported_until"].isoformat(),
+                    ]
+                if data.get("limit"):
+                    args += ["--limit", str(data["limit"])]
+
+                out = io.StringIO()
+                call_command("fix_amount_anomalies", *args, stdout=out)
+                report_text = out.getvalue()
+
+                if applied:
+                    _invalidate_flag_caches()
+                    messages.success(request, "Marker run applied.")
+                else:
+                    messages.info(
+                        request,
+                        "Dry run — nothing was written (uncheck Dry run to "
+                        "apply).",
+                    )
+        else:
+            form = NonMonetaryAnomalyForm()
+
+        from core.models.decisions import Decision
+
+        stats = _get_cached_stats(
+            "admin:flagged_amounts_pool:stats:v1",
+            lambda: {
+                "flagged_decisions": _flagged_decisions_count(),
+                "flagged_fields": _flagged_fields_count(),
+                "total_decisions": _approximate_table_count(Decision),
+            },
+            timeout=60,
+        )
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Find & Flag Non-Monetary Amounts",
+            "form": form,
+            "report_text": report_text,
+            "flagged_decisions": stats["flagged_decisions"],
+            "flagged_fields": stats["flagged_fields"],
+            "total_decisions": stats["total_decisions"],
+            "flagged_pool_url": reverse("admin:decision_flagged_amounts_pool"),
+            "opts": self.model._meta,
+        }
+        return render(request, "admin/decision_batch_flag_anomalies.html", context)
+
+    def flagged_amounts_pool_view(self, request):
+        """
+        List decisions whose recorded amount is a non-monetary value (AFM/KAE).
+
+        Review page; the actual reporting to Diavgeia happens from the
+        Feedback Pool (which already includes these decisions) or per-row from
+        the frontend.  Paging is id-first (mirrors ``feedback_pool_view``) so a
+        large flagged set cannot trigger the historic lazy-query hang.
+        """
+        import time
+
+        from django.db.models import Prefetch
+        from loguru import logger
+
+        from core.models.decisions import Decision
+        from core.models.entities import DecisionAmountField
+        from core.services.amount_correction_service import AmountCorrectionService
+
+        per_page = 25
+
+        _t_count = time.perf_counter()
+        flagged_ids = list(
+            DecisionAmountField.objects
+            .filter(invalid_amount_reason__isnull=False)
+            .values_list("decision_id", flat=True)
+            .distinct()
+        )
+        total = len(flagged_ids)
+        _t_count = time.perf_counter() - _t_count
+
+        page = request.GET.get("page", "1")
+        try:
+            page_number = max(1, int(page))
+        except (TypeError, ValueError):
+            page_number = 1
+
+        ordered_ids: list[int] = []
+        if flagged_ids:
+            ordered_ids = [
+                row[0]
+                for row in sorted(
+                    Decision.objects
+                    .filter(id__in=flagged_ids)
+                    .values_list("id", "issue_date"),
+                    key=lambda r: (r[1] is None, r[1]),
+                    reverse=True,
+                )
+            ]
+
+        page_ids = ordered_ids[
+            (page_number - 1) * per_page : page_number * per_page
+        ]
+        decisions = (
+            Decision.objects
+            .filter(id__in=page_ids)
+            .only("id", "ada", "subject", "issue_date")
+            .prefetch_related(
+                Prefetch(
+                    "amount_fields",
+                    queryset=DecisionAmountField.objects.filter(
+                        invalid_amount_reason__isnull=False
+                    ).only(
+                        "id",
+                        "source_field_name",
+                        "amount",
+                        "invalid_amount_reason",
+                        "invalid_amount_value",
+                    ),
+                    to_attr="flagged_fields",
+                )
+            )
+        )
+        by_id = {d.id: d for d in decisions}
+        page_obj = _SimplePage(
+            object_list=[by_id[i] for i in page_ids if i in by_id],
+            number=page_number,
+            per_page=per_page,
+            count=total,
+        )
+
+        rows = [
+            {
+                "decision": d,
+                "frontend_url": AmountCorrectionService.frontend_url(d),
+                "fields": getattr(d, "flagged_fields", []),
+            }
+            for d in page_obj.object_list
+        ]
+
+        logger.info(
+            "flagged_amounts_pool_view timing: count={:.3f}s (total={}, "
+            "page={!r})",
+            _t_count,
+            total,
+            page,
+        )
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Non-Monetary Amounts Pool",
+            "rows": rows,
+            "page_obj": page_obj,
+            "paginator": page_obj,
+            "total": total,
+            "clear_url": reverse(
+                "admin:decision_flagged_amounts_clear",
+                kwargs={"decision_id": 0},
+            )[:-2],  # strip trailing "0/" — template appends the real ID
+            "batch_flag_url": reverse("admin:decision_batch_flag_anomalies"),
+            "feedback_pool_url": reverse("admin:decision_feedback_pool"),
+            "opts": self.model._meta,
+        }
+        return render(request, "admin/decision_flagged_pool.html", context)
+
+    def clear_flagged_amount_view(self, request, decision_id):
+        """Clear the invalid-amount marker for a single decision (rollback)."""
+        from django.shortcuts import get_object_or_404
+
+        from core.models.decisions import Decision
+        from core.services.amount_correction_service import AmountCorrectionService
+
+        if request.method != "POST":
+            return redirect(reverse("admin:decision_flagged_amounts_pool"))
+
+        decision = get_object_or_404(Decision, id=decision_id)
+        count = AmountCorrectionService.clear_non_monetary_markers(decision)
+        if count:
+            _invalidate_flag_caches()
+            messages.success(
+                request, f"Cleared {count} marker(s) for {decision.ada}."
+            )
+        else:
+            messages.info(
+                request, f"{decision.ada} had no non-monetary marker."
+            )
+
+        referer = request.META.get("HTTP_REFERER")
+        if referer and "flagged-amounts-pool" in referer:
+            return redirect(referer)
+        return redirect(reverse("admin:decision_flagged_amounts_pool"))
 
     def batch_correct_amounts_view(self, request):
         """
