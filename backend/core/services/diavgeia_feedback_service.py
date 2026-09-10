@@ -281,15 +281,23 @@ class DiavgeiaFeedbackService:
         candidates = self.pending_decisions(
             start_date=start_date, end_date=end_date
         )
-        total = candidates.count()
+
+        # Apply the limit BEFORE counting.  ``candidates.count()`` on the
+        # un-sliced queryset executes the whole candidate query (correlated
+        # EXISTS subqueries) as ``SELECT COUNT(*) FROM (…)`` — the pattern that
+        # caused a 16h runaway query and lock pileup in the amount pipeline
+        # (see docs/lessons_learnt/runaway_query_lock_pileup.md).  Materialise
+        # the (already limited) set once and derive the count from it.
         if limit:
             candidates = candidates[:limit]
+        decisions = list(candidates)
+        total = len(decisions)
 
         reported = 0
         already = 0
         errors = 0
         results: list[dict[str, Any]] = []
-        for decision in candidates:
+        for decision in decisions:
             try:
                 result = self.report_decision(
                     decision,

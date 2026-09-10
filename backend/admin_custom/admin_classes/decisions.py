@@ -244,6 +244,38 @@ class EstimatedCountPaginator:
         return (self._count + self.per_page - 1) // self.per_page
 
 
+class _SimplePage:
+    """Minimal page/paginator object for an already-materialised id slice.
+
+    Used where the page is built from a bounded set of ids the view has
+    already resolved (e.g. ``feedback_pool_view`` drives paging from the
+    amount-field table rather than ordering ``Decision``).  A Django
+    ``Paginator`` would re-run an expensive ``COUNT(*)`` for a count the view
+    already knows.  Exposes the subset of ``Page`` / ``Paginator`` attributes
+    the admin templates use, and is passed as BOTH ``page_obj`` and
+    ``paginator`` in the context.
+    """
+
+    def __init__(self, object_list, number, per_page, count):
+        self.object_list = object_list
+        self.number = number
+        self.per_page = per_page
+        self.count = count
+        self.num_pages = max(1, -(-count // per_page)) if count else 1
+
+    def has_previous(self):
+        return self.number > 1
+
+    def has_next(self):
+        return self.number < self.num_pages
+
+    def previous_page_number(self):
+        return self.number - 1
+
+    def next_page_number(self):
+        return self.number + 1
+
+
 class HasCorrectedAmountsFilter(admin.SimpleListFilter):
     """Filter decisions that have at least one corrected (verified) amount."""
 
@@ -603,44 +635,101 @@ class DecisionAdmin(admin.ModelAdmin):
 
     def corrected_amounts_pool_view(self, request):
         """
-        List every decision that currently has corrected (verified) amounts.
+        List decisions that currently have corrected (verified) amounts.
 
-        This is the "pool" of decisions whose metadata amounts disagreed with
-        the document text — the set you may want to review or report to the
-        Diavgeia API admins.
+        Paginated: this pool used to load EVERY corrected decision plus all of
+        its amount fields and render every row in a single response.  With
+        thousands of corrected decisions that produced an enormous, unbounded
+        response and timed out at the proxy (nginx logs a 499 once the client
+        gives up).  It now mirrors ``feedback_pool_view``: paginate, count via
+        the partial index ``idx_daf_verified_amounts`` instead of a DISTINCT
+        over a join, fetch only the corrected fields for the current page, and
+        log timings so a slow load is observable instead of silent.
         """
+        import time
+
+        from django.core.paginator import Paginator
+        from django.db.models import Prefetch
+        from loguru import logger
+
         from core.models.decisions import Decision
         from core.models.entities import DecisionAmountField
         from core.services.amount_correction_service import (
             AmountCorrectionService,
         )
 
+        per_page = 25
+
+        # ── Count via the partial index (index-only scan) ──────────────
+        _t_count = time.perf_counter()
+        total = (
+            DecisionAmountField.objects
+            .filter(verified_amount__isnull=False)
+            .values("decision_id")
+            .distinct()
+            .count()
+        )
+        _t_count = time.perf_counter() - _t_count
+
+        # ── One page of decisions + only their corrected fields ────────
         decisions_qs = (
             Decision.objects
             .filter(amount_fields__verified_amount__isnull=False)
             .distinct()
             .order_by("-issue_date")
-            .prefetch_related("amount_fields")
+            .prefetch_related(
+                Prefetch(
+                    "amount_fields",
+                    queryset=DecisionAmountField.objects.filter(
+                        verified_amount__isnull=False
+                    ).only(
+                        "id", "source_field_name", "amount", "verified_amount"
+                    ),
+                    to_attr="corrected_fields",
+                )
+            )
             .only("id", "ada", "subject", "issue_date")
         )
 
-        rows = []
-        for d in decisions_qs:
-            corrected_fields = [
-                f for f in d.amount_fields.all()
-                if f.verified_amount is not None
-            ]
-            rows.append({
+        paginator = Paginator(decisions_qs, per_page)
+        # Seed the cached count so page()/num_pages never run a COUNT(*) over
+        # the joined DISTINCT.  Django's Paginator.count is a cached_property
+        # (a non-data descriptor), so writing __dict__ short-circuits it.
+        paginator.__dict__["count"] = total
+
+        _t_page = time.perf_counter()
+        page = request.GET.get("page", "1")
+        try:
+            page_obj = paginator.page(page)
+        except Exception:
+            page_obj = paginator.page(1)
+        _t_page = time.perf_counter() - _t_page
+
+        logger.info(
+            "corrected_amounts_pool_view timing: count={:.3f}s page={:.3f}s "
+            "(total={}, page={!r})",
+            _t_count,
+            _t_page,
+            total,
+            page,
+        )
+
+        rows = [
+            {
                 "decision": d,
                 "frontend_url": AmountCorrectionService.frontend_url(d),
-                "fields": corrected_fields,
-            })
+                "fields": d.corrected_fields,
+            }
+            for d in page_obj.object_list
+        ]
 
         context = {
             **self.admin_site.each_context(request),
             "title": "Corrected Amounts Pool",
             "rows": rows,
-            "total": len(rows),
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "total": total,
             "opts": self.model._meta,
         }
         return render(request, "admin/decision_corrected_pool.html", context)
@@ -745,7 +834,6 @@ class DecisionAdmin(admin.ModelAdmin):
         """
         import time
 
-        from django.core.paginator import Paginator
         from django.db.models import Exists, OuterRef, Prefetch, Q
         from loguru import logger
         from urllib.parse import urlencode
@@ -758,16 +846,6 @@ class DecisionAdmin(admin.ModelAdmin):
         already_reported = Exists(
             DiavgeiaFeedbackReport.objects.filter(
                 decision=OuterRef("pk"), reported=True
-            )
-        )
-        # Same condition correlated on DecisionAmountField.decision_id, for
-        # the index-backed pagination count below.  A plain
-        # ``exclude(decision__diavgeia_feedback_report__reported=True)`` there
-        # would drop decisions with no report row (Django's NULL-exclude
-        # behaviour), undercounting "unreported" to zero.
-        already_reported_daf = Exists(
-            DiavgeiaFeedbackReport.objects.filter(
-                decision=OuterRef("decision"), reported=True
             )
         )
 
@@ -807,20 +885,29 @@ class DecisionAdmin(admin.ModelAdmin):
         total_pending = total - total_reported
         _t_stats = time.perf_counter() - _t_stats
 
-        # ── Build the filtered queryset ──────────────────────────────
+        # ── Build the page from the amount-field side ─────────────────
         #
-        # Start from the set of decisions that actually have an amount
-        # problem — corrected (verified_amount) OR flagged as a non-monetary
-        # value (invalid_amount_reason, e.g. an AFM/KAE recorded as the
-        # amount) — derived from the amount-field table via its partial
-        # indexes instead of a correlated EXISTS over the whole Decision
-        # table, which forced PostgreSQL to probe every decision row while
-        # hunting for the first page of matches.
-        corrected_ids = (
+        # The previous implementation ordered ``Decision`` by ``-issue_date``
+        # and sliced the first 25 rows matching an EXISTS on the amount-field
+        # table.  With ~32M decisions PostgreSQL walked ``core_decision``
+        # backwards by issue_date and probed the amount-field table per row;
+        # because recent decisions mostly have NO amount issue it scanned an
+        # enormous number of rows before accumulating 25.  EXPLAIN showed a
+        # ``Nested Loop Semi Join`` costing ~148,000,000 — which is why the
+        # page appeared to hang (the worker was blocked in ``cursor.execute``,
+        # confirmed with py-spy) even though the view's own timing log —
+        # emitted *before* the page was fetched — reported success.
+        #
+        # We now materialise the (bounded) set of decision ids that have an
+        # amount issue straight from the partial indexes, apply the filters to
+        # that small set, sort it in Python, and fetch only the requested page.
+        corrected_ids = list(
             DecisionAmountField.objects
             .filter(_has_amount_issue_q())
-            .values("decision_id")
+            .values_list("decision_id", flat=True)
+            .distinct()
         )
+
         qs = Decision.objects.filter(id__in=corrected_ids)
 
         if reported == "yes":
@@ -836,8 +923,32 @@ class DecisionAdmin(admin.ModelAdmin):
         if q:
             qs = qs.filter(Q(ada__icontains=q) | Q(subject__icontains=q))
 
-        qs = (
-            qs.order_by("-issue_date")
+        _t_count = time.perf_counter()
+        ordered_ids = [
+            row[0]
+            for row in sorted(
+                qs.values_list("id", "issue_date"),
+                key=lambda r: (r[1] is None, r[1]),
+                reverse=True,
+            )
+        ]
+        filtered_total = len(ordered_ids)
+        _t_count = time.perf_counter() - _t_count
+
+        per_page = 25
+        page = request.GET.get("page", "1")
+        try:
+            page_number = max(1, int(page))
+        except (TypeError, ValueError):
+            page_number = 1
+
+        _t_page = time.perf_counter()
+        page_ids = ordered_ids[
+            (page_number - 1) * per_page : page_number * per_page
+        ]
+        decisions = (
+            Decision.objects
+            .filter(id__in=page_ids)
             .select_related("organization", "diavgeia_feedback_report")
             .prefetch_related(
                 Prefetch(
@@ -856,50 +967,14 @@ class DecisionAdmin(admin.ModelAdmin):
                 )
             )
         )
-
-        # ── Pagination with an accurate, index-backed count ───────────
-        #
-        # A plain COUNT(*) over ``qs`` would re-run the correlated EXISTS
-        # subqueries, so we count distinct decision_id directly on the
-        # amount-field table (partial index, index-only) with the same
-        # filters applied, then seed Paginator's cached count.
-        _t_count = time.perf_counter()
-        if not (start_date or end_date or q):
-            # No date/search filters — the pagination count is exactly one of
-            # the global stats already computed above.
-            if reported == "yes":
-                filtered_total = total_reported
-            elif reported == "no":
-                filtered_total = total_pending
-            else:
-                filtered_total = total
-        else:
-            count_qs = DecisionAmountField.objects.filter(_has_amount_issue_q())
-            if reported == "yes":
-                count_qs = count_qs.filter(already_reported_daf)
-            elif reported == "no":
-                count_qs = count_qs.exclude(already_reported_daf)
-            if start_date:
-                count_qs = count_qs.filter(decision__issue_date_day__gte=start_date)
-            if end_date:
-                count_qs = count_qs.filter(decision__issue_date_day__lte=end_date)
-            if q:
-                count_qs = count_qs.filter(
-                    Q(decision__ada__icontains=q) | Q(decision__subject__icontains=q)
-                )
-            filtered_total = count_qs.values("decision_id").distinct().count()
-        _t_count = time.perf_counter() - _t_count
-
-        per_page = 25
-        paginator = Paginator(qs, per_page)
-        # Seed Paginator's cached count so page()/num_pages never run COUNT(*).
-        paginator.__dict__["count"] = filtered_total
-        page = request.GET.get("page", "1")
-        _t_page = time.perf_counter()
-        try:
-            page_obj = paginator.page(page)
-        except Exception:
-            page_obj = paginator.page(1)
+        by_id = {d.id: d for d in decisions}
+        page_obj = _SimplePage(
+            object_list=[by_id[i] for i in page_ids if i in by_id],
+            number=page_number,
+            per_page=per_page,
+            count=filtered_total,
+        )
+        paginator = page_obj
         _t_page = time.perf_counter() - _t_page
 
         logger.info(
@@ -1063,6 +1138,10 @@ class DecisionAdmin(admin.ModelAdmin):
         Create a background Diavgeia feedback job over all pending
         (unreported, corrected) decisions.
         """
+        import time
+
+        from loguru import logger
+
         if request.method == "POST":
             form = DiavgeiaFeedbackForm(request.POST)
             if form.is_valid():
@@ -1104,7 +1183,16 @@ class DecisionAdmin(admin.ModelAdmin):
         from core.services.diavgeia_feedback_service import DiavgeiaFeedbackService
 
         svc = DiavgeiaFeedbackService()
+        # ``pending_decisions().count()`` runs a COUNT(*) with two correlated
+        # EXISTS subqueries over the Decision table.  Instrument it so a slow
+        # load of this page is visible in the logs instead of a silent hang.
+        _t_pending = time.perf_counter()
         total_pending = svc.pending_decisions().count()
+        logger.info(
+            "feedback_batch_view timing: pending_count={:.3f}s (total={})",
+            time.perf_counter() - _t_pending,
+            total_pending,
+        )
 
         context = {
             **self.admin_site.each_context(request),
