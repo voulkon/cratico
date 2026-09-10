@@ -366,14 +366,23 @@ class AmountCorrectionService:
 
         candidates = candidates.order_by("-calc_total")
 
-        total_candidates = candidates.count()
+        # Apply the limit BEFORE counting.  ``candidates.count()`` on the
+        # un-sliced queryset executes the whole join + GROUP BY + HAVING as
+        # ``SELECT COUNT(*) FROM (…)`` — the pattern behind the 16h runaway
+        # query and its lock pileup (see
+        # ``docs/lessons_learnt/runaway_query_lock_pileup.md``).
+        #
+        # Materialise the (already limited) candidate set once and derive the
+        # count from it: the heavy aggregate runs a single time instead of
+        # twice, and is never executed over the entire table.
+        if limit:
+            candidates = candidates[:limit]
+        decisions = list(candidates)
+        total_candidates = len(decisions)
         logger.info(
             f"AmountCorrection: {total_candidates} decisions above "
             f"€{threshold:,.2f} threshold"
         )
-
-        if limit:
-            candidates = candidates[:limit]
 
         corrected = 0
         consistent = 0
@@ -382,7 +391,7 @@ class AmountCorrectionService:
         errors = 0
         results: list[dict[str, Any]] = []
 
-        for decision in candidates:
+        for decision in decisions:
             try:
                 result = self.correct_decision(
                     decision, dry_run=dry_run, read_if_missing=read_if_missing
