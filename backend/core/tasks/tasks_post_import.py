@@ -616,9 +616,90 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
         f"{correct_result['errors']} errors"
     )
 
+    # ── Phase 3: Discovery (non-monetary values recorded as amounts) ─
+    # Verification/correction only flag decisions that pass through the
+    # high-value pipeline.  This DB-only sweep finds every decision imported
+    # on the reference day whose recorded amount is really an AFM or KAE
+    # (non-monetary value) — no document text needed — so nothing slips
+    # through even when the amount is below the verification threshold.
+    discovery_result = _discover_non_monetary_values(
+        imported_since=imported_since,
+        imported_until=imported_until,
+    )
+
     return {
         "status": "completed",
         "reference_date": str(ref),
         "verification": verify_result,
         "correction": correct_result,
+        "discovery": discovery_result,
     }
+
+
+def _discover_non_monetary_values(
+    imported_since=None,
+    imported_until=None,
+) -> dict:
+    """
+    Log (and count) decisions imported in the window whose recorded amount is
+    actually a non-monetary value (AFM/KAE).
+
+    Read-only: it never mutates ``verified_amount`` — the guard already
+    refuses to write such values there.  The purpose is observability so
+    operators know a case needs the real amount looked up manually.
+    """
+    from core.models.decisions import Decision
+    from core.services.non_monetary_value_guard import (
+        KIND_AFM,
+        KIND_KAE,
+        collect_non_monetary_values,
+    )
+
+    decisions = (
+        Decision.objects.filter(
+            amount_fields__isnull=False,
+        )
+        .prefetch_related("entity_relationships__entity", "amount_fields")
+        .distinct()
+    )
+    if imported_since is not None:
+        decisions = decisions.filter(created_at__gte=imported_since)
+    if imported_until is not None:
+        decisions = decisions.filter(created_at__lt=imported_until)
+
+    afm_count = 0
+    kae_count = 0
+    flagged: list[dict] = []
+
+    for decision in decisions.iterator(chunk_size=500):
+        anomalies = collect_non_monetary_values(decision)
+        if not anomalies:
+            continue
+        for anomaly in anomalies:
+            if anomaly.kind == KIND_AFM:
+                afm_count += 1
+            elif anomaly.kind == KIND_KAE:
+                kae_count += 1
+            flagged.append(
+                {
+                    "ada": decision.ada,
+                    "kind": anomaly.kind,
+                    "source_field": anomaly.source_field,
+                    "amount": str(anomaly.amount),
+                    "matched_value": anomaly.matched_value,
+                }
+            )
+            logger.warning(
+                f"Non-monetary-value-as-amount: decision {decision.id} "
+                f"({decision.ada}) {anomaly.source_field}="
+                f"{anomaly.amount} equals {anomaly.kind} {anomaly.matched_value}"
+            )
+
+    result = {
+        "afm_anomalies": afm_count,
+        "kae_anomalies": kae_count,
+        "total_anomalies": afm_count + kae_count,
+        "sample": flagged[:50],
+    }
+    logger.info(f"Non-monetary-value discovery: {result}")
+    return result

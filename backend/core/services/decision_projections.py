@@ -166,6 +166,22 @@ def paginate_decisions(
     decision_ids = [d.id for d in page_obj]
     relationships_by_decision = build_entity_relationships_by_decision(decision_ids)
 
+    # ── Batch-fetch decisions whose amount is not money ────────────
+    # Their recorded amount is a counterpart AFM (ΑΦΜ) or a budget KAE,
+    # excluded from every aggregation by the facet layer.  One bounded query
+    # per page (page_size ids) so list endpoints never render the bogus
+    # 9-figure value as a monetary amount.
+    from core.models.entities import DecisionAmountField
+
+    invalid_amount_decision_ids = set(
+        DecisionAmountField.objects
+        .filter(
+            decision_id__in=decision_ids,
+            invalid_amount_reason__isnull=False,
+        )
+        .values_list("decision_id", flat=True)
+    )
+
     # Serialize
     results = []
     for decision in page_obj:
@@ -178,6 +194,11 @@ def paginate_decisions(
             and decision.calculated_amount is not None
         ):
             decision_data["amount"] = float(decision.calculated_amount)
+
+        # The recorded amount is a non-monetary value → report no amount.
+        if decision.id in invalid_amount_decision_ids:
+            decision_data["amount"] = None
+            decision_data["has_invalid_amount"] = True
 
         if decision.organization:
             decision_data["organization"] = {

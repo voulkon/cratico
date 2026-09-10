@@ -146,11 +146,15 @@ def run_amount_correction_job(self, job_id: str) -> dict[str, Any]:
     try:
         from core.services.decision_facets import amount_sum_excluding_kae
 
+        # Rows flagged as non-monetary values (AFM/KAE) can never be corrected
+        # automatically — their real amount is unknown — so exclude them to
+        # avoid re-selecting and re-flagging the same decisions on every run.
         has_uncorrected = Exists(
             DecisionAmountField.objects.filter(
                 decision=OuterRef("pk"),
                 amount__gt=0,
                 verified_amount__isnull=True,
+                invalid_amount_reason__isnull=True,
             )
         )
         candidates = (

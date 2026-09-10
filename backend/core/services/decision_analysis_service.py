@@ -3,8 +3,25 @@ from typing import Any, Dict, List, Optional
 
 from core.models.decisions import Decision
 from core.models.entities import DecisionAmountField
-from core.services.decision_facets import effective_linked_amount_sum
-from django.db.models import Avg, Count, Max, Min, OuterRef, Q, Subquery, Sum
+from core.services.decision_facets import (
+    daf_effective_sum,
+    effective_linked_amount_sum,
+)
+from django.db.models import (
+    Avg,
+    Case,
+    Count,
+    DecimalField,
+    Exists,
+    Max,
+    Min,
+    OuterRef,
+    Q,
+    Subquery,
+    Sum,
+    Value,
+    When,
+)
 from django.db.models.functions import Coalesce, Extract, TruncHour
 from loguru import logger
 
@@ -156,16 +173,34 @@ class DecisionAnalysisService:
     def _analyze_by_type(self, decisions_qs) -> List[Dict[str, Any]]:
         """Analyze decisions by act type"""
         # Subquery to get calculated amount for a decision
-        # Sum all amounts from DecisionAmountField (linked or not)
+        # Sum all amounts from DecisionAmountField (linked or not).
+        # daf_effective_sum excludes rows flagged as non-monetary values.
         calc_amt_subquery = Subquery(
             DecisionAmountField.objects.filter(decision=OuterRef("pk"))
             .values("decision")
-            .annotate(total=Sum(Coalesce("verified_amount", "amount")))
+            .annotate(total=daf_effective_sum())
             .values("total")
         )
 
+        # A decision whose amount is a non-monetary value (AFM/KAE) must not
+        # contribute a monetary total — its promoted `amount` is equally bogus.
+        has_invalid_amount = Exists(
+            DecisionAmountField.objects.filter(
+                decision=OuterRef("pk"), invalid_amount_reason__isnull=False
+            )
+        )
+
         return list(
-            decisions_qs.annotate(eff_amt=Coalesce("amount", calc_amt_subquery))
+            decisions_qs.annotate(has_invalid_amount=has_invalid_amount)
+            .annotate(
+                eff_amt=Case(
+                    When(
+                        has_invalid_amount=True,
+                        then=Value(None, output_field=DecimalField()),
+                    ),
+                    default=Coalesce("amount", calc_amt_subquery),
+                )
+            )
             .values("decision_type__label", "decision_type__uid")
             .annotate(count=Count("id"), total_amount=Sum("eff_amt"))
             .order_by("-count")
@@ -364,13 +399,29 @@ class DecisionAnalysisService:
         calc_amt_subquery = Subquery(
             DecisionAmountField.objects.filter(decision=OuterRef("pk"))
             .values("decision")
-            .annotate(total=Sum(Coalesce("verified_amount", "amount")))
+            .annotate(total=daf_effective_sum())
             .values("total")
+        )
+
+        # A decision whose amount is a non-monetary value (AFM/KAE) must not
+        # contribute a monetary total — its promoted `amount` is equally bogus.
+        has_invalid_amount = Exists(
+            DecisionAmountField.objects.filter(
+                decision=OuterRef("pk"), invalid_amount_reason__isnull=False
+            )
         )
 
         # Annotate decisions with effective amount
         decisions_with_amount = decisions_qs.annotate(
-            effective_amt=Coalesce("amount", calc_amt_subquery)
+            has_invalid_amount=has_invalid_amount
+        ).annotate(
+            effective_amt=Case(
+                When(
+                    has_invalid_amount=True,
+                    then=Value(None, output_field=DecimalField()),
+                ),
+                default=Coalesce("amount", calc_amt_subquery),
+            )
         )
 
         # Total amount for the day
