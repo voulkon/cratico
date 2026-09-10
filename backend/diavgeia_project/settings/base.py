@@ -24,6 +24,19 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", default_unsafe_secret_key)
 DEBUG_ENV = os.getenv("DEBUG", "False")  # Get it as a string
 DEBUG = DEBUG_ENV.lower() in ("true", "1", "t")  # Convert to boolean
 
+# Anonymous (unauthenticated) per-IP daily API request limit applied by
+# RateLimitMiddleware (backend/api/middleware/rate_limit.py).
+from api.constants import DEFAULT_ANON_API_DAILY_LIMIT
+
+ANON_API_DAILY_LIMIT = int(os.getenv("ANON_API_DAILY_LIMIT", str(DEFAULT_ANON_API_DAILY_LIMIT)))
+
+# When True, /api/system/config/auth/ includes a read-only "throttle" block
+# (anon limit + live security thresholds) for the throttling/auto-ban E2E
+# stacks. Keep OFF in production.
+EXPOSE_E2E_OPERATIONAL_CONFIG = os.getenv(
+    "EXPOSE_E2E_OPERATIONAL_CONFIG", "False"
+).lower() in ("true", "1", "t")
+
 # Stealth mode - requires authentication for all API endpoints
 STEALTH_MODE = os.getenv("STEALTH_MODE", "False").lower() in ("true", "1", "t")
 

@@ -36,6 +36,7 @@ from core.schemas.financial import (
     TimelinePoint,
 )
 from core.services.decision_facets import (
+    daf_effective_value,
     effective_linked_amount_avg,
     effective_linked_amount_max,
     effective_linked_amount_min,
@@ -43,7 +44,6 @@ from core.services.decision_facets import (
 )
 from core.utils.performance_monitoring import monitor_query_performance
 from django.db.models import Count, F, Max, Min, Q, QuerySet, Sum
-from django.db.models.functions import Coalesce
 
 
 class FinancialCalculationService:
@@ -304,14 +304,17 @@ class FinancialCalculationService:
         else:
             granularity = "year"
 
-        # Accurate total on only this entity's decisions (small subset)
-        from django.db.models.functions import Coalesce
+        # Accurate total on only this entity's decisions (small subset).
+        # Uses daf_effective_sum so amounts flagged as non-monetary values
+        # (AFM/KAE mis-recorded as the amount) are excluded.
+        from core.services.decision_facets import daf_effective_sum
+
         decision_ids = qs.values_list("decision_id", flat=True).distinct()
         accurate_total = (
             DecisionAmountField.objects.filter(
                 decision_id__in=decision_ids,
                 associated_relationship__isnull=False,
-            ).aggregate(total=Sum(Coalesce("verified_amount", "amount")))["total"]
+            ).aggregate(total=daf_effective_sum())["total"]
             or Decimal("0.00")
         )
 
@@ -809,16 +812,14 @@ class FinancialCalculationService:
         Returns:
             Total amount as Decimal
         """
-        from django.db.models.functions import Coalesce
+        from core.services.decision_facets import daf_effective_sum
 
         qs = DecisionAmountField.objects.filter(decision=decision)
 
         if not include_unlinked:
             qs = qs.filter(associated_relationship__isnull=False)
 
-        result = qs.aggregate(
-            total=Sum(Coalesce("verified_amount", "amount"))
-        )
+        result = qs.aggregate(total=daf_effective_sum())
         return result["total"] or Decimal("0.00")
 
     def get_decision_entity_amounts(self, decision: Decision) -> list[EntityAmount]:
@@ -833,13 +834,13 @@ class FinancialCalculationService:
 
         entity_amounts: list[EntityAmount] = []
         for rel in relationships:
-            total_amount = sum(
-                amount.verified_amount
-                if amount.verified_amount is not None
-                else amount.amount
+            # Skip fields flagged as non-monetary values (AFM/KAE).
+            values = [
+                value
                 for amount in rel.linked_amounts.all()
-                if amount.amount is not None
-            )
+                if (value := daf_effective_value(amount)) is not None
+            ]
+            total_amount = sum(values)
 
             if total_amount > 0:  # Only include entities with actual amounts
                 entity_amounts.append(
@@ -916,15 +917,17 @@ class FinancialCalculationService:
         Returns:
             DecisionAmountBreakdown Pydantic model
         """
+        from core.services.decision_facets import daf_effective_sum
+
         all_amounts = DecisionAmountField.objects.filter(decision=decision)
 
         linked_total = all_amounts.filter(
             associated_relationship__isnull=False
-        ).aggregate(total=Sum(Coalesce("verified_amount", "amount")))["total"] or Decimal("0.00")
+        ).aggregate(total=daf_effective_sum())["total"] or Decimal("0.00")
 
         unlinked_total = all_amounts.filter(
             associated_relationship__isnull=True
-        ).aggregate(total=Sum(Coalesce("verified_amount", "amount")))["total"] or Decimal("0.00")
+        ).aggregate(total=daf_effective_sum())["total"] or Decimal("0.00")
 
         entity_count = DecisionEntityRelationship.objects.filter(
             decision=decision
@@ -1115,10 +1118,13 @@ class FinancialCalculationService:
             decisions_queryset = Decision.objects.all()
 
         # Get total from DecisionAmountField for all decisions in queryset
-        # This represents the most accurate financial data via relationships
+        # This represents the most accurate financial data via relationships.
+        # daf_effective_sum excludes amounts flagged as non-monetary (AFM/KAE).
+        from core.services.decision_facets import daf_effective_sum
+
         total_amount_accurate = DecisionAmountField.objects.filter(
             decision__in=decisions_queryset
-        ).aggregate(total=Sum(Coalesce("verified_amount", "amount")))["total"] or Decimal("0.00")
+        ).aggregate(total=daf_effective_sum())["total"] or Decimal("0.00")
 
         # Get decision count and basic stats
         decision_stats = decisions_queryset.aggregate(

@@ -45,6 +45,17 @@ from core.models.document_analysis import (
     TextProcessStatus,
     TextSpan,
 )
+from core.services.non_monetary_value_guard import (
+    DISCREPANCY_REASON_AFM,
+    DISCREPANCY_REASON_KAE,
+    build_afm_note,
+    build_kae_note,
+    collect_counterpart_afms,
+    collect_kae_codes,
+    extract_afm_amount_spans,
+    match_afm_amount,
+    match_kae_amount,
+)
 from core.services.amount_text_detection import (
     DetectedAmount,
     verify_amounts_in_text,
@@ -184,6 +195,8 @@ class AmountVerificationService:
         skipped = 0
         failed = 0
         discrepancies = 0
+        afm_as_amount_discrepancies = 0
+        kae_as_amount_discrepancies = 0
 
         for decision in decisions:
             try:
@@ -194,6 +207,16 @@ class AmountVerificationService:
                     verified += 1
                     if result.get("has_discrepancy"):
                         discrepancies += 1
+                        if (
+                            result.get("discrepancy_reason")
+                            == DISCREPANCY_REASON_AFM
+                        ):
+                            afm_as_amount_discrepancies += 1
+                        elif (
+                            result.get("discrepancy_reason")
+                            == DISCREPANCY_REASON_KAE
+                        ):
+                            kae_as_amount_discrepancies += 1
                 elif result["status"] == "skipped":
                     skipped += 1
                 else:
@@ -211,6 +234,8 @@ class AmountVerificationService:
             "skipped": skipped,
             "failed": failed,
             "discrepancies": discrepancies,
+            "afm_as_amount_discrepancies": afm_as_amount_discrepancies,
+            "kae_as_amount_discrepancies": kae_as_amount_discrepancies,
         }
         logger.info(f"Amount verification batch complete: {summary}")
         return summary
@@ -261,6 +286,15 @@ class AmountVerificationService:
             decision, include_unlinked=True
         )
         raw_amount = decision.amount
+
+        # --- Step 2b: Non-monetary-value-as-amount guard -------------------
+        # Collect non-monetary values (sponsor VAT numbers / budget KAE
+        # codes) and check whether the recorded amount(s) are actually one of
+        # them.  Such a value must NEVER be reported as confirmed — even when
+        # the text contains it verbatim (the amount field holds a code, e.g.
+        # Ψ0Α74690Β9-52Ρ).
+        counterpart_afms = collect_counterpart_afms(decision)
+        counterpart_kaes = collect_kae_codes(decision)
 
         # --- Step 3: Detect the amount in the text (regex or AI) ---
         # The AI path calls the LLM here and returns a single amount; the
@@ -321,6 +355,7 @@ class AmountVerificationService:
 
         # --- Step 5: Status + discrepancy ---
         verified_amount = ai_result.get("amount")
+        discrepancy_reason = None  # e.g. "afm_as_amount"
         if verified_amount is not None:
             if method == "ai":
                 has_discrepancy = self._has_significant_discrepancy(
@@ -331,14 +366,64 @@ class AmountVerificationService:
             else:
                 has_discrepancy = ai_result.get("has_discrepancy", False)
 
-            run.status = TextProcessStatus.COMPLETED
-            run.error_message = None
             discrepancy_note = self._build_discrepancy_note(
                 text_amount=verified_amount,
                 calculated_amount=calculated_amount,
                 raw_amount=raw_amount,
             )
+
+            # --- Non-monetary-value-as-amount guard (never report confirmed) --
+            # Even when the text "confirms" the value verbatim, if the
+            # verified amount equals a counterpart AFM or a budget KAE the
+            # amount is bogus: the field holds a non-monetary value.  Gate on
+            # the presence of counterpart values (not on the DB amount being
+            # a hit) so the guard also fires when the DB amount is wrong in
+            # some other way.
+            counterpart_afm = None
+            counterpart_kae = None
+            if counterpart_afms or counterpart_kaes:
+                counterpart_afm = match_afm_amount(
+                    verified_amount, counterpart_afms
+                )
+                counterpart_kae = (
+                    None
+                    if counterpart_afm is not None
+                    else match_kae_amount(verified_amount, counterpart_kaes)
+                )
+                if counterpart_afm is not None or counterpart_kae is not None:
+                    has_discrepancy = True
+                    if counterpart_afm is not None:
+                        discrepancy_reason = DISCREPANCY_REASON_AFM
+                        code_note = build_afm_note(
+                            counterpart_afm, verified_amount
+                        )
+                        detail = f"equals counterpart AFM {counterpart_afm}"
+                    else:
+                        discrepancy_reason = DISCREPANCY_REASON_KAE
+                        code_note = build_kae_note(
+                            counterpart_kae, verified_amount
+                        )
+                        detail = f"equals budget KAE {counterpart_kae}"
+                    discrepancy_note = (
+                        f"{code_note} | {discrepancy_note}"
+                        if discrepancy_note
+                        else code_note
+                    )
+                    logger.warning(
+                        f"Decision {decision.id} ({decision.ada}): "
+                        f"non-monetary value recorded as amount detected — "
+                        f"verified={verified_amount} {detail}"
+                    )
+
+            run.status = TextProcessStatus.COMPLETED
+            run.error_message = None
             run.meta["has_discrepancy"] = has_discrepancy
+            if discrepancy_reason:
+                run.meta["discrepancy_reason"] = discrepancy_reason
+            if counterpart_afm is not None:
+                run.meta["counterpart_afm"] = counterpart_afm
+            if counterpart_kae is not None:
+                run.meta["counterpart_kae"] = counterpart_kae
             run.meta["discrepancy_note"] = discrepancy_note
 
             logger.info(
@@ -394,6 +479,7 @@ class AmountVerificationService:
             "calculated_amount": str(calculated_amount),
             "raw_amount": str(raw_amount) if raw_amount else None,
             "has_discrepancy": has_discrepancy,
+            "discrepancy_reason": discrepancy_reason,
         }
 
     # ------------------------------------------------------------------
@@ -665,6 +751,42 @@ class AmountVerificationService:
             has_discrepancy = True
             success = verified_amount is not None
 
+        # ── Non-monetary-value-as-amount guard ─────────────────────────────
+        # Even when the cents detector confirms the value, an amount equal
+        # to a counterpart AFM or a budget KAE is bogus and must be flagged.
+        counterpart_afms = collect_counterpart_afms(decision)
+        counterpart_kaes = collect_kae_codes(decision)
+        discrepancy_reason = None
+        counterpart_afm = None
+        counterpart_kae = None
+        if verified_amount is not None and (
+            counterpart_afms or counterpart_kaes
+        ):
+            counterpart_afm = match_afm_amount(verified_amount, counterpart_afms)
+            counterpart_kae = (
+                None
+                if counterpart_afm is not None
+                else match_kae_amount(verified_amount, counterpart_kaes)
+            )
+            if counterpart_afm is not None or counterpart_kae is not None:
+                has_discrepancy = True
+                if counterpart_afm is not None:
+                    discrepancy_reason = DISCREPANCY_REASON_AFM
+                    raw_response += "\n" + build_afm_note(
+                        counterpart_afm, verified_amount
+                    )
+                    # Also flag AFM spans found in the text itself
+                    for hit in extract_afm_amount_spans(text, counterpart_afms):
+                        raw_response += (
+                            f"\n[AFM] text span {hit['raw']} @ "
+                            f"{hit['position']} = AFM {hit['afm']}"
+                        )
+                else:
+                    discrepancy_reason = DISCREPANCY_REASON_KAE
+                    raw_response += "\n" + build_kae_note(
+                        counterpart_kae, verified_amount
+                    )
+
         # Convert GroupedAmount → DetectedAmount for span persistence
         candidates = [
             DetectedAmount(
@@ -697,6 +819,12 @@ class AmountVerificationService:
             "has_discrepancy": has_discrepancy,
             "detector": "cents-based",
         }
+        if discrepancy_reason:
+            run.meta["discrepancy_reason"] = discrepancy_reason
+        if counterpart_afm is not None:
+            run.meta["counterpart_afm"] = counterpart_afm
+        if counterpart_kae is not None:
+            run.meta["counterpart_kae"] = counterpart_kae
         TextProcessService()._save_spans(run, spans)
 
         discrepancy_note = self._build_discrepancy_note(
@@ -741,6 +869,7 @@ class AmountVerificationService:
             "calculated_amount": str(calculated_amount),
             "raw_amount": str(raw_amount) if raw_amount else None,
             "has_discrepancy": has_discrepancy,
+            "discrepancy_reason": discrepancy_reason,
         }
 
     def _call_ai_for_amount(

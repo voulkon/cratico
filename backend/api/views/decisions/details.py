@@ -177,6 +177,26 @@ def decision_detail(request, decision_id):
             else None
         )
 
+        # Non-monetary amount state — the recorded amount is really a
+        # counterpart AFM (ΑΦΜ) or a budget KAE (ΚΑΕ), so it is not money and
+        # the real amount is unknown.  The facet layer already excludes such
+        # rows from every aggregation; this tells the UI to say so instead of
+        # rendering a bogus 9-figure amount.
+        invalid_field = (
+            DecisionAmountField.objects
+            .filter(decision=decision, invalid_amount_reason__isnull=False)
+            .order_by("id")
+            .values("invalid_amount_reason", "invalid_amount_value")
+            .first()
+        )
+        decision_data["has_invalid_amount"] = invalid_field is not None
+        decision_data["invalid_amount_reason"] = (
+            invalid_field["invalid_amount_reason"] if invalid_field else None
+        )
+        decision_data["invalid_amount_value"] = (
+            invalid_field["invalid_amount_value"] if invalid_field else None
+        )
+
         return pydantic_response(DecisionDetailResponse(**decision_data))
 
     except Decision.DoesNotExist:
