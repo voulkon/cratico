@@ -16,9 +16,10 @@ from core.models.entities import (
     DecisionEntityRelationship,
 )
 from core.services.financial_calculation_service import FinancialCalculationService
+from core.services.decision_facets import daf_effective_max, daf_effective_sum
 from django.db import transaction
-from django.db.models import Count, F, Max, Min, Q, Sum, Window
-from django.db.models.functions import Coalesce, Rank
+from django.db.models import Count, F, Min, Q, Window
+from django.db.models.functions import Rank
 from loguru import logger
 
 
@@ -163,9 +164,9 @@ class AFMEntityStatsService:
                 associated_relationship__decision__decision_type__uid=decision_type_uid
             )
         amount_qs = amount_qs.values("associated_relationship__entity_id").annotate(
-            total=Sum(Coalesce("verified_amount", "amount")),
-            avg=Sum(Coalesce("verified_amount", "amount")) / Count("id"),  # rough avg per amount-row (fine)
-            amax=Max(Coalesce("verified_amount", "amount")),
+            total=daf_effective_sum(),
+            avg=daf_effective_sum() / Count("id"),  # rough avg per amount-row (fine)
+            amax=daf_effective_max(),
         )
         for row in amount_qs:
             eid = row["associated_relationship__entity_id"]
@@ -187,7 +188,7 @@ class AFMEntityStatsService:
             )
         per_decision_amounts = per_decision_amounts.values(
             "associated_relationship__entity_id", "decision_id"
-        ).annotate(decision_total=Sum(Coalesce("verified_amount", "amount")))
+        ).annotate(decision_total=daf_effective_sum())
 
         entity_amounts_by_decision: Dict[int, list] = defaultdict(list)
         for row in per_decision_amounts:
@@ -280,7 +281,7 @@ class AFMEntityStatsService:
                 associated_relationship__decision__classification__is_direct_assignment=True,
             )
             .values("associated_relationship__entity_id", "decision_id")
-            .annotate(decision_total=Sum(Coalesce("verified_amount", "amount")))
+            .annotate(decision_total=daf_effective_sum())
         )
         for row in direct_30k_qs:
             total = row["decision_total"]
@@ -301,7 +302,7 @@ class AFMEntityStatsService:
                 associated_relationship__role__in=money_received_roles,
             )
             .values("associated_relationship__entity_id", "decision_id")
-            .annotate(decision_total=Sum(Coalesce("verified_amount", "amount")))
+            .annotate(decision_total=daf_effective_sum())
         )
         for row in payment_30k_qs:
             total = row["decision_total"]
@@ -321,7 +322,7 @@ class AFMEntityStatsService:
                 associated_relationship__decision__decision_type__uid="Β.2.2",
             )
             .values("associated_relationship__entity_id")
-            .annotate(total=Sum(Coalesce("verified_amount", "amount")))
+            .annotate(total=daf_effective_sum())
         )
         for row in received_qs:
             eid = row["associated_relationship__entity_id"]
