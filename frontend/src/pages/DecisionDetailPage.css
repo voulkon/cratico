@@ -220,6 +220,38 @@
   gap: var(--spacing-sm);
 }
 
+/* ---------- Invalid amount (ΑΦΜ/ΚΑΕ mis-recorded as the amount) ---------- */
+/* The recorded value is not money at all and the real amount is unknown, so
+   the hero states that explicitly instead of rendering a bogus 9-figure sum. */
+.amount-hero-invalid {
+  border: 1px solid var(--color-error);
+  background: color-mix(in srgb, var(--color-error) 8%, transparent);
+}
+
+.amount-invalid {
+  font-size: var(--font-xl, 1.5rem);
+  color: var(--color-error);
+}
+
+.amount-invalid-explanation,
+.amount-invalid-recorded {
+  margin: var(--spacing-sm) 0 0;
+  font-size: var(--font-sm);
+  color: var(--text-secondary, inherit);
+  text-align: center;
+  max-width: 46ch;
+}
+
+.amount-invalid-recorded {
+  color: var(--muted-text);
+}
+
+/* Warning shown alongside a corrected amount hero when some other amount
+   field was flagged as a non-monetary value (ΑΦΜ/ΚΑΕ). */
+.amount-invalid-note {
+  color: var(--color-error);
+}
+
 .amount-corrected-badge {
   position: relative;
   display: inline-flex;

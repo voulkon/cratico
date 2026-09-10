@@ -5,7 +5,7 @@ from django.shortcuts import redirect, render
 from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.html import format_html
-from api.redis_keys import ADMIN_FEEDBACK_POOL_CORRECTED_DECISIONS_KEY
+from api.redis_keys import ADMIN_FEEDBACK_POOL_AMOUNT_ISSUE_DECISIONS_KEY
 
 class ImportDecisionsForm(forms.Form):
     """Form for importing decisions"""
@@ -97,6 +97,48 @@ def _corrected_fields_count() -> int:
     return (
         DecisionAmountField.objects
         .filter(verified_amount__isnull=False)
+        .count()
+    )
+
+
+def _flagged_fields_count() -> int:
+    """Count amount-field rows flagged as non-monetary values (AFM/KAE).
+
+    Uses the partial index ``idx_daf_invalid_amounts`` (index-only scan).
+    """
+    from core.models.entities import DecisionAmountField
+
+    return (
+        DecisionAmountField.objects
+        .filter(invalid_amount_reason__isnull=False)
+        .count()
+    )
+
+
+def _has_amount_issue_q(prefix: str = ""):
+    """Q matching amount-field rows with a corrected OR flagged amount."""
+    from django.db.models import Q
+
+    return Q(**{f"{prefix}verified_amount__isnull": False}) | Q(
+        **{f"{prefix}invalid_amount_reason__isnull": False}
+    )
+
+
+def _amount_issue_decisions_count() -> int:
+    """Count distinct decisions with an amount problem (corrected or flagged).
+
+    Counts ``decision_id`` directly on the amount-field table rather than
+    joining ``Decision`` and doing ``SELECT DISTINCT`` of every column, then
+    counting the subquery — a fraction of the work. Backed by the same
+    partial indexes (index-only scan).
+    """
+    from core.models.entities import DecisionAmountField
+
+    return (
+        DecisionAmountField.objects
+        .filter(_has_amount_issue_q())
+        .values("decision_id")
+        .distinct()
         .count()
     )
 
@@ -664,10 +706,11 @@ class DecisionAdmin(admin.ModelAdmin):
         from core.models.decisions import Decision
 
         stats = _get_cached_stats(
-            "admin:batch_correct_amounts:stats:v1",
+            "admin:batch_correct_amounts:stats:v2",
             lambda: {
                 "already_corrected": _corrected_decisions_count(),
                 "total_fields_corrected": _corrected_fields_count(),
+                "total_fields_flagged": _flagged_fields_count(),
                 "total_decisions": _approximate_table_count(Decision),
             },
             timeout=300,
@@ -679,6 +722,7 @@ class DecisionAdmin(admin.ModelAdmin):
             "form": form,
             "already_corrected": stats["already_corrected"],
             "total_fields_corrected": stats["total_fields_corrected"],
+            "total_fields_flagged": stats["total_fields_flagged"],
             "total_decisions": stats["total_decisions"],
             "opts": self.model._meta,
         }
@@ -741,13 +785,13 @@ class DecisionAdmin(admin.ModelAdmin):
         # idx_daf_verified_amounts (index-only scan), and the reported count
         # reads the tiny DiavgeiaFeedbackReport table.
         _t_stats = time.perf_counter()
-        # The corrected-decision count only changes when a correction batch
+        # The amount-issue decision count only changes when a correction batch
         # runs (not when reporting), so cache it briefly.  reported/pending
         # are computed live below so the header still updates instantly
         # after each report.
         total = _get_cached_stats(
-            ADMIN_FEEDBACK_POOL_CORRECTED_DECISIONS_KEY,
-            _corrected_decisions_count,
+            ADMIN_FEEDBACK_POOL_AMOUNT_ISSUE_DECISIONS_KEY,
+            _amount_issue_decisions_count,
             timeout=300,
         )
         reported_ids = DiavgeiaFeedbackReport.objects.filter(
@@ -755,7 +799,7 @@ class DecisionAdmin(admin.ModelAdmin):
         ).values_list("decision_id", flat=True)
         total_reported = (
             DecisionAmountField.objects
-            .filter(verified_amount__isnull=False, decision_id__in=reported_ids)
+            .filter(_has_amount_issue_q(), decision_id__in=reported_ids)
             .values("decision_id")
             .distinct()
             .count()
@@ -765,14 +809,16 @@ class DecisionAdmin(admin.ModelAdmin):
 
         # ── Build the filtered queryset ──────────────────────────────
         #
-        # Start from the set of decisions that actually have corrected
-        # amounts (derived from the amount-field table via its partial
-        # index) instead of a correlated EXISTS over the whole Decision
-        # table — that EXISTS forced PostgreSQL to probe every decision
-        # row while hunting for the first page of matches.
+        # Start from the set of decisions that actually have an amount
+        # problem — corrected (verified_amount) OR flagged as a non-monetary
+        # value (invalid_amount_reason, e.g. an AFM/KAE recorded as the
+        # amount) — derived from the amount-field table via its partial
+        # indexes instead of a correlated EXISTS over the whole Decision
+        # table, which forced PostgreSQL to probe every decision row while
+        # hunting for the first page of matches.
         corrected_ids = (
             DecisionAmountField.objects
-            .filter(verified_amount__isnull=False)
+            .filter(_has_amount_issue_q())
             .values("decision_id")
         )
         qs = Decision.objects.filter(id__in=corrected_ids)
@@ -797,8 +843,15 @@ class DecisionAdmin(admin.ModelAdmin):
                 Prefetch(
                     "amount_fields",
                     queryset=DecisionAmountField.objects.filter(
-                        verified_amount__isnull=False
-                    ).only("id", "source_field_name", "amount", "verified_amount"),
+                        _has_amount_issue_q()
+                    ).only(
+                        "id",
+                        "source_field_name",
+                        "amount",
+                        "verified_amount",
+                        "invalid_amount_reason",
+                        "invalid_amount_value",
+                    ),
                     to_attr="verified_fields",
                 )
             )
@@ -821,7 +874,7 @@ class DecisionAdmin(admin.ModelAdmin):
             else:
                 filtered_total = total
         else:
-            count_qs = DecisionAmountField.objects.filter(verified_amount__isnull=False)
+            count_qs = DecisionAmountField.objects.filter(_has_amount_issue_q())
             if reported == "yes":
                 count_qs = count_qs.filter(already_reported_daf)
             elif reported == "no":

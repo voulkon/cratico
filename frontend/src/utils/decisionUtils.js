@@ -49,6 +49,13 @@ export const getMainRecipient = (decision, entityRelationships, hasPreloadedEnti
  * @returns {number|null} The display amount or null
  */
 export const getTotalAmount = (decision, entityRelationships, hasPreloadedEntityData, mainRecipient = null) => {
+  // The recorded amount is a non-monetary value (counterpart ΑΦΜ or a ΚΑΕ
+  // budget code), not money.  The real amount is unknown, so never present
+  // it as a monetary total.
+  if (decision.has_invalid_amount) {
+    return null;
+  }
+
   // Corrected (verified) total always wins when the backend flags it —
   // the raw `amount` may be a data-entry typo (e.g. ×100/÷100 shift).
   if (decision.has_corrected_amounts && decision.corrected_amount != null) {
