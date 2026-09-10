@@ -39,13 +39,17 @@ from typing import Optional
 # We don't hardcode the full list (it changes); instead we treat any
 # private/loopback/link-local address as non-client, and rely on
 # CF-Connecting-IP being present to disambiguate when Cloudflare is in front.
-def _is_infrastructure_ip(ip_str: str) -> bool:
+def is_infrastructure_ip(ip_str: str) -> bool:
     """Return True if the IP is private/loopback/link-local (i.e. a proxy, not a client)."""
     try:
         ip = ipaddress.ip_address(ip_str)
     except ValueError:
         return False
     return ip.is_private or ip.is_loopback or ip.is_link_local
+
+
+# Backward-compatible alias — earlier callers/tests used the private name.
+_is_infrastructure_ip = is_infrastructure_ip
 
 
 def get_client_ip(request) -> Optional[str]:
@@ -60,7 +64,7 @@ def get_client_ip(request) -> Optional[str]:
     cf_ip = meta.get("HTTP_CF_CONNECTING_IP")
     if cf_ip:
         cf_ip = cf_ip.strip()
-        if cf_ip and not _is_infrastructure_ip(cf_ip):
+        if cf_ip and not is_infrastructure_ip(cf_ip):
             return cf_ip
         # If CF-Connecting-IP is present but is a private IP, Cloudflare is
         # likely not actually in front (someone spoofed the header on a LAN).
@@ -70,7 +74,7 @@ def get_client_ip(request) -> Optional[str]:
     true_client_ip = meta.get("HTTP_TRUE_CLIENT_IP")
     if true_client_ip:
         true_client_ip = true_client_ip.strip()
-        if true_client_ip and not _is_infrastructure_ip(true_client_ip):
+        if true_client_ip and not is_infrastructure_ip(true_client_ip):
             return true_client_ip
 
     # 3. X-Forwarded-For — pick the leftmost non-infrastructure IP.
@@ -83,7 +87,7 @@ def get_client_ip(request) -> Optional[str]:
     xff = meta.get("HTTP_X_FORWARDED_FOR")
     if xff:
         for candidate in (c.strip() for c in xff.split(",")):
-            if candidate and not _is_infrastructure_ip(candidate):
+            if candidate and not is_infrastructure_ip(candidate):
                 return candidate
 
     # 4. X-Real-IP (set by nginx to $remote_addr)

@@ -33,7 +33,6 @@ import TopControls from './components/TopControls';
 import Footer from './components/Footer';
 import LegalPage from './pages/LegalPage';
 import './index.css';
-import RateLimitIndicator from './components/RateLimitIndicator';
 import RateLimitModal from './components/RateLimitModal';
 import AuthPromptModal from './components/AuthPromptModal';
 import { setTokenGetter } from './api/client';
@@ -253,7 +252,12 @@ function AuthenticatedApp({ controlsLayout }) {
         />
       )}
 
-      <RateLimitIndicator />
+      {/* RateLimitIndicator removed 2026-09: the global bottom bar rendered stale
+          localStorage and never updated — the backend does not emit X-RateLimit-*
+          headers behind the compose gateway, so there was no live data. Revisit as
+          a user-menu quota meter fed by api/client.js 'rateLimitInfo' events once
+          the middleware is fixed (future: per-minute + per-day windows, larger
+          quotas for logged-in users). */}
       <RateLimitModal />
       <AuthPromptModal />
     </>

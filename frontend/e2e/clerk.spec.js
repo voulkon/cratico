@@ -27,6 +27,7 @@
  * Deferred 2026-09-01 — do when Clerk credentials/tooling are available.
  */
 const { test, expect } = require('@playwright/test');
+const { wireLifecycle } = require('./lifecycle');
 const {
   API_URL,
   TOKEN_KEY,
@@ -38,6 +39,12 @@ const {
   expectAppMounted,
   getAuthMethods,
 } = require('./helpers');
+
+// Teardown-only parity: the Clerk user is registered inside the test body
+// (real E2E_CLERK_EMAIL), so there is nothing to seed — backend/api/e2e_fixtures/clerk.py
+// declares only 'teardown' and removes the created user + identity-linking bookmark.
+const lifecycle = wireLifecycle('clerk');
+test.afterAll(() => lifecycle.teardown());
 
 const CLERK_EMAIL = process.env.E2E_CLERK_EMAIL;
 const CLERK_TEST_TOKEN = process.env.E2E_CLERK_TEST_TOKEN;

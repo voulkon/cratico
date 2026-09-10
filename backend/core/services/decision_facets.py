@@ -39,22 +39,65 @@ from rest_framework.response import Response
 # Confirmed by analysis: 190K decisions have KAE=non-KAE, 7.6K have KAE as
 # unrelated budget figures.
 
+def _exclude_invalid_amounts(prefix: str = "amount_fields__"):
+    """
+    Q object matching rows that are NOT flagged as non-monetary values.
+
+    Some ``DecisionAmountField`` rows hold a value that is not money at all —
+    a counterpart AFM (ΑΦΜ) or a budget KAE (ΚΑΕ) mis-recorded as the amount
+    (see ``core.services.non_monetary_value_guard``).  Such rows carry an
+    ``invalid_amount_reason`` and MUST be excluded from every monetary
+    aggregation, otherwise a 9-digit VAT number appears as a €2.6bn payment.
+
+    ``COALESCE(verified_amount, amount)`` alone cannot fix this: the guard
+    deliberately leaves ``verified_amount`` NULL (the real amount is unknown),
+    so the bad ``amount`` would win the COALESCE.
+
+    ``~Q(x__isnull=False)`` compiles to ``NOT (x IS NOT NULL)``, which is
+    TRUE for NULL rows — so unflagged (and legacy) rows are kept.
+    """
+    return ~Q(**{f"{prefix}invalid_amount_reason__isnull": False})
+
+
+def _and_filters(*filters):
+    """
+    AND together the non-None filters, or return None if all are None.
+
+    ``Sum(filter=...)`` accepts a single Q, so a caller-supplied filter must
+    be combined with the non-monetary exclusion rather than replaced by it.
+    """
+    present = [f for f in filters if f is not None]
+    if not present:
+        return None
+    combined = present[0]
+    for extra in present[1:]:
+        combined = combined & extra
+    return combined
+
+
 def amount_sum_excluding_kae():
     """Return a Sum expression that excludes amountWithKae* rows.
 
     Uses ``COALESCE(verified_amount, amount)`` so corrected values take
-    precedence, consistent with :func:`effective_amount_sum`.
+    precedence, consistent with :func:`effective_amount_sum`.  Rows flagged
+    as non-monetary values (AFM/KAE) are excluded entirely.
     """
     return Sum(
         Coalesce("amount_fields__verified_amount", "amount_fields__amount"),
-        filter=~Q(amount_fields__parent_key_path__startswith="amountWithKae"),
+        filter=_and_filters(
+            ~Q(amount_fields__parent_key_path__startswith="amountWithKae"),
+            _exclude_invalid_amounts(),
+        ),
     )
 
 
 def effective_amount_sum_excluding_kae():
     """Verified-aware sum excluding KAE rows (combines both helpers)."""
     return effective_amount_sum(
-        filter=~Q(amount_fields__parent_key_path__startswith="amountWithKae")
+        filter=_and_filters(
+            ~Q(amount_fields__parent_key_path__startswith="amountWithKae"),
+            _exclude_invalid_amounts(),
+        )
     )
 
 
@@ -62,7 +105,7 @@ def effective_amount_max(filter=None):
     """Max of ``COALESCE(verified_amount, amount)`` — verified-aware."""
     return models.Max(
         Coalesce("amount_fields__verified_amount", "amount_fields__amount"),
-        filter=filter,
+        filter=_and_filters(filter, _exclude_invalid_amounts()),
     )
 
 
@@ -89,7 +132,7 @@ def effective_amount_sum(filter=None):
     """
     return Sum(
         Coalesce("amount_fields__verified_amount", "amount_fields__amount"),
-        filter=filter,
+        filter=_and_filters(filter, _exclude_invalid_amounts()),
     )
 
 
@@ -100,13 +143,15 @@ def effective_linked_amount_sum(filter=None):
     ``linked_amounts`` points at ``DecisionAmountField`` rows, each of which
     may carry a ``verified_amount``.  Use ``COALESCE(verified_amount, amount)``
     so corrected values take precedence — the relationship-level equivalent of
-    :func:`effective_amount_sum`.
+    :func:`effective_amount_sum`.  Non-monetary (AFM/KAE) rows are excluded.
     """
     return Sum(
         Coalesce(
             "linked_amounts__verified_amount", "linked_amounts__amount"
         ),
-        filter=filter,
+        filter=_and_filters(
+            filter, _exclude_invalid_amounts("linked_amounts__")
+        ),
     )
 
 
@@ -116,7 +161,9 @@ def effective_linked_amount_avg(filter=None):
         Coalesce(
             "linked_amounts__verified_amount", "linked_amounts__amount"
         ),
-        filter=filter,
+        filter=_and_filters(
+            filter, _exclude_invalid_amounts("linked_amounts__")
+        ),
     )
 
 
@@ -126,7 +173,9 @@ def effective_linked_amount_max(filter=None):
         Coalesce(
             "linked_amounts__verified_amount", "linked_amounts__amount"
         ),
-        filter=filter,
+        filter=_and_filters(
+            filter, _exclude_invalid_amounts("linked_amounts__")
+        ),
     )
 
 
@@ -136,8 +185,62 @@ def effective_linked_amount_min(filter=None):
         Coalesce(
             "linked_amounts__verified_amount", "linked_amounts__amount"
         ),
-        filter=filter,
+        filter=_and_filters(
+            filter, _exclude_invalid_amounts("linked_amounts__")
+        ),
     )
+
+
+# ---------------------------------------------------------------------------
+# DecisionAmountField-level (queryset already rooted at DecisionAmountField)
+# ---------------------------------------------------------------------------
+# Some services aggregate a ``DecisionAmountField`` queryset directly instead
+# of traversing from ``Decision`` — so the ``amount_fields__`` prefix helpers
+# above don't apply.  These are the prefix-free equivalents; use them instead
+# of a raw ``Sum(Coalesce("verified_amount", "amount"))`` so the non-monetary
+# exclusion is never forgotten.
+
+def daf_coalesce_amount():
+    """``COALESCE(verified_amount, amount)`` on a DecisionAmountField row."""
+    return Coalesce("verified_amount", "amount")
+
+
+def daf_effective_sum(filter=None):
+    """Verified-aware Sum over a DecisionAmountField queryset."""
+    return Sum(
+        daf_coalesce_amount(),
+        filter=_and_filters(filter, _exclude_invalid_amounts("")),
+    )
+
+
+def daf_effective_max(filter=None):
+    """Verified-aware Max over a DecisionAmountField queryset."""
+    return Max(
+        daf_coalesce_amount(),
+        filter=_and_filters(filter, _exclude_invalid_amounts("")),
+    )
+
+
+def daf_effective_avg(filter=None):
+    """Verified-aware Avg over a DecisionAmountField queryset."""
+    return Avg(
+        daf_coalesce_amount(),
+        filter=_and_filters(filter, _exclude_invalid_amounts("")),
+    )
+
+
+def daf_effective_value(field):
+    """
+    Verified-aware value of a single ``DecisionAmountField`` in Python.
+
+    Returns ``None`` when the row is flagged as a non-monetary value (its
+    amount is not money), so callers can skip it.
+    """
+    if getattr(field, "invalid_amount_reason", None):
+        return None
+    if field.verified_amount is not None:
+        return field.verified_amount
+    return field.amount
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,56 @@
+{
+    "protocolNumber": "1672/04-08-2026",
+    "subject": "ΧΡΗΜΑΤΙΚΟ ΕΝΤΑΛΜΑ ΠΛΗΡΩΜΗ ΓΙΑ GRUNDFOS ΕΛΛΑΣ ΜΟΝ ΑΕΒΕ",
+    "issueDate": 1787616000000,
+    "organizationId": "50286",
+    "signerIds": [
+        "100086608"
+    ],
+    "unitIds": [
+        "81629"
+    ],
+    "decisionTypeId": "Β.2.2",
+    "thematicCategoryIds": [
+        "20"
+    ],
+    "extraFieldValues": {
+        "org": {
+            "afm": "099563264",
+            "afmType": "EL",
+            "enterName": false,
+            "name": "ΔΗΜΟΤΙΚΗ ΕΠΙΧΕΙΡΗΣΗ ΥΔΡΕΥΣΗΣ ΑΠΟΧΕΤΕΥΣΗΣ ΠΑΡΟΥ"
+        },
+        "skipVatReason": null,
+        "sponsor": [
+            {
+                "sponsorAFMName": {
+                    "afm": "094393811",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "GRUNDFOS ΕΛΛΑΣ ΜΟΝΟΠΡΟΣΩΠΗ ΑΝΩΝΥΜΗ  ΕΜΠΟΡΙΚΗ ΚΑΙ ΒΙΟΜΗΧΑΝΙΚΗ ΕΤΑΙΡΕΙΑ  ΥΔΡΑΥΛΙΚΩΝ  ΣΥΣΤΗΜΑΤΩΝ"
+                },
+                "expenseAmount": {
+                    "amount": 2.601E9,
+                    "currency": "EUR"
+                },
+                "kae": "26.01.00.0000"
+            }
+        ],
+        "relatedEkgrisiDapanis": [],
+        "relatedDecisions": [],
+        "documentType": "ΠΡΑΞΗ"
+    },
+    "privateData": false,
+    "ada": "Ψ0ΩΣΟΡΓΠ-Ε45",
+    "publishTimestamp": 1787638421934,
+    "submissionTimestamp": 1787638421934,
+    "versionId": "e90e9415-23b0-4d02-acae-77c75e9219a6",
+    "status": "PUBLISHED",
+    "url": "https://diavgeia.gov.gr/luminapi/api/decisions/Ψ0ΩΣΟΡΓΠ-Ε45",
+    "documentUrl": "https://diavgeia.gov.gr/doc/Ψ0ΩΣΟΡΓΠ-Ε45",
+    "documentChecksum": null,
+    "attachments": [],
+    "warnings": null,
+    "correctedVersionId": null
+}

@@ -9,11 +9,9 @@ Two-layer design:
 from datetime import date, datetime
 from typing import Optional
 
-from django.db import models
-from django.db.models.functions import Coalesce
-
 from core.models.decisions import Decision
 from core.models.entities import DecisionAmountField
+from core.services.decision_facets import daf_effective_sum
 
 from ._helpers import _make_aware_start, _make_aware_end, _validate_dates, parse_date
 
@@ -48,13 +46,14 @@ def compute_explore_statistics(
 
     # Accurate total via DecisionAmountField scoped to filtered decisions.
     # Uses COALESCE(verified_amount, amount) so corrected amounts take
-    # precedence over the (possibly wrong) raw extracted amounts.
+    # precedence over the (possibly wrong) raw extracted amounts, and excludes
+    # rows flagged as non-monetary values (AFM/KAE mis-recorded as the amount).
     accurate_total = (
         DecisionAmountField.objects.filter(
             decision__in=filtered_qs,
             associated_relationship__isnull=False,
         ).aggregate(
-            total=models.Sum(Coalesce("verified_amount", "amount"))
+            total=daf_effective_sum()
         )["total"]
         or 0
     )

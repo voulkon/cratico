@@ -314,3 +314,164 @@ class TestTriggerCheckAllSubscriptions:
         assert result["reference_date"] == "2026-05-29"
         assert result["task_id"] == "notif-task-id"
         mock_notif_task.delay.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# non-monetary-value-as-amount discovery (post-import phase 3)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+class TestDiscoverNonMonetaryValues:
+    """Read-only discovery sweep for AFM/KAE values recorded as amounts."""
+
+    def test_counts_afm_and_kae_cases(self):
+        from decimal import Decimal
+
+        from conftest import (
+            DecisionAmountFieldFactory,
+            DecisionFactory,
+            DocumentExtractionFactory,
+        )
+        from core.tasks.tasks_post_import import _discover_non_monetary_values
+
+        # AFM case
+        afm_decision = DecisionFactory(
+            extra_field_values_json={
+                "sponsor": [
+                    {"sponsorAFMName": {"afm": "099370337"}},
+                ]
+            }
+        )
+        DecisionAmountFieldFactory(
+            decision=afm_decision, amount=Decimal("99370337.00")
+        )
+
+        # KAE case
+        kae_decision = DecisionFactory(
+            extra_field_values_json={
+                "sponsor": [
+                    {
+                        "sponsorAFMName": {"afm": "090000045"},
+                        "expenseAmount": {"amount": 0, "kae": "70.6273.001"},
+                    }
+                ]
+            }
+        )
+        DecisionAmountFieldFactory(
+            decision=kae_decision, amount=Decimal("706273001.00")
+        )
+
+        # Clean case
+        good = DecisionFactory(extra_field_values_json={})
+        DecisionAmountFieldFactory(decision=good, amount=Decimal("30000.00"))
+        DocumentExtractionFactory(decision=good, raw_text="30.000,00 €")
+
+        result = _discover_non_monetary_values()
+
+        assert result["afm_anomalies"] == 1
+        assert result["kae_anomalies"] == 1
+        assert result["total_anomalies"] == 2
+        adas = {s["ada"] for s in result["sample"]}
+        assert afm_decision.ada in adas
+        assert kae_decision.ada in adas
+
+    def test_respects_import_window(self):
+        from decimal import Decimal
+
+        from conftest import DecisionAmountFieldFactory, DecisionFactory
+        from core.tasks.tasks_post_import import _discover_non_monetary_values
+
+        decision = DecisionFactory(
+            extra_field_values_json={
+                "sponsor": [{"sponsorAFMName": {"afm": "099370337"}}]
+            }
+        )
+        DecisionAmountFieldFactory(
+            decision=decision, amount=Decimal("99370337.00")
+        )
+
+        # Window far in the past excludes the (just-created) decision
+        from django.utils import timezone
+
+        past = timezone.make_aware(timezone.datetime(2000, 1, 1))
+        future = timezone.make_aware(timezone.datetime(2000, 1, 2))
+        result = _discover_non_monetary_values(
+            imported_since=past, imported_until=future
+        )
+        assert result["total_anomalies"] == 0
+
+    def test_clean_database_returns_zero(self):
+        from core.tasks.tasks_post_import import _discover_non_monetary_values
+
+        result = _discover_non_monetary_values()
+        assert result["total_anomalies"] == 0
+        assert result["sample"] == []
+
+
+class TestVerifyHighValueAmountsDiscoveryWiring:
+    """verify_high_value_amounts must run and return the phase-3 discovery."""
+
+    def test_runs_discovery_with_import_window(self):
+        from core.tasks.tasks_post_import import verify_high_value_amounts
+
+        fake_verify = {"verified": 1, "discrepancies": 0}
+        fake_correct = {
+            "corrected": 0,
+            "consistent": 1,
+            "no_text": 0,
+            "errors": 0,
+        }
+        fake_discovery = {
+            "afm_anomalies": 2,
+            "kae_anomalies": 1,
+            "total_anomalies": 3,
+            "sample": [],
+        }
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                side_effect=_flag_enabled(
+                    "POST_IMPORT_AMOUNT_VERIFICATION_ENABLED"
+                ),
+            ),
+            patch(
+                "core.services.amount_verification_service."
+                "AmountVerificationService.verify_high_value_decisions",
+                return_value=fake_verify,
+            ),
+            patch(
+                "core.services.amount_correction_service."
+                "AmountCorrectionService.correct_high_value_decisions",
+                return_value=fake_correct,
+            ),
+            patch(
+                "core.tasks.tasks_post_import._discover_non_monetary_values",
+                return_value=fake_discovery,
+            ) as mock_discovery,
+        ):
+            result = verify_high_value_amounts(reference_date_str="2026-05-29")
+
+        assert result["status"] == "completed"
+        assert result["discovery"] == fake_discovery
+        mock_discovery.assert_called_once()
+        kwargs = mock_discovery.call_args.kwargs
+        assert kwargs["imported_since"].date() == date(2026, 5, 29)
+        assert kwargs["imported_until"].date() == date(2026, 5, 30)
+
+    def test_skips_discovery_when_flag_disabled(self):
+        from core.tasks.tasks_post_import import verify_high_value_amounts
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                return_value=False,
+            ),
+            patch(
+                "core.tasks.tasks_post_import._discover_non_monetary_values"
+            ) as mock_discovery,
+        ):
+            result = verify_high_value_amounts(reference_date_str="2026-05-29")
+
+        assert result == {"status": "skipped", "reason": "feature_flag_disabled"}
+        mock_discovery.assert_not_called()
