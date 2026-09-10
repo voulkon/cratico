@@ -48,6 +48,13 @@ from loguru import logger
 from core.models.decisions import Decision
 from core.models.document_analysis import DocumentExtraction, ProcessingStatus
 from core.models.entities import DecisionAmountField
+from core.services.non_monetary_value_guard import (
+    DISCREPANCY_REASON_AFM,
+    DISCREPANCY_REASON_KAE,
+    DISCREPANCY_REASON_NON_MONETARY,
+    KIND_AFM,
+    collect_non_monetary_values,
+)
 from core.services.grouped_amount_detection import (
     verify_amounts_against_grouped,
 )
@@ -99,6 +106,52 @@ class AmountCorrectionService:
         Returns:
             Dict with status, per-field corrections, and details.
         """
+        # ── Get all amount fields (with amounts > 0) ───────────────
+        fields = list(
+            decision.amount_fields
+            .filter(amount__isnull=False, amount__gt=0)
+            .only("id", "amount", "source_field_name", "parent_key_path")
+        )
+        if not fields:
+            return {"status": "skipped", "reason": "no_db_amounts"}
+
+        db_amounts = [f.amount for f in fields]
+
+        # ── Non-monetary-value-as-amount guard (DB-only) ───────────
+        # If a recorded amount is really an AFM (counterpart VAT number) or a
+        # KAE (budget classification code), the text may still contain that
+        # value formatted as an amount — do NOT "correct" the field to it.
+        # Flag it and leave verified_amount untouched (the discrepancy is
+        # recorded by AmountVerificationService in the resolution note).
+        #
+        # This detector needs no document text, so it runs BEFORE any
+        # download/extraction: a value we will refuse to write must never
+        # cost a document read.
+        anomaly_by_field = {
+            anomaly.field_id: anomaly
+            for anomaly in collect_non_monetary_values(
+                decision, amount_fields=fields
+            )
+        }
+        if anomaly_by_field:
+            logger.warning(
+                f"AmountCorrection: decision {decision.id} ({decision.ada}) "
+                f"has {len(anomaly_by_field)} field(s) whose amount is a "
+                f"non-monetary value (AFM/KAE) — refusing to write it into "
+                f"verified_amount"
+            )
+            # Mark the row(s) invalid so they are excluded from every monetary
+            # aggregation and surface in the feedback pool.  We still write NO
+            # monetary value — the real amount is unknown.
+            self._flag_invalid_amounts(
+                fields, anomaly_by_field, dry_run=dry_run
+            )
+
+        # Every recorded amount is a non-monetary value → there is nothing
+        # left to verify against the text, so skip the document read entirely.
+        if anomaly_by_field and len(anomaly_by_field) == len(fields):
+            return self._non_monetary_result(anomaly_by_field, db_amounts)
+
         # ── Get the document text ──────────────────────────────────
         # If no completed extraction exists, read the document on the spot
         # (download + extract) so we can still attempt correction.
@@ -108,17 +161,6 @@ class AmountCorrectionService:
             text = extraction.raw_text if extraction else None
         if not text:
             return {"status": "skipped", "reason": "no_text"}
-
-        # ── Get all amount fields (with amounts > 0) ───────────────
-        fields = list(
-            decision.amount_fields
-            .filter(amount__isnull=False, amount__gt=0)
-            .only("id", "amount", "source_field_name")
-        )
-        if not fields:
-            return {"status": "skipped", "reason": "no_db_amounts"}
-
-        db_amounts = [f.amount for f in fields]
 
         # ── Run cents-based detection ──────────────────────────────
         grouped_result = verify_amounts_against_grouped(text, db_amounts)
@@ -132,15 +174,30 @@ class AmountCorrectionService:
         # ── Map matches back to specific DecisionAmountField rows ──
         # Each GroupedMatchResult corresponds 1:1 with db_amounts
         corrections: list[dict] = []
+        flagged: list[dict] = []
         fields_to_update: list[DecisionAmountField] = []
 
         for i, match in enumerate(grouped_result.matches):
+            field = fields[i]
+            anomaly = anomaly_by_field.get(field.id)
+            if anomaly is not None:
+                # The field's amount is a non-monetary value (AFM/KAE) — never
+                # treat it as correctable, even when the text "confirms" it.
+                flagged.append({
+                    "field_id": field.id,
+                    "source_field": field.source_field_name,
+                    "db_amount": str(field.amount),
+                    "matched_value": anomaly.matched_value,
+                    "discrepancy_reason": anomaly.reason,
+                    "matched_in_text": match.found_exact,
+                })
+                continue
+
             if match.found_exact:
                 continue  # This field is already correct
 
             if match.clone_factor in (CLONE_FACTOR_100, CLONE_FACTOR_001):
                 # This field has a decimal-shift typo — correct it
-                field = fields[i]
                 corrected_value = match.matched_text_amount
                 corrections.append({
                     "field_id": field.id,
@@ -159,7 +216,7 @@ class AmountCorrectionService:
         # clone in the text, every field was uniformly mis-typed.  Re-scale
         # each field proportionally so the corrected total equals the text
         # amount.  The last field absorbs any rounding remainder.
-        if not corrections:
+        if not corrections and not anomaly_by_field:
             db_total = sum(db_amounts)
             if db_total > 0:
                 text_total = self._find_total_clone(
@@ -218,6 +275,8 @@ class AmountCorrectionService:
                             fields_to_update.append(field)
 
         if not corrections:
+            if anomaly_by_field:
+                return self._non_monetary_result(anomaly_by_field, db_amounts)
             if grouped_result.all_found:
                 return {
                     "status": "consistent",
@@ -252,7 +311,91 @@ class AmountCorrectionService:
             "ada": decision.ada,
             "fields_corrected": len(corrections),
             "group_correction": any(c.get("group_correction") for c in corrections),
+            "flagged": flagged,
             "corrections": corrections,
+        }
+
+    @staticmethod
+    def _flag_invalid_amounts(
+        fields: list[DecisionAmountField],
+        anomaly_by_field: dict,
+        *,
+        dry_run: bool = False,
+    ) -> list[DecisionAmountField]:
+        """
+        Persist the non-monetary-value marker on the affected amount fields.
+
+        We never write a monetary value (the real amount is unknown) — we only
+        record *why* the amount is unusable plus the value it matched.  The
+        facet layer (``core.services.decision_facets``) then excludes these
+        rows from every monetary aggregation.
+
+        Honours ``dry_run``: when dry-running nothing is written, which is what
+        makes ``dry_run`` meaningful for this guard.
+
+        Returns the list of fields that were persisted.
+        """
+        if dry_run:
+            return []
+        now = timezone.now()
+        to_flag = []
+        for field in fields:
+            anomaly = anomaly_by_field.get(field.id)
+            if anomaly is None:
+                continue
+            field.invalid_amount_reason = anomaly.reason
+            field.invalid_amount_value = anomaly.matched_value
+            field.invalid_amount_flagged_at = now
+            to_flag.append(field)
+
+        if to_flag:
+            DecisionAmountField.objects.bulk_update(
+                to_flag,
+                [
+                    "invalid_amount_reason",
+                    "invalid_amount_value",
+                    "invalid_amount_flagged_at",
+                ],
+            )
+        return to_flag
+
+    @staticmethod
+    def _non_monetary_result(
+        anomaly_by_field: dict,
+        db_amounts: list,
+    ) -> dict[str, Any]:
+        """
+        Build the result dict for a decision whose amount field(s) hold a
+        non-monetary value (AFM/KAE).
+
+        These fields are reported as *flagged*, never as corrected: the
+        guard deliberately refuses to write such a value into
+        ``verified_amount``.
+        """
+        reasons = {a.reason for a in anomaly_by_field.values()}
+        # Mixed AFM + KAE (or future kinds) → generic status
+        if reasons == {DISCREPANCY_REASON_AFM}:
+            status = DISCREPANCY_REASON_AFM
+        elif reasons == {DISCREPANCY_REASON_KAE}:
+            status = DISCREPANCY_REASON_KAE
+        else:
+            status = DISCREPANCY_REASON_NON_MONETARY
+        return {
+            "status": status,
+            "discrepancy_reason": (
+                next(iter(reasons)) if len(reasons) == 1 else None
+            ),
+            "db_amounts": [str(a) for a in db_amounts],
+            "flagged_field_ids": sorted(anomaly_by_field),
+            "afm_flagged_field_ids": sorted(
+                fid
+                for fid, a in anomaly_by_field.items()
+                if a.kind == KIND_AFM
+            ),
+            "matched_values": {
+                str(fid): a.matched_value
+                for fid, a in anomaly_by_field.items()
+            },
         }
 
     @staticmethod
@@ -377,6 +520,9 @@ class AmountCorrectionService:
 
         corrected = 0
         consistent = 0
+        afm_as_amount = 0
+        kae_as_amount = 0
+        non_monetary_value_as_amount = 0
         skipped = 0
         no_text = 0
         errors = 0
@@ -390,6 +536,12 @@ class AmountCorrectionService:
                 status = result["status"]
                 if status in ("corrected", "would_correct"):
                     corrected += 1
+                elif status == DISCREPANCY_REASON_AFM:
+                    afm_as_amount += 1
+                elif status == DISCREPANCY_REASON_KAE:
+                    kae_as_amount += 1
+                elif status == DISCREPANCY_REASON_NON_MONETARY:
+                    non_monetary_value_as_amount += 1
                 elif status == "consistent":
                     consistent += 1
                 elif status == "no_text_amounts_found":
@@ -403,6 +555,7 @@ class AmountCorrectionService:
                     "status": status,
                     "frontend_url": self.frontend_url(decision),
                     "corrections": result.get("corrections", []),
+                    "flagged": result.get("flagged", []),
                     "group_correction": result.get("group_correction", False),
                     "reason": result.get("reason", ""),
                 })
@@ -427,6 +580,9 @@ class AmountCorrectionService:
             "total_candidates": total_candidates,
             "corrected": corrected,
             "consistent": consistent,
+            "afm_as_amount": afm_as_amount,
+            "kae_as_amount": kae_as_amount,
+            "non_monetary_value_as_amount": non_monetary_value_as_amount,
             "no_text": no_text,
             "skipped": skipped,
             "errors": errors,
