@@ -1,0 +1,56 @@
+{
+    "protocolNumber": "1396",
+    "subject": "ΧΕ 1396/2026",
+    "issueDate": 1788739200000,
+    "organizationId": "99221902",
+    "signerIds": [
+        "100065823"
+    ],
+    "unitIds": [
+        "75459"
+    ],
+    "decisionTypeId": "Β.2.2",
+    "thematicCategoryIds": [
+        "20"
+    ],
+    "extraFieldValues": {
+        "org": {
+            "afm": "997162988",
+            "afmType": "EL",
+            "enterName": false,
+            "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΔΙΔΥΜΟΤΕΙΧΟΥ"
+        },
+        "skipVatReason": null,
+        "sponsor": [
+            {
+                "sponsorAFMName": {
+                    "afm": "099370337",
+                    "afmType": "EL",
+                    "afmCountry": "EL",
+                    "enterName": false,
+                    "name": "VIOLAK INTERNATIONAL ΝΟΣΟΚΟΜΕΙΑΚΟΥ ΕΞΟΠΛΙΣΜΟΥ ΑΝΩΝΥΜΗ ΕΜΠΟΡΙΚΗ ΕΤΑΙΡΕΙΑ"
+                },
+                "expenseAmount": {
+                    "amount": 9.9370337E7,
+                    "currency": "EUR"
+                },
+                "kae": "1311"
+            }
+        ],
+        "relatedEkgrisiDapanis": [],
+        "relatedDecisions": [],
+        "documentType": "ΠΡΑΞΗ"
+    },
+    "privateData": false,
+    "ada": "Ψ0Α74690Β9-52Ρ",
+    "publishTimestamp": 1788769587505,
+    "submissionTimestamp": 1788769587505,
+    "versionId": "1507b835-3035-4b59-9370-1eff824fec4f",
+    "status": "PUBLISHED",
+    "url": "https://diavgeia.gov.gr/luminapi/api/decisions/Ψ0Α74690Β9-52Ρ",
+    "documentUrl": "https://diavgeia.gov.gr/doc/Ψ0Α74690Β9-52Ρ",
+    "documentChecksum": null,
+    "attachments": [],
+    "warnings": null,
+    "correctedVersionId": null
+}
