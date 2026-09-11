@@ -60,6 +60,13 @@ runs:
       env:
         E2E_BASE_URL: 'http://localhost'
         CI: 'true'
+        # Lifecycle phases (e2e/lifecycle.js -> make e2e-phase) must target
+        # this suite's CI stack, not the Makefile's local default env file.
+        E2E_ENV_FILE: '.env_files/.env.ci-${{ inputs.suite-name }}'
+        # stack-up-ci boots the stack as project "diavgeia-ci". Without this,
+        # `make e2e-phase`'s `docker compose exec` looks at the default
+        # project, finds no backend container, and setup fails in CI.
+        COMPOSE_PROJECT_NAME: 'diavgeia-ci'
       run: npx playwright test ${{ inputs.spec }}
 
     # With DEBUG=False the full traceback of any unhandled 500 lands in the

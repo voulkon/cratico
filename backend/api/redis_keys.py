@@ -129,7 +129,13 @@ SECURITY_FLAGGED_WINDOW = 60 * 60  # 1 hour forensic capture window
 SECURITY_SCAN_PREFIX = f"{SECURITY_NS}:scan:"  # security:scan:<ip> (set of endpoints)
 SECURITY_SCAN_WINDOW = 60 * 5  # 5 minutes
 
-ADMIN_FEEDBACK_POOL_CORRECTED_DECISIONS_KEY = "admin:feedback_pool:corrected_decisions:v1"
+# Number of decisions with an amount problem (corrected OR flagged as a
+# non-monetary value).  v2: broadened from "corrected only" to include
+# AFM/KAE-flagged rows, so the pool also covers decisions whose real amount
+# could not be recovered.
+ADMIN_FEEDBACK_POOL_AMOUNT_ISSUE_DECISIONS_KEY = (
+    "admin:feedback_pool:amount_issue_decisions:v2"
+)
 
 def get_velocity_key(ip: str) -> str:
     """Redis key for per-IP request velocity (rolling window)."""

@@ -1,0 +1,87 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <h1>🔎 Find &amp; Flag Non-Monetary Amounts</h1>
+  <p>
+    Find decisions whose recorded amount is actually a <strong>non-monetary
+    value</strong> — a counterpart VAT number (ΑΦΜ) or a budget code (ΚΑΕ) — and
+    write the invalid-amount marker on the affected field. <strong>No document is
+    downloaded or read</strong>: this is a cheap, DB-only scan, safe to run on
+    production.
+  </p>
+
+  <div style="background: var(--darkened-bg); border: 1px solid var(--border-color); border-radius: 6px; padding: 16px; margin-bottom: 20px;">
+    <strong>Current status:</strong>
+    {{ flagged_decisions }} decision(s) have a non-monetary marker
+    ({{ flagged_fields }} field(s) total), out of {{ total_decisions }} decisions overall.
+    {% if flagged_decisions %}
+      <a href="{{ flagged_pool_url }}" style="margin-left:8px;">View pool →</a>
+    {% endif %}
+  </div>
+
+  <form method="post" style="max-width: 640px;">
+    {% csrf_token %}
+    <fieldset class="module aligned">
+      {% for field in form %}
+        <div class="form-row">
+          <div>
+            {{ field.errors }}
+            <label for="{{ field.id_for_label }}">{{ field.label }}:</label>
+            {{ field }}
+            {% if field.help_text %}
+              <div class="help" style="color: var(--body-quiet-color); font-size: 12px; margin-top: 4px;">
+                {{ field.help_text }}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </fieldset>
+
+    <div class="submit-row" style="margin-top: 20px;">
+      <input type="submit" value="Run" class="default" style="background: var(--primary);">
+      <a href="../" class="button cancel-link" style="margin-left: 8px;">Cancel</a>
+    </div>
+  </form>
+
+  {% if report_text %}
+  <hr style="margin: 24px 0;">
+  <h2>Output</h2>
+  <pre style="background:#1e1e1e;color:#d4d4d4;padding:16px;border-radius:6px;overflow:auto;max-height:520px;font-size:12px;line-height:1.45;">{{ report_text }}</pre>
+  {% endif %}
+
+  <hr style="margin: 24px 0;">
+
+  <h2>What this does</h2>
+  <ol>
+    <li>Selects candidate decisions whose recorded amount is in the
+        <strong>min–max</strong> range (an AFM/KAE rendered as a number has 8–9
+        digits), optionally restricted to an import-date window.</li>
+    <li>For each amount field, compares the value against the decision's
+        counterpart ΑΦΜ/ΚΑΕ values — <strong>exact equality, zero cents</strong>
+        only (a €99,370,338.00 amount next to AFM <code>099370337</code> is a
+        legitimate amount and is <em>not</em> flagged).</li>
+    <li>Writes the marker <code>invalid_amount_reason</code> /
+        <code>invalid_amount_value</code> / <code>invalid_amount_flagged_at</code>
+        on matching fields — <strong>never</strong> a monetary value. The real
+        amount is unknown, so <code>verified_amount</code> is left untouched and
+        the bogus figure is excluded from every monetary total.</li>
+  </ol>
+
+  <p style="color:#856404;background:#fff3cd;padding:12px;border-radius:4px;">
+    ⚠️ <strong>Dry run is on by default.</strong> Uncheck it to actually write the
+    marker. The operation is idempotent (re-running rewrites the same
+    reason/value) and reversible with the <strong>Clear</strong> option or the
+    “Clear non-monetary flag” list action.
+  </p>
+  <p style="color:var(--body-quiet-color);font-size:13px;">
+    This form runs <code>python manage.py fix_amount_anomalies</code> — the same
+    code path as the CLI — bounded to the given limit. For very large sweeps run
+    the command directly in the container.
+  </p>
+</div>
+{% endblock %}

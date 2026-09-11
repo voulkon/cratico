@@ -102,3 +102,9 @@ class DecisionDetailResponse(BaseModel):
     # Amount correction state (for the "verify amount" UI knob)
     has_corrected_amounts: bool = False
     corrected_amount: Optional[float] = None
+    # Non-monetary amount state — the recorded amount is a counterpart AFM
+    # (ΑΦΜ) or a budget KAE (ΚΑΕ), not money.  The real amount is unknown, so
+    # the value must not be presented as a monetary amount.
+    has_invalid_amount: bool = False
+    invalid_amount_reason: Optional[str] = None
+    invalid_amount_value: Optional[str] = None

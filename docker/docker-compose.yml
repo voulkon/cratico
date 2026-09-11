@@ -341,6 +341,33 @@ services:
       opensearch:
         condition: service_healthy
 
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    profiles: ["observability","resource-monitoring"]
+    restart: always
+    volumes:
+      - /:/rootfs:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    expose:
+      - "8080"
+    networks:
+      - diavgeia-net
+
+  prometheus:
+    image: prom/prometheus:latest
+    profiles: ["observability","resource-monitoring"]
+    restart: always
+    volumes:
+      - ./prometheus-config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    expose:
+      - "9090"
+    networks:
+      - diavgeia-net
+
 volumes:
   opensearch_data:
     driver: local
@@ -353,6 +380,8 @@ volumes:
   loki_data:
     driver: local
   grafana_data:
+    driver: local
+  prometheus_data:
     driver: local
 
 networks:
