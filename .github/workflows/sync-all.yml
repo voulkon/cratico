@@ -1,0 +1,111 @@
+name: Sync all
+
+# Manual promotion of the long-lived branches, in order:
+#   dev → preview → main
+#
+# Click "Run workflow" in the Actions tab whenever you want to promote.
+# The workflow is idempotent:
+#   * If the downstream branch is already up to date, it does nothing.
+#   * If a promotion PR is already open, it leaves it alone — GitHub
+#     auto-updates an open PR every time its head branch moves, so you
+#     never need to re-run this after the first time.
+#   * If `preview` is not yet ahead of `main`, the preview → main PR is
+#     simply not opened yet. This enforces the chained order: promote and
+#     merge `dev → preview` first, then run Sync all again for `preview → main`.
+#
+# REQUIRED REPO SETTING
+#   Settings → Actions → General → Workflow permissions → enable
+#   "Allow GitHub Actions to create and approve pull requests".
+#   Without it `gh pr create` fails with:
+#     "GitHub Actions is not permitted to create or approve pull requests".
+#   The default GITHUB_TOKEN is then sufficient; a PAT is only needed if you
+#   also want pr-tests.yml to run on the PRs this creates (see SYNC_PAT below).
+#
+# NOTE ON PLACEMENT
+#   This file must live on the DEFAULT branch (`main`) for the "Run workflow"
+#   button / `gh workflow run` to exist at all — GitHub only offers manual
+#   dispatch for workflow files present on the default branch. A `push`
+#   trigger would also be ineffective here: for push events GitHub reads the
+#   workflow file from the branch that received the push, so it would need to
+#   exist on `dev` as well. Manual dispatch is deliberately the only trigger.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only report what would happen (create no PRs)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: sync-all
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Promote dev → preview → main
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          # Full history so we can compare branches with git rev-list.
+          fetch-depth: 0
+
+      - name: Open / refresh promotion PRs
+        # Use a PAT (SYNC_PAT) if you want pr-tests to run on the sync PRs.
+        # PRs opened with the default GITHUB_TOKEN do NOT trigger other
+        # workflows (GitHub suppresses this to prevent recursion).
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_PAT || secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          ensure_pr() {
+            local head="$1" base="$2"
+
+            git fetch origin "$head" "$base" --quiet
+
+            local ahead behind
+            ahead=$(git rev-list --count "origin/$base..origin/$head")
+            behind=$(git rev-list --count "origin/$head..origin/$base")
+
+            if [ "$behind" -gt 0 ]; then
+              echo "::warning::$base has $behind commit(s) not in $head — branches have diverged. Resolve before promoting."
+            fi
+
+            if [ "$ahead" -eq 0 ]; then
+              echo "[ok] $head has nothing to promote into $base."
+              return 0
+            fi
+
+            local existing
+            existing=$(gh pr list --head "$head" --base "$base" --state open \
+              --json number --jq '.[0].number // empty')
+
+            if [ -n "$existing" ]; then
+              echo "[skip] PR #$existing already open ($head -> $base) and updates automatically."
+              return 0
+            fi
+
+            if [ "${DRY_RUN}" = "true" ]; then
+              echo "[dry-run] would open PR: $head -> $base ($ahead commit(s) ahead)."
+              return 0
+            fi
+
+            gh pr create \
+              --head "$head" \
+              --base "$base" \
+              --title "chore(sync): promote $head -> $base" \
+              --body "Automated promotion of \`$head\` into \`$base\` ($ahead commit(s) ahead). Opened by the **Sync all** workflow. Merge order: \`dev -> preview\`, then \`preview -> main\`."
+
+            echo "[new] Opened PR: $head -> $base."
+          }
+
+          ensure_pr dev preview
+          ensure_pr preview main
