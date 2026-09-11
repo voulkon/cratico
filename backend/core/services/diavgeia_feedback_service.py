@@ -29,7 +29,7 @@ from urllib.parse import quote
 
 import requests
 from django.conf import settings
-from django.db.models import Exists, OuterRef
+from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 from loguru import logger
 
@@ -70,9 +70,17 @@ class DiavgeiaFeedbackService:
         end_date: date | None = None,
     ):
         """
-        Decisions that have at least one corrected (verified) amount and have
-        NOT yet been reported to Diavgeia.  These are the candidates for the
-        feedback control panel.
+        Decisions that have a known amount problem and have NOT yet been
+        reported to Diavgeia.  These are the candidates for the feedback
+        control panel.
+
+        A decision qualifies when it has either:
+          - at least one corrected (``verified_amount``) amount — we found the
+            real value in the document text; or
+          - at least one amount flagged as a non-monetary value
+            (``invalid_amount_reason``, e.g. an AFM/KAE mis-recorded as the
+            amount) — we know it is not money even though we cannot recover
+            the real value.
 
         "Not reported" means either no ``DiavgeiaFeedbackReport`` row exists,
         or one exists with ``reported=False``.
@@ -81,9 +89,12 @@ class DiavgeiaFeedbackService:
         from core.models.diavgeia_feedback_report import DiavgeiaFeedbackReport
         from core.models.entities import DecisionAmountField
 
-        has_corrected = Exists(
+        has_amount_issue = Exists(
             DecisionAmountField.objects.filter(
-                decision=OuterRef("pk"), verified_amount__isnull=False
+                decision=OuterRef("pk"),
+            ).filter(
+                Q(verified_amount__isnull=False)
+                | Q(invalid_amount_reason__isnull=False)
             )
         )
         already_reported = Exists(
@@ -93,7 +104,7 @@ class DiavgeiaFeedbackService:
         )
         qs = (
             Decision.objects
-            .filter(has_corrected)
+            .filter(has_amount_issue)
             .exclude(already_reported)
             .order_by("-issue_date")
         )
@@ -270,15 +281,23 @@ class DiavgeiaFeedbackService:
         candidates = self.pending_decisions(
             start_date=start_date, end_date=end_date
         )
-        total = candidates.count()
+
+        # Apply the limit BEFORE counting.  ``candidates.count()`` on the
+        # un-sliced queryset executes the whole candidate query (correlated
+        # EXISTS subqueries) as ``SELECT COUNT(*) FROM (…)`` — the pattern that
+        # caused a 16h runaway query and lock pileup in the amount pipeline
+        # (see docs/lessons_learnt/runaway_query_lock_pileup.md).  Materialise
+        # the (already limited) set once and derive the count from it.
         if limit:
             candidates = candidates[:limit]
+        decisions = list(candidates)
+        total = len(decisions)
 
         reported = 0
         already = 0
         errors = 0
         results: list[dict[str, Any]] = []
-        for decision in candidates:
+        for decision in decisions:
             try:
                 result = self.report_decision(
                     decision,

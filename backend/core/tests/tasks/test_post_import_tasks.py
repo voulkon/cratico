@@ -79,10 +79,11 @@ class TestPostDailyImportOrchestrator:
         assert result["reference_date"] == "2026-05-29"
         mock_chain_instance.apply_async.assert_called_once()
 
-    def test_chain_contains_five_tasks(self):
-        """Chain should include compute_entity_rankings, warm_analytics_cache,
-        invalidate_browse_cache, trigger_check_all_subscriptions, and
-        verify_high_value_amounts — in that order."""
+    def test_chain_contains_five_tasks_in_order(self):
+        """Chain must run amount verification FIRST, then rankings /
+        invalidate / warm / notifications — see the ordering rationale in the
+        orchestrator docstring (verification mutates the amounts the others
+        read)."""
         from core.tasks.tasks_post_import import (
             compute_entity_rankings,
             invalidate_browse_cache,
@@ -111,8 +112,18 @@ class TestPostDailyImportOrchestrator:
                 job_id=1, reference_date_str="2026-05-29"
             )
 
-        # 5 tasks were passed to chain()
         assert len(captured_chain_args) == 5
+
+        def _name(sig):
+            return (getattr(sig, "task", "") or "").rsplit(".", 1)[-1]
+
+        assert [_name(s) for s in captured_chain_args] == [
+            "verify_high_value_amounts",
+            "compute_entity_rankings",
+            "invalidate_browse_cache",
+            "warm_analytics_cache",
+            "trigger_check_all_subscriptions",
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -314,3 +325,363 @@ class TestTriggerCheckAllSubscriptions:
         assert result["reference_date"] == "2026-05-29"
         assert result["task_id"] == "notif-task-id"
         mock_notif_task.delay.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# non-monetary-value-as-amount discovery (post-import phase 3)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db
+class TestDiscoverNonMonetaryValues:
+    """Read-only discovery sweep for AFM/KAE values recorded as amounts."""
+
+    def test_counts_afm_and_kae_cases(self):
+        from decimal import Decimal
+
+        from conftest import (
+            DecisionAmountFieldFactory,
+            DecisionFactory,
+            DocumentExtractionFactory,
+        )
+        from core.tasks.tasks_post_import import _discover_non_monetary_values
+
+        # AFM case
+        afm_decision = DecisionFactory(
+            extra_field_values_json={
+                "sponsor": [
+                    {"sponsorAFMName": {"afm": "099370337"}},
+                ]
+            }
+        )
+        DecisionAmountFieldFactory(
+            decision=afm_decision, amount=Decimal("99370337.00")
+        )
+
+        # KAE case
+        kae_decision = DecisionFactory(
+            extra_field_values_json={
+                "sponsor": [
+                    {
+                        "sponsorAFMName": {"afm": "090000045"},
+                        "expenseAmount": {"amount": 0, "kae": "70.6273.001"},
+                    }
+                ]
+            }
+        )
+        DecisionAmountFieldFactory(
+            decision=kae_decision, amount=Decimal("706273001.00")
+        )
+
+        # Clean case
+        good = DecisionFactory(extra_field_values_json={})
+        DecisionAmountFieldFactory(decision=good, amount=Decimal("30000.00"))
+        DocumentExtractionFactory(decision=good, raw_text="30.000,00 €")
+
+        result = _discover_non_monetary_values()
+
+        assert result["afm_anomalies"] == 1
+        assert result["kae_anomalies"] == 1
+        assert result["total_anomalies"] == 2
+        adas = {s["ada"] for s in result["sample"]}
+        assert afm_decision.ada in adas
+        assert kae_decision.ada in adas
+
+    def test_respects_import_window(self):
+        from decimal import Decimal
+
+        from conftest import DecisionAmountFieldFactory, DecisionFactory
+        from core.tasks.tasks_post_import import _discover_non_monetary_values
+
+        decision = DecisionFactory(
+            extra_field_values_json={
+                "sponsor": [{"sponsorAFMName": {"afm": "099370337"}}]
+            }
+        )
+        DecisionAmountFieldFactory(
+            decision=decision, amount=Decimal("99370337.00")
+        )
+
+        # Window far in the past excludes the (just-created) decision
+        from django.utils import timezone
+
+        past = timezone.make_aware(timezone.datetime(2000, 1, 1))
+        future = timezone.make_aware(timezone.datetime(2000, 1, 2))
+        result = _discover_non_monetary_values(
+            imported_since=past, imported_until=future
+        )
+        assert result["total_anomalies"] == 0
+
+    def test_clean_database_returns_zero(self):
+        from core.tasks.tasks_post_import import _discover_non_monetary_values
+
+        result = _discover_non_monetary_values()
+        assert result["total_anomalies"] == 0
+        assert result["sample"] == []
+
+
+class TestVerifyHighValueAmountsDiscoveryWiring:
+    """verify_high_value_amounts must run and return the phase-3 discovery."""
+
+    def test_runs_discovery_with_import_window(self):
+        from core.tasks.tasks_post_import import verify_high_value_amounts
+
+        fake_verify = {"verified": 1, "discrepancies": 0}
+        fake_correct = {
+            "corrected": 0,
+            "consistent": 1,
+            "no_text": 0,
+            "errors": 0,
+        }
+        fake_discovery = {
+            "afm_anomalies": 2,
+            "kae_anomalies": 1,
+            "total_anomalies": 3,
+            "sample": [],
+        }
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                side_effect=_flag_enabled(
+                    "POST_IMPORT_AMOUNT_VERIFICATION_ENABLED"
+                ),
+            ),
+            patch(
+                "core.services.amount_verification_service."
+                "AmountVerificationService.verify_high_value_decisions",
+                return_value=fake_verify,
+            ),
+            patch(
+                "core.services.amount_correction_service."
+                "AmountCorrectionService.correct_high_value_decisions",
+                return_value=fake_correct,
+            ),
+            patch(
+                "core.tasks.tasks_post_import._discover_non_monetary_values",
+                return_value=fake_discovery,
+            ) as mock_discovery,
+        ):
+            result = verify_high_value_amounts(reference_date_str="2026-05-29")
+
+        assert result["status"] == "completed"
+        assert result["discovery"] == fake_discovery
+        mock_discovery.assert_called_once()
+        kwargs = mock_discovery.call_args.kwargs
+        assert kwargs["imported_since"].date() == date(2026, 5, 29)
+        assert kwargs["imported_until"].date() == date(2026, 5, 30)
+
+    def test_skips_discovery_when_flag_disabled(self):
+        from core.tasks.tasks_post_import import verify_high_value_amounts
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                return_value=False,
+            ),
+            patch(
+                "core.tasks.tasks_post_import._discover_non_monetary_values"
+            ) as mock_discovery,
+        ):
+            result = verify_high_value_amounts(reference_date_str="2026-05-29")
+
+        assert result == {"status": "skipped", "reason": "feature_flag_disabled"}
+        mock_discovery.assert_not_called()
+
+    @staticmethod
+    def _run(overrides):
+        from core.tasks.tasks_post_import import verify_high_value_amounts
+
+        fake_correct = {
+            "corrected": 0,
+            "consistent": 0,
+            "no_text": 0,
+            "errors": 0,
+            "afm_as_amount": 0,
+            "kae_as_amount": 0,
+            "non_monetary_value_as_amount": 0,
+        }
+        fake_correct.update(overrides)
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                side_effect=_flag_enabled(
+                    "POST_IMPORT_AMOUNT_VERIFICATION_ENABLED"
+                ),
+            ),
+            patch(
+                "core.services.amount_verification_service."
+                "AmountVerificationService.verify_high_value_decisions",
+                return_value={"verified": 1, "discrepancies": 0},
+            ),
+            patch(
+                "core.services.amount_correction_service."
+                "AmountCorrectionService.correct_high_value_decisions",
+                return_value=fake_correct,
+            ),
+            patch(
+                "core.tasks.tasks_post_import._discover_non_monetary_values",
+                return_value={
+                    "afm_anomalies": 0,
+                    "kae_anomalies": 0,
+                    "total_anomalies": 0,
+                    "sample": [],
+                },
+            ),
+            patch(
+                "core.services.response_cache_service."
+                "ResponseCacheService.invalidate_prefix",
+                return_value=3,
+            ) as mock_invalidate,
+        ):
+            verify_high_value_amounts(reference_date_str="2026-05-29")
+
+        return mock_invalidate
+
+    def test_corrected_amounts_invalidate_analytics_caches(self):
+        """A correction must drop the amount-dependent analytics caches."""
+        mock_invalidate = self._run({"corrected": 1})
+
+        prefixes = {c.args[0] for c in mock_invalidate.call_args_list}
+        assert prefixes == {"top_", "da_top_pairs", "explore_orgs"}
+
+    def test_flagged_amounts_invalidate_analytics_caches(self):
+        """Writing the invalid-amount marker also changes the facet layer."""
+        mock_invalidate = self._run({"afm_as_amount": 1})
+
+        assert mock_invalidate.call_count == 3
+
+    def test_no_invalidation_when_nothing_changed(self):
+        mock_invalidate = self._run({})
+
+        mock_invalidate.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# @log_task_run decorator
+# ---------------------------------------------------------------------------
+
+class TestTaskRunLogging:
+    """The decorator gives every post-import task a start/finish line even
+    though Celery's own lifecycle signals are disabled in this project."""
+
+    def test_summarize_result_surfaces_counts(self):
+        from core.tasks.tasks_post_import import _summarize_result
+
+        summary = _summarize_result(
+            {
+                "status": "completed",
+                "reference_date": "2026-09-10",
+                "verification": {"verified": 3, "discrepancies": 1},
+                "correction": {
+                    "corrected": 2,
+                    "results": [{"huge": "per-decision payload"}],
+                },
+                "discovery": {"total_anomalies": 5},
+            }
+        )
+
+        assert "status=completed" in summary
+        assert "reference_date=2026-09-10" in summary
+        assert "verification.verified=3" in summary
+        assert "correction.corrected=2" in summary
+        assert "discovery.total_anomalies=5" in summary
+        # The per-decision payload must never reach the log line.
+        assert "results" not in summary
+
+    def test_summarize_result_handles_non_dict(self):
+        from core.tasks.tasks_post_import import _summarize_result
+
+        assert _summarize_result(None) == "result=None"
+
+    def test_decorator_passes_result_through_and_keeps_name(self):
+        from core.tasks.tasks_post_import import log_task_run
+
+        @log_task_run
+        def sample(x):
+            return {"status": "ok", "x": x}
+
+        assert sample.__name__ == "sample"
+        assert sample(7) == {"status": "ok", "x": 7}
+
+    def test_decorator_reraises_and_keeps_name(self):
+        import pytest
+
+        from core.tasks.tasks_post_import import log_task_run
+
+        @log_task_run
+        def boom():
+            raise ValueError("nope")
+
+        assert boom.__name__ == "boom"
+        with pytest.raises(ValueError, match="nope"):
+            boom()
+
+    def test_decorator_swallows_errors_when_requested(self):
+        from core.tasks.tasks_post_import import log_task_run
+
+        @log_task_run(swallow_errors=True)
+        def boom():
+            raise RuntimeError("db down")
+
+        result = boom()
+
+        assert result["status"] == "error"
+        assert "db down" in result["error"]
+
+    def test_decorator_supports_both_call_styles(self):
+        """Bare and parenthesised usage must both return a callable wrapper."""
+        from core.tasks.tasks_post_import import log_task_run
+
+        @log_task_run
+        def bare():
+            return {"status": "ok"}
+
+        @log_task_run(swallow_errors=True)
+        def with_args():
+            return {"status": "ok"}
+
+        assert bare() == {"status": "ok"}
+        assert with_args() == {"status": "ok"}
+
+    def test_chain_task_swallows_internal_failure(self):
+        """A hard failure inside a chain task must NOT stop the chain — it is
+        logged and returned as an error status instead of raising."""
+        from core.tasks.tasks_post_import import compute_entity_rankings
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                side_effect=_flag_enabled("ANALYTICS_PRECALC_ENABLED"),
+            ),
+            patch(
+                "core.tasks.tasks_post_import._calendar_windows",
+                side_effect=RuntimeError("boom"),
+            ),
+        ):
+            result = compute_entity_rankings(reference_date_str="2026-05-29")
+
+        assert result["status"] == "error"
+        assert "boom" in result["error"]
+
+    def test_orchestrator_still_raises(self):
+        """The orchestrator is not part of the chain, so its failures must
+        surface normally rather than be swallowed."""
+        import pytest
+
+        from core.tasks.tasks_post_import import post_daily_import_orchestrator
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                side_effect=_flag_enabled("POST_IMPORT_ORCHESTRATOR_ENABLED"),
+            ),
+            patch(
+                "core.tasks.tasks_post_import.date",
+            ) as mock_date,
+        ):
+            mock_date.fromisoformat.side_effect = ValueError("bad date")
+            with pytest.raises(ValueError, match="bad date"):
+                post_daily_import_orchestrator(
+                    job_id=1, reference_date_str="not-a-date"
+                )

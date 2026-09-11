@@ -50,6 +50,12 @@ def load_amount_test_cases(test_data_dir: Path) -> list:
         with open(json_file, "r", encoding="utf-8") as f:
             data = json.load(f)
 
+        # Skip non-pattern JSON (e.g. raw API payloads) so the loader never
+        # breaks test collection when fixtures are added to the directory.
+        required = {"text_content", "db_amounts", "expected_status"}
+        if not isinstance(data, dict) or not required.issubset(data):
+            continue
+
         test_cases.append(
             pytest.param(
                 data["text_content"],

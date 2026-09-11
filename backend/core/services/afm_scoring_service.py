@@ -33,8 +33,9 @@ from core.models.entities import (
     DecisionEntityRelationship,
 )
 from django.db import transaction
-from django.db.models import Avg, Count, Max, Min, Q, StdDev, Sum
-from django.db.models.functions import Coalesce
+from django.db.models import Avg, Count, Max, Min, Q, StdDev
+
+from core.services.decision_facets import daf_effective_sum
 from django.utils import timezone
 from loguru import logger
 
@@ -563,7 +564,7 @@ class AFMEntityScoringService:
         amount_sums = (
             DecisionAmountField.objects.filter(amount__isnull=False)
             .values("associated_relationship__entity_id")
-            .annotate(total=Sum(Coalesce("verified_amount", "amount")))
+            .annotate(total=daf_effective_sum())
             .values_list("associated_relationship__entity_id", "total")
         )
 
@@ -614,7 +615,7 @@ class AFMEntityScoringService:
         # Total amounts (sum via linked amounts)
         total_amount = DecisionAmountField.objects.filter(
             associated_relationship__entity=entity, amount__isnull=False
-        ).aggregate(total=Sum(Coalesce("verified_amount", "amount")))["total"] or Decimal("0.00")
+        ).aggregate(total=daf_effective_sum())["total"] or Decimal("0.00")
 
         # Direct assignment count and percentage
         # Count decisions where entity appears that are classified as direct assignments
@@ -671,7 +672,7 @@ class AFMEntityScoringService:
         max_amount_result = (
             DecisionAmountField.objects.filter(amount__isnull=False)
             .values("associated_relationship__entity_id")
-            .annotate(total=Sum(Coalesce("verified_amount", "amount")))
+            .annotate(total=daf_effective_sum())
             .aggregate(max_amount=Max("total"))
         )
 
@@ -731,7 +732,7 @@ class AFMEntityScoringService:
             amount_per_entity = list(
                 DecisionAmountField.objects.filter(amount__isnull=False)
                 .values("associated_relationship__entity_id")
-                .annotate(total=Sum(Coalesce("verified_amount", "amount")))
+                .annotate(total=daf_effective_sum())
                 .values_list("total", flat=True)
             )
 

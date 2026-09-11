@@ -44,6 +44,18 @@
       {% endfor %}
     </tbody>
   </table>
+  <!-- Pagination -->
+  <div style="margin-top:16px;">
+    <span style="margin-right:10px;color:#666;">
+      Page {{ page_obj.number }} of {{ paginator.num_pages }} ({{ paginator.count }} decisions)
+    </span>
+    {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}" class="button">← Prev</a>
+    {% endif %}
+    {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}" class="button">Next →</a>
+    {% endif %}
+  </div>
   {% else %}
   <p style="color:#666;">No decisions have corrected amounts yet.</p>
   {% endif %}
