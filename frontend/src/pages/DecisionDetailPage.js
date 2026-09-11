@@ -13,6 +13,7 @@ import './DecisionDetailPage.css';
 import '../components/StatCard.css';
 import EntityDisplay from '../components/EntityDisplay';
 import { formatAmount, formatDate } from '../utils/dateUtils';
+import { getHeroAmount, showInvalidAmountHero } from '../utils/decisionUtils';
 import { useDecisionAI } from '../hooks/useDecisionAI';
 import { useTextProcesses } from '../hooks/useTextProcesses';
 import CollapsibleCard from '../components/CollapsibleCard';
@@ -317,6 +318,9 @@ const DecisionDetailPage = () => {
     );
   }
 
+  const heroAmount = getHeroAmount(decision);
+  const invalidAmountOnly = showInvalidAmountHero(decision);
+
   return (
     <div className="decision-detail-page">
       {/* Top-bar decision header (rendered via TopBarSlot portal) —
@@ -482,14 +486,36 @@ const DecisionDetailPage = () => {
       )}
 
       {/* Hero amount */}
-      {decision.amount != null && (
+      {invalidAmountOnly ? (
+        /* The recorded amount is not money at all — it is a counterpart VAT
+           number (ΑΦΜ) or a budget code (ΚΑΕ) mis-recorded in the amount
+           field.  We cannot recover the real amount, so show an explicit
+           warning instead of a bogus 9-figure number.  A corrected amount,
+           when present, takes precedence (see below). */
+        <div className="amount-hero amount-hero-invalid">
+          <div className="amount-hero-value amount-invalid">
+            {t('decisionDetail.amountInvalidTitle')}
+          </div>
+          <p className="amount-invalid-explanation">
+            {decision.invalid_amount_reason === 'afm_as_amount'
+              ? t('decisionDetail.amountInvalidAfm', {
+                  value: decision.invalid_amount_value || '—',
+                })
+              : t('decisionDetail.amountInvalidKae', {
+                  value: decision.invalid_amount_value || '—',
+                })}
+          </p>
+          <p className="amount-invalid-recorded">
+            {t('decisionDetail.amountInvalidRecorded', {
+              recorded: formatAmount(decision.amount),
+            })}
+          </p>
+        </div>
+      ) : heroAmount.value != null && (
         <div className="amount-hero">
           <div className="amount-hero-value">
-            {decision.has_corrected_amounts && decision.corrected_amount != null
-              ? formatAmount(decision.corrected_amount)
-              : formatAmount(decision.amount)
-            }
-            {decision.has_corrected_amounts && decision.corrected_amount != null && (
+            {formatAmount(heroAmount.value)}
+            {heroAmount.isCorrected && (
               <span
                 className="amount-corrected-badge"
                 tabIndex={0}
@@ -498,8 +524,8 @@ const DecisionDetailPage = () => {
                 <InfoIcon size={14} />
                 <div className="amount-corrected-popover">
                   {t('decisionDetail.amountCorrectedHint', {
-                    original: formatAmount(decision.amount),
-                    corrected: formatAmount(decision.corrected_amount),
+                    original: formatAmount(heroAmount.original),
+                    corrected: formatAmount(heroAmount.value),
                   })}
                 </div>
               </span>
@@ -513,6 +539,22 @@ const DecisionDetailPage = () => {
               <span>{t('decisionDetail.financialYear')} {decision.financial_year}</span>
             )}
           </div>
+
+          {/* A corrected amount can coexist with a flagged (non-monetary)
+              field: the corrected total is real, but one recorded field is
+              not money and is excluded from it.  Say so without hiding the
+              amount the user asked for. */}
+          {decision.has_invalid_amount && (
+            <p className="amount-invalid-explanation amount-invalid-note">
+              {decision.invalid_amount_reason === 'afm_as_amount'
+                ? t('decisionDetail.amountInvalidAfm', {
+                    value: decision.invalid_amount_value || '—',
+                  })
+                : t('decisionDetail.amountInvalidKae', {
+                    value: decision.invalid_amount_value || '—',
+                  })}
+            </p>
+          )}
 
           {/* Main recipient (counterpart entity receiving the funds) */}
           {mainRecipient?.entity?.name && (

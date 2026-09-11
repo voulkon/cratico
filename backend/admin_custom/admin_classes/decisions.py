@@ -5,7 +5,7 @@ from django.shortcuts import redirect, render
 from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.html import format_html
-from api.redis_keys import ADMIN_FEEDBACK_POOL_CORRECTED_DECISIONS_KEY
+from api.redis_keys import ADMIN_FEEDBACK_POOL_AMOUNT_ISSUE_DECISIONS_KEY
 
 class ImportDecisionsForm(forms.Form):
     """Form for importing decisions"""
@@ -48,6 +48,67 @@ class AmountCorrectionForm(forms.Form):
             "If checked, decisions without extracted text are read first "
             "(download + extract) before correction. Uncheck to only process "
             "already-extracted decisions and keep batch runs fast."
+        ),
+    )
+
+
+class NonMonetaryAnomalyForm(forms.Form):
+    """Form for the DB-only non-monetary (AFM/KAE) finder + marker.
+
+    Mirrors ``python manage.py fix_amount_anomalies``.  The admin view runs
+    that command verbatim, so the CLI and the admin can never diverge.
+    """
+
+    dry_run = forms.BooleanField(
+        required=False,
+        initial=True,
+        help_text="If checked, only report what WOULD be flagged (no writes).",
+    )
+    clear = forms.BooleanField(
+        required=False,
+        initial=False,
+        help_text=(
+            "Remove the invalid-amount marker instead of setting it "
+            "(rollback). Honours Dry run."
+        ),
+    )
+    kind = forms.ChoiceField(
+        choices=[
+            ("all", "All"),
+            ("afm", "AFM only (ΑΦΜ)"),
+            ("kae", "KAE only (ΚΑΕ)"),
+        ],
+        initial="all",
+        help_text="Restrict treatment to one anomaly kind.",
+    )
+    min_amount = forms.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        initial=100000,
+        help_text="Lower bound (€) for candidate amounts.",
+    )
+    max_amount = forms.DecimalField(
+        max_digits=20,
+        decimal_places=2,
+        initial=100000000000,
+        help_text="Upper bound (€) for candidate amounts.",
+    )
+    imported_since = forms.DateField(
+        required=False,
+        help_text="Optional: only decisions imported on/after this date.",
+    )
+    imported_until = forms.DateField(
+        required=False,
+        help_text="Optional: only decisions imported before this date.",
+    )
+    limit = forms.IntegerField(
+        required=False,
+        initial=500,
+        min_value=1,
+        max_value=2000,
+        help_text=(
+            "Stop after scanning this many candidate decisions (max 2000). "
+            "Use the management command for larger sweeps."
         ),
     )
 
@@ -97,6 +158,83 @@ def _corrected_fields_count() -> int:
     return (
         DecisionAmountField.objects
         .filter(verified_amount__isnull=False)
+        .count()
+    )
+
+
+def _flagged_fields_count() -> int:
+    """Count amount-field rows flagged as non-monetary values (AFM/KAE).
+
+    Uses the partial index ``idx_daf_invalid_amounts`` (index-only scan).
+    """
+    from core.models.entities import DecisionAmountField
+
+    return (
+        DecisionAmountField.objects
+        .filter(invalid_amount_reason__isnull=False)
+        .count()
+    )
+
+
+def _flagged_decisions_count() -> int:
+    """Count distinct decisions with at least one non-monetary flagged amount.
+
+    Counts ``decision_id`` directly on the amount-field table (index-only scan
+    over ``idx_daf_invalid_amounts``) rather than a DISTINCT over a join.
+    """
+    from core.models.entities import DecisionAmountField
+
+    return (
+        DecisionAmountField.objects
+        .filter(invalid_amount_reason__isnull=False)
+        .values("decision_id")
+        .distinct()
+        .count()
+    )
+
+
+def _invalidate_flag_caches():
+    """Drop cached pool counts after the marker was written or cleared."""
+    from django.core.cache import cache
+
+    from core.services.response_cache_service import response_cache
+
+    for key in (
+        "admin:flagged_amounts_pool:stats:v1",
+        ADMIN_FEEDBACK_POOL_AMOUNT_ISSUE_DECISIONS_KEY,
+        "admin:batch_correct_amounts:stats:v2",
+    ):
+        try:
+            cache.delete(key)
+        except Exception:
+            pass
+    response_cache.invalidate_prefix("top_")
+
+
+def _has_amount_issue_q(prefix: str = ""):
+    """Q matching amount-field rows with a corrected OR flagged amount."""
+    from django.db.models import Q
+
+    return Q(**{f"{prefix}verified_amount__isnull": False}) | Q(
+        **{f"{prefix}invalid_amount_reason__isnull": False}
+    )
+
+
+def _amount_issue_decisions_count() -> int:
+    """Count distinct decisions with an amount problem (corrected or flagged).
+
+    Counts ``decision_id`` directly on the amount-field table rather than
+    joining ``Decision`` and doing ``SELECT DISTINCT`` of every column, then
+    counting the subquery — a fraction of the work. Backed by the same
+    partial indexes (index-only scan).
+    """
+    from core.models.entities import DecisionAmountField
+
+    return (
+        DecisionAmountField.objects
+        .filter(_has_amount_issue_q())
+        .values("decision_id")
+        .distinct()
         .count()
     )
 
@@ -202,6 +340,38 @@ class EstimatedCountPaginator:
         return (self._count + self.per_page - 1) // self.per_page
 
 
+class _SimplePage:
+    """Minimal page/paginator object for an already-materialised id slice.
+
+    Used where the page is built from a bounded set of ids the view has
+    already resolved (e.g. ``feedback_pool_view`` drives paging from the
+    amount-field table rather than ordering ``Decision``).  A Django
+    ``Paginator`` would re-run an expensive ``COUNT(*)`` for a count the view
+    already knows.  Exposes the subset of ``Page`` / ``Paginator`` attributes
+    the admin templates use, and is passed as BOTH ``page_obj`` and
+    ``paginator`` in the context.
+    """
+
+    def __init__(self, object_list, number, per_page, count):
+        self.object_list = object_list
+        self.number = number
+        self.per_page = per_page
+        self.count = count
+        self.num_pages = max(1, -(-count // per_page)) if count else 1
+
+    def has_previous(self):
+        return self.number > 1
+
+    def has_next(self):
+        return self.number < self.num_pages
+
+    def previous_page_number(self):
+        return self.number - 1
+
+    def next_page_number(self):
+        return self.number + 1
+
+
 class HasCorrectedAmountsFilter(admin.SimpleListFilter):
     """Filter decisions that have at least one corrected (verified) amount."""
 
@@ -273,6 +443,8 @@ class DecisionAdmin(admin.ModelAdmin):
         "fix_common_issues",
         "correct_amounts",
         "clear_verified_amounts",
+        "flag_non_monetary_amounts",
+        "clear_non_monetary_amounts",
         "report_feedback",
         "reset_feedback_reports",
     ]
@@ -284,6 +456,12 @@ class DecisionAdmin(admin.ModelAdmin):
         )
         extra_context["corrected_pool_url"] = reverse(
             "admin:decision_corrected_amounts_pool"
+        )
+        extra_context["batch_flag_url"] = reverse(
+            "admin:decision_batch_flag_anomalies"
+        )
+        extra_context["flagged_pool_url"] = reverse(
+            "admin:decision_flagged_amounts_pool"
         )
         extra_context["feedback_pool_url"] = reverse(
             "admin:decision_feedback_pool"
@@ -415,6 +593,72 @@ class DecisionAdmin(admin.ModelAdmin):
         from core.services.response_cache_service import response_cache
         response_cache.invalidate_prefix("top_")
 
+    # ── Non-monetary (AFM/KAE) marker actions ────────────────────────
+
+    @admin.action(description="[AMOUNT] Flag non-monetary amounts (AFM/KAE)")
+    def flag_non_monetary_amounts(self, request, queryset):
+        """
+        Run the DB-only non-monetary guard on selected decisions and write the
+        invalid-amount marker.
+
+        No document is downloaded or read, and ``verified_amount`` is never
+        touched — the real amount is unknown.  This is the same operation as
+        ``python manage.py fix_amount_anomalies --ada … --apply``.
+        """
+        from core.services.amount_correction_service import AmountCorrectionService
+
+        svc = AmountCorrectionService()
+        decisions = list(queryset)
+        if len(decisions) > 100:
+            messages.warning(
+                request,
+                f"Flagging limited to 100 decisions (selected {len(decisions)})",
+            )
+            decisions = decisions[:100]
+
+        flagged_decisions = 0
+        flagged_fields = 0
+        for decision in decisions:
+            anomalies = svc.flag_non_monetary_values(decision)
+            if anomalies:
+                flagged_decisions += 1
+                flagged_fields += len(anomalies)
+
+        if flagged_fields:
+            _invalidate_flag_caches()
+            messages.success(
+                request,
+                f"Flagged {flagged_fields} non-monetary amount field(s) across "
+                f"{flagged_decisions} decision(s).",
+            )
+        else:
+            messages.info(
+                request,
+                "No non-monetary amounts found in the selected decisions.",
+            )
+
+    @admin.action(description="[AMOUNT] Clear non-monetary flag (unflag)")
+    def clear_non_monetary_amounts(self, request, queryset):
+        """Remove the invalid-amount marker (rollback).
+
+        Never touches ``verified_amount``, so corrected values are unaffected.
+        """
+        from core.services.amount_correction_service import AmountCorrectionService
+
+        total = 0
+        for decision in queryset:
+            total += AmountCorrectionService.clear_non_monetary_markers(decision)
+
+        if total:
+            _invalidate_flag_caches()
+            messages.success(
+                request, f"Cleared {total} non-monetary marker(s)."
+            )
+        else:
+            messages.info(
+                request, "Selected decisions had no non-monetary markers."
+            )
+
     # ── Feedback reporting actions ───────────────────────────────────
 
     @admin.action(description="[FEEDBACK] Report corrected amounts to Diavgeia")
@@ -492,6 +736,22 @@ class DecisionAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.corrected_amounts_pool_view),
                 name="decision_corrected_amounts_pool",
             ),
+            # ── Non-monetary amounts (AFM/KAE recorded as money) ──────
+            path(
+                "batch-flag-anomalies/",
+                self.admin_site.admin_view(self.batch_flag_anomalies_view),
+                name="decision_batch_flag_anomalies",
+            ),
+            path(
+                "flagged-amounts-pool/",
+                self.admin_site.admin_view(self.flagged_amounts_pool_view),
+                name="decision_flagged_amounts_pool",
+            ),
+            path(
+                "flagged-amounts-pool/<int:decision_id>/clear/",
+                self.admin_site.admin_view(self.clear_flagged_amount_view),
+                name="decision_flagged_amounts_clear",
+            ),
             path(
                 "correction-job/<uuid:job_id>/",
                 self.admin_site.admin_view(self.correction_job_status_view),
@@ -561,47 +821,330 @@ class DecisionAdmin(admin.ModelAdmin):
 
     def corrected_amounts_pool_view(self, request):
         """
-        List every decision that currently has corrected (verified) amounts.
+        List decisions that currently have corrected (verified) amounts.
 
-        This is the "pool" of decisions whose metadata amounts disagreed with
-        the document text — the set you may want to review or report to the
-        Diavgeia API admins.
+        Paginated: this pool used to load EVERY corrected decision plus all of
+        its amount fields and render every row in a single response.  With
+        thousands of corrected decisions that produced an enormous, unbounded
+        response and timed out at the proxy (nginx logs a 499 once the client
+        gives up).  It now mirrors ``feedback_pool_view``: paginate, count via
+        the partial index ``idx_daf_verified_amounts`` instead of a DISTINCT
+        over a join, fetch only the corrected fields for the current page, and
+        log timings so a slow load is observable instead of silent.
         """
+        import time
+
+        from django.core.paginator import Paginator
+        from django.db.models import Prefetch
+        from loguru import logger
+
         from core.models.decisions import Decision
         from core.models.entities import DecisionAmountField
         from core.services.amount_correction_service import (
             AmountCorrectionService,
         )
 
+        per_page = 25
+
+        # ── Count via the partial index (index-only scan) ──────────────
+        _t_count = time.perf_counter()
+        total = (
+            DecisionAmountField.objects
+            .filter(verified_amount__isnull=False)
+            .values("decision_id")
+            .distinct()
+            .count()
+        )
+        _t_count = time.perf_counter() - _t_count
+
+        # ── One page of decisions + only their corrected fields ────────
         decisions_qs = (
             Decision.objects
             .filter(amount_fields__verified_amount__isnull=False)
             .distinct()
             .order_by("-issue_date")
-            .prefetch_related("amount_fields")
+            .prefetch_related(
+                Prefetch(
+                    "amount_fields",
+                    queryset=DecisionAmountField.objects.filter(
+                        verified_amount__isnull=False
+                    ).only(
+                        "id", "source_field_name", "amount", "verified_amount"
+                    ),
+                    to_attr="corrected_fields",
+                )
+            )
             .only("id", "ada", "subject", "issue_date")
         )
 
-        rows = []
-        for d in decisions_qs:
-            corrected_fields = [
-                f for f in d.amount_fields.all()
-                if f.verified_amount is not None
-            ]
-            rows.append({
+        paginator = Paginator(decisions_qs, per_page)
+        # Seed the cached count so page()/num_pages never run a COUNT(*) over
+        # the joined DISTINCT.  Django's Paginator.count is a cached_property
+        # (a non-data descriptor), so writing __dict__ short-circuits it.
+        paginator.__dict__["count"] = total
+
+        _t_page = time.perf_counter()
+        page = request.GET.get("page", "1")
+        try:
+            page_obj = paginator.page(page)
+        except Exception:
+            page_obj = paginator.page(1)
+        _t_page = time.perf_counter() - _t_page
+
+        logger.info(
+            "corrected_amounts_pool_view timing: count={:.3f}s page={:.3f}s "
+            "(total={}, page={!r})",
+            _t_count,
+            _t_page,
+            total,
+            page,
+        )
+
+        rows = [
+            {
                 "decision": d,
                 "frontend_url": AmountCorrectionService.frontend_url(d),
-                "fields": corrected_fields,
-            })
+                "fields": d.corrected_fields,
+            }
+            for d in page_obj.object_list
+        ]
 
         context = {
             **self.admin_site.each_context(request),
             "title": "Corrected Amounts Pool",
             "rows": rows,
-            "total": len(rows),
+            "page_obj": page_obj,
+            "paginator": paginator,
+            "total": total,
             "opts": self.model._meta,
         }
         return render(request, "admin/decision_corrected_pool.html", context)
+
+    # ── Custom admin views: non-monetary amounts (AFM/KAE) ───────────
+
+    def batch_flag_anomalies_view(self, request):
+        """
+        Admin front-end for ``python manage.py fix_amount_anomalies``.
+
+        The command is DB-only (no document text), dry-run by default,
+        idempotent and reversible, so the view reuses it verbatim — there is a
+        single implementation, and the form and the CLI cannot diverge.
+        """
+        import io
+
+        from django.core.management import call_command
+
+        report_text = ""
+        applied = False
+
+        if request.method == "POST":
+            form = NonMonetaryAnomalyForm(request.POST)
+            if form.is_valid():
+                data = form.cleaned_data
+                args = ["--kind", data["kind"]]
+                if data.get("clear"):
+                    args.append("--clear")
+                if not data.get("dry_run"):
+                    args.append("--apply")
+                    applied = True
+                args += [
+                    "--min-amount", str(data["min_amount"]),
+                    "--max-amount", str(data["max_amount"]),
+                ]
+                if data.get("imported_since"):
+                    args += [
+                        "--imported-since",
+                        data["imported_since"].isoformat(),
+                    ]
+                if data.get("imported_until"):
+                    args += [
+                        "--imported-until",
+                        data["imported_until"].isoformat(),
+                    ]
+                if data.get("limit"):
+                    args += ["--limit", str(data["limit"])]
+
+                out = io.StringIO()
+                call_command("fix_amount_anomalies", *args, stdout=out)
+                report_text = out.getvalue()
+
+                if applied:
+                    _invalidate_flag_caches()
+                    messages.success(request, "Marker run applied.")
+                else:
+                    messages.info(
+                        request,
+                        "Dry run — nothing was written (uncheck Dry run to "
+                        "apply).",
+                    )
+        else:
+            form = NonMonetaryAnomalyForm()
+
+        from core.models.decisions import Decision
+
+        stats = _get_cached_stats(
+            "admin:flagged_amounts_pool:stats:v1",
+            lambda: {
+                "flagged_decisions": _flagged_decisions_count(),
+                "flagged_fields": _flagged_fields_count(),
+                "total_decisions": _approximate_table_count(Decision),
+            },
+            timeout=60,
+        )
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Find & Flag Non-Monetary Amounts",
+            "form": form,
+            "report_text": report_text,
+            "flagged_decisions": stats["flagged_decisions"],
+            "flagged_fields": stats["flagged_fields"],
+            "total_decisions": stats["total_decisions"],
+            "flagged_pool_url": reverse("admin:decision_flagged_amounts_pool"),
+            "opts": self.model._meta,
+        }
+        return render(request, "admin/decision_batch_flag_anomalies.html", context)
+
+    def flagged_amounts_pool_view(self, request):
+        """
+        List decisions whose recorded amount is a non-monetary value (AFM/KAE).
+
+        Review page; the actual reporting to Diavgeia happens from the
+        Feedback Pool (which already includes these decisions) or per-row from
+        the frontend.  Paging is id-first (mirrors ``feedback_pool_view``) so a
+        large flagged set cannot trigger the historic lazy-query hang.
+        """
+        import time
+
+        from django.db.models import Prefetch
+        from loguru import logger
+
+        from core.models.decisions import Decision
+        from core.models.entities import DecisionAmountField
+        from core.services.amount_correction_service import AmountCorrectionService
+
+        per_page = 25
+
+        _t_count = time.perf_counter()
+        flagged_ids = list(
+            DecisionAmountField.objects
+            .filter(invalid_amount_reason__isnull=False)
+            .values_list("decision_id", flat=True)
+            .distinct()
+        )
+        total = len(flagged_ids)
+        _t_count = time.perf_counter() - _t_count
+
+        page = request.GET.get("page", "1")
+        try:
+            page_number = max(1, int(page))
+        except (TypeError, ValueError):
+            page_number = 1
+
+        ordered_ids: list[int] = []
+        if flagged_ids:
+            ordered_ids = [
+                row[0]
+                for row in sorted(
+                    Decision.objects
+                    .filter(id__in=flagged_ids)
+                    .values_list("id", "issue_date"),
+                    key=lambda r: (r[1] is None, r[1]),
+                    reverse=True,
+                )
+            ]
+
+        page_ids = ordered_ids[
+            (page_number - 1) * per_page : page_number * per_page
+        ]
+        decisions = (
+            Decision.objects
+            .filter(id__in=page_ids)
+            .only("id", "ada", "subject", "issue_date")
+            .prefetch_related(
+                Prefetch(
+                    "amount_fields",
+                    queryset=DecisionAmountField.objects.filter(
+                        invalid_amount_reason__isnull=False
+                    ).only(
+                        "id",
+                        "source_field_name",
+                        "amount",
+                        "invalid_amount_reason",
+                        "invalid_amount_value",
+                    ),
+                    to_attr="flagged_fields",
+                )
+            )
+        )
+        by_id = {d.id: d for d in decisions}
+        page_obj = _SimplePage(
+            object_list=[by_id[i] for i in page_ids if i in by_id],
+            number=page_number,
+            per_page=per_page,
+            count=total,
+        )
+
+        rows = [
+            {
+                "decision": d,
+                "frontend_url": AmountCorrectionService.frontend_url(d),
+                "fields": getattr(d, "flagged_fields", []),
+            }
+            for d in page_obj.object_list
+        ]
+
+        logger.info(
+            "flagged_amounts_pool_view timing: count={:.3f}s (total={}, "
+            "page={!r})",
+            _t_count,
+            total,
+            page,
+        )
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Non-Monetary Amounts Pool",
+            "rows": rows,
+            "page_obj": page_obj,
+            "paginator": page_obj,
+            "total": total,
+            "clear_url": reverse(
+                "admin:decision_flagged_amounts_clear",
+                kwargs={"decision_id": 0},
+            )[:-2],  # strip trailing "0/" — template appends the real ID
+            "batch_flag_url": reverse("admin:decision_batch_flag_anomalies"),
+            "feedback_pool_url": reverse("admin:decision_feedback_pool"),
+            "opts": self.model._meta,
+        }
+        return render(request, "admin/decision_flagged_pool.html", context)
+
+    def clear_flagged_amount_view(self, request, decision_id):
+        """Clear the invalid-amount marker for a single decision (rollback)."""
+        from django.shortcuts import get_object_or_404
+
+        from core.models.decisions import Decision
+        from core.services.amount_correction_service import AmountCorrectionService
+
+        if request.method != "POST":
+            return redirect(reverse("admin:decision_flagged_amounts_pool"))
+
+        decision = get_object_or_404(Decision, id=decision_id)
+        count = AmountCorrectionService.clear_non_monetary_markers(decision)
+        if count:
+            _invalidate_flag_caches()
+            messages.success(
+                request, f"Cleared {count} marker(s) for {decision.ada}."
+            )
+        else:
+            messages.info(
+                request, f"{decision.ada} had no non-monetary marker."
+            )
+
+        referer = request.META.get("HTTP_REFERER")
+        if referer and "flagged-amounts-pool" in referer:
+            return redirect(referer)
+        return redirect(reverse("admin:decision_flagged_amounts_pool"))
 
     def batch_correct_amounts_view(self, request):
         """
@@ -664,10 +1207,11 @@ class DecisionAdmin(admin.ModelAdmin):
         from core.models.decisions import Decision
 
         stats = _get_cached_stats(
-            "admin:batch_correct_amounts:stats:v1",
+            "admin:batch_correct_amounts:stats:v2",
             lambda: {
                 "already_corrected": _corrected_decisions_count(),
                 "total_fields_corrected": _corrected_fields_count(),
+                "total_fields_flagged": _flagged_fields_count(),
                 "total_decisions": _approximate_table_count(Decision),
             },
             timeout=300,
@@ -679,6 +1223,7 @@ class DecisionAdmin(admin.ModelAdmin):
             "form": form,
             "already_corrected": stats["already_corrected"],
             "total_fields_corrected": stats["total_fields_corrected"],
+            "total_fields_flagged": stats["total_fields_flagged"],
             "total_decisions": stats["total_decisions"],
             "opts": self.model._meta,
         }
@@ -701,7 +1246,6 @@ class DecisionAdmin(admin.ModelAdmin):
         """
         import time
 
-        from django.core.paginator import Paginator
         from django.db.models import Exists, OuterRef, Prefetch, Q
         from loguru import logger
         from urllib.parse import urlencode
@@ -714,16 +1258,6 @@ class DecisionAdmin(admin.ModelAdmin):
         already_reported = Exists(
             DiavgeiaFeedbackReport.objects.filter(
                 decision=OuterRef("pk"), reported=True
-            )
-        )
-        # Same condition correlated on DecisionAmountField.decision_id, for
-        # the index-backed pagination count below.  A plain
-        # ``exclude(decision__diavgeia_feedback_report__reported=True)`` there
-        # would drop decisions with no report row (Django's NULL-exclude
-        # behaviour), undercounting "unreported" to zero.
-        already_reported_daf = Exists(
-            DiavgeiaFeedbackReport.objects.filter(
-                decision=OuterRef("decision"), reported=True
             )
         )
 
@@ -741,13 +1275,13 @@ class DecisionAdmin(admin.ModelAdmin):
         # idx_daf_verified_amounts (index-only scan), and the reported count
         # reads the tiny DiavgeiaFeedbackReport table.
         _t_stats = time.perf_counter()
-        # The corrected-decision count only changes when a correction batch
+        # The amount-issue decision count only changes when a correction batch
         # runs (not when reporting), so cache it briefly.  reported/pending
         # are computed live below so the header still updates instantly
         # after each report.
         total = _get_cached_stats(
-            ADMIN_FEEDBACK_POOL_CORRECTED_DECISIONS_KEY,
-            _corrected_decisions_count,
+            ADMIN_FEEDBACK_POOL_AMOUNT_ISSUE_DECISIONS_KEY,
+            _amount_issue_decisions_count,
             timeout=300,
         )
         reported_ids = DiavgeiaFeedbackReport.objects.filter(
@@ -755,7 +1289,7 @@ class DecisionAdmin(admin.ModelAdmin):
         ).values_list("decision_id", flat=True)
         total_reported = (
             DecisionAmountField.objects
-            .filter(verified_amount__isnull=False, decision_id__in=reported_ids)
+            .filter(_has_amount_issue_q(), decision_id__in=reported_ids)
             .values("decision_id")
             .distinct()
             .count()
@@ -763,18 +1297,29 @@ class DecisionAdmin(admin.ModelAdmin):
         total_pending = total - total_reported
         _t_stats = time.perf_counter() - _t_stats
 
-        # ── Build the filtered queryset ──────────────────────────────
+        # ── Build the page from the amount-field side ─────────────────
         #
-        # Start from the set of decisions that actually have corrected
-        # amounts (derived from the amount-field table via its partial
-        # index) instead of a correlated EXISTS over the whole Decision
-        # table — that EXISTS forced PostgreSQL to probe every decision
-        # row while hunting for the first page of matches.
-        corrected_ids = (
+        # The previous implementation ordered ``Decision`` by ``-issue_date``
+        # and sliced the first 25 rows matching an EXISTS on the amount-field
+        # table.  With ~32M decisions PostgreSQL walked ``core_decision``
+        # backwards by issue_date and probed the amount-field table per row;
+        # because recent decisions mostly have NO amount issue it scanned an
+        # enormous number of rows before accumulating 25.  EXPLAIN showed a
+        # ``Nested Loop Semi Join`` costing ~148,000,000 — which is why the
+        # page appeared to hang (the worker was blocked in ``cursor.execute``,
+        # confirmed with py-spy) even though the view's own timing log —
+        # emitted *before* the page was fetched — reported success.
+        #
+        # We now materialise the (bounded) set of decision ids that have an
+        # amount issue straight from the partial indexes, apply the filters to
+        # that small set, sort it in Python, and fetch only the requested page.
+        corrected_ids = list(
             DecisionAmountField.objects
-            .filter(verified_amount__isnull=False)
-            .values("decision_id")
+            .filter(_has_amount_issue_q())
+            .values_list("decision_id", flat=True)
+            .distinct()
         )
+
         qs = Decision.objects.filter(id__in=corrected_ids)
 
         if reported == "yes":
@@ -790,63 +1335,58 @@ class DecisionAdmin(admin.ModelAdmin):
         if q:
             qs = qs.filter(Q(ada__icontains=q) | Q(subject__icontains=q))
 
-        qs = (
-            qs.order_by("-issue_date")
+        _t_count = time.perf_counter()
+        ordered_ids = [
+            row[0]
+            for row in sorted(
+                qs.values_list("id", "issue_date"),
+                key=lambda r: (r[1] is None, r[1]),
+                reverse=True,
+            )
+        ]
+        filtered_total = len(ordered_ids)
+        _t_count = time.perf_counter() - _t_count
+
+        per_page = 25
+        page = request.GET.get("page", "1")
+        try:
+            page_number = max(1, int(page))
+        except (TypeError, ValueError):
+            page_number = 1
+
+        _t_page = time.perf_counter()
+        page_ids = ordered_ids[
+            (page_number - 1) * per_page : page_number * per_page
+        ]
+        decisions = (
+            Decision.objects
+            .filter(id__in=page_ids)
             .select_related("organization", "diavgeia_feedback_report")
             .prefetch_related(
                 Prefetch(
                     "amount_fields",
                     queryset=DecisionAmountField.objects.filter(
-                        verified_amount__isnull=False
-                    ).only("id", "source_field_name", "amount", "verified_amount"),
+                        _has_amount_issue_q()
+                    ).only(
+                        "id",
+                        "source_field_name",
+                        "amount",
+                        "verified_amount",
+                        "invalid_amount_reason",
+                        "invalid_amount_value",
+                    ),
                     to_attr="verified_fields",
                 )
             )
         )
-
-        # ── Pagination with an accurate, index-backed count ───────────
-        #
-        # A plain COUNT(*) over ``qs`` would re-run the correlated EXISTS
-        # subqueries, so we count distinct decision_id directly on the
-        # amount-field table (partial index, index-only) with the same
-        # filters applied, then seed Paginator's cached count.
-        _t_count = time.perf_counter()
-        if not (start_date or end_date or q):
-            # No date/search filters — the pagination count is exactly one of
-            # the global stats already computed above.
-            if reported == "yes":
-                filtered_total = total_reported
-            elif reported == "no":
-                filtered_total = total_pending
-            else:
-                filtered_total = total
-        else:
-            count_qs = DecisionAmountField.objects.filter(verified_amount__isnull=False)
-            if reported == "yes":
-                count_qs = count_qs.filter(already_reported_daf)
-            elif reported == "no":
-                count_qs = count_qs.exclude(already_reported_daf)
-            if start_date:
-                count_qs = count_qs.filter(decision__issue_date_day__gte=start_date)
-            if end_date:
-                count_qs = count_qs.filter(decision__issue_date_day__lte=end_date)
-            if q:
-                count_qs = count_qs.filter(
-                    Q(decision__ada__icontains=q) | Q(decision__subject__icontains=q)
-                )
-            filtered_total = count_qs.values("decision_id").distinct().count()
-        _t_count = time.perf_counter() - _t_count
-
-        per_page = 25
-        paginator = Paginator(qs, per_page)
-        # Seed Paginator's cached count so page()/num_pages never run COUNT(*).
-        paginator.__dict__["count"] = filtered_total
-        page = request.GET.get("page", "1")
-        _t_page = time.perf_counter()
-        try:
-            page_obj = paginator.page(page)
-        except Exception:
-            page_obj = paginator.page(1)
+        by_id = {d.id: d for d in decisions}
+        page_obj = _SimplePage(
+            object_list=[by_id[i] for i in page_ids if i in by_id],
+            number=page_number,
+            per_page=per_page,
+            count=filtered_total,
+        )
+        paginator = page_obj
         _t_page = time.perf_counter() - _t_page
 
         logger.info(
@@ -1010,6 +1550,10 @@ class DecisionAdmin(admin.ModelAdmin):
         Create a background Diavgeia feedback job over all pending
         (unreported, corrected) decisions.
         """
+        import time
+
+        from loguru import logger
+
         if request.method == "POST":
             form = DiavgeiaFeedbackForm(request.POST)
             if form.is_valid():
@@ -1051,7 +1595,16 @@ class DecisionAdmin(admin.ModelAdmin):
         from core.services.diavgeia_feedback_service import DiavgeiaFeedbackService
 
         svc = DiavgeiaFeedbackService()
+        # ``pending_decisions().count()`` runs a COUNT(*) with two correlated
+        # EXISTS subqueries over the Decision table.  Instrument it so a slow
+        # load of this page is visible in the logs instead of a silent hang.
+        _t_pending = time.perf_counter()
         total_pending = svc.pending_decisions().count()
+        logger.info(
+            "feedback_batch_view timing: pending_count={:.3f}s (total={})",
+            time.perf_counter() - _t_pending,
+            total_pending,
+        )
 
         context = {
             **self.admin_site.each_context(request),

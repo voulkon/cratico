@@ -187,6 +187,44 @@ class DecisionAmountField(models.Model):
         help_text="When this field's amount was last verified/corrected.",
     )
 
+    # ------------------------------------------------------------------
+    # Non-monetary-value guard — amount known to be invalid
+    # ------------------------------------------------------------------
+    # Some rows hold a value that actually belongs to a DIFFERENT, non-monetary
+    # numeric field of the same Diavgeia response — a counterpart VAT number
+    # (ΑΦΜ) or a budget classification code (ΚΑΕ) — e.g. sponsor AFM
+    # 099370337 recorded as amount 9.9370337E7 (€99,370,337).
+    #
+    # Unlike ``verified_amount`` (where we KNOW the correct value), here we
+    # know only that this amount is NOT money and the real value is unknown.
+    # So we never write a monetary value; we only mark the row invalid so it
+    # is excluded from every monetary aggregation (see
+    # ``core.services.decision_facets``) and surfaced for review/feedback.
+    invalid_amount_reason = models.CharField(
+        max_length=32,
+        null=True,
+        blank=True,
+        help_text=(
+            "Set when the amount is known to be a non-monetary value "
+            "(e.g. 'afm_as_amount', 'kae_as_amount'). "
+            "Excludes the field from all monetary aggregations."
+        ),
+    )
+    invalid_amount_value = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        help_text=(
+            "The non-monetary value the amount matched, for audit/display "
+            "(e.g. the AFM '099370337' or the KAE digits '706273001')."
+        ),
+    )
+    invalid_amount_flagged_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this field was flagged as a non-monetary value.",
+    )
+
     class Meta:
         unique_together = ["decision", "parent_key_path", "source_field_name"]
         indexes = [
@@ -212,6 +250,14 @@ class DecisionAmountField(models.Model):
                 fields=["decision", "verified_amount"],
                 condition=models.Q(verified_amount__isnull=False),
                 name="idx_daf_verified_amounts",
+            ),
+            # Partial index for amounts flagged as non-monetary values
+            # (AFM/KAE): powers the feedback pool and admin filters as an
+            # index-only scan.  Mirrors idx_daf_verified_amounts.
+            models.Index(
+                fields=["decision", "invalid_amount_reason"],
+                condition=models.Q(invalid_amount_reason__isnull=False),
+                name="idx_daf_invalid_amounts",
             ),
         ]
 
