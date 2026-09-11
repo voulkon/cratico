@@ -53,6 +53,8 @@ from core.services.non_monetary_value_guard import (
     DISCREPANCY_REASON_KAE,
     DISCREPANCY_REASON_NON_MONETARY,
     KIND_AFM,
+    KIND_KAE,
+    NonMonetaryValue,
     collect_non_monetary_values,
 )
 from core.services.grouped_amount_detection import (
@@ -315,6 +317,85 @@ class AmountCorrectionService:
             "corrections": corrections,
         }
 
+    # ------------------------------------------------------------------
+    # Non-monetary-value marker (AFM/KAE recorded as an amount)
+    # ------------------------------------------------------------------
+
+    def flag_non_monetary_values(
+        self,
+        decision: Decision,
+        *,
+        dry_run: bool = False,
+    ) -> list[NonMonetaryValue]:
+        """
+        Detect and mark amount fields whose value is really a non-monetary
+        AFM/KAE, **without reading the document**.
+
+        This is the "treatment" half of the guard: it writes only the
+        invalid-amount marker (``invalid_amount_reason`` / ``_value`` /
+        ``_flagged_at``), never ``verified_amount`` — the real amount is
+        unknown, and storing a monetary figure would be a lie.
+
+        DB-only and idempotent: re-running rewrites the same reason/value and
+        refreshes the timestamp, so it is safe to repeat.
+
+        Args:
+            decision: The Decision to inspect.
+            dry_run: When True, detect but write nothing.
+
+        Returns:
+            The detected ``NonMonetaryValue`` anomalies (empty if none).
+        """
+        fields = list(
+            decision.amount_fields
+            .filter(amount__isnull=False, amount__gt=0)
+            .only("id", "amount", "source_field_name", "parent_key_path")
+        )
+        if not fields:
+            return []
+
+        anomalies = collect_non_monetary_values(decision, amount_fields=fields)
+        if not anomalies:
+            return []
+
+        anomaly_by_field = {a.field_id: a for a in anomalies}
+        self._flag_invalid_amounts(fields, anomaly_by_field, dry_run=dry_run)
+        return anomalies
+
+    @staticmethod
+    def clear_non_monetary_markers(
+        decision: Decision,
+        *,
+        kind: str | None = None,
+        dry_run: bool = False,
+    ) -> int:
+        """
+        Remove the invalid-amount marker from a decision's amount fields.
+
+        Rollback path.  The marker never touches ``verified_amount``, so
+        clearing only NULLs the three ``invalid_amount_*`` columns.  Restrict
+        to one kind (``KIND_AFM`` / ``KIND_KAE``) via the stored reason.
+
+        Returns:
+            The number of fields that were (or would be) cleared.
+        """
+        qs = decision.amount_fields.filter(invalid_amount_reason__isnull=False)
+        if kind == KIND_AFM:
+            qs = qs.filter(invalid_amount_reason=DISCREPANCY_REASON_AFM)
+        elif kind == KIND_KAE:
+            qs = qs.filter(invalid_amount_reason=DISCREPANCY_REASON_KAE)
+
+        count = qs.count()
+        if dry_run or not count:
+            return count
+
+        qs.update(
+            invalid_amount_reason=None,
+            invalid_amount_value=None,
+            invalid_amount_flagged_at=None,
+        )
+        return count
+
     @staticmethod
     def _flag_invalid_amounts(
         fields: list[DecisionAmountField],
@@ -509,14 +590,23 @@ class AmountCorrectionService:
 
         candidates = candidates.order_by("-calc_total")
 
-        total_candidates = candidates.count()
+        # Apply the limit BEFORE counting.  ``candidates.count()`` on the
+        # un-sliced queryset executes the whole join + GROUP BY + HAVING as
+        # ``SELECT COUNT(*) FROM (…)`` — the pattern behind the 16h runaway
+        # query and its lock pileup (see
+        # ``docs/lessons_learnt/runaway_query_lock_pileup.md``).
+        #
+        # Materialise the (already limited) candidate set once and derive the
+        # count from it: the heavy aggregate runs a single time instead of
+        # twice, and is never executed over the entire table.
+        if limit:
+            candidates = candidates[:limit]
+        decisions = list(candidates)
+        total_candidates = len(decisions)
         logger.info(
             f"AmountCorrection: {total_candidates} decisions above "
             f"€{threshold:,.2f} threshold"
         )
-
-        if limit:
-            candidates = candidates[:limit]
 
         corrected = 0
         consistent = 0
@@ -528,7 +618,7 @@ class AmountCorrectionService:
         errors = 0
         results: list[dict[str, Any]] = []
 
-        for decision in candidates:
+        for decision in decisions:
             try:
                 result = self.correct_decision(
                     decision, dry_run=dry_run, read_if_missing=read_if_missing
@@ -590,7 +680,17 @@ class AmountCorrectionService:
             "read_if_missing": read_if_missing,
             "results": results,
         }
-        logger.info(f"AmountCorrection batch complete: {summary}")
+        # Log the COUNTS only — ``results`` holds one row per decision and
+        # bloats the log line (up to `limit` entries).  The full list is still
+        # returned to the caller (admin job / task) for the UI.
+        logger.info(
+            f"AmountCorrection batch complete: {total_candidates} candidate(s), "
+            f"{corrected} corrected, {afm_as_amount} afm_as_amount, "
+            f"{kae_as_amount} kae_as_amount, "
+            f"{non_monetary_value_as_amount} non_monetary_value_as_amount, "
+            f"{consistent} consistent, {no_text} no_text, {skipped} skipped, "
+            f"{errors} errors (dry_run={dry_run})"
+        )
         return summary
 
     # ------------------------------------------------------------------

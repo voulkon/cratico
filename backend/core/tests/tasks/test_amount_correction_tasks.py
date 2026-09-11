@@ -114,3 +114,54 @@ class TestRunAmountCorrectionJobCandidateSelection:
         job.refresh_from_db()
         assert job.total_candidates == 0
         mock_delay.assert_not_called()
+
+
+class TestBeatTaskNames:
+    """Beat schedule strings must match the tasks' REGISTERED names.
+
+    ``tasks_amount_correction`` declares explicit short names via
+    ``@shared_task(name=...)``.  Referencing the module path in beat instead
+    silently drops the job ("Received unregistered task of type …") — the task
+    never runs and produces no logs.  This regression guard caught exactly that
+    for ``daily-amount-correction``.
+    """
+
+    def test_daily_amount_correction_beat_entry_matches_registered_name(self):
+        from diavgeia_project.celery import app
+
+        from core.tasks.tasks_amount_correction import daily_amount_correction
+
+        entry = app.conf.beat_schedule["daily-amount-correction"]
+        assert entry["task"] == daily_amount_correction.name
+
+    def test_all_active_beat_entries_resolve_to_registered_tasks(self):
+        import importlib
+
+        from diavgeia_project.celery import app
+
+        def _import_defining_module(task_name: str) -> None:
+            """Best-effort import of the module holding a dotted task name.
+
+            Celery's autodiscovery is lazy, so a beat entry whose module has
+            not been imported yet would look "unregistered" in a test process
+            even though the worker has it.  Import the longest importable
+            prefix so the check reflects reality.
+            """
+            parts = task_name.split(".")
+            for cut in range(len(parts) - 1, 0, -1):
+                try:
+                    importlib.import_module(".".join(parts[:cut]))
+                    return
+                except ImportError:
+                    continue
+
+        for entry in app.conf.beat_schedule.values():
+            _import_defining_module(entry["task"])
+        app.finalize()
+
+        missing = {
+            entry["task"]
+            for entry in app.conf.beat_schedule.values()
+            if entry["task"] not in app.tasks
+        }
+        assert missing == set()

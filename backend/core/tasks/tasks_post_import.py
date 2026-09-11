@@ -10,10 +10,15 @@ To add new post-import work:
   2. Add it to the chain in post_daily_import_orchestrator()
   3. Add a feature flag key to KNOWN_FLAGS in feature_flag_service.py
 
-Execution order (via Celery chain):
-  compute_entity_rankings  →  warm_analytics_cache  →  invalidate_browse_cache
-  →  trigger_check_all_subscriptions  →  verify_high_value_amounts
-  (DB snapshots)               (Redis cache)            (Notifications)         (AI amount audit)
+Execution order (via Celery chain — sequential, fail-fast):
+  verify_high_value_amounts  →  compute_entity_rankings  →  invalidate_browse_cache
+  →  warm_analytics_cache  →  trigger_check_all_subscriptions
+  (amount correction)          (DB snapshots)             (Redis cache)             (Notifications)
+
+Amount verification runs FIRST: it is the only step that mutates monetary values
+(``verified_amount`` + the invalid-amount marker), and the steps that read
+amounts through the facet layer (entity rankings, analytics cache warming) must
+therefore run after it — otherwise they publish pre-correction figures.
 
 Views warmed (all DashboardGrid sections):
   explore_orgs               → OrganizationsSection
@@ -24,10 +29,121 @@ Views warmed (all DashboardGrid sections):
 
 from datetime import date, timedelta
 import calendar
+import functools
+import time
 
 from celery import chain, shared_task
 from core.services.feature_flag_service import feature_flags
 from loguru import logger
+
+
+# ---------------------------------------------------------------------------
+# Task-run logging decorator
+# ---------------------------------------------------------------------------
+#
+# Celery's own task-lifecycle signals are DISABLED in this project (see the
+# commented-out ``task_prerun`` / ``task_postrun`` / ``task_failure`` handlers
+# in ``diavgeia_project/celery.py``), and ``CELERY_TASK_EVENT_LOG_LEVEL``
+# defaults to WARNING — so the "Task … received/succeeded" lines are hidden and
+# a task that logs nothing of its own appears to vanish.  This decorator gives
+# every post-import task a guaranteed start / finish line with its duration and
+# a one-line summary of what it did.
+#
+# Apply it UNDER ``@shared_task`` so the wrapper is the task body:
+#
+#     @shared_task
+#     @log_task_run
+#     def my_task(...): ...
+#
+# ``functools.wraps`` preserves ``__name__``/signature, so the Celery task name
+# is unchanged.
+
+# Result-dict keys surfaced in the finish line (counts an operator cares about).
+_SUMMARY_KEYS = (
+    "reference_date",
+    "windows_processed",
+    "keys_warmed",
+    "keys_invalidated",
+    "task_id",
+    "verified",
+    "discrepancies",
+    "corrected",
+    "consistent",
+    "no_text",
+    "errors",
+)
+
+
+def _summarize_result(result) -> str:
+    """Render a task's return value as a short, log-safe one-liner."""
+    if not isinstance(result, dict):
+        return f"result={result!r}"
+
+    parts: list[str] = []
+    if result.get("status") is not None:
+        parts.append(f"status={result['status']}")
+    for key in _SUMMARY_KEYS:
+        value = result.get(key)
+        if value is not None:
+            parts.append(f"{key}={value}")
+    # Nested phase summaries (verify_high_value_amounts returns three dicts).
+    for phase in ("verification", "correction", "discovery"):
+        sub = result.get(phase)
+        if isinstance(sub, dict):
+            for key, value in sub.items():
+                if key == "results":
+                    continue  # per-decision payload — never log it
+                if isinstance(value, (str, int, float, bool)):
+                    parts.append(f"{phase}.{key}={value}")
+    return ", ".join(parts) or "no result"
+
+
+def log_task_run(func=None, *, swallow_errors: bool = False):
+    """
+    Log ``started`` / ``finished`` (+ duration and result summary) around a task.
+
+    Args:
+        swallow_errors: When True, an exception is logged (at ERROR, with
+            traceback) and converted into ``{"status": "error", "error": …}``
+            so a Celery **chain keeps going** instead of fail-stopping on this
+            task.  The failure is still visible: the ERROR log, the returned
+            result, and the ``finished … status=error`` line.  Default False
+            re-raises, preserving normal Celery failure/retry semantics.
+
+    Usable bare (``@log_task_run``) or with arguments
+    (``@log_task_run(swallow_errors=True)``).
+    """
+    def decorator(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            started = time.perf_counter()
+            logger.info(f"[task] {fn.__name__} started")
+            try:
+                result = fn(*args, **kwargs)
+            except Exception as exc:
+                logger.exception(
+                    f"[task] {fn.__name__} FAILED after "
+                    f"{time.perf_counter() - started:.1f}s"
+                )
+                if swallow_errors:
+                    logger.error(
+                        f"[task] {fn.__name__} — failure swallowed so the "
+                        f"post-import chain continues"
+                    )
+                    return {"status": "error", "error": str(exc)}
+                raise
+            logger.info(
+                f"[task] {fn.__name__} finished in "
+                f"{time.perf_counter() - started:.1f}s — "
+                f"{_summarize_result(result)}"
+            )
+            return result
+
+        return wrapper
+
+    if func is not None:  # used bare: @log_task_run
+        return decorator(func)
+    return decorator  # used with args: @log_task_run(...)
 
 
 # ---------------------------------------------------------------------------
@@ -134,6 +250,7 @@ def _build_warmup_sentinel_keys(
 
 
 @shared_task
+@log_task_run
 def post_daily_import_orchestrator(job_id: int, reference_date_str: str):
     """
     Orchestrate all post-daily-import tasks in order.
@@ -161,18 +278,24 @@ def post_daily_import_orchestrator(job_id: int, reference_date_str: str):
     reference_date = date.fromisoformat(reference_date_str)
 
     # Build the task chain — add new tasks here ↓
+    #
+    # A Celery ``chain`` is SEQUENTIAL (each task starts only after the
+    # previous one succeeds), not concurrent.  Order matters for correctness:
     task_chain = chain(
-        # Track 2: Compute entity rankings (DB snapshots) — must run first
-        # so cache warming can use fresh stats
-        compute_entity_rankings.si(reference_date_str=reference_date_str),
-        # Track 1: Warm the response cache for heavy views
-        warm_analytics_cache.si(reference_date_str=reference_date_str),
-        # Invalidate browse caches so fresh entity data appears after import
-        invalidate_browse_cache.si(),
-        # Notifications: Check all active subscriptions against yesterday's data
-        trigger_check_all_subscriptions.si(reference_date_str=reference_date_str),
-        # Amount Verification: AI-based validation of high-value decisions
+        # Amount Verification: the ONLY step that mutates monetary values
+        # (verified_amount + invalid-amount marker).  It must run before any
+        # step that reads amounts through the facet layer — otherwise
+        # rankings and warmed caches encode pre-correction figures.
         verify_high_value_amounts.si(reference_date_str=reference_date_str),
+        # Track 2: Compute entity rankings (DB snapshots) from corrected amounts
+        compute_entity_rankings.si(reference_date_str=reference_date_str),
+        # Invalidate browse caches so fresh entity data appears after import
+        # (runs before warming; it touches the disjoint "browse" prefix)
+        invalidate_browse_cache.si(),
+        # Track 1: Warm the response cache for heavy views with fresh amounts
+        warm_analytics_cache.si(reference_date_str=reference_date_str),
+        # Notifications: Check all active subscriptions against the new data
+        trigger_check_all_subscriptions.si(reference_date_str=reference_date_str),
     )
 
     result = task_chain.apply_async()
@@ -194,6 +317,7 @@ def post_daily_import_orchestrator(job_id: int, reference_date_str: str):
 # ---------------------------------------------------------------------------
 
 @shared_task
+@log_task_run(swallow_errors=True)
 def compute_entity_rankings(reference_date_str: str | None = None):
     """
     Pre-compute per-entity statistics for the 4 standard time windows.
@@ -239,6 +363,7 @@ def compute_entity_rankings(reference_date_str: str | None = None):
 # ---------------------------------------------------------------------------
 
 @shared_task
+@log_task_run(swallow_errors=True)
 def warm_analytics_cache(reference_date_str: str | None = None):
     """
     Pre-populate ResponseCacheService keys for the 4 standard time windows.
@@ -366,8 +491,8 @@ def warm_analytics_cache(reference_date_str: str | None = None):
 
 # ── On-demand single-window warmup (defer_on_miss) ──────────────────────
 
-
 @shared_task
+@log_task_run
 def warm_single_window(
     view_name: str,
     params: dict,
@@ -453,8 +578,8 @@ def warm_single_window(
 
 # ── Browse cache invalidation ──────────────────────────────────────────
 
-
 @shared_task
+@log_task_run(swallow_errors=True)
 def invalidate_browse_cache():
     """
     Invalidate all browse API response caches after daily import.
@@ -478,10 +603,10 @@ def invalidate_browse_cache():
     )
     return {"status": "completed", "keys_invalidated": count + letters_count}
 
-
 # ── Notifications — Bulk check all active subscriptions ──────────────────
 
 @shared_task
+@log_task_run(swallow_errors=True)
 def trigger_check_all_subscriptions(reference_date_str: str | None = None):
     """
     Trigger a check of all active notification subscriptions against
@@ -523,12 +648,13 @@ def trigger_check_all_subscriptions(reference_date_str: str | None = None):
 # ── Amount Verification — AI-based validation of high-value decisions ─────
 
 @shared_task
+@log_task_run(swallow_errors=True)
 def verify_high_value_amounts(reference_date_str: str | None = None):
     """
     Verify AND correct monetary amounts for decisions exceeding the
     high-value threshold by reading the actual document text.
 
-    Two-phase pipeline:
+    Three-phase pipeline:
       1. Verification (AmountVerificationService): runs regex/AI detection
          and persists TextProcessRun + TextProcessResolution records for
          audit trail.
@@ -537,6 +663,14 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
          decimal-shift — stores the corrected value on each affected
          ``DecisionAmountField.verified_amount`` so all downstream consumers
          (via ``COALESCE(verified_amount, amount)``) use the corrected value.
+         It also writes the invalid-amount marker for non-monetary values.
+      3. Discovery (``_discover_non_monetary_values``): DB-only, read-only
+         sweep that logs AFM/KAE-as-amount cases for observability.
+
+    Because phase 2 mutates amounts, this task runs FIRST in the post-import
+    chain (before entity rankings and cache warming) and invalidates the
+    amount-dependent analytics caches so downstream reads never serve
+    pre-correction figures.
 
     Catches data-entry errors where decimal separators are misplaced
     (e.g. €30,000.00 recorded as €3,000,000 in Diavgeia).
@@ -615,6 +749,32 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
         f"{correct_result['no_text']} no text, "
         f"{correct_result['errors']} errors"
     )
+
+    # ── Amounts changed → drop the analytics caches that encode them ──────
+    # ``correct_high_value_decisions`` updates DecisionAmountField values
+    # (verified_amount + the invalid marker) but never invalidates caches
+    # itself — only the admin/job path does it, in
+    # ``finalize_amount_correction_job``.  The warm step later in this chain
+    # repopulates only the exact (view, window, limit) keys it knows, so any
+    # OTHER cached range would keep serving pre-correction figures.  These
+    # prefixes cover the views that read amounts via the facet layer
+    # (explore_orgs / da_top_pairs are NOT matched by the "top_" prefix).
+    if (
+        correct_result.get("corrected")
+        or correct_result.get("afm_as_amount")
+        or correct_result.get("kae_as_amount")
+        or correct_result.get("non_monetary_value_as_amount")
+    ):
+        from core.services.response_cache_service import response_cache
+
+        invalidated = sum(
+            response_cache.invalidate_prefix(prefix)
+            for prefix in ("top_", "da_top_pairs", "explore_orgs")
+        )
+        logger.info(
+            f"Amount correction changed values — invalidated {invalidated} "
+            f"amount-dependent analytics cache key(s)"
+        )
 
     # ── Phase 3: Discovery (non-monetary values recorded as amounts) ─
     # Verification/correction only flag decisions that pass through the

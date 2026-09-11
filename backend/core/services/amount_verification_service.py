@@ -172,14 +172,24 @@ class AmountVerificationService:
         if imported_until is not None:
             candidates = candidates.filter(created_at__lt=imported_until)
 
-        total_candidates = candidates.count()
+        # Apply the limit BEFORE counting.  ``candidates.count()`` on the
+        # un-sliced queryset executes the whole join + GROUP BY + HAVING as
+        # ``SELECT COUNT(*) FROM (…)`` — that is what turned a post-import run
+        # into a 16h query (holding a snapshot + AccessShareLock that wedged
+        # migration 0096 and every reader of ``core_decisionamountfield``).
+        # See ``docs/lessons_learnt/runaway_query_lock_pileup.md``.
+        #
+        # Materialise the (already limited) candidate set once and derive the
+        # count from it: the heavy aggregate now runs a single time instead of
+        # twice, and is never executed over the entire table.
+        if limit:
+            candidates = candidates[:limit]
+        decisions = list(candidates)
+        total_candidates = len(decisions)
         logger.info(
             f"Amount verification: {total_candidates} decisions above "
             f"€{self.threshold:,.2f} threshold"
         )
-
-        if limit:
-            candidates = candidates[:limit]
 
         verified = 0
         skipped = 0
@@ -188,7 +198,7 @@ class AmountVerificationService:
         afm_as_amount_discrepancies = 0
         kae_as_amount_discrepancies = 0
 
-        for decision in candidates:
+        for decision in decisions:
             try:
                 result = self.verify_decision(
                     decision, method=method, provider=provider, model=model

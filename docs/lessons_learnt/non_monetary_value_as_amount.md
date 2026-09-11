@@ -191,6 +191,77 @@ KAE for higher precision.
 > KAE values shorter than 6 digits (e.g. the AFM case's `kae: "1311"`) are
 > ignored — too likely to collide with ordinary amounts.
 
+### 3. Treating them (write the invalid-amount marker)
+
+`find_amount_anomalies` only *reports*.  To actually mark the affected rows so
+they drop out of every monetary total and surface in the feedback pool:
+
+```bash
+# Preview — nothing is written (default)
+python manage.py fix_amount_anomalies
+
+# Apply
+python manage.py fix_amount_anomalies --apply
+
+# One decision
+python manage.py fix_amount_anomalies --ada Ψ0Α74690Β9-52Ρ --apply
+
+# Rollback
+python manage.py fix_amount_anomalies --clear --apply
+```
+
+The command is:
+
+- **dry-run by default** — `--apply` is required to write anything;
+- **DB-only** — no document is downloaded or read (the guard needs no text);
+- **idempotent** — re-running rewrites the same reason/value (`--only-new` skips
+  decisions whose fields are already flagged);
+- **reversible** — `--clear --apply` NULLs the marker; it never touches
+  `verified_amount`;
+- **auditable** — `--output flagged.json` records exactly what was (or would be)
+  changed, per field.
+
+It writes only `invalid_amount_reason` / `invalid_amount_value` /
+`invalid_amount_flagged_at`, never a monetary value — the real amount is unknown.
+The shared logic lives on `AmountCorrectionService`
+(`flag_non_monetary_values()` / `clear_non_monetary_markers()`), which the
+correction pipeline also uses, so the command and the pipeline cannot diverge.
+
+> Candidate selection mirrors `find_amount_anomalies` (same `--min-amount` /
+> `--max-amount` bounds, `--kind`, `--imported-since/--imported-until`,
+> `--ada`).  Keep the two in sync if either changes.
+
+### 4. From the Django admin
+
+The same treatment is available without a shell. On the **Decision** changelist:
+
+- **Find Non-Monetary Amounts** (`…/batch-flag-anomalies/`) — a form that runs
+  `fix_amount_anomalies` verbatim (dry-run on by default). It does the whole-DB
+  scan bounded by amount range, import window, kind and a hard limit
+  (max 2000 candidates per run — use the CLI for larger sweeps).
+- **Non-Monetary Amounts Pool** (`…/flagged-amounts-pool/`) — paginated list of
+  every decision with the marker, showing the flag kind, the matched value and
+  the amount, with a per-row **Clear** (rollback) button.
+- **List actions** — select decisions and run
+  `[AMOUNT] Flag non-monetary amounts (AFM/KAE)` or
+  `[AMOUNT] Clear non-monetary flag (unflag)` (bounded to 100 rows).
+
+The admin calls the management command, so the UI and the CLI share one code
+path and cannot diverge.
+
+> `--limit` (and the admin form's limit) now bounds the **SQL** query, not just
+> the in-memory list — a bounded run never materialises the whole high-value
+> candidate set.
+
+**Automatic discovery (post-import).** There is *no* dedicated feature flag for
+the guard. Phase 3 (`_discover_non_monetary_values` in
+`tasks_post_import.verify_high_value_amounts`) only runs when the post-import
+orchestrator chain fires, which requires **`POST_IMPORT_ORCHESTRATOR_ENABLED`**
+(default **off**) and **`POST_IMPORT_AMOUNT_VERIFICATION_ENABLED`** (default on),
+and only after a **global DAILY** import (not backfill / entity-targeted). If
+you see no discovery logs, check those two flags — or just run the CLI/admin
+scan, which needs neither.
+
 ## Getting the real amount
 
 The guard can tell that `99370337` / `706273001` / `801380053` is *wrong*, but
