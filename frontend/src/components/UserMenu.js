@@ -46,7 +46,6 @@ const UserMenu = ({ isOpen, onToggle }) => {
             onChevronClick={handleToggleMenu}
             mainClassName="user-menu-trigger"
             chevronClassName="user-menu-chevron"
-            className="user-menu-split-btn"
             mainTitle={isOpen ? 'Close menu' : 'Open menu'}
             chevronTitle={isOpen ? 'Close menu' : 'Open menu'}
           >
