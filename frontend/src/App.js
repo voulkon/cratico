@@ -252,12 +252,8 @@ function AuthenticatedApp({ controlsLayout }) {
         />
       )}
 
-      {/* RateLimitIndicator removed 2026-09: the global bottom bar rendered stale
-          localStorage and never updated — the backend does not emit X-RateLimit-*
-          headers behind the compose gateway, so there was no live data. Revisit as
-          a user-menu quota meter fed by api/client.js 'rateLimitInfo' events once
-          the middleware is fixed (future: per-minute + per-day windows, larger
-          quotas for logged-in users). */}
+      {/* The rate-limit quota lives in the user-menu dropdown
+          (components/RateLimitIndicator.js), fed by api/client.js events. */}
       <RateLimitModal />
       <AuthPromptModal />
     </>

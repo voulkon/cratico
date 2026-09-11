@@ -1,0 +1,40 @@
+.rate-limit-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.rate-limit-row-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
+.rate-limit-row-label {
+  font-size: var(--font-sm);
+  color: var(--muted-text);
+}
+
+.rate-limit-row-value {
+  font-size: var(--font-sm);
+  font-weight: var(--font-bold);
+  color: var(--text-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.rate-limit-meter {
+  position: relative;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border-color);
+  overflow: hidden;
+}
+
+.rate-limit-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.3s ease, background-color 0.3s ease;
+}

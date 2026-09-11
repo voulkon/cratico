@@ -135,7 +135,8 @@
     "loadMore": "Load More",
     "register" : "Register",
     "ai": "AI",
-    "notSignedIn": "Not signed in"
+    "notSignedIn": "Not signed in",
+    "requestsRemaining": "Requests remaining today"
   },
   "decisionsToolbar": {
     "filterLabel": "Filter:",
