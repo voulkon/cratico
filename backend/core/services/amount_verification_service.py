@@ -117,6 +117,58 @@ class AmountVerificationService:
         self.threshold = threshold or DEFAULT_HIGH_VALUE_THRESHOLD
 
     # ------------------------------------------------------------------
+    # Candidate resolution (shared by batch + fan-out task)
+    # ------------------------------------------------------------------
+
+    def get_high_value_candidates(
+        self,
+        imported_since=None,
+        imported_until=None,
+        limit: int | None = None,
+    ) -> list:
+        """
+        Resolve the high-value candidate pool WITHOUT running verification.
+
+        Single source of truth for candidate selection: the batch method
+        (``verify_high_value_decisions``) and the post-import fan-out parent
+        (``tasks_post_import.verify_high_value_amounts``) both use this, so
+        the query shape can never drift between them.
+
+        The heavy aggregate (join + GROUP BY + HAVING) runs exactly once and
+        is materialised under ``limit`` — never over the whole table.  The
+        ``created_at`` range filter is index-backed (migration 0098).
+        """
+        from core.services.decision_facets import amount_sum_excluding_kae
+
+        candidates = (
+            Decision.objects.annotate(calc_total=amount_sum_excluding_kae())
+            .filter(calc_total__gte=self.threshold)
+            .exclude(
+                text_process_resolutions__process=PROCESS_SLUG,
+                text_process_resolutions__winning_run__status=(
+                    TextProcessStatus.COMPLETED
+                ),
+            )
+            .order_by("-calc_total")
+        )
+
+        if imported_since is not None:
+            candidates = candidates.filter(created_at__gte=imported_since)
+        if imported_until is not None:
+            candidates = candidates.filter(created_at__lt=imported_until)
+
+        # Apply the limit BEFORE materialising.  ``candidates.count()`` on
+        # the un-sliced queryset executes the whole join + GROUP BY + HAVING
+        # as ``SELECT COUNT(*) FROM (…)`` — that is what turned a post-import
+        # run into a 16h query (holding a snapshot + AccessShareLock that
+        # wedged migration 0096 and every reader of
+        # ``core_decisionamountfield``).  See
+        # ``docs/lessons_learnt/runaway_query_lock_pileup.md``.
+        if limit:
+            candidates = candidates[:limit]
+        return list(candidates)
+
+    # ------------------------------------------------------------------
     # Batch entry point (called by post-import task)
     # ------------------------------------------------------------------
 
@@ -153,38 +205,11 @@ class AmountVerificationService:
         # A decision is "verified" once its resolution points at a COMPLETED run.
         # NOTE: sums ALL amount fields (linked + unlinked) to stay consistent
         # with verify_decision(), which uses include_unlinked=True.
-        from core.services.decision_facets import amount_sum_excluding_kae
-
-        candidates = (
-            Decision.objects.annotate(calc_total=amount_sum_excluding_kae())
-            .filter(calc_total__gte=self.threshold)
-            .exclude(
-                text_process_resolutions__process=PROCESS_SLUG,
-                text_process_resolutions__winning_run__status=(
-                    TextProcessStatus.COMPLETED
-                ),
-            )
-            .order_by("-calc_total")
+        decisions = self.get_high_value_candidates(
+            imported_since=imported_since,
+            imported_until=imported_until,
+            limit=limit,
         )
-
-        if imported_since is not None:
-            candidates = candidates.filter(created_at__gte=imported_since)
-        if imported_until is not None:
-            candidates = candidates.filter(created_at__lt=imported_until)
-
-        # Apply the limit BEFORE counting.  ``candidates.count()`` on the
-        # un-sliced queryset executes the whole join + GROUP BY + HAVING as
-        # ``SELECT COUNT(*) FROM (…)`` — that is what turned a post-import run
-        # into a 16h query (holding a snapshot + AccessShareLock that wedged
-        # migration 0096 and every reader of ``core_decisionamountfield``).
-        # See ``docs/lessons_learnt/runaway_query_lock_pileup.md``.
-        #
-        # Materialise the (already limited) candidate set once and derive the
-        # count from it: the heavy aggregate now runs a single time instead of
-        # twice, and is never executed over the entire table.
-        if limit:
-            candidates = candidates[:limit]
-        decisions = list(candidates)
         total_candidates = len(decisions)
         logger.info(
             f"Amount verification: {total_candidates} decisions above "

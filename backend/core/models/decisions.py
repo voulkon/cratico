@@ -359,6 +359,15 @@ class Decision(models.Model):
             # Publish-date grouping (mirrors Diavgeia API from_date / to_date)
             models.Index(fields=["publish_date_day"]),
             models.Index(fields=["organization", "publish_date_day"]),
+            # Import-time range scans.  The post-import amount
+            # verification/correction candidate queries filter on
+            # ``created_at`` (decisions imported on the reference day); without
+            # this index that filter is a full-table scan inside a heavy
+            # join+GROUP BY — the 16h runaway query of 2026-09-10 and the
+            # 20-minute silent candidate query of 2026-09-12.  Monotonic
+            # auto_now_add values make this the cheapest possible B-tree to
+            # maintain (pure right-append on insert).
+            models.Index(fields=["created_at"]),
             # For M2M relationships (these help with JOIN operations)
             # Note: These are automatically created for M2M fields, but listing for completeness
         ]

@@ -2,9 +2,18 @@ name: PR Tests
 
 on:
   pull_request:
+    # Promotion path is dev -> preview -> main, so all three are valid targets.
+    # `labeled` lets you opt an existing PR into the E2E suite by adding the
+    # `run-e2e` label without pushing a new commit.
     branches: ["main", "dev"]
+    types: [opened, synchronize, reopened, labeled]
+  # main only: a push to dev is almost always the merge of an already-tested
+  # PR, so re-running the full backend suite there is redundant.
   push:
-    branches: ["main", "dev"]
+    branches: ["main"]
+  # Manual run (all E2E suites). The button only appears once this file is on
+  # the default branch (main).
+  workflow_dispatch:
 
 concurrency:
   group: pr-tests-${{ github.ref }}
@@ -33,12 +42,11 @@ jobs:
         uses: dorny/paths-filter@v3
         id: filter
         with:
-          # PR events: dorny diffs the PR against its base branch (omitted base
-          # = auto-detect). Push events: dorny's default base is the repo's
-          # DEFAULT branch (main), which would diff main...dev and re-run
-          # everything on every push to dev. github.event.before is the commit
-          # the branch pointed to before the push, so we diff only that push.
-          base: ${{ github.event_name == 'push' && github.event.before || '' }}
+          # push        -> github.event.before (only the pushed commits)
+          # pull_request -> the PR's base branch (e.g. dev/preview/main)
+          # dispatch     -> main (fallback; the outputs are not used as a gate
+          #                 on manual runs)
+          base: ${{ github.event_name == 'push' && github.event.before || github.event.pull_request.base.ref || 'main' }}
           filters: |
             backend:
               - 'backend/**'
@@ -61,7 +69,12 @@ jobs:
   backend:
     name: Backend tests + coverage diff
     needs: changes
-    if: needs.changes.outputs.backend == 'true'
+    # Skipped on a manual E2E run and when only a label changed (adding
+    # `run-e2e` should not re-run the backend suite).
+    if: >-
+      github.event_name != 'workflow_dispatch' &&
+      github.event.action != 'labeled' &&
+      needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -182,7 +195,11 @@ jobs:
   frontend:
     name: Frontend tests
     needs: changes
-    if: needs.changes.outputs.frontend == 'true'
+    # See backend: skipped on manual E2E runs and label-only events.
+    if: >-
+      github.event_name != 'workflow_dispatch' &&
+      github.event.action != 'labeled' &&
+      needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -207,7 +224,15 @@ jobs:
   e2e:
     name: E2E ${{ matrix.suite }} (non-blocking)
     needs: changes
-    if: needs.changes.outputs.e2e == 'true'
+    # Opt-in only: E2E boots the whole stack, so it no longer runs on every
+    # backend/frontend/docker change. It runs when:
+    #   * you add the `run-e2e` label to a PR, or
+    #   * you trigger this workflow manually (workflow_dispatch), or
+    #   * a push lands on main (post-merge safety net).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && needs.changes.outputs.e2e == 'true') ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-e2e'))
     runs-on: ubuntu-latest
     # Task 05 gate decision: non-blocking for 2 weeks, then flip to blocking.
     continue-on-error: true

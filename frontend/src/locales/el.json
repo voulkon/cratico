@@ -135,7 +135,8 @@
     "loadMore": "Φόρτωση Περισσότερων",
     "register" : "Εγγραφή",
     "ai": "AI",
-    "notSignedIn": "Δεν έχετε συνδεθεί"
+    "notSignedIn": "Δεν έχετε συνδεθεί",
+    "requestsRemaining": "Υπόλοιπα αιτήματα σήμερα"
   },
   "decisionsToolbar": {
     "filterLabel": "Φίλτρο:",
