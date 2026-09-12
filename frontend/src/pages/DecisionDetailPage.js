@@ -556,25 +556,6 @@ const DecisionDetailPage = () => {
             </p>
           )}
 
-          {/* Main recipient (counterpart entity receiving the funds) */}
-          {mainRecipient?.entity?.name && (
-            <div className="amount-hero-recipient">
-              <span className="recipient-arrow">→</span>
-              <button
-                className="recipient-name"
-                onClick={() => navigate(`/entity/afm/${mainRecipient.entity.afm}`)}
-                title={t('decisionDetail.viewEntityDetails')}
-              >
-                {mainRecipient.entity.name}
-              </button>
-              {mainRecipient.total_amount > 0 && (
-                <span className="recipient-amount">
-                  {formatAmount(mainRecipient.total_amount)}
-                </span>
-              )}
-            </div>
-          )}
-
           {/* Verify-amount knob */}
           <div className="verify-amount-row">
             <button
@@ -599,6 +580,27 @@ const DecisionDetailPage = () => {
               </span>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Main recipient (counterpart entity receiving the funds) — rendered
+          independently of the amount hero: the amount may be unknown (null)
+          while the counterpart is still known. */}
+      {mainRecipient?.entity?.name && (
+        <div className="amount-hero-recipient">
+          <span className="recipient-arrow">→</span>
+          <button
+            className="recipient-name"
+            onClick={() => navigate(`/entity/afm/${mainRecipient.entity.afm}`)}
+            title={t('decisionDetail.viewEntityDetails')}
+          >
+            {mainRecipient.entity.name}
+          </button>
+          {mainRecipient.total_amount > 0 && (
+            <span className="recipient-amount">
+              {formatAmount(mainRecipient.total_amount)}
+            </span>
+          )}
         </div>
       )}
 

@@ -2,6 +2,7 @@ import json
 
 from api.utils.common import get_client_ip
 from api.views.search.entity_search_utils import (
+    decision_effective_amount_str,
     format_afmentity,
     format_company,
     format_company_person,
@@ -134,11 +135,7 @@ def get_search_data_for_api(query, **kwargs):
                             if decision and decision.issue_date_day
                             else None
                         ),
-                        "amount": (
-                            str(decision.amount)
-                            if decision and decision.amount
-                            else None
-                        ),
+                        "amount": decision_effective_amount_str(decision),
                         "currency": decision.currency if decision else None,
                         "status": decision.status if decision else None,
                         "provider": extraction.extraction_provider,
@@ -200,11 +197,7 @@ def get_search_data_for_api(query, **kwargs):
                             if decision and decision.issue_date_day
                             else None
                         ),
-                        "amount": (
-                            str(decision.amount)
-                            if decision and decision.amount
-                            else None
-                        ),
+                        "amount": decision_effective_amount_str(decision),
                         "currency": decision.currency if decision else None,
                         "status": decision.status if decision else None,
                         "provider": extraction.extraction_provider,

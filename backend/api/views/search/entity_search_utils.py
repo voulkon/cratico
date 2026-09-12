@@ -5,6 +5,31 @@ from core.services.transliteration import TransliterationService
 from core.utils.search_trace import finish_search_trace, start_search_trace
 
 
+def decision_effective_amount_str(decision):
+    """
+    Effective monetary amount of a decision as a display string, or None.
+
+    NEVER reads the denormalised ``Decision.amount`` directly: it may be NULL,
+    a data-entry typo, or a non-monetary value (counterpart ΑΦΜ / ΚΑΕ
+    mis-recorded as the amount).  Uses the verified-aware, invalid-excluding
+    sum over ``DecisionAmountField`` rows instead.
+    """
+    from core.models.entities import DecisionAmountField
+    from core.services.decision_facets import daf_effective_sum
+
+    if decision is None or getattr(decision, "pk", None) is None:
+        return None
+    try:
+        total = (
+            DecisionAmountField.objects.filter(decision=decision)
+            .aggregate(total=daf_effective_sum())["total"]
+        )
+    except Exception:
+        # Non-persisted / mock decisions (e.g. in tests) have no amount rows.
+        return None
+    return str(total) if total is not None else None
+
+
 def determine_matched_field(entity_type, entity, query):
     """
     Determine which field likely matched the search query
@@ -379,11 +404,7 @@ def get_documents_slow(query, limit=5):
                             if decision and decision.issue_date
                             else None
                         ),
-                        "amount": (
-                            str(decision.amount)
-                            if decision and decision.amount
-                            else None
-                        ),
+                        "amount": decision_effective_amount_str(decision),
                         "currency": decision.currency if decision else None,
                         "status": decision.status if decision else None,
                         "provider": extraction.extraction_provider,
@@ -445,11 +466,7 @@ def get_documents_slow(query, limit=5):
                             if decision and decision.issue_date
                             else None
                         ),
-                        "amount": (
-                            str(decision.amount)
-                            if decision and decision.amount
-                            else None
-                        ),
+                        "amount": decision_effective_amount_str(decision),
                         "currency": decision.currency if decision else None,
                         "status": decision.status if decision else None,
                         "provider": extraction.extraction_provider,
