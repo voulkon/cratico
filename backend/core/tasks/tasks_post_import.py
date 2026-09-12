@@ -10,15 +10,28 @@ To add new post-import work:
   2. Add it to the chain in post_daily_import_orchestrator()
   3. Add a feature flag key to KNOWN_FLAGS in feature_flag_service.py
 
-Execution order (via Celery chain — sequential, fail-fast):
-  verify_high_value_amounts  →  compute_entity_rankings  →  invalidate_browse_cache
-  →  warm_analytics_cache  →  trigger_check_all_subscriptions
-  (amount correction)          (DB snapshots)             (Redis cache)             (Notifications)
+Execution order (via Celery chord — sequential, fail-fast):
+  verify_high_value_amounts
+      └─ chord: [verify_correct_decision_batch × N]  →  finalize_amount_verification
+      └─ chord body continues: compute_entity_rankings  →  invalidate_browse_cache
+         →  warm_analytics_cache  →  trigger_check_all_subscriptions
+  (amount correction)                (DB snapshots)             (Redis cache)             (Notifications)
 
 Amount verification runs FIRST: it is the only step that mutates monetary values
 (``verified_amount`` + the invalid-amount marker), and the steps that read
 amounts through the facet layer (entity rankings, analytics cache warming) must
 therefore run after it — otherwise they publish pre-correction figures.
+
+WHY FAN-OUT (2026-09-12 incident): the previous implementation ran up to 500
+sequential document downloads inside ONE task.  A single 6h task (a) grows
+worker memory unchecked — Celery's ``max_tasks_per_child`` /
+``max_memory_per_child`` only take effect BETWEEN tasks — and (b) holds one
+persistent DB connection for hours, which eventually dies with
+"server closed the connection unexpectedly" (CONN_MAX_AGE staleness), losing
+the whole batch.  One child task per decision bounds memory per child, makes
+the memory limits effective, isolates failures to a single decision, and gives
+per-decision progress in the logs.  The chord body guarantees the rest of the
+post-import chain still runs only after ALL children complete.
 
 Views warmed (all DashboardGrid sections):
   explore_orgs               → OrganizationsSection
@@ -32,7 +45,7 @@ import calendar
 import functools
 import time
 
-from celery import chain, shared_task
+from celery import chain, chord, shared_task
 from core.services.feature_flag_service import feature_flags
 from loguru import logger
 
@@ -646,6 +659,29 @@ def trigger_check_all_subscriptions(reference_date_str: str | None = None):
 
 
 # ── Amount Verification — AI-based validation of high-value decisions ─────
+#
+# FAN-OUT ARCHITECTURE (see module docstring for the why):
+#   verify_high_value_amounts        — parent: resolve candidates, dispatch chord
+#   verify_correct_decision_batch    — child: one BATCH of decisions through
+#                                      verify+correct
+#   finalize_amount_verification     — chord body: aggregate, invalidate caches,
+#                                      run discovery, CONTINUE the post-import
+#                                      chain (rankings → invalidate → warm →
+#                                      notifications) via a nested chain.
+
+# Per-decision work is dispatched in batches of this size so the parent's
+# candidate query result is chunked into manageable child tasks.
+# Tunable via VERIFY_AMOUNT_BATCH_SIZE (default 50).  Each child does at most
+# ``batch_size`` document reads, so per-child memory stays bounded and
+# Celery's max_memory_per_child remains effective.
+import os
+
+VERIFY_BATCH_SIZE = int(os.environ.get("VERIFY_AMOUNT_BATCH_SIZE", 30))
+
+# Hard cap on candidates per run (cost control; matches the previous
+# monolithic limit=500).
+VERIFY_CANDIDATE_LIMIT = 500
+
 
 @shared_task
 @log_task_run(swallow_errors=True)
@@ -654,30 +690,25 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
     Verify AND correct monetary amounts for decisions exceeding the
     high-value threshold by reading the actual document text.
 
-    Three-phase pipeline:
-      1. Verification (AmountVerificationService): runs regex/AI detection
-         and persists TextProcessRun + TextProcessResolution records for
-         audit trail.
-      2. Correction (AmountCorrectionService): runs the cents-based detector
-         and — when the text has a clear different amount with a ×100/÷100
-         decimal-shift — stores the corrected value on each affected
-         ``DecisionAmountField.verified_amount`` so all downstream consumers
-         (via ``COALESCE(verified_amount, amount)``) use the corrected value.
-         It also writes the invalid-amount marker for non-monetary values.
-      3. Discovery (``_discover_non_monetary_values``): DB-only, read-only
-         sweep that logs AFM/KAE-as-amount cases for observability.
+    This is the PARENT task: it resolves the candidate pool (fast, indexed
+    query) and fans out one child task per batch of decisions via a Celery
+    chord.  The chord body (``finalize_amount_verification``) runs the
+    discovery sweep, invalidates amount-dependent caches, and dispatches the
+    REST of the post-import chain — so rankings/warm/notifications still run
+    only after every child has finished.
 
-    Because phase 2 mutates amounts, this task runs FIRST in the post-import
-    chain (before entity rankings and cache warming) and invalidates the
-    amount-dependent analytics caches so downstream reads never serve
-    pre-correction figures.
+    Per-decision work (in ``verify_correct_decision_batch``):
+      1. Verification (AmountVerificationService.verify_decision): regex/AI
+         detection, persists TextProcessRun + TextProcessResolution.
+      2. Correction (AmountCorrectionService.correct_decision): cents-based
+         ×100/÷100 detector, writes ``DecisionAmountField.verified_amount``
+         and the invalid-amount marker for non-monetary values.
 
     Catches data-entry errors where decimal separators are misplaced
     (e.g. €30,000.00 recorded as €3,000,000 in Diavgeia).
 
-    This task is idempotent — it skips decisions that have already been
-    verified/corrected.  It runs as a standalone @shared_task so it can
-    also be triggered manually via the Django admin or management command.
+    Idempotent — children skip decisions that already have a COMPLETED
+    verification resolution.
 
     Args:
         reference_date_str: ISO-format date string of the import day.  Only
@@ -688,7 +719,7 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
             defaults to today.
 
     Returns:
-        Dict with batch summary from both phases.
+        Dict with dispatch summary (candidate count, batch count).
     """
     if not feature_flags.is_enabled("POST_IMPORT_AMOUNT_VERIFICATION_ENABLED"):
         logger.debug(
@@ -701,7 +732,6 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
     from django.utils import timezone as dj_timezone
 
     from core.services.amount_verification_service import AmountVerificationService
-    from core.services.amount_correction_service import AmountCorrectionService
 
     ref = (
         date.fromisoformat(reference_date_str)
@@ -722,49 +752,206 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
         f"(decisions imported on {ref})"
     )
 
-    # ── Phase 1: Verification (audit trail + discrepancy detection) ───
+    # Resolve the candidate pool ONCE (the heavy aggregate query — now
+    # index-backed on created_at).  The service's batch method materialises
+    # the limited candidate set; we reuse its query shape via the same
+    # service so the candidate selection stays in ONE place.
     verify_service = AmountVerificationService()
-    verify_result = verify_service.verify_high_value_decisions(
+    decisions = verify_service.get_high_value_candidates(
         imported_since=imported_since,
         imported_until=imported_until,
-        limit=500,
+        limit=VERIFY_CANDIDATE_LIMIT,
+    )
+
+    total = len(decisions)
+    logger.info(
+        f"Amount verification: {total} decisions above threshold "
+        f"(imported on {ref})"
+    )
+
+    if not decisions:
+        # Nothing to do — run the finalize path inline (no chord needed) so
+        # the rest of the post-import chain still executes.
+        finalize_amount_verification.run(
+            [], reference_date_str=reference_date_str
+        )
+        return {
+            "status": "completed",
+            "reference_date": str(ref),
+            "total_candidates": 0,
+            "batches_dispatched": 0,
+        }
+
+    # Fan out: one child per batch, chord body = finalize + chain continuation.
+    decision_ids = [d.id for d in decisions]
+    batches = [
+        decision_ids[i : i + VERIFY_BATCH_SIZE]
+        for i in range(0, len(decision_ids), VERIFY_BATCH_SIZE)
+    ]
+
+    header = [
+        verify_correct_decision_batch.si(batch)
+        for batch in batches
+    ]
+    # NOTE: the body MUST be a mutable signature (.s) — a chord passes the
+    # header results as the body's first positional argument, and .si would
+    # silently discard them (batch_summaries would arrive empty).
+    task_chord = chord(header)(
+        finalize_amount_verification.s(reference_date_str=reference_date_str)
     )
 
     logger.info(
-        f"Amount verification complete: {verify_result['verified']} verified, "
-        f"{verify_result['discrepancies']} discrepancies found"
+        f"Amount verification fan-out: {len(batches)} batch(es) of up to "
+        f"{VERIFY_BATCH_SIZE} decisions dispatched (chord id {task_chord.id})"
     )
 
-    # ── Phase 2: Correction (cents-based, updates Decision model) ────
+    return {
+        "status": "dispatched",
+        "reference_date": str(ref),
+        "total_candidates": total,
+        "batches_dispatched": len(batches),
+        "batch_size": VERIFY_BATCH_SIZE,
+    }
+
+
+@shared_task(
+    bind=True,
+    max_retries=2,
+    default_retry_delay=30,
+)
+def verify_correct_decision_batch(self, decision_ids: list[int]) -> dict:
+    """
+    Child task: verify AND correct ONE BATCH of decisions (up to
+    ``VERIFY_BATCH_SIZE``, passed as an explicit ID list by the parent).
+
+    Runs the per-decision verify (audit trail) + correct (mutates
+    verified_amount / invalid marker) paths.  Bounded work per task: at most
+    ``VERIFY_BATCH_SIZE`` document reads, so Celery's per-child memory limits
+    are effective and one poisoned decision cannot lose the batch
+    (per-decision errors are counted, never raised).
+
+    DB hygiene: closes stale persistent connections up front — a child lives
+    minutes, not hours, but CONN_MAX_AGE connections can still be stale if
+    the worker was idle.
+    """
+    from django.db import close_old_connections
+
+    from core.models.decisions import Decision
+    from core.services.amount_correction_service import AmountCorrectionService
+    from core.services.amount_verification_service import AmountVerificationService
+
+    close_old_connections()
+
+    verify_service = AmountVerificationService()
     correction_service = AmountCorrectionService()
-    correct_result = correction_service.correct_high_value_decisions(
-        imported_since=imported_since,
-        imported_until=imported_until,
-        limit=500,
-    )
+
+    summary = {
+        "verified": 0,
+        "discrepancies": 0,
+        "corrected": 0,
+        "consistent": 0,
+        "no_text": 0,
+        "skipped": 0,
+        "errors": 0,
+    }
+
+    for decision_id in decision_ids:
+        try:
+            decision = Decision.objects.get(id=decision_id)
+
+            # Phase 1: verification (audit trail + discrepancy detection).
+            # Skips decisions that already have a COMPLETED resolution.
+            verify_result = verify_service.verify_decision(decision)
+            if verify_result["status"] == "completed":
+                summary["verified"] += 1
+                if verify_result.get("has_discrepancy"):
+                    summary["discrepancies"] += 1
+
+            # Phase 2: correction (cents-based, mutates verified_amount).
+            correct_result = correction_service.correct_decision(
+                decision, dry_run=False, read_if_missing=True
+            )
+            status = correct_result["status"]
+            if status in ("corrected", "would_correct"):
+                summary["corrected"] += 1
+            elif status == "consistent":
+                summary["consistent"] += 1
+            elif status == "no_text_amounts_found":
+                summary["no_text"] += 1
+            else:
+                summary["skipped"] += 1
+        except Exception as exc:
+            logger.error(
+                f"verify_correct_decision_batch: decision {decision_id} "
+                f"failed: {exc}",
+                exc_info=True,
+            )
+            summary["errors"] += 1
 
     logger.info(
-        f"Amount correction complete: {correct_result['corrected']} corrected, "
-        f"{correct_result['consistent']} consistent, "
-        f"{correct_result['no_text']} no text, "
-        f"{correct_result['errors']} errors"
+        f"verify_correct_decision_batch done: {summary} "
+        f"({len(decision_ids)} decisions)"
+    )
+    return summary
+
+
+@shared_task
+@log_task_run(swallow_errors=True)
+def finalize_amount_verification(
+    batch_summaries: list[dict],
+    reference_date_str: str | None = None,
+):
+    """
+    Chord body: aggregate child results, invalidate caches, run discovery,
+    and CONTINUE the post-import chain.
+
+    Receives the list of per-batch summary dicts from the chord header.
+    Dispatches the remaining post-import tasks (rankings → invalidate →
+    warm → notifications) as a nested chain so the ordering guarantee
+    (amounts corrected BEFORE anything reads them) is preserved.
+    """
+    from datetime import datetime, timedelta
+
+    from django.utils import timezone as dj_timezone
+
+    ref = (
+        date.fromisoformat(reference_date_str)
+        if reference_date_str
+        else date.today()
+    )
+    imported_since = dj_timezone.make_aware(
+        datetime.combine(ref, datetime.min.time())
+    )
+    imported_until = imported_since + timedelta(days=1)
+
+    # ── Aggregate child summaries ─────────────────────────────────────
+    totals = {
+        "verified": 0,
+        "discrepancies": 0,
+        "corrected": 0,
+        "consistent": 0,
+        "no_text": 0,
+        "skipped": 0,
+        "errors": 0,
+    }
+    for s in batch_summaries or []:
+        if not isinstance(s, dict):
+            continue
+        for key in totals:
+            totals[key] += s.get(key, 0) or 0
+
+    logger.info(
+        f"Amount verification + correction complete: {totals} "
+        f"({len(batch_summaries or [])} batch(es))"
     )
 
-    # ── Amounts changed → drop the analytics caches that encode them ──────
-    # ``correct_high_value_decisions`` updates DecisionAmountField values
-    # (verified_amount + the invalid marker) but never invalidates caches
-    # itself — only the admin/job path does it, in
-    # ``finalize_amount_correction_job``.  The warm step later in this chain
-    # repopulates only the exact (view, window, limit) keys it knows, so any
-    # OTHER cached range would keep serving pre-correction figures.  These
-    # prefixes cover the views that read amounts via the facet layer
-    # (explore_orgs / da_top_pairs are NOT matched by the "top_" prefix).
-    if (
-        correct_result.get("corrected")
-        or correct_result.get("afm_as_amount")
-        or correct_result.get("kae_as_amount")
-        or correct_result.get("non_monetary_value_as_amount")
-    ):
+    # ── Amounts changed → drop the analytics caches that encode them ──
+    # The warm step later in this chain repopulates only the exact
+    # (view, window, limit) keys it knows, so any OTHER cached range would
+    # keep serving pre-correction figures.  These prefixes cover the views
+    # that read amounts via the facet layer (explore_orgs / da_top_pairs are
+    # NOT matched by the "top_" prefix).
+    if totals["corrected"] or totals["discrepancies"]:
         from core.services.response_cache_service import response_cache
 
         invalidated = sum(
@@ -776,23 +963,34 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
             f"amount-dependent analytics cache key(s)"
         )
 
-    # ── Phase 3: Discovery (non-monetary values recorded as amounts) ─
-    # Verification/correction only flag decisions that pass through the
-    # high-value pipeline.  This DB-only sweep finds every decision imported
-    # on the reference day whose recorded amount is really an AFM or KAE
-    # (non-monetary value) — no document text needed — so nothing slips
-    # through even when the amount is below the verification threshold.
+    # ── Discovery (non-monetary values recorded as amounts) ───────────
+    # DB-only, read-only sweep — see _discover_non_monetary_values.
     discovery_result = _discover_non_monetary_values(
         imported_since=imported_since,
         imported_until=imported_until,
     )
 
+    # ── Continue the post-import chain ────────────────────────────────
+    # The chord replaced the first link of the old chain, so the remaining
+    # tasks are dispatched here, in the same order as before.
+    continuation = chain(
+        compute_entity_rankings.si(reference_date_str=reference_date_str),
+        invalidate_browse_cache.si(),
+        warm_analytics_cache.si(reference_date_str=reference_date_str),
+        trigger_check_all_subscriptions.si(reference_date_str=reference_date_str),
+    )
+    continuation_result = continuation.apply_async()
+    logger.info(
+        f"Post-import continuation dispatched (chain task id: "
+        f"{continuation_result.id}) for reference date {ref}"
+    )
+
     return {
         "status": "completed",
         "reference_date": str(ref),
-        "verification": verify_result,
-        "correction": correct_result,
+        "totals": totals,
         "discovery": discovery_result,
+        "continuation_task_id": str(continuation_result.id),
     }
 
 
