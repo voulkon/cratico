@@ -9,6 +9,7 @@ import { Moon, Sun, LogOut, LogIn, Sparkles } from 'lucide-react';
 // index.js. Sign-in goes through the unified DjangoLoginForm modal instead,
 // so SignInButton is no longer needed here.
 import { SignOutButton } from '@clerk/clerk-react';
+import RateLimitIndicator from './RateLimitIndicator';
 import './UserMenu.css';
 
 const UserMenuDropdown = ({ onClose, onShowLogin }) => {
@@ -216,6 +217,12 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
           </div>
         </>
       )}
+
+      {/* Daily API quota, fed by X-RateLimit-* headers via api/client.js.
+          Kept at the bottom as informational footer; renders its own divider
+          and section, and nothing at all until a rate-limit response has
+          actually been seen. */}
+      <RateLimitIndicator label={t('common.requestsRemaining')} />
     </div>
   );
 };

@@ -72,7 +72,10 @@ apiClient.interceptors.response.use(
       const rateLimitInfo = {
         limit: parseInt(response.headers['x-ratelimit-limit']),
         remaining: parseInt(response.headers['x-ratelimit-remaining']),
-        reset: parseInt(response.headers['x-ratelimit-reset'])
+        reset: parseInt(response.headers['x-ratelimit-reset']),
+        // Stamped here so consumers can tell fresh data from a stale
+        // localStorage entry left over from a previous session.
+        updatedAt: Date.now()
       };
 
       // Store in localStorage or context for UI display

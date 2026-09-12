@@ -420,24 +420,14 @@ class TestDiscoverNonMonetaryValues:
 
 
 class TestVerifyHighValueAmountsDiscoveryWiring:
-    """verify_high_value_amounts must run and return the phase-3 discovery."""
+    """verify_high_value_amounts (fan-out parent) must dispatch the chord and
+    the finalize body must run discovery + cache invalidation + continuation."""
 
-    def test_runs_discovery_with_import_window(self):
+    def test_dispatches_chord_with_batches(self):
+        from core.tasks import tasks_post_import
         from core.tasks.tasks_post_import import verify_high_value_amounts
 
-        fake_verify = {"verified": 1, "discrepancies": 0}
-        fake_correct = {
-            "corrected": 0,
-            "consistent": 1,
-            "no_text": 0,
-            "errors": 0,
-        }
-        fake_discovery = {
-            "afm_anomalies": 2,
-            "kae_anomalies": 1,
-            "total_anomalies": 3,
-            "sample": [],
-        }
+        candidates = [MagicMock(id=i) for i in range(60)]  # → 3 batches of 25
 
         with (
             patch(
@@ -448,29 +438,58 @@ class TestVerifyHighValueAmountsDiscoveryWiring:
             ),
             patch(
                 "core.services.amount_verification_service."
-                "AmountVerificationService.verify_high_value_decisions",
-                return_value=fake_verify,
+                "AmountVerificationService.get_high_value_candidates",
+                return_value=candidates,
+            ),
+            # Pin the batch size so the test doesn't depend on the
+            # VERIFY_AMOUNT_BATCH_SIZE env default (currently 50).
+            patch.object(tasks_post_import, "VERIFY_BATCH_SIZE", 25),
+            patch(
+                "core.tasks.tasks_post_import.chord"
+            ) as mock_chord_cls,
+        ):
+            mock_chord_instance = MagicMock()
+            mock_chord_instance.return_value = MagicMock(id="chord-id")
+            mock_chord_cls.return_value = mock_chord_instance
+
+            result = verify_high_value_amounts(reference_date_str="2026-05-29")
+
+        assert result["status"] == "dispatched"
+        assert result["total_candidates"] == 60
+        assert result["batches_dispatched"] == 3
+        # chord(header) returns the chord instance; calling it with the body
+        # signature attaches the callback — two separate calls.
+        (header,) = mock_chord_cls.call_args.args
+        (body,) = mock_chord_instance.call_args.args
+        assert len(header) == 3
+        assert body.task.endswith("finalize_amount_verification")
+
+    def test_empty_candidates_run_finalize_inline(self):
+        from core.tasks.tasks_post_import import verify_high_value_amounts
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                side_effect=_flag_enabled(
+                    "POST_IMPORT_AMOUNT_VERIFICATION_ENABLED"
+                ),
             ),
             patch(
-                "core.services.amount_correction_service."
-                "AmountCorrectionService.correct_high_value_decisions",
-                return_value=fake_correct,
+                "core.services.amount_verification_service."
+                "AmountVerificationService.get_high_value_candidates",
+                return_value=[],
             ),
             patch(
-                "core.tasks.tasks_post_import._discover_non_monetary_values",
-                return_value=fake_discovery,
-            ) as mock_discovery,
+                "core.tasks.tasks_post_import.finalize_amount_verification"
+            ) as mock_finalize,
         ):
             result = verify_high_value_amounts(reference_date_str="2026-05-29")
 
-        assert result["status"] == "completed"
-        assert result["discovery"] == fake_discovery
-        mock_discovery.assert_called_once()
-        kwargs = mock_discovery.call_args.kwargs
-        assert kwargs["imported_since"].date() == date(2026, 5, 29)
-        assert kwargs["imported_until"].date() == date(2026, 5, 30)
+        assert result["total_candidates"] == 0
+        assert result["batches_dispatched"] == 0
+        mock_finalize.run.assert_called_once()
 
-    def test_skips_discovery_when_flag_disabled(self):
+    def test_skips_when_flag_disabled(self):
         from core.tasks.tasks_post_import import verify_high_value_amounts
 
         with (
@@ -487,38 +506,104 @@ class TestVerifyHighValueAmountsDiscoveryWiring:
         assert result == {"status": "skipped", "reason": "feature_flag_disabled"}
         mock_discovery.assert_not_called()
 
-    @staticmethod
-    def _run(overrides):
-        from core.tasks.tasks_post_import import verify_high_value_amounts
 
-        fake_correct = {
-            "corrected": 0,
-            "consistent": 0,
-            "no_text": 0,
-            "errors": 0,
-            "afm_as_amount": 0,
-            "kae_as_amount": 0,
-            "non_monetary_value_as_amount": 0,
+class TestFinalizeAmountVerification:
+    """The chord body aggregates child results, invalidates caches, runs
+    discovery, and dispatches the post-import continuation chain."""
+
+    def test_runs_discovery_with_import_window(self):
+        from core.tasks.tasks_post_import import finalize_amount_verification
+
+        fake_discovery = {
+            "afm_anomalies": 2,
+            "kae_anomalies": 1,
+            "total_anomalies": 3,
+            "sample": [],
         }
-        fake_correct.update(overrides)
 
         with (
             patch(
-                "core.tasks.tasks_post_import.feature_flags.is_enabled",
-                side_effect=_flag_enabled(
-                    "POST_IMPORT_AMOUNT_VERIFICATION_ENABLED"
-                ),
+                "core.tasks.tasks_post_import._discover_non_monetary_values",
+                return_value=fake_discovery,
+            ) as mock_discovery,
+            patch(
+                "core.tasks.tasks_post_import.chain"
+            ) as mock_chain_cls,
+        ):
+            mock_chain_instance = MagicMock()
+            mock_chain_instance.apply_async.return_value = MagicMock(id="c")
+            mock_chain_cls.return_value = mock_chain_instance
+
+            result = finalize_amount_verification.run(
+                [{"verified": 1, "discrepancies": 0}],
+                reference_date_str="2026-05-29",
+            )
+
+        assert result["status"] == "completed"
+        assert result["totals"]["verified"] == 1
+        assert result["discovery"] == fake_discovery
+        mock_discovery.assert_called_once()
+        kwargs = mock_discovery.call_args.kwargs
+        assert kwargs["imported_since"].date() == date(2026, 5, 29)
+        assert kwargs["imported_until"].date() == date(2026, 5, 30)
+
+    def test_continuation_chain_contains_four_tasks_in_order(self):
+        """After the chord, the remaining post-import tasks must run in the
+        same order as the original chain (rankings → invalidate → warm →
+        notifications)."""
+        from core.tasks.tasks_post_import import finalize_amount_verification
+
+        captured_chain_args = []
+
+        def fake_chain(*args):
+            captured_chain_args.extend(args)
+            m = MagicMock()
+            m.apply_async.return_value = MagicMock(id="x")
+            return m
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import._discover_non_monetary_values",
+                return_value={"afm_anomalies": 0, "kae_anomalies": 0,
+                              "total_anomalies": 0, "sample": []},
             ),
             patch(
-                "core.services.amount_verification_service."
-                "AmountVerificationService.verify_high_value_decisions",
-                return_value={"verified": 1, "discrepancies": 0},
+                "core.tasks.tasks_post_import.chain",
+                side_effect=fake_chain,
             ),
-            patch(
-                "core.services.amount_correction_service."
-                "AmountCorrectionService.correct_high_value_decisions",
-                return_value=fake_correct,
-            ),
+        ):
+            finalize_amount_verification.run(
+                [], reference_date_str="2026-05-29"
+            )
+
+        assert len(captured_chain_args) == 4
+
+        def _name(sig):
+            return (getattr(sig, "task", "") or "").rsplit(".", 1)[-1]
+
+        assert [_name(s) for s in captured_chain_args] == [
+            "compute_entity_rankings",
+            "invalidate_browse_cache",
+            "warm_analytics_cache",
+            "trigger_check_all_subscriptions",
+        ]
+
+    @staticmethod
+    def _run(overrides):
+        from core.tasks.tasks_post_import import finalize_amount_verification
+
+        batch = {
+            "verified": 0,
+            "discrepancies": 0,
+            "corrected": 0,
+            "consistent": 0,
+            "no_text": 0,
+            "skipped": 0,
+            "errors": 0,
+        }
+        batch.update(overrides)
+
+        with (
             patch(
                 "core.tasks.tasks_post_import._discover_non_monetary_values",
                 return_value={
@@ -529,12 +614,21 @@ class TestVerifyHighValueAmountsDiscoveryWiring:
                 },
             ),
             patch(
+                "core.tasks.tasks_post_import.chain"
+            ) as mock_chain_cls,
+            patch(
                 "core.services.response_cache_service."
                 "ResponseCacheService.invalidate_prefix",
                 return_value=3,
             ) as mock_invalidate,
         ):
-            verify_high_value_amounts(reference_date_str="2026-05-29")
+            mock_chain_instance = MagicMock()
+            mock_chain_instance.apply_async.return_value = MagicMock(id="c")
+            mock_chain_cls.return_value = mock_chain_instance
+
+            finalize_amount_verification.run(
+                [batch], reference_date_str="2026-05-29"
+            )
 
         return mock_invalidate
 
@@ -547,7 +641,7 @@ class TestVerifyHighValueAmountsDiscoveryWiring:
 
     def test_flagged_amounts_invalidate_analytics_caches(self):
         """Writing the invalid-amount marker also changes the facet layer."""
-        mock_invalidate = self._run({"afm_as_amount": 1})
+        mock_invalidate = self._run({"discrepancies": 1})
 
         assert mock_invalidate.call_count == 3
 
