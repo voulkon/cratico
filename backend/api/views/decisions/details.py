@@ -2,7 +2,7 @@ from core.models.companies import Company
 from core.models.decision_ai_analysis import DecisionAIAnalysis
 from core.models.decisions import Decision
 from core.models.document_analysis import DocumentExtraction, ProcessingStatus
-from core.models.entities import DecisionEntityRelationship
+from core.models.entities import DecisionAmountField, DecisionEntityRelationship
 from core.schemas.decision_detail import DecisionDetailResponse
 from core.services.decision_facets import effective_linked_amount_sum
 from api.utils.response import pydantic_response
@@ -59,6 +59,44 @@ def decision_detail(request, decision_id):
             ai_analyses_data = []
 
         # Serialize decision data
+        # ── Single pass over DecisionAmountField ────────────────────────
+        # The per-decision amount-field set is tiny (a handful of rows), so
+        # fetch it ONCE and derive everything in Python:
+        #   - effective total: COALESCE(verified_amount, amount), excluding
+        #     rows flagged as non-monetary values (counterpart ΑΦΜ / ΚΑΕ
+        #     mis-recorded as amount).  The denormalised Decision.amount is
+        #     NEVER used directly: it may be NULL, a typo, or non-monetary.
+        #   - has_corrected_amounts / corrected_amount (verified-aware total)
+        #   - invalid-amount state for the UI warning
+        # This avoids three separate aggregate/exists queries against the
+        # same table (and duplicates work the /entities/ endpoint does).
+        amount_fields = list(
+            DecisionAmountField.objects.filter(decision=decision).only(
+                "amount", "verified_amount", "invalid_amount_reason",
+                "invalid_amount_value",
+            )
+        )
+
+        effective_total = sum(
+            (f.verified_amount if f.verified_amount is not None else f.amount)
+            for f in amount_fields
+            if not f.invalid_amount_reason
+            and (f.verified_amount is not None or f.amount is not None)
+        ) or None
+
+        corrected_fields = [
+            f for f in amount_fields if f.verified_amount is not None
+        ]
+        has_corrected = bool(corrected_fields)
+        # Verified-aware total: same sum but WITHOUT excluding invalid rows'
+        # verified values — invalid rows never carry a verified_amount, so
+        # the effective total above already equals the corrected total.
+        corrected_total = effective_total if has_corrected else None
+
+        invalid_field = next(
+            (f for f in amount_fields if f.invalid_amount_reason), None
+        )
+
         decision_data = {
             "id": decision.id,
             "ada": decision.ada,
@@ -68,7 +106,7 @@ def decision_detail(request, decision_id):
             "protocol_number": decision.protocol_number,
             "subject": decision.subject,
             # TODO: Do I need these?
-            "amount": float(decision.amount) if decision.amount else None,
+            "amount": float(effective_total) if effective_total is not None else None,
             "currency": decision.currency,
             "financial_year": decision.financial_year,
             "issue_date": decision.issue_date_day,
@@ -149,27 +187,8 @@ def decision_detail(request, decision_id):
             "thematic_category_ids": decision.thematic_category_ids,
         }
 
-        # Amount-correction state — powers the "verify amount" button and
-        # surfaces the corrected (verified) total.  Once any amount field has
-        # been verified/corrected, the effective total sums
-        # COALESCE(verified_amount, amount) so partially-corrected decisions
-        # still report the full true total (not just the corrected subset).
-        from core.models.entities import DecisionAmountField
-        from core.services.decision_facets import effective_amount_sum_excluding_kae
-
-        has_corrected = DecisionAmountField.objects.filter(
-            decision=decision, verified_amount__isnull=False
-        ).exists()
-
-        corrected_total = None
-        if has_corrected:
-            corrected_total = (
-                Decision.objects.filter(pk=decision.pk)
-                .annotate(total=effective_amount_sum_excluding_kae())
-                .values_list("total", flat=True)
-                .first()
-            )
-
+        # Amount-correction state — computed from the single amount_fields
+        # pass above (no extra queries).
         decision_data["has_corrected_amounts"] = has_corrected
         decision_data["corrected_amount"] = (
             float(corrected_total)
@@ -182,19 +201,12 @@ def decision_detail(request, decision_id):
         # the real amount is unknown.  The facet layer already excludes such
         # rows from every aggregation; this tells the UI to say so instead of
         # rendering a bogus 9-figure amount.
-        invalid_field = (
-            DecisionAmountField.objects
-            .filter(decision=decision, invalid_amount_reason__isnull=False)
-            .order_by("id")
-            .values("invalid_amount_reason", "invalid_amount_value")
-            .first()
-        )
         decision_data["has_invalid_amount"] = invalid_field is not None
         decision_data["invalid_amount_reason"] = (
-            invalid_field["invalid_amount_reason"] if invalid_field else None
+            invalid_field.invalid_amount_reason if invalid_field else None
         )
         decision_data["invalid_amount_value"] = (
-            invalid_field["invalid_amount_value"] if invalid_field else None
+            invalid_field.invalid_amount_value if invalid_field else None
         )
 
         return pydantic_response(DecisionDetailResponse(**decision_data))
@@ -421,30 +433,25 @@ def decision_companies(request, decision_id):
 @api_view(["GET"])
 @permission_classes([PublicReadOnly])
 def decision_related(request, decision_id):
-    """Get related decisions based on organization, amount, type, etc."""
+    """Get related decisions — same organization or decision type, most recent.
+
+    Deliberately simple: a "related" sidebar does not justify the
+    effective-amount aggregate (a correlated subquery per candidate row that
+    cost ~1s even on a 200-row capped set).  We filter on the cheap indexed
+    columns (org / type) and order by recency — no amount annotation, no
+    similarity matching.  Amounts are omitted from the payload.
+    """
     try:
         decision = Decision.objects.select_related("organization", "decision_type").get(
             id=decision_id
         )
 
-        # Build related decisions query
         related_query = Q()
-
-        # Same organization
         if decision.organization:
             related_query |= Q(organization=decision.organization)
-
-        # Similar decision type
         if decision.decision_type:
             related_query |= Q(decision_type=decision.decision_type)
 
-        # Similar amount range (±50%)
-        if decision.amount:
-            min_amount = float(decision.amount) * 0.5
-            max_amount = float(decision.amount) * 1.5
-            related_query |= Q(amount__gte=min_amount, amount__lte=max_amount)
-
-        # Exclude the current decision
         related_decisions = (
             Decision.objects.filter(related_query)
             .exclude(id=decision_id)
@@ -457,7 +464,6 @@ def decision_related(request, decision_id):
                 "id": rel.id,
                 "ada": rel.ada,
                 "subject": rel.subject,
-                "amount": float(rel.amount) if rel.amount else None,
                 "issue_date": rel.issue_date_day,
                 "organization": (
                     {"uid": rel.organization.uid, "label": rel.organization.label}
