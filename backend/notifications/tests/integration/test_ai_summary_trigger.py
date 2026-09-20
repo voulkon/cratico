@@ -22,7 +22,10 @@ class TestAISummaryTriggerInCreateBatch:
     ):
         """
         When ai_summary_enabled=True and new decisions are added,
-        ``summarize_notification_batch.delay()`` is called.
+        ``summarize_notification_batch.delay()`` is queued — on commit, because
+        a summary dispatched inside the open transaction can read the batch
+        before its decisions are visible ("No decisions in batch to
+        summarize").
         """
         from notifications.tasks.notification_tasks import create_batch_for_matches
 
@@ -32,9 +35,12 @@ class TestAISummaryTriggerInCreateBatch:
         check_start = timezone.now() - timedelta(hours=1)
         check_end = timezone.now()
 
-        with patch(
-            "notifications.tasks.ai_summary_tasks.summarize_notification_batch.delay"
-        ) as mock_delay:
+        with (
+            patch("django.db.transaction.on_commit") as mock_on_commit,
+            patch(
+                "notifications.tasks.ai_summary_tasks.summarize_notification_batch.delay"
+            ) as mock_delay,
+        ):
             result = create_batch_for_matches(
                 notification_subscription,
                 [decision],
@@ -44,6 +50,11 @@ class TestAISummaryTriggerInCreateBatch:
 
             assert result["decisions_added"] == 1
             assert result["batch_id"] is not None
+            # Deferred until the transaction commits…
+            mock_delay.assert_not_called()
+            mock_on_commit.assert_called_once()
+            # …and dispatched by the callback registered for that commit.
+            mock_on_commit.call_args.args[0]()
             mock_delay.assert_called_once_with(batch_id=result["batch_id"])
 
     def test_does_not_trigger_when_disabled(

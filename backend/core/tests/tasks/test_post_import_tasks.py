@@ -11,6 +11,7 @@ All Celery chain / task.delay() calls are mocked — no broker needed.
 Feature flags are overridden via patch so no env-var changes are needed.
 """
 
+from collections import Counter
 from datetime import date
 from unittest.mock import MagicMock, patch
 
@@ -49,56 +50,80 @@ class TestPostDailyImportOrchestrator:
 
         assert result == {"status": "skipped", "reason": "feature_flag_disabled"}
 
-    def test_dispatches_chain_when_flag_enabled(self):
-        """Orchestrator should build and dispatch a Celery chain."""
-        from core.tasks.tasks_post_import import post_daily_import_orchestrator
+    def test_dispatches_amount_verification_only(self):
+        """The orchestrator must queue ONLY amount verification.
 
-        mock_chain_result = MagicMock()
-        mock_chain_result.id = "fake-chain-id"
+        Amount verification owns the rest of the post-import work: it
+        dispatches the tail (rankings → invalidate → warm → notifications)
+        either inline (no candidates / flag off) or from the chord body once
+        every verification child finished.  Queueing the tail here as well ran
+        each of those tasks twice per import — see
+        ``test_post_import_tail_is_dispatched_exactly_once``.
+        """
+        import core.tasks.tasks_post_import as tasks_post_import
+        from core.tasks.tasks_post_import import post_daily_import_orchestrator
 
         with (
             patch(
                 "core.tasks.tasks_post_import.feature_flags.is_enabled",
                 side_effect=_flag_enabled("POST_IMPORT_ORCHESTRATOR_ENABLED"),
             ),
-            patch(
-                "core.tasks.tasks_post_import.chain"
-            ) as mock_chain_cls,
+            patch("core.tasks.tasks_post_import.chain") as mock_chain_cls,
+            patch.object(
+                tasks_post_import.verify_high_value_amounts, "si"
+            ) as mock_si,
         ):
-            mock_chain_instance = MagicMock()
-            mock_chain_instance.apply_async.return_value = mock_chain_result
-            mock_chain_cls.return_value = mock_chain_instance
+            mock_si.return_value.apply_async.return_value = MagicMock(
+                id="verify-task-id"
+            )
 
             result = post_daily_import_orchestrator(
-                job_id=42, reference_date_str="2026-05-29"
+                job_id=1, reference_date_str="2026-05-29"
             )
 
         assert result["status"] == "dispatched"
-        assert result["job_id"] == 42
-        assert result["chain_task_id"] == "fake-chain-id"
-        assert result["reference_date"] == "2026-05-29"
-        mock_chain_instance.apply_async.assert_called_once()
+        assert result["chain_task_id"] == "verify-task-id"
+        mock_chain_cls.assert_not_called()
+        mock_si.assert_called_once_with(reference_date_str="2026-05-29")
 
-    def test_chain_contains_five_tasks_in_order(self):
-        """Chain must run amount verification FIRST, then rankings /
-        invalidate / warm / notifications — see the ordering rationale in the
-        orchestrator docstring (verification mutates the amounts the others
-        read)."""
+    def test_post_import_tail_is_dispatched_exactly_once(self):
+        """REGRESSION: duplicate notification batches (2026-09-15).
+
+        The orchestrator used to queue the four tail tasks while
+        ``finalize_amount_verification`` queued them once more, so every tail
+        task — ``trigger_check_all_subscriptions`` included — ran twice per
+        daily import.  The two notification fan-outs raced each other and each
+        created its own ``NotificationBatch`` for the same decision.
+        """
+        import core.tasks.tasks_post_import as tasks_post_import
         from core.tasks.tasks_post_import import (
-            compute_entity_rankings,
-            invalidate_browse_cache,
+            finalize_amount_verification,
             post_daily_import_orchestrator,
-            trigger_check_all_subscriptions,
-            verify_high_value_amounts,
-            warm_analytics_cache,
         )
 
-        captured_chain_args = []
+        tail_tasks = (
+            "compute_entity_rankings",
+            "invalidate_browse_cache",
+            "warm_analytics_cache",
+            "trigger_check_all_subscriptions",
+        )
+        dispatched: list[str] = []
 
+        def _name(sig):
+            return (getattr(sig, "task", "") or "").rsplit(".", 1)[-1]
+
+        # Every chain() the post-import code builds is recorded…
         def fake_chain(*args):
-            captured_chain_args.extend(args)
+            dispatched.extend(_name(s) for s in args)
             m = MagicMock()
-            m.apply_async.return_value = MagicMock(id="x")
+            m.apply_async.return_value = MagicMock(id="chain-id")
+            return m
+
+        # …and so is a direct single-task dispatch (the orchestrator's shape).
+        def fake_si(*args, **kwargs):
+            dispatched.append("verify_high_value_amounts")
+            m = MagicMock()
+            m.apply_async.return_value = MagicMock(id="verify-id")
             return m
 
         with (
@@ -107,23 +132,41 @@ class TestPostDailyImportOrchestrator:
                 side_effect=_flag_enabled("POST_IMPORT_ORCHESTRATOR_ENABLED"),
             ),
             patch("core.tasks.tasks_post_import.chain", side_effect=fake_chain),
+            patch.object(
+                tasks_post_import.verify_high_value_amounts,
+                "si",
+                side_effect=fake_si,
+            ),
         ):
             post_daily_import_orchestrator(
                 job_id=1, reference_date_str="2026-05-29"
             )
 
-        assert len(captured_chain_args) == 5
+        # The chord body runs once all verification children finished.
+        with (
+            patch("core.tasks.tasks_post_import.chain", side_effect=fake_chain),
+            patch(
+                "core.tasks.tasks_post_import._discover_non_monetary_values",
+                return_value={
+                    "afm_anomalies": 0,
+                    "kae_anomalies": 0,
+                    "total_anomalies": 0,
+                    "sample": [],
+                },
+            ),
+        ):
+            finalize_amount_verification.run(
+                [], reference_date_str="2026-05-29"
+            )
 
-        def _name(sig):
-            return (getattr(sig, "task", "") or "").rsplit(".", 1)[-1]
-
-        assert [_name(s) for s in captured_chain_args] == [
-            "verify_high_value_amounts",
-            "compute_entity_rankings",
-            "invalidate_browse_cache",
-            "warm_analytics_cache",
-            "trigger_check_all_subscriptions",
-        ]
+        counts = Counter(dispatched)
+        assert counts["verify_high_value_amounts"] == 1
+        for task_name in tail_tasks:
+            assert counts[task_name] == 1, (
+                f"{task_name} was queued {counts[task_name]}× "
+                f"in a single post-import run"
+            )
+        assert len(dispatched) == 5
 
 
 # ---------------------------------------------------------------------------
@@ -489,6 +532,29 @@ class TestVerifyHighValueAmountsDiscoveryWiring:
         assert result["batches_dispatched"] == 0
         mock_finalize.run.assert_called_once()
 
+    @staticmethod
+    def _tail_task_names():
+        return [
+            "compute_entity_rankings",
+            "invalidate_browse_cache",
+            "warm_analytics_cache",
+            "trigger_check_all_subscriptions",
+        ]
+
+    @classmethod
+    def _recording_chain(cls, dispatched):
+        """A fake celery.chain() that records the task names it was given."""
+        def _name(sig):
+            return (getattr(sig, "task", "") or "").rsplit(".", 1)[-1]
+
+        def fake_chain(*args):
+            dispatched.extend(_name(s) for s in args)
+            m = MagicMock()
+            m.apply_async.return_value = MagicMock(id="tail-id")
+            return m
+
+        return fake_chain
+
     def test_skips_when_flag_disabled(self):
         from core.tasks.tasks_post_import import verify_high_value_amounts
 
@@ -500,11 +566,200 @@ class TestVerifyHighValueAmountsDiscoveryWiring:
             patch(
                 "core.tasks.tasks_post_import._discover_non_monetary_values"
             ) as mock_discovery,
+            # The post-import tail is still dispatched — dedicated test below.
+            patch("core.tasks.tasks_post_import.chain"),
         ):
             result = verify_high_value_amounts(reference_date_str="2026-05-29")
 
-        assert result == {"status": "skipped", "reason": "feature_flag_disabled"}
+        assert result["status"] == "skipped"
+        assert result["reason"] == "feature_flag_disabled"
         mock_discovery.assert_not_called()
+
+    def test_flag_disabled_still_dispatches_the_tail(self):
+        """REGRESSION: amount verification owns the post-import tail, so
+        turning verification OFF must not silently disable entity rankings,
+        cache warming and notifications."""
+        from core.tasks.tasks_post_import import verify_high_value_amounts
+
+        dispatched = []
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                return_value=False,
+            ),
+            patch(
+                "core.tasks.tasks_post_import.chain",
+                side_effect=self._recording_chain(dispatched),
+            ),
+        ):
+            result = verify_high_value_amounts(reference_date_str="2026-05-29")
+
+        assert result["status"] == "skipped"
+        assert dispatched == self._tail_task_names()
+
+    def test_candidate_query_failure_still_dispatches_the_tail(self):
+        """A failing candidate query must not take the rest of the post-import
+        work down with it — amounts are untouched, so the tail is still safe
+        (and nothing else will queue it)."""
+        from core.tasks.tasks_post_import import verify_high_value_amounts
+
+        dispatched = []
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                side_effect=_flag_enabled("POST_IMPORT_AMOUNT_VERIFICATION_ENABLED"),
+            ),
+            patch(
+                "core.services.amount_verification_service."
+                "AmountVerificationService.get_high_value_candidates",
+                side_effect=RuntimeError("db is gone"),
+            ),
+            patch(
+                "core.tasks.tasks_post_import.chain",
+                side_effect=self._recording_chain(dispatched),
+            ),
+        ):
+            result = verify_high_value_amounts(reference_date_str="2026-05-29")
+
+        # @log_task_run(swallow_errors=True) reports the failure instead of
+        # raising, so the worker keeps going…
+        assert result["status"] == "error"
+        assert "db is gone" in result["error"]
+        # …and the tail still runs.
+        assert dispatched == self._tail_task_names()
+
+    def test_chord_body_carries_an_errback_that_dispatches_the_tail(self):
+        """If a verification child fails permanently (killed past max_retries,
+        broker loss), Celery marks the chord failed and the body never runs —
+        the link_error errback is the only thing left that can queue the tail."""
+        from core.tasks.tasks_post_import import verify_high_value_amounts
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                side_effect=_flag_enabled(
+                    "POST_IMPORT_AMOUNT_VERIFICATION_ENABLED"
+                ),
+            ),
+            patch(
+                "core.services.amount_verification_service."
+                "AmountVerificationService.get_high_value_candidates",
+                return_value=[MagicMock(id=1)],
+            ),
+            patch("core.tasks.tasks_post_import.chord") as mock_chord_cls,
+        ):
+            mock_chord_instance = MagicMock()
+            mock_chord_instance.return_value = MagicMock(id="chord-id")
+            mock_chord_cls.return_value = mock_chord_instance
+
+            verify_high_value_amounts(reference_date_str="2026-05-29")
+
+        (body,) = mock_chord_instance.call_args.args
+        errbacks = body.options.get("link_error") or []
+        assert len(errbacks) == 1
+        assert errbacks[0].task.endswith("amount_verification_chord_error_tail")
+        assert errbacks[0].kwargs["reference_date_str"] == "2026-05-29"
+
+    def test_chord_dispatch_failure_still_dispatches_the_tail(self):
+        """A broker hiccup while QUEUEING the chord must not take the rest of
+        the post-import work down — no amount was touched yet, so the tail is
+        safe (and nothing else will queue it)."""
+        from core.tasks.tasks_post_import import verify_high_value_amounts
+
+        dispatched = []
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                side_effect=_flag_enabled(
+                    "POST_IMPORT_AMOUNT_VERIFICATION_ENABLED"
+                ),
+            ),
+            patch(
+                "core.services.amount_verification_service."
+                "AmountVerificationService.get_high_value_candidates",
+                return_value=[MagicMock(id=1)],
+            ),
+            patch(
+                "core.tasks.tasks_post_import.chord",
+                side_effect=RuntimeError("broker down"),
+            ),
+            patch(
+                "core.tasks.tasks_post_import.chain",
+                side_effect=self._recording_chain(dispatched),
+            ),
+        ):
+            result = verify_high_value_amounts(reference_date_str="2026-05-29")
+
+        assert result["status"] == "error"
+        assert "broker down" in result["error"]
+        assert dispatched == self._tail_task_names()
+
+
+class TestAmountVerificationChordErrorTail:
+    """The chord errback dispatches the tail when the chord fails hard."""
+
+    def test_dispatches_tail_and_reports_chord_error(self):
+        from core.tasks.tasks_post_import import (
+            amount_verification_chord_error_tail,
+        )
+
+        dispatched = []
+
+        def fake_chain(*args):
+            dispatched.extend(
+                (getattr(s, "task", "") or "").rsplit(".", 1)[-1]
+                for s in args
+            )
+            m = MagicMock()
+            m.apply_async.return_value = MagicMock(id="tail-id")
+            return m
+
+        with patch(
+            "core.tasks.tasks_post_import.chain", side_effect=fake_chain
+        ):
+            # Celery calls errbacks as (request, exc, traceback).
+            result = amount_verification_chord_error_tail.run(
+                MagicMock(id="body-request"),
+                RuntimeError("child lost"),
+                "traceback",
+                reference_date_str="2026-05-29",
+            )
+
+        assert result["status"] == "tail_dispatched"
+        assert result["reason"] == "amount_verification_chord_error"
+        assert "child lost" in result["chord_error"]
+        assert result["tail_task_id"] == "tail-id"
+        assert dispatched == [
+            "compute_entity_rankings",
+            "invalidate_browse_cache",
+            "warm_analytics_cache",
+            "trigger_check_all_subscriptions",
+        ]
+
+    def test_errback_dispatch_failure_does_not_raise(self):
+        """If even the tail dispatch fails, the errback must not raise —
+        Celery errbacks that raise produce noisy, unactionable tracebacks."""
+        from core.tasks.tasks_post_import import (
+            amount_verification_chord_error_tail,
+        )
+
+        with patch(
+            "core.tasks.tasks_post_import.chain",
+            side_effect=RuntimeError("broker still down"),
+        ):
+            result = amount_verification_chord_error_tail.run(
+                MagicMock(id="body-request"),
+                RuntimeError("child lost"),
+                "traceback",
+                reference_date_str="2026-05-29",
+            )
+
+        # @log_task_run(swallow_errors=True) converts it to an error result.
+        assert result["status"] == "error"
+        assert "broker still down" in result["error"]
 
 
 class TestFinalizeAmountVerification:
@@ -649,6 +904,72 @@ class TestFinalizeAmountVerification:
         mock_invalidate = self._run({})
 
         mock_invalidate.assert_not_called()
+
+    def test_discovery_failure_still_dispatches_the_tail(self):
+        """Discovery is observability-only — its failure must not skip the
+        post-import tail (nothing else queues it)."""
+        from core.tasks.tasks_post_import import finalize_amount_verification
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import._discover_non_monetary_values",
+                side_effect=RuntimeError("db gone"),
+            ),
+            patch("core.tasks.tasks_post_import.chain") as mock_chain_cls,
+        ):
+            mock_chain_instance = MagicMock()
+            mock_chain_instance.apply_async.return_value = MagicMock(
+                id="tail-id"
+            )
+            mock_chain_cls.return_value = mock_chain_instance
+
+            result = finalize_amount_verification.run(
+                [], reference_date_str="2026-05-29"
+            )
+
+        assert result["status"] == "completed"
+        assert result["discovery"]["status"] == "error"
+        assert "db gone" in result["discovery"]["error"]
+        assert result["continuation_task_id"] == "tail-id"
+        mock_chain_cls.assert_called_once()
+
+    def test_cache_invalidation_failure_still_dispatches_the_tail(self):
+        """A Redis failure during post-correction invalidation must not skip
+        discovery or the tail dispatch."""
+        from core.tasks.tasks_post_import import finalize_amount_verification
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import._discover_non_monetary_values",
+                return_value={
+                    "afm_anomalies": 0,
+                    "kae_anomalies": 0,
+                    "total_anomalies": 0,
+                    "sample": [],
+                },
+            ) as mock_discovery,
+            patch("core.tasks.tasks_post_import.chain") as mock_chain_cls,
+            patch(
+                "core.services.response_cache_service."
+                "ResponseCacheService.invalidate_prefix",
+                side_effect=RuntimeError("redis down"),
+            ),
+        ):
+            mock_chain_instance = MagicMock()
+            mock_chain_instance.apply_async.return_value = MagicMock(
+                id="tail-id"
+            )
+            mock_chain_cls.return_value = mock_chain_instance
+
+            result = finalize_amount_verification.run(
+                [{"corrected": 1}], reference_date_str="2026-05-29"
+            )
+
+        assert result["status"] == "completed"
+        assert result["continuation_task_id"] == "tail-id"
+        # Discovery still ran despite the invalidation failure before it.
+        mock_discovery.assert_called_once()
+        mock_chain_cls.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
