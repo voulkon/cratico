@@ -5,6 +5,7 @@ from core.models.document_analysis import DocumentExtraction, ProcessingStatus
 from core.models.entities import DecisionAmountField, DecisionEntityRelationship
 from core.schemas.decision_detail import DecisionDetailResponse
 from core.services.decision_facets import effective_linked_amount_sum
+from api.utils.decision_refs import resolve_decision
 from api.utils.response import pydantic_response
 from django.conf import settings
 from django.db.models import Count, F, Q
@@ -15,14 +16,17 @@ from rest_framework.response import Response
 
 @api_view(["GET"])
 @permission_classes([PublicReadOnly])
-def decision_detail(request, decision_id):
-    """Get detailed decision information with all relationships."""
+def decision_detail(request, decision_ref):
+    """Get detailed decision information with all relationships.
+
+    ``decision_ref`` is either the integer PK or the ΑΔΑ (ADA).
+    """
     try:
-        decision = (
+        decision = resolve_decision(
+            decision_ref,
             Decision.objects.select_related("organization", "decision_type")
-            .prefetch_related("signers", "units", "kae_amounts", "attachments")
-            .get(id=decision_id)
-        )  # Using integer ID
+            .prefetch_related("signers", "units", "kae_amounts", "attachments"),
+        )
 
         # Document content availability (so the frontend can decide whether to
         # show the "view extracted content" action or a "request extraction" CTA).
@@ -219,14 +223,16 @@ def decision_detail(request, decision_id):
 
 @api_view(["GET"])
 @permission_classes([PublicReadOnly])
-def decision_entities(request, decision_id):
+def decision_entities(request, decision_ref):
     """
     Return entity relationships for a decision with the **total amount per entity**
     calculated in SQL via the new FK `associated_relationship`.
+
+    ``decision_ref`` is either the integer PK or the ΑΔΑ (ADA).
     """
     try:
         # Ensure the decision exists
-        decision = Decision.objects.only("id", "ada").get(id=decision_id)
+        decision = resolve_decision(decision_ref, Decision.objects.only("id", "ada"))
     except Decision.DoesNotExist:
         return Response({"error": "Decision not found"}, status=404)
 
@@ -234,7 +240,7 @@ def decision_entities(request, decision_id):
     # 1. Aggregate amounts per (role, entity) in one SQL query
     # ------------------------------------------------------------------
     totals_qs = (
-        DecisionEntityRelationship.objects.filter(decision_id=decision_id)
+        DecisionEntityRelationship.objects.filter(decision=decision)
         .values("role", "entity")  # GROUP BY role, entity
         .annotate(
             total_amount=effective_linked_amount_sum(),
@@ -257,7 +263,7 @@ def decision_entities(request, decision_id):
     # 2. Fetch relationships + entity + companies in a second query
     # ------------------------------------------------------------------
     relationships = (
-        DecisionEntityRelationship.objects.filter(decision_id=decision_id)
+        DecisionEntityRelationship.objects.filter(decision=decision)
         .select_related("entity")
         .order_by("role", "entity__afm")
     )
@@ -308,7 +314,7 @@ def decision_entities(request, decision_id):
 
     return Response(
         {
-            "decision_id": decision_id,
+            "decision_id": decision.id,
             "decision_ada": decision.ada,
             "relationships": list(grouped.values()),
             "total_entities": len(grouped),
@@ -318,14 +324,14 @@ def decision_entities(request, decision_id):
 
 @api_view(["GET"])
 @permission_classes([PublicReadOnly])
-def decision_companies(request, decision_id):
-    """Get all companies associated with a decision."""
+def decision_companies(request, decision_ref):
+    """Get all companies associated with a decision (integer PK or ΑΔΑ)."""
     try:
-        decision = Decision.objects.get(id=decision_id)
+        decision = resolve_decision(decision_ref)
 
         # Get all AFMs from this decision's entities
         entity_afms = DecisionEntityRelationship.objects.filter(
-            decision_id=decision_id
+            decision=decision
         ).values_list("entity__afm", flat=True)
 
         # Get all companies with these AFMs
@@ -340,7 +346,7 @@ def decision_companies(request, decision_id):
             # Get the relationship info for this company's AFM
             relationships = (
                 DecisionEntityRelationship.objects.filter(
-                    decision_id=decision_id, entity__afm=company.afm
+                    decision=decision, entity__afm=company.afm
                 )
                 .select_related("entity")
                 .all()
@@ -417,7 +423,7 @@ def decision_companies(request, decision_id):
 
         return Response(
             {
-                "decision_id": decision_id,
+                "decision_id": decision.id,
                 "decision_ada": decision.ada,
                 "companies": companies_data,
                 "total_companies": len(companies_data),
@@ -432,8 +438,10 @@ def decision_companies(request, decision_id):
 
 @api_view(["GET"])
 @permission_classes([PublicReadOnly])
-def decision_related(request, decision_id):
+def decision_related(request, decision_ref):
     """Get related decisions — same organization or decision type, most recent.
+
+    ``decision_ref`` is either the integer PK or the ΑΔΑ (ADA).
 
     Deliberately simple: a "related" sidebar does not justify the
     effective-amount aggregate (a correlated subquery per candidate row that
@@ -442,8 +450,9 @@ def decision_related(request, decision_id):
     similarity matching.  Amounts are omitted from the payload.
     """
     try:
-        decision = Decision.objects.select_related("organization", "decision_type").get(
-            id=decision_id
+        decision = resolve_decision(
+            decision_ref,
+            Decision.objects.select_related("organization", "decision_type"),
         )
 
         related_query = Q()
@@ -454,7 +463,7 @@ def decision_related(request, decision_id):
 
         related_decisions = (
             Decision.objects.filter(related_query)
-            .exclude(id=decision_id)
+            .exclude(id=decision.id)
             .select_related("organization", "decision_type")
             .order_by("-issue_date_day")[:20]
         )
@@ -481,7 +490,7 @@ def decision_related(request, decision_id):
 
         return Response(
             {
-                "decision_id": decision_id,
+                "decision_id": decision.id,
                 "total_related": len(results),
                 "results": results,
             }

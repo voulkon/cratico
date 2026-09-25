@@ -50,8 +50,9 @@ urlpatterns = [
     path("pipelines/", pipelines_list, name="ai_pipelines_list"),
     path("pipelines/<int:pk>/", pipelines_detail, name="ai_pipeline_detail"),
     # Decision AI (extraction + summarization)
-    path("decisions/<int:decision_id>/extract/", request_extraction, name="ai_decision_extract"),
-    path("decisions/<int:decision_id>/summarize/", request_summary, name="ai_decision_summarize"),
-    path("decisions/<int:decision_id>/verify-amount/", request_amount_verification, name="ai_decision_verify_amount"),
-    path("decisions/<int:decision_id>/analysis/", get_analysis, name="ai_decision_analysis"),
+    # ``decision_ref`` is either the integer PK or the ΑΔΑ.
+    path("decisions/<str:decision_ref>/extract/", request_extraction, name="ai_decision_extract"),
+    path("decisions/<str:decision_ref>/summarize/", request_summary, name="ai_decision_summarize"),
+    path("decisions/<str:decision_ref>/verify-amount/", request_amount_verification, name="ai_decision_verify_amount"),
+    path("decisions/<str:decision_ref>/analysis/", get_analysis, name="ai_decision_analysis"),
 ]
