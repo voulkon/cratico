@@ -2,10 +2,12 @@
 Text process API — list available processes and trigger runs on demand.
 
 - ``GET  /api/processes/``                     → list registered processes
-- ``POST /api/decisions/<id>/processes/run/``  → run a process on a decision
+- ``POST /api/decisions/<ref>/processes/run/`` → run a process on a decision
+  (``<ref>`` is the integer PK or the ΑΔΑ/ADA)
 """
 
 from core.models.decisions import Decision
+from api.utils.decision_refs import resolve_decision
 from core.models.document_analysis import DocumentExtraction, ProcessingStatus
 from core.services.text_process_service import (
     TextProcessService,
@@ -26,9 +28,11 @@ def list_text_processes(request):
 
 @api_view(["POST"])
 @permission_classes([PublicReadOnly])
-def run_text_process(request, decision_id):
+def run_text_process(request, decision_ref):
     """
     Run a text process over a decision's extracted text.
+
+    ``decision_ref`` is either the integer PK or the ΑΔΑ (ADA).
 
     Body:
         process   (required) — process slug, e.g. "amount", "dates"
@@ -53,7 +57,7 @@ def run_text_process(request, decision_id):
     force = bool(request.data.get("force", False))
 
     try:
-        decision = Decision.objects.get(id=decision_id)
+        decision = resolve_decision(decision_ref)
     except Decision.DoesNotExist:
         return Response({"error": "Decision not found"}, status=404)
 
