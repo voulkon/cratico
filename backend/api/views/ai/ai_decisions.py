@@ -1,9 +1,11 @@
 """
 Decision AI API endpoints — user-triggered extraction and AI analysis.
 
-- POST /api/ai/decisions/<id>/extract/       — request text extraction
-- POST /api/ai/decisions/<id>/summarize/     — request AI summary
-- GET  /api/ai/decisions/<id>/analysis/     — get analysis status + result
+- POST /api/ai/decisions/<ref>/extract/       — request text extraction
+- POST /api/ai/decisions/<ref>/summarize/     — request AI summary
+- GET  /api/ai/decisions/<ref>/analysis/     — get analysis status + result
+
+``<ref>`` is either the integer PK or the ΑΔΑ (ADA).
 """
 
 from rest_framework import status
@@ -11,6 +13,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from api.utils.decision_refs import resolve_decision
 from core.models.decision_ai_analysis import AnalysisStatus, DecisionAIAnalysis
 from core.models.decisions import Decision
 from core.models.document_analysis import DocumentExtraction, ProcessingStatus
@@ -18,15 +21,16 @@ from core.models.document_analysis import DocumentExtraction, ProcessingStatus
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
-def request_extraction(request, decision_id: int):
+def request_extraction(request, decision_ref: str):
     """
     Request text extraction for a decision.
 
+    ``decision_ref`` is either the integer PK or the ΑΔΑ (ADA).
     Idempotent: returns immediately if text is already extracted.
     Dispatches a Celery task if extraction is needed.
     """
     try:
-        decision = Decision.objects.get(id=decision_id)
+        decision = resolve_decision(decision_ref)
     except Decision.DoesNotExist:
         return Response({"error": "Decision not found"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -38,7 +42,7 @@ def request_extraction(request, decision_id: int):
 
     if extraction and extraction.raw_text:
         return Response({
-            "decision_id": decision_id,
+            "decision_id": decision.id,
             "status": "already_extracted",
             "character_count": extraction.character_count,
             "page_count": extraction.page_count,
@@ -55,7 +59,7 @@ def request_extraction(request, decision_id: int):
     from core.services.decision_processing_queue import DecisionProcessingQueue
 
     queue = DecisionProcessingQueue()
-    result = queue.enqueue(decision_id, user_id=request.user.id)
+    result = queue.enqueue(decision.id, user_id=request.user.id)
 
     # Kick the consumer to pick up this (and any other pending) work
     from core.tasks.tasks_decision_ai import consume_decision_queue
@@ -67,10 +71,11 @@ def request_extraction(request, decision_id: int):
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
-def request_summary(request, decision_id: int):
+def request_summary(request, decision_ref: str):
     """
     Request AI summarization for a decision.
 
+    ``decision_ref`` is either the integer PK or the ΑΔΑ (ADA).
     Idempotent: returns cached result if already completed for the same model.
     Pass ``{"force": true}`` in the body to regenerate (re-run the pipeline).
     Pass ``{"model": "openai/gpt-4o"}`` to use a specific model.
@@ -78,7 +83,7 @@ def request_summary(request, decision_id: int):
     Enqueues via the queue service for concurrency control.
     """
     try:
-        decision = Decision.objects.get(id=decision_id)
+        decision = resolve_decision(decision_ref)
     except Decision.DoesNotExist:
         return Response({"error": "Decision not found"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -96,7 +101,7 @@ def request_summary(request, decision_id: int):
 
     if existing and existing.summary and not force:
         return Response({
-            "decision_id": decision_id,
+            "decision_id": decision.id,
             "status": "already_completed",
             "summary": existing.summary,
             "cost_usd": str(existing.cost_usd or 0),
@@ -115,7 +120,7 @@ def request_summary(request, decision_id: int):
 
     if running:
         return Response({
-            "decision_id": decision_id,
+            "decision_id": decision.id,
             "status": "already_running",
         }, status=status.HTTP_202_ACCEPTED)
 
@@ -127,7 +132,7 @@ def request_summary(request, decision_id: int):
     from core.services.decision_processing_queue import DecisionProcessingQueue
 
     queue = DecisionProcessingQueue()
-    result = queue.enqueue(decision_id, user_id=request.user.id, force=True, model=model, task_force=force)
+    result = queue.enqueue(decision.id, user_id=request.user.id, force=True, model=model, task_force=force)
 
     # Kick the consumer
     from core.tasks.tasks_decision_ai import consume_decision_queue
@@ -139,9 +144,11 @@ def request_summary(request, decision_id: int):
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
-def request_amount_verification(request, decision_id: int):
+def request_amount_verification(request, decision_ref: str):
     """
     Verify / correct a decision's amounts against its document text.
+
+    ``decision_ref`` is either the integer PK or the ΑΔΑ (ADA).
 
     Single point of work: dispatches the shared
     ``amount_correction.correct_single`` Celery task (which fetches the
@@ -151,7 +158,7 @@ def request_amount_verification(request, decision_id: int):
     Pass ``{"dry_run": true}`` to only check without persisting a correction.
     """
     try:
-        decision = Decision.objects.get(id=decision_id)
+        decision = resolve_decision(decision_ref)
     except Decision.DoesNotExist:
         return Response({"error": "Decision not found"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -167,7 +174,7 @@ def request_amount_verification(request, decision_id: int):
 
     return Response(
         {
-            "decision_id": decision_id,
+            "decision_id": decision.id,
             "status": "dispatched",
             "dry_run": dry_run,
             "task_id": task.id,
@@ -178,14 +185,15 @@ def request_amount_verification(request, decision_id: int):
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
-def get_analysis(request, decision_id: int):
+def get_analysis(request, decision_ref: str):
     """
     Get the AI analysis status and result for a decision.
 
+    ``decision_ref`` is either the integer PK or the ΑΔΑ (ADA).
     Returns the full analysis record including extraction status.
     """
     try:
-        decision = Decision.objects.get(id=decision_id)
+        decision = resolve_decision(decision_ref)
     except Decision.DoesNotExist:
         return Response({"error": "Decision not found"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -223,7 +231,7 @@ def get_analysis(request, decision_id: int):
         })
 
     return Response({
-        "decision_id": decision_id,
+        "decision_id": decision.id,
         "extraction": extraction_data,
         "analyses": analyses_data,
     })

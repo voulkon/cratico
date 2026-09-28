@@ -28,6 +28,8 @@ import { AuthProvider } from './contexts/AuthContext';
 import { useAuthConfig } from './contexts/AuthConfigContext';
 import { TranslationProvider } from './contexts/TranslationContext';
 import { useAllowlistCheck } from './hooks/useAllowlistCheck';
+import { MOBILE_QUERY } from './hooks/useIsMobile';
+import { ViewportProvider } from './contexts/ViewportContext';
 import './App.css';
 import TopControls from './components/TopControls';
 import Footer from './components/Footer';
@@ -65,7 +67,6 @@ function AuthenticatedApp({ controlsLayout }) {
   const [isUserMenuOpen, setIsUserMenuOpen] = React.useState(false);
 
   // Controls column collapse state — starts collapsed on mobile
-  const MOBILE_QUERY = '(max-width: 768px)';
   const [isCollapsed, setIsCollapsed] = useState(
     () => window.matchMedia(MOBILE_QUERY).matches
   );
@@ -269,7 +270,9 @@ function App({ controlsLayout = 'vertical-right' }) {
     <TranslationProvider>
       <ThemeProvider>
         <AuthProvider>
-          <AppContent controlsLayout={controlsLayout} />
+          <ViewportProvider>
+            <AppContent controlsLayout={controlsLayout} />
+          </ViewportProvider>
         </AuthProvider>
       </ThemeProvider>
     </TranslationProvider>
