@@ -29,6 +29,7 @@ import { useAuthConfig } from './contexts/AuthConfigContext';
 import { TranslationProvider } from './contexts/TranslationContext';
 import { useAllowlistCheck } from './hooks/useAllowlistCheck';
 import { MOBILE_QUERY } from './hooks/useIsMobile';
+import { ViewportProvider } from './contexts/ViewportContext';
 import './App.css';
 import TopControls from './components/TopControls';
 import Footer from './components/Footer';
@@ -269,7 +270,9 @@ function App({ controlsLayout = 'vertical-right' }) {
     <TranslationProvider>
       <ThemeProvider>
         <AuthProvider>
-          <AppContent controlsLayout={controlsLayout} />
+          <ViewportProvider>
+            <AppContent controlsLayout={controlsLayout} />
+          </ViewportProvider>
         </AuthProvider>
       </ThemeProvider>
     </TranslationProvider>
