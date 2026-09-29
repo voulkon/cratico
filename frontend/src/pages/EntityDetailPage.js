@@ -15,7 +15,7 @@ import useDocumentContent from '../hooks/useDocumentContent';
 import useDecisionsList from '../hooks/useDecisionsList';
 import useDecisionTypes from '../hooks/useDecisionTypes';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { createDynamicDateRangeUtils, formatAmount, toLocalISODate } from '../utils/dateUtils';
+import { createDynamicDateRangeUtils, formatAmount, resolveInitialDateRange, toLocalISODate } from '../utils/dateUtils';
 import { useTranslation } from '../contexts/TranslationContext';
 import './EntityDetailPage.css';
 
@@ -46,6 +46,8 @@ const EntityDetailPage = () => {
     amountFilters,
     directAssignmentsOnly,
     activeFiltersCount,
+    startDate: urlStartDate,
+    endDate: urlEndDate,
     setSortBy,
     setSearchQuery,
     toggleType,
@@ -184,14 +186,19 @@ const EntityDetailPage = () => {
           const dateUtils = createDynamicDateRangeUtils(response.data);
           setDynamicDateUtils(dateUtils);
 
-          const defaultRange = dateUtils.getProgressiveDefaultRange(
-            response.data.activity_chart?.data
-          );
-          setMonthRange(defaultRange);
-          setTimeRange({
-            startDate: dateUtils.indexToDateString(defaultRange.startIndex),
-            endDate: dateUtils.indexToDateString(defaultRange.endIndex, true)
-          });
+          // Window comes from the URL (a dashboard card link) when present,
+          // clamped to the entity's data span; otherwise the progressive
+          // default.  Shared with AFMEntityDetailPage.
+          const { monthRange: initialMonthRange, timeRange: initialTimeRange } =
+            resolveInitialDateRange(
+              dateUtils,
+              urlStartDate,
+              urlEndDate,
+              response.data.activity_chart?.data
+            );
+
+          setMonthRange(initialMonthRange);
+          setTimeRange(initialTimeRange);
         }
       }
 
@@ -201,7 +208,7 @@ const EntityDetailPage = () => {
     } finally {
       setDateRangeLoading(false);
     }
-  }, [explorationMode, entityType, entityId, parseTemporalDateRange, t]);
+  }, [explorationMode, entityType, entityId, parseTemporalDateRange, t, urlStartDate, urlEndDate]);
 
   // Decision-types endpoint for the current context (entity or temporal)
   const decisionTypesEndpoint = explorationMode === 'temporal'
@@ -394,6 +401,19 @@ const EntityDetailPage = () => {
       endDate: dynamicDateUtils.indexToDateString(endIndex, true)
     });
   };
+
+  // ── Sync the date window back into the URL ──────────────────────────────
+  // Entity mode only: the temporal mode's window is already encoded in the
+  // path.  Keeping it in the URL makes the page shareable and survives a
+  // reload; updateUrl() preserves it across subsequent sort/filter changes.
+  // Skipped when already in sync so the initial mount doesn't push a
+  // duplicate history entry.
+  useEffect(() => {
+    if (explorationMode !== 'entity' || !timeRange) return;
+    if (urlStartDate === timeRange.startDate && urlEndDate === timeRange.endDate) return;
+    updateUrl({ startDate: timeRange.startDate, endDate: timeRange.endDate });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [explorationMode, timeRange?.startDate, timeRange?.endDate, urlStartDate, urlEndDate]);
 
   // Loading states (date range loading, or entity metadata not yet available while decisions are loading)
   if (dateRangeLoading || (loading && !entityData)) {

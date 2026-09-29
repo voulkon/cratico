@@ -14,7 +14,7 @@ import DecisionList from '../components/DecisionList';
 import DecisionsToolbar from '../components/DecisionsToolbar';
 import StatisticsGrid from '../components/StatisticsGrid';
 import TimeRangeSection from '../components/TimeRangeSection';
-import { createDynamicDateRangeUtils, formatAmount } from '../utils/dateUtils';
+import { createDynamicDateRangeUtils, formatAmount, resolveInitialDateRange } from '../utils/dateUtils';
 import './AFMEntityDetailPage.css';
 
 const AFMEntityDetailPage = () => {
@@ -49,6 +49,8 @@ const AFMEntityDetailPage = () => {
     amountFilters,
     directAssignmentsOnly,
     activeFiltersCount,
+    startDate: urlStartDate,
+    endDate: urlEndDate,
     setSortBy,
     setSearchQuery,
     toggleType,
@@ -122,21 +124,27 @@ const AFMEntityDetailPage = () => {
       if (res.data.has_data) {
         const dateUtils = createDynamicDateRangeUtils(res.data);
         setDynamicDateUtils(dateUtils);
-        const defaultRange = dateUtils.getProgressiveDefaultRange(
-          res.data.activity_chart?.data
-        );
-        setMonthRange(defaultRange);
-        setTimeRange({
-          startDate: dateUtils.indexToDateString(defaultRange.startIndex),
-          endDate: dateUtils.indexToDateString(defaultRange.endIndex, true)
-        });
+
+        // Window comes from the URL (a dashboard card link) when present,
+        // clamped to the entity's data span; otherwise the progressive
+        // default.  Shared with EntityDetailPage.
+        const { monthRange: initialMonthRange, timeRange: initialTimeRange } =
+          resolveInitialDateRange(
+            dateUtils,
+            urlStartDate,
+            urlEndDate,
+            res.data.activity_chart?.data
+          );
+
+        setMonthRange(initialMonthRange);
+        setTimeRange(initialTimeRange);
       }
     } catch (err) {
       console.error('Failed to fetch date range:', err);
     } finally {
       setDateRangeLoading(false);
     }
-  }, [afm]);
+  }, [afm, urlStartDate, urlEndDate]);
 
   // Fetch statistics - non-blocking, fire-and-forget
   const fetchStatistics = useCallback(async () => {
@@ -251,6 +259,17 @@ const AFMEntityDetailPage = () => {
       endDate
     });
   };
+
+  // ── Sync the date window back into the URL ──────────────────────────────
+  // Makes the page shareable and survives a reload; updateUrl() preserves it
+  // across subsequent sort/filter changes.  Skipped when already in sync so
+  // the initial mount doesn't push a duplicate history entry.
+  useEffect(() => {
+    if (!timeRange) return;
+    if (urlStartDate === timeRange.startDate && urlEndDate === timeRange.endDate) return;
+    updateUrl({ startDate: timeRange.startDate, endDate: timeRange.endDate });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeRange?.startDate, timeRange?.endDate, urlStartDate, urlEndDate]);
 
   // Build statistics cards for StatisticsGrid
   const statCards = statistics ? [

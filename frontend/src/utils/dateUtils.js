@@ -177,3 +177,80 @@ export const createDynamicDateRangeUtils = (entityDateRange) => {
     }
   };
 };
+
+/**
+ * Resolve a page's initial date window from the URL, falling back to the
+ * entity's progressive default.
+ *
+ * Shared by `EntityDetailPage` and `AFMEntityDetailPage` — both are reachable
+ * from dashboard cards that rank entities over a specific period, and both
+ * must land on that same window or the page disagrees with the card that
+ * linked to it.
+ *
+ * Seeding rules:
+ *  - No (or invalid) URL dates → progressive default range.
+ *  - URL dates within the entity's data span → used verbatim, so the window
+ *    matches the linking card exactly.
+ *  - URL dates outside the span → clamped to the available months, and the
+ *    QUERY window is snapped to the clamped month edges so the request can't
+ *    contradict what the slider shows.
+ *
+ * @param {object} dateUtils            result of createDynamicDateRangeUtils()
+ * @param {string|undefined} urlStartDate  YYYY-MM-DD from ?start_date
+ * @param {string|undefined} urlEndDate    YYYY-MM-DD from ?end_date
+ * @param {Array|undefined} activityData   entityDateRange.activity_chart.data
+ * @returns {{monthRange: {startIndex: number, endIndex: number},
+ *            timeRange: {startDate: string, endDate: string}}}
+ */
+export const resolveInitialDateRange = (
+  dateUtils,
+  urlStartDate,
+  urlEndDate,
+  activityData
+) => {
+  if (urlStartDate && urlEndDate) {
+    const start = new Date(urlStartDate);
+    const end = new Date(urlEndDate);
+
+    if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+      const maxIdx = dateUtils.totalMonths - 1;
+      const rawStartIdx = dateUtils.dateToIndex(start);
+      const rawEndIdx = dateUtils.dateToIndex(end);
+
+      // Clamp to the months this entity actually has data for, so the slider
+      // handles can never overflow the track.
+      const startIdx = Math.max(0, Math.min(maxIdx, rawStartIdx));
+      const endIdx = Math.max(0, Math.min(maxIdx, rawEndIdx));
+
+      const lo = Math.min(startIdx, endIdx);
+      const hi = Math.max(startIdx, endIdx);
+      const wasClamped = startIdx !== rawStartIdx || endIdx !== rawEndIdx;
+
+      // A reversed link (?start_date after ?end_date) is malformed; normalise
+      // it so the range is always ascending.
+      const [fromDate, toDate] =
+        rawStartIdx <= rawEndIdx
+          ? [urlStartDate, urlEndDate]
+          : [urlEndDate, urlStartDate];
+
+      return {
+        monthRange: { startIndex: lo, endIndex: hi },
+        timeRange: wasClamped
+          ? {
+              startDate: dateUtils.indexToDateString(lo),
+              endDate: dateUtils.indexToDateString(hi, true),
+            }
+          : { startDate: fromDate, endDate: toDate },
+      };
+    }
+  }
+
+  const defaultRange = dateUtils.getProgressiveDefaultRange(activityData);
+  return {
+    monthRange: defaultRange,
+    timeRange: {
+      startDate: dateUtils.indexToDateString(defaultRange.startIndex),
+      endDate: dateUtils.indexToDateString(defaultRange.endIndex, true),
+    },
+  };
+};
