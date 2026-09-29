@@ -37,6 +37,16 @@ urlpatterns = [
         decision_lists.top_by_amount_api,
         name="top_by_amount",
     ),
+    path(
+        "top-banded-da-receivers/",
+        decision_lists.top_banded_da_receivers_api,
+        name="top_banded_da_receivers",
+    ),
+    path(
+        "top-banded-da-givers/",
+        decision_lists.top_banded_da_givers_api,
+        name="top_banded_da_givers",
+    ),
     # Decision detail endpoints
     # ``decision_ref`` accepts either the integer PK (128820) or the ΑΔΑ
     # (ΨΦ4Μ4653ΠΓ-ΜΜΥ) — see api.utils.decision_refs.resolve_decision.

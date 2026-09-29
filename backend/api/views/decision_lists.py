@@ -21,6 +21,14 @@ Endpoints
     All decisions sorted by amount desc — replaces the uncached
     ``unified?view=decisions`` that DecisionsSection used previously.
 
+  GET /api/decisions/top-banded-da-receivers/
+    Entities that received the most direct assignments whose total linked
+    money-received amount falls in the €30k–€38k band (most frequent first).
+
+  GET /api/decisions/top-banded-da-givers/
+    Mirror of the above — organizations that issued the most such banded
+    direct assignments (most frequent first).
+
 Pattern
 ───────
   Each endpoint follows the same structure as ``da_top_pairs``:
@@ -248,6 +256,105 @@ def top_by_amount_api(request):
 
     return Response(
         compute_top_by_amount(
+            start_dt=start_dt,
+            end_dt=end_dt,
+            start_date_str=start_str,
+            end_date_str=end_str,
+            limit=limit,
+            offset=offset,
+        )
+    )
+
+
+# ---------------------------------------------------------------------------
+# top-banded-da-receivers  (€30k–€38k direct assignments, by recipient)
+# ---------------------------------------------------------------------------
+
+@swagger_auto_schema(
+    method="get",
+    operation_description=(
+        "Entities receiving the most direct assignments of €30k–€38k, "
+        "ranked by frequency desc"
+    ),
+    manual_parameters=_DATE_PARAMS,
+)
+@api_view(["GET"])
+@permission_classes([PublicReadOnly])
+@cached_view(
+    cache_prefix="top_banded_da_receivers",
+    cache_params=["start_date", "end_date", "limit", "offset"],
+    end_date_param="end_date",
+)
+def top_banded_da_receivers_api(request):
+    """
+    Return the entities that received the most €30k–€38k direct assignments.
+
+    "Banded" = a direct assignment whose per-decision total linked
+    money-received amount falls in [30000, 38000].  Ranked by how many such
+    assignments the entity received (most frequent first).
+
+    Used by the DashboardGrid's "Repeat €30k–€38k Recipients" section.
+    """
+    start_dt, end_dt, start_str, end_str, err = _parse_date_range(request)
+    if err is not None:
+        return err
+
+    limit = int(request.GET.get("limit", 5))
+    offset = int(request.GET.get("offset", 0))
+
+    from core.services.analytics_precalc_service import compute_top_banded_da_receivers
+
+    return Response(
+        compute_top_banded_da_receivers(
+            start_dt=start_dt,
+            end_dt=end_dt,
+            start_date_str=start_str,
+            end_date_str=end_str,
+            limit=limit,
+            offset=offset,
+        )
+    )
+
+
+# ---------------------------------------------------------------------------
+# top-banded-da-givers  (€30k–€38k direct assignments, by issuer)
+# ---------------------------------------------------------------------------
+
+@swagger_auto_schema(
+    method="get",
+    operation_description=(
+        "Organizations issuing the most direct assignments of €30k–€38k, "
+        "ranked by frequency desc"
+    ),
+    manual_parameters=_DATE_PARAMS,
+)
+@api_view(["GET"])
+@permission_classes([PublicReadOnly])
+@cached_view(
+    cache_prefix="top_banded_da_givers",
+    cache_params=["start_date", "end_date", "limit", "offset"],
+    end_date_param="end_date",
+)
+def top_banded_da_givers_api(request):
+    """
+    Return the organizations that issued the most €30k–€38k direct assignments.
+
+    Mirror of ``top_banded_da_receivers_api``: same banded population, but
+    grouped by the issuing organization (most frequent first).
+
+    Used by the DashboardGrid's "Repeat €30k–€38k Issuers" section.
+    """
+    start_dt, end_dt, start_str, end_str, err = _parse_date_range(request)
+    if err is not None:
+        return err
+
+    limit = int(request.GET.get("limit", 5))
+    offset = int(request.GET.get("offset", 0))
+
+    from core.services.analytics_precalc_service import compute_top_banded_da_givers
+
+    return Response(
+        compute_top_banded_da_givers(
             start_dt=start_dt,
             end_dt=end_dt,
             start_date_str=start_str,
