@@ -273,6 +273,20 @@ def _build_warmup_sentinel_keys(
             limit=page_size, offset="0",
         )]
 
+    if view_name == "top_banded_da_receivers":
+        return [response_cache.build_key(
+            "top_banded_da_receivers",
+            start_date=start_str, end_date=end_str,
+            limit=page_size, offset="0",
+        )]
+
+    if view_name == "top_banded_da_givers":
+        return [response_cache.build_key(
+            "top_banded_da_givers",
+            start_date=start_str, end_date=end_str,
+            limit=page_size, offset="0",
+        )]
+
     # Fallback for unknown views
     return []
 
@@ -450,6 +464,8 @@ def warm_analytics_cache(reference_date_str: str | None = None):
       - top_payments              (decisions/top-payments/)         page_size=5, max_limit=100
       - top_direct_assignments    (decisions/top-direct-assignments/) page_size=5, max_limit=100
       - top_by_amount             (decisions/top-by-amount/)        page_size=5, max_limit=100
+      - top_banded_da_receivers   (decisions/top-banded-da-receivers/) page_size=5, max_limit=100
+      - top_banded_da_givers      (decisions/top-banded-da-givers/) page_size=5, max_limit=100
 
     Views NOT warmed (frontend no longer calls these directly):
       - explore_decisions      frontend uses unified?view=decisions (not cached)
@@ -468,6 +484,8 @@ def warm_analytics_cache(reference_date_str: str | None = None):
     from core.services.analytics_precalc_service import (
         warm_da_top_pairs_window,
         warm_explore_orgs_window,
+        warm_top_banded_da_givers_window,
+        warm_top_banded_da_receivers_window,
         warm_top_by_amount_window,
         warm_top_direct_assignments_window,
         warm_top_payments_window,
@@ -515,6 +533,8 @@ def warm_analytics_cache(reference_date_str: str | None = None):
             ("top_payments", warm_top_payments_window, {"max_limit": 100, "page_size": 5}),
             ("top_direct_assignments", warm_top_direct_assignments_window, {"max_limit": 100, "page_size": 5}),
             ("top_by_amount", warm_top_by_amount_window, {"max_limit": 100, "page_size": 5}),
+            ("top_banded_da_receivers", warm_top_banded_da_receivers_window, {"max_limit": 100, "page_size": 5}),
+            ("top_banded_da_givers", warm_top_banded_da_givers_window, {"max_limit": 100, "page_size": 5}),
         ]:
             # ── Build sentinel warmup keys so L2 (defer_on_miss) can
             #     detect that L3 is already working on this view ──────

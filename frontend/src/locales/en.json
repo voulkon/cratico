@@ -9,6 +9,7 @@
     "notifications": "Notifications"
   },
   "homepage": {
+    "notableRecentDecisions" : "Notable Recent Decisions",
     "title": "Crati.Co",
     "searchPlaceholder": "Search decisions, organizations, entities...",
     "subtitle": "Discover and analyze public decisions across all government organizations",
@@ -37,6 +38,11 @@
     "largestDecisions": "Largest Decisions",
     "highestPayments": "Highest Payments",
     "highestDirectAssignments": "Highest Direct Assignments",
+    "repeatBandedDaReceivers": "Most Frequent Recipients of Maximum Assignment Amounts",
+    "repeatBandedDaGivers": "Most Frequent Givers of Maximum Assignment Amounts",
+    "recipients": "recipients",
+    "assignments": "assignments",
+    "organizations": "organizations",
     "seeAll": "See All",
     "readyToExplore": "Ready to Explore?",
     "readyToExploreDesc": "Dive deep into government decision data with our powerful exploration tools",

@@ -260,13 +260,19 @@ class TestWarmAnalyticsCache:
             patch(
                 "core.services.analytics_precalc_service.warm_top_by_amount_window"
             ),
+            patch(
+                "core.services.analytics_precalc_service.warm_top_banded_da_receivers_window"
+            ),
+            patch(
+                "core.services.analytics_precalc_service.warm_top_banded_da_givers_window"
+            ),
         ):
             result = warm_analytics_cache(reference_date_str="2026-05-29")
 
         assert result["status"] == "completed"
         assert result["reference_date"] == "2026-05-29"
         assert result["windows_warmed"] == 4  # daily/weekly/monthly/yearly
-        assert result["keys_warmed"] == 20   # 4 windows × 5 views
+        assert result["keys_warmed"] == 28   # 4 windows × 7 views
         assert result["errors"] == []
 
     def test_errors_are_collected_not_raised(self):
@@ -294,13 +300,19 @@ class TestWarmAnalyticsCache:
             patch(
                 "core.services.analytics_precalc_service.warm_top_by_amount_window"
             ),
+            patch(
+                "core.services.analytics_precalc_service.warm_top_banded_da_receivers_window"
+            ),
+            patch(
+                "core.services.analytics_precalc_service.warm_top_banded_da_givers_window"
+            ),
         ):
             result = warm_analytics_cache(reference_date_str="2026-05-29")
 
         assert result["status"] == "completed"
-        # 4 windows × 1 failing view = 4 errors; 4 windows × 4 succeeding views = 16 keys
+        # 4 windows × 1 failing view = 4 errors; 4 windows × 6 succeeding views = 24 keys
         assert len(result["errors"]) == 4
-        assert result["keys_warmed"] == 16
+        assert result["keys_warmed"] == 24
 
     def test_defaults_to_today_when_no_date_given(self):
         from core.tasks.tasks_post_import import warm_analytics_cache
@@ -316,6 +328,8 @@ class TestWarmAnalyticsCache:
             patch("core.services.analytics_precalc_service.warm_top_payments_window"),
             patch("core.services.analytics_precalc_service.warm_top_direct_assignments_window"),
             patch("core.services.analytics_precalc_service.warm_top_by_amount_window"),
+            patch("core.services.analytics_precalc_service.warm_top_banded_da_receivers_window"),
+            patch("core.services.analytics_precalc_service.warm_top_banded_da_givers_window"),
         ):
             mock_date.today.return_value = date(2026, 5, 30)
             mock_date.fromisoformat.side_effect = date.fromisoformat

@@ -29,6 +29,8 @@ Views covered
   top_payments_api                       cache_prefix="top_payments"
   top_direct_assignments_api             cache_prefix="top_direct_assignments"
   top_by_amount_api                      cache_prefix="top_by_amount"
+  top_banded_da_receivers_api            cache_prefix="top_banded_da_receivers"
+  top_banded_da_givers_api               cache_prefix="top_banded_da_givers"
   unified endpoint (temporal source)     cache_prefix="unified"
 
 Implementation is split across domain modules under ``analytics_precalc/``:
@@ -44,6 +46,7 @@ Implementation is split across domain modules under ``analytics_precalc/``:
   top_payments.py          compute_top_payments, warm_top_payments_window
   top_direct_assignments.py  compute_top_direct_assignments, warm_...
   top_by_amount.py         compute_top_by_amount, warm_top_by_amount_window
+  banded_direct_assignments.py  compute_top_banded_da_{receivers,givers}, warm_...
   unified.py               warm_unified_window
 """
 
@@ -93,6 +96,12 @@ from .top_by_amount import (
     compute_top_by_amount,
     warm_top_by_amount_window,
 )
+from .banded_direct_assignments import (
+    compute_top_banded_da_receivers,
+    warm_top_banded_da_receivers_window,
+    compute_top_banded_da_givers,
+    warm_top_banded_da_givers_window,
+)
 from .unified import warm_unified_window
 
 
@@ -112,4 +121,6 @@ WARMUP_REGISTRY = {
     "top_payments": warm_top_payments_window,
     "top_direct_assignments": warm_top_direct_assignments_window,
     "top_by_amount": warm_top_by_amount_window,
+    "top_banded_da_receivers": warm_top_banded_da_receivers_window,
+    "top_banded_da_givers": warm_top_banded_da_givers_window,
 }

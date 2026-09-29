@@ -15,6 +15,8 @@ import OrganizationsSection from '../components/OrganizationsSection';
 import DecisionsSection from '../components/DecisionsSection';
 import TopPaymentsSection from '../components/TopPaymentsSection';
 import TopDirectAssignmentsSection from '../components/TopDirectAssignmentsSection';
+import TopBandedDaReceiversSection from '../components/TopBandedDaReceiversSection';
+import TopBandedDaGiversSection from '../components/TopBandedDaGiversSection';
 import './HomePage.css';
 
 /**
@@ -25,6 +27,7 @@ import './HomePage.css';
  *   [Featured: TopRelationshipPairs (full width)]
  *   [Most Active Organizations]    [Notable Recent Decisions]
  *   [Highest Payments]             [Highest Direct Assignments]
+ *   [Repeat €30k–€38k Recipients]  [Repeat €30k–€38k Issuers]
  *
  * Each column has uniform appearance: card background, scrollable list,
  * section header with "See All" link.
@@ -65,6 +68,18 @@ const DashboardData = () => {
       {/* Row 2, Column 2 — Highest Direct-Assignment Decisions */}
       <TopDirectAssignmentsSection
         collapsible
+      />
+
+      {/* Row 3, Column 1 — Repeat €30k–€38k Recipients (by frequency) */}
+      <TopBandedDaReceiversSection
+        collapsible
+        directOnly
+      />
+
+      {/* Row 3, Column 2 — Repeat €30k–€38k Issuers (by frequency) */}
+      <TopBandedDaGiversSection
+        collapsible
+        directOnly
       />
     </DashboardGrid>
   );
