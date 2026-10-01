@@ -5,11 +5,14 @@
 
 {% block content %}
 <div id="content-main">
-  <h1>🔍 Batch Amount Correction</h1>
+  <h1>Batch Data-Quality Job</h1>
   <p>
-    Run the <strong>cents-based detector</strong> on high-value decisions to find
-    and correct the classic Diavgeia comma-drop typo
-    (e.g. <code>30.000,00</code> typed as <code>3.000.000</code>).
+    Run one or more <strong>data-quality detectors</strong> over a candidate
+    set of decisions.  Pick the detector with <strong>Mode</strong>: the
+    <strong>decimal separator shift</strong> detector finds the classic
+    Diavgeia comma-drop typo (e.g. <code>30.000,00</code> typed as
+    <code>3.000.000</code>), while the <strong>non-monetary value</strong>
+    detector finds amounts that are really a counterpart's AFM or a KAE code.
   </p>
 
   <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 16px; margin-bottom: 20px;">
@@ -47,24 +50,43 @@
   <hr style="margin: 24px 0;">
 
   <h2>What this does</h2>
+  <p>
+    Every detector declares its own candidate query, so the bounds below mean
+    slightly different things: the <strong>decimal separator shift</strong>
+    detector compares the min/max amount against the decision's <em>computed
+    total</em>, while the <strong>non-monetary value</strong> detector compares
+    them against the <em>individual recorded amount</em>.
+  </p>
   <ol>
-    <li>Finds all decisions whose computed total exceeds the threshold.</li>
-    <li>Reads the actual document text for each decision — if a decision has
-        no extracted text yet and <strong>“Read if missing”</strong> is checked,
-        the document is downloaded and extracted first.</li>
-    <li>Uses the <strong>cents-based detector</strong> to find monetary amounts
-        in the text (numbers ending with <code>,00</code>, <code>,50</code>, etc. —
-        the defining signal of money in Greek documents).</li>
-    <li>For each <code>DecisionAmountField</code> row whose value is NOT found
-        verbatim in the text but HAS a ×100 or ÷100 clone, stores the corrected
-        value in <code>verified_amount</code>.</li>
+    <li><strong>Decimal separator shift</strong> (needs the document text):
+      <ol>
+        <li>Reads the actual document text for each candidate — if a decision
+            has no extracted text yet and <strong>“Read if missing”</strong> is
+            checked, the document is downloaded and extracted first.</li>
+        <li>Uses the <strong>cents-based detector</strong> to find monetary
+            amounts in the text (numbers ending with <code>,00</code>,
+            <code>,50</code>, etc. — the defining signal of money in Greek
+            documents).</li>
+        <li>For each <code>DecisionAmountField</code> row whose value is NOT
+            found verbatim in the text but HAS a ×100 or ÷100 clone, stores the
+            corrected value in <code>verified_amount</code>.</li>
+      </ol>
+    </li>
+    <li><strong>Non-monetary value</strong> (database-only, no document read):
+      compares each recorded amount against the decision's own AFM (VAT
+      number) and KAE (budget code) values.  The real amount is unknown, so the
+      row is <em>flagged</em> — never written to <code>verified_amount</code>.
+      Flagged decisions appear in the
+      <a href="../flagged-amounts-pool/">flagged pool</a> for manual follow-up.
+    </li>
     <li>All downstream consumers use <code>COALESCE(verified_amount, amount)</code>
         so corrected values automatically override the erroneous metadata
-        everywhere — API filtering, pre-calc rankings, statistics.</li>
+        everywhere — API filtering, pre-calc rankings, statistics.  Flagged rows
+        are excluded from every monetary aggregation.</li>
   </ol>
 
   <p style="color: #856404; background: #fff3cd; padding: 12px; border-radius: 4px;">
-    ⚠️ <strong>Tip:</strong> Use <strong>Dry Run</strong> first to preview what
+    <strong>Tip:</strong> Use <strong>Dry Run</strong> first to preview what
     would be corrected before making changes.
   </p>
 </div>

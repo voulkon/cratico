@@ -14,13 +14,34 @@ class ImportDecisionsForm(forms.Form):
 
 
 class AmountCorrectionForm(forms.Form):
-    """Form for batch amount correction with configurable parameters."""
+    """Form for a batch data-quality job with configurable parameters."""
 
+    mode = forms.ChoiceField(
+        choices=[],  # filled in __init__ from CorrectionJobMode
+        initial="decimal_shift",
+        help_text=(
+            "Which detector(s) to run. 'Decimal separator shift' reads the "
+            "document (slow); 'Non-monetary value' is database-only (fast)."
+        ),
+    )
     threshold = forms.DecimalField(
         max_digits=15,
         decimal_places=2,
         initial=100000,
-        help_text="Minimum computed total (€) for a decision to be checked.",
+        help_text=(
+            "Minimum amount (€). For 'Decimal separator shift' this is the "
+            "decision's computed total; for 'Non-monetary value' it is the "
+            "individual recorded amount."
+        ),
+    )
+    max_amount = forms.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        required=False,
+        help_text=(
+            "Optional upper bound (€), same target as the minimum — lets you "
+            "scan a band (e.g. only €100k–€1M). Leave empty for no upper bound."
+        ),
     )
     start_date = forms.DateField(
         required=False,
@@ -47,9 +68,18 @@ class AmountCorrectionForm(forms.Form):
         help_text=(
             "If checked, decisions without extracted text are read first "
             "(download + extract) before correction. Uncheck to only process "
-            "already-extracted decisions and keep batch runs fast."
+            "already-extracted decisions and keep batch runs fast. Ignored by "
+            "detectors that need no text."
         ),
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Imported here (not at module scope) to keep admin import order safe;
+        # using the model's choices means form and model can never diverge.
+        from core.models.amount_correction_job import CorrectionJobMode
+
+        self.fields["mode"].choices = CorrectionJobMode.choices
 
 
 class NonMonetaryAnomalyForm(forms.Form):
@@ -1168,7 +1198,9 @@ class DecisionAdmin(admin.ModelAdmin):
 
                 job = AmountCorrectionJob.objects.create(
                     created_by=request.user if request.user.is_authenticated else None,
+                    mode=form.cleaned_data["mode"],
                     threshold=form.cleaned_data["threshold"],
+                    max_amount=form.cleaned_data["max_amount"],
                     start_date=form.cleaned_data["start_date"],
                     end_date=form.cleaned_data["end_date"],
                     limit=form.cleaned_data["limit"],
@@ -1179,8 +1211,8 @@ class DecisionAdmin(admin.ModelAdmin):
 
                 messages.info(
                     request,
-                    f"Correction job {job.job_id} dispatched to worker "
-                    f"({'dry-run' if job.dry_run else 'applying corrections'}).",
+                    f"{job.get_mode_display()} job {job.job_id} dispatched to "
+                    f"worker ({'dry-run' if job.dry_run else 'applying changes'}).",
                 )
                 return redirect(
                     reverse(
