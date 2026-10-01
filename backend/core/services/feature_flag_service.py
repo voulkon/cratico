@@ -293,6 +293,20 @@ class FeatureFlagService:
             "category": "data_quality",
             "requires_restart": False,
         },
+        "POST_IMPORT_AMOUNT_ANOMALY_TREATMENT_ENABLED": {
+            "name": "Post-Import Anomaly Treatment",
+            "description": "After a global daily import, WRITE the invalid-amount "
+            "marker for decisions whose recorded amount is really a non-monetary "
+            "value (counterpart AFM / KAE code). Off = report only. Writing the "
+            "marker excludes the row from every monetary aggregation and sends "
+            "the decision to the feedback pool for manual follow-up — the real "
+            "amount is never guessed. Database-only (no document read). Requires "
+            "POST_IMPORT_AMOUNT_VERIFICATION_ENABLED.",
+            "default": False,
+            "env_var": "POST_IMPORT_AMOUNT_ANOMALY_TREATMENT_ENABLED",
+            "category": "data_quality",
+            "requires_restart": False,
+        },
         # ── User-Triggered GEMI Fetch ─────────────────────────────────
         "GEMI_FETCH_REQUEST_PUBLIC_ACCESS": {
             "name": "GEMI Fetch Request — Public Access",

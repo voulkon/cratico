@@ -4,6 +4,12 @@ Model for tracking amount-correction batch jobs.
 The batch correction can take a long time (it may download + extract the
 document for every candidate), so it runs on a Celery worker and persists
 progress + per-decision results here for the admin UI to poll.
+
+``mode`` selects which data-quality detector(s) the job runs — see
+``core.services.data_quality``.  ``decimal_shift`` (default) is the historical
+behaviour: the cents-based ×100/÷100 correction.  ``non_monetary`` runs the
+DB-only AFM/KAE guard instead (no document read), and ``both`` runs every
+registered detector.  Adding a detector therefore needs no job-model change.
 """
 
 import uuid
@@ -23,6 +29,14 @@ class CorrectionJobStatus(models.TextChoices):
     CANCELLED = "cancelled", "Cancelled"
 
 
+class CorrectionJobMode(models.TextChoices):
+    """Which detector(s) a job runs.  Mirrors ``data_quality.MODES``."""
+
+    DECIMAL_SHIFT = "decimal_shift", "Decimal separator shift (×100 / ÷100)"
+    NON_MONETARY = "non_monetary", "Non-monetary value as amount (AFM/KAE)"
+    BOTH = "both", "Every registered detector"
+
+
 class AmountCorrectionJob(models.Model):
     """Tracks a single batch amount-correction run."""
 
@@ -35,7 +49,21 @@ class AmountCorrectionJob(models.Model):
     )
 
     # ── Configuration ──────────────────────────────────────────────
+    #: which detector(s) to run — see ``core.services.data_quality``
+    mode = models.CharField(
+        max_length=20,
+        choices=CorrectionJobMode.choices,
+        default=CorrectionJobMode.DECIMAL_SHIFT,
+        db_index=True,
+    )
+    #: Lower bound.  For the decimal-shift detector it filters the decision's
+    #: computed total; for the non-monetary detector the individual field value.
     threshold = models.DecimalField(max_digits=15, decimal_places=2, default=100000)
+    #: Optional upper bound (same target as ``threshold``) — lets an operator
+    #: scan a band, e.g. only amounts between €100k and €1M.
+    max_amount = models.DecimalField(
+        max_digits=15, decimal_places=2, null=True, blank=True
+    )
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
     limit = models.PositiveIntegerField(null=True, blank=True)
@@ -67,6 +95,9 @@ class AmountCorrectionJob(models.Model):
     no_text = models.PositiveIntegerField(default=0)
     skipped = models.PositiveIntegerField(default=0)
     errors = models.PositiveIntegerField(default=0)
+    #: Decisions whose value could not be repaired and was flagged instead
+    #: (non-monetary value recorded as an amount).
+    flagged = models.PositiveIntegerField(default=0)
 
     # ── Timing ────────────────────────────────────────────────────
     started_at = models.DateTimeField(null=True, blank=True)
@@ -123,7 +154,7 @@ class AmountCorrectionJob(models.Model):
             return
         if self.total_candidates and self.processed_count >= self.total_candidates:
             self.mark_completed()
-            if self.corrected and not self.dry_run:
+            if (self.corrected or self.flagged) and not self.dry_run:
                 from core.services.response_cache_service import response_cache
                 response_cache.invalidate_prefix("top_")
 
@@ -145,6 +176,10 @@ class AmountCorrectionJobResult(models.Model):
 
     # [{source_field, db_amount, corrected_to, clone_factor}, ...]
     corrections = models.JSONField(default=list, blank=True)
+    # [{detector, kind, reason, field_id, source_field, recorded, note, ...}, ...]
+    # Values that could NOT be repaired (the real amount is unknown) and were
+    # flagged instead — rendered alongside the corrections in the job page.
+    flagged = models.JSONField(default=list, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
 

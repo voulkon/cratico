@@ -22,6 +22,18 @@ New to the platform? Start here:
   - Technology stack
   - Modularity and feature flags
 
+### Data Quality
+- **[Data Quality — Detecting and Repairing Wrong Amounts](en/DATA_QUALITY.md)**
+  - The detectors: decimal separator shift, non-monetary value (AFM/KAE) as amount
+  - The detector framework: contract, rules, and how to add a new detector
+  - Post-import automation and feature flags
+  - Operating a sweep from the admin or the CLI
+  - Performance rules and known duplication
+
+### Search
+- **[Search — End-to-End](en/SEARCH.md)**
+  - Frontend to OpenSearch, tier resolution and fallbacks
+
 ### Configuration
 - **[Environment Variables Reference](en/ENVIRONMENT_VARIABLES.md)**
   - Complete variable listing
@@ -192,8 +204,10 @@ Found an error or want to improve documentation?
 docs/
 ├── README.md                      # This file
 ├── ARCHITECTURE.md                # System architecture
+├── DATA_QUALITY.md                # Amount detectors and the detector framework
 ├── DEPLOYMENT.md                  # Deployment guide
 ├── ENVIRONMENT_VARIABLES.md       # Configuration reference
+├── SEARCH.md                      # Search end-to-end
 └── components/                    # Component-specific docs
     ├── README.md                  # Component overview
     ├── backend-api.md             # Backend documentation
@@ -208,6 +222,8 @@ docs/
 | Architecture | ✅ Complete | 2026-03-05 |
 | Deployment Guide | ✅ Complete | 2026-03-05 |
 | Environment Variables | ✅ Complete | 2026-03-05 |
+| Search | ✅ Complete | 2026-03-05 |
+| Data Quality | ✅ Complete | 2026-09-30 |
 | Backend API | ✅ Complete | 2026-03-05 |
 | Component Overview | ✅ Complete | 2026-03-05 |
 | Other Components | 🚧 In Progress | - |
