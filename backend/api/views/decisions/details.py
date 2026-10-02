@@ -1,3 +1,11 @@
+from django.conf import settings
+from django.db.models import Count, F, Q
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+
+from api.permissions import PublicReadOnly
+from api.utils.decision_refs import resolve_decision
+from api.utils.response import pydantic_response
 from core.models.companies import Company
 from core.models.decision_ai_analysis import DecisionAIAnalysis
 from core.models.decisions import Decision
@@ -5,13 +13,7 @@ from core.models.document_analysis import DocumentExtraction, ProcessingStatus
 from core.models.entities import DecisionAmountField, DecisionEntityRelationship
 from core.schemas.decision_detail import DecisionDetailResponse
 from core.services.decision_facets import effective_linked_amount_sum
-from api.utils.decision_refs import resolve_decision
-from api.utils.response import pydantic_response
-from django.conf import settings
-from django.db.models import Count, F, Q
-from rest_framework.decorators import api_view, permission_classes
-from api.permissions import PublicReadOnly
-from rest_framework.response import Response
+from core.services.non_monetary_value_guard import collect_self_counterparts
 
 
 @api_view(["GET"])
@@ -24,8 +26,9 @@ def decision_detail(request, decision_ref):
     try:
         decision = resolve_decision(
             decision_ref,
-            Decision.objects.select_related("organization", "decision_type")
-            .prefetch_related("signers", "units", "kae_amounts", "attachments"),
+            Decision.objects.select_related(
+                "organization", "decision_type"
+            ).prefetch_related("signers", "units", "kae_amounts", "attachments"),
         )
 
         # Document content availability (so the frontend can decide whether to
@@ -44,21 +47,22 @@ def decision_detail(request, decision_ref):
         ai_analyses_data = []
         try:
             ai_analyses = (
-                DecisionAIAnalysis.objects
-                .filter(decision=decision, status="COMPLETED")
+                DecisionAIAnalysis.objects.filter(decision=decision, status="COMPLETED")
                 .exclude(summary="")
                 .order_by("-created_at")
             )
             for ai in ai_analyses:
-                ai_analyses_data.append({
-                    "id": ai.id,
-                    "status": ai.status,
-                    "summary": ai.summary,
-                    "cost_usd": str(ai.cost_usd) if ai.cost_usd else None,
-                    "model_used": ai.model_used,
-                    "completed_at": ai.completed_at,
-                    "error_message": ai.error_message,
-                })
+                ai_analyses_data.append(
+                    {
+                        "id": ai.id,
+                        "status": ai.status,
+                        "summary": ai.summary,
+                        "cost_usd": str(ai.cost_usd) if ai.cost_usd else None,
+                        "model_used": ai.model_used,
+                        "completed_at": ai.completed_at,
+                        "error_message": ai.error_message,
+                    }
+                )
         except DecisionAIAnalysis.DoesNotExist:
             ai_analyses_data = []
 
@@ -76,21 +80,24 @@ def decision_detail(request, decision_ref):
         # same table (and duplicates work the /entities/ endpoint does).
         amount_fields = list(
             DecisionAmountField.objects.filter(decision=decision).only(
-                "amount", "verified_amount", "invalid_amount_reason",
+                "amount",
+                "verified_amount",
+                "invalid_amount_reason",
                 "invalid_amount_value",
             )
         )
 
-        effective_total = sum(
-            (f.verified_amount if f.verified_amount is not None else f.amount)
-            for f in amount_fields
-            if not f.invalid_amount_reason
-            and (f.verified_amount is not None or f.amount is not None)
-        ) or None
+        effective_total = (
+            sum(
+                (f.verified_amount if f.verified_amount is not None else f.amount)
+                for f in amount_fields
+                if not f.invalid_amount_reason
+                and (f.verified_amount is not None or f.amount is not None)
+            )
+            or None
+        )
 
-        corrected_fields = [
-            f for f in amount_fields if f.verified_amount is not None
-        ]
+        corrected_fields = [f for f in amount_fields if f.verified_amount is not None]
         has_corrected = bool(corrected_fields)
         # Verified-aware total: same sum but WITHOUT excluding invalid rows'
         # verified values — invalid rows never carry a verified_amount, so
@@ -204,13 +211,28 @@ def decision_detail(request, decision_ref):
         # counterpart AFM (ΑΦΜ) or a budget KAE (ΚΑΕ), so it is not money and
         # the real amount is unknown.  The facet layer already excludes such
         # rows from every aggregation; this tells the UI to say so instead of
-        # rendering a bogus 9-figure amount.
+        # rendering a bogus 9-figure amount.  ``recorded_amount`` carries the
+        # raw recorded value so the UI can show what Diavgeia wrote.
         decision_data["has_invalid_amount"] = invalid_field is not None
         decision_data["invalid_amount_reason"] = (
             invalid_field.invalid_amount_reason if invalid_field else None
         )
         decision_data["invalid_amount_value"] = (
             invalid_field.invalid_amount_value if invalid_field else None
+        )
+        decision_data["recorded_amount"] = (
+            float(invalid_field.amount)
+            if invalid_field and invalid_field.amount is not None
+            else None
+        )
+
+        # Self-as-counterpart — decision-level counterpart issue, NOT an
+        # amount problem: the amounts stay trusted, only the counterpart is
+        # unknown (it equals the issuing organization's own VAT number).
+        self_counterparts = collect_self_counterparts(decision)
+        decision_data["has_self_counterpart"] = bool(self_counterparts)
+        decision_data["self_counterpart_afm"] = (
+            sorted(self_counterparts)[0] if self_counterparts else None
         )
 
         return pydantic_response(DecisionDetailResponse(**decision_data))

@@ -48,18 +48,17 @@ from loguru import logger
 from core.models.decisions import Decision
 from core.models.document_analysis import DocumentExtraction, ProcessingStatus
 from core.models.entities import DecisionAmountField
+from core.services.grouped_amount_detection import (
+    verify_amounts_against_grouped,
+)
 from core.services.non_monetary_value_guard import (
     DISCREPANCY_REASON_AFM,
     DISCREPANCY_REASON_KAE,
     DISCREPANCY_REASON_NON_MONETARY,
-    DISCREPANCY_REASON_SELF_COUNTERPART,
     KIND_AFM,
     KIND_KAE,
     NonMonetaryValue,
     collect_non_monetary_values,
-)
-from core.services.grouped_amount_detection import (
-    verify_amounts_against_grouped,
 )
 
 # Default threshold: decisions with total ≥ €100,000 are candidates.
@@ -111,9 +110,9 @@ class AmountCorrectionService:
         """
         # ── Get all amount fields (with amounts > 0) ───────────────
         fields = list(
-            decision.amount_fields
-            .filter(amount__isnull=False, amount__gt=0)
-            .only("id", "amount", "source_field_name", "parent_key_path")
+            decision.amount_fields.filter(amount__isnull=False, amount__gt=0).only(
+                "id", "amount", "source_field_name", "parent_key_path"
+            )
         )
         if not fields:
             return {"status": "skipped", "reason": "no_db_amounts"}
@@ -132,9 +131,7 @@ class AmountCorrectionService:
         # cost a document read.
         anomaly_by_field = {
             anomaly.field_id: anomaly
-            for anomaly in collect_non_monetary_values(
-                decision, amount_fields=fields
-            )
+            for anomaly in collect_non_monetary_values(decision, amount_fields=fields)
         }
         if anomaly_by_field:
             logger.warning(
@@ -146,9 +143,7 @@ class AmountCorrectionService:
             # Mark the row(s) invalid so they are excluded from every monetary
             # aggregation and surface in the feedback pool.  We still write NO
             # monetary value — the real amount is unknown.
-            self._flag_invalid_amounts(
-                fields, anomaly_by_field, dry_run=dry_run
-            )
+            self._flag_invalid_amounts(fields, anomaly_by_field, dry_run=dry_run)
 
         # Every recorded amount is a non-monetary value → there is nothing
         # left to verify against the text, so skip the document read entirely.
@@ -186,14 +181,16 @@ class AmountCorrectionService:
             if anomaly is not None:
                 # The field's amount is a non-monetary value (AFM/KAE) — never
                 # treat it as correctable, even when the text "confirms" it.
-                flagged.append({
-                    "field_id": field.id,
-                    "source_field": field.source_field_name,
-                    "db_amount": str(field.amount),
-                    "matched_value": anomaly.matched_value,
-                    "discrepancy_reason": anomaly.reason,
-                    "matched_in_text": match.found_exact,
-                })
+                flagged.append(
+                    {
+                        "field_id": field.id,
+                        "source_field": field.source_field_name,
+                        "db_amount": str(field.amount),
+                        "matched_value": anomaly.matched_value,
+                        "discrepancy_reason": anomaly.reason,
+                        "matched_in_text": match.found_exact,
+                    }
+                )
                 continue
 
             if match.found_exact:
@@ -202,13 +199,15 @@ class AmountCorrectionService:
             if match.clone_factor in (CLONE_FACTOR_100, CLONE_FACTOR_001):
                 # This field has a decimal-shift typo — correct it
                 corrected_value = match.matched_text_amount
-                corrections.append({
-                    "field_id": field.id,
-                    "source_field": field.source_field_name,
-                    "db_amount": str(field.amount),
-                    "corrected_to": str(corrected_value),
-                    "clone_factor": str(match.clone_factor),
-                })
+                corrections.append(
+                    {
+                        "field_id": field.id,
+                        "source_field": field.source_field_name,
+                        "db_amount": str(field.amount),
+                        "corrected_to": str(corrected_value),
+                        "clone_factor": str(match.clone_factor),
+                    }
+                )
                 if not dry_run:
                     field.verified_amount = corrected_value
                     field.amount_verified_at = timezone.now()
@@ -257,21 +256,25 @@ class AmountCorrectionService:
                             # Absorb rounding remainder
                             corrected_value = text_total - running
                         else:
-                            corrected_value = (
-                                field.amount * scale_factor
-                            ).quantize(Decimal("0.01"))
+                            corrected_value = (field.amount * scale_factor).quantize(
+                                Decimal("0.01")
+                            )
                             running += corrected_value
 
-                        corrections.append({
-                            "field_id": field.id,
-                            "source_field": field.source_field_name,
-                            "db_amount": str(field.amount),
-                            "corrected_to": str(corrected_value),
-                            "clone_factor": (
-                                CLONE_FACTOR_001 if scale_factor < 1 else CLONE_FACTOR_100
-                            ),
-                            "group_correction": True,
-                        })
+                        corrections.append(
+                            {
+                                "field_id": field.id,
+                                "source_field": field.source_field_name,
+                                "db_amount": str(field.amount),
+                                "corrected_to": str(corrected_value),
+                                "clone_factor": (
+                                    CLONE_FACTOR_001
+                                    if scale_factor < 1
+                                    else CLONE_FACTOR_100
+                                ),
+                                "group_correction": True,
+                            }
+                        )
                         if not dry_run:
                             field.verified_amount = corrected_value
                             field.amount_verified_at = now
@@ -288,9 +291,7 @@ class AmountCorrectionService:
             return {
                 "status": "no_correctable_fields",
                 "db_amounts": [str(a) for a in db_amounts],
-                "text_amounts": [
-                    str(g.amount) for g in grouped_result.grouped_amounts
-                ],
+                "text_amounts": [str(g.amount) for g in grouped_result.grouped_amounts],
             }
 
         # ── Persist ────────────────────────────────────────────────
@@ -348,9 +349,9 @@ class AmountCorrectionService:
             The detected ``NonMonetaryValue`` anomalies (empty if none).
         """
         fields = list(
-            decision.amount_fields
-            .filter(amount__isnull=False, amount__gt=0)
-            .only("id", "amount", "source_field_name", "parent_key_path")
+            decision.amount_fields.filter(amount__isnull=False, amount__gt=0).only(
+                "id", "amount", "source_field_name", "parent_key_path"
+            )
         )
         if not fields:
             return []
@@ -460,25 +461,18 @@ class AmountCorrectionService:
             status = DISCREPANCY_REASON_AFM
         elif reasons == {DISCREPANCY_REASON_KAE}:
             status = DISCREPANCY_REASON_KAE
-        elif reasons == {DISCREPANCY_REASON_SELF_COUNTERPART}:
-            status = DISCREPANCY_REASON_SELF_COUNTERPART
         else:
             status = DISCREPANCY_REASON_NON_MONETARY
         return {
             "status": status,
-            "discrepancy_reason": (
-                next(iter(reasons)) if len(reasons) == 1 else None
-            ),
+            "discrepancy_reason": (next(iter(reasons)) if len(reasons) == 1 else None),
             "db_amounts": [str(a) for a in db_amounts],
             "flagged_field_ids": sorted(anomaly_by_field),
             "afm_flagged_field_ids": sorted(
-                fid
-                for fid, a in anomaly_by_field.items()
-                if a.kind == KIND_AFM
+                fid for fid, a in anomaly_by_field.items() if a.kind == KIND_AFM
             ),
             "matched_values": {
-                str(fid): a.matched_value
-                for fid, a in anomaly_by_field.items()
+                str(fid): a.matched_value for fid, a in anomaly_by_field.items()
             },
         }
 
@@ -566,14 +560,14 @@ class AmountCorrectionService:
         )
 
         candidates = (
-            Decision.objects
-            .annotate(calc_total=amount_sum_excluding_kae())
+            Decision.objects.annotate(calc_total=amount_sum_excluding_kae())
             .filter(calc_total__gte=threshold)
             .filter(has_uncorrected_field)
         )
 
         if start_date:
             from django.utils import timezone as dj_timezone
+
             start_dt = dj_timezone.make_aware(
                 datetime.combine(start_date, datetime.min.time())
             )
@@ -581,6 +575,7 @@ class AmountCorrectionService:
 
         if end_date:
             from django.utils import timezone as dj_timezone
+
             end_dt = dj_timezone.make_aware(
                 datetime.combine(end_date, datetime.max.time())
             )
@@ -641,33 +636,37 @@ class AmountCorrectionService:
                     no_text += 1
                 else:
                     skipped += 1
-                results.append({
-                    "decision_id": decision.id,
-                    "ada": decision.ada,
-                    "subject": decision.subject,
-                    "status": status,
-                    "frontend_url": self.frontend_url(decision),
-                    "corrections": result.get("corrections", []),
-                    "flagged": result.get("flagged", []),
-                    "group_correction": result.get("group_correction", False),
-                    "reason": result.get("reason", ""),
-                })
+                results.append(
+                    {
+                        "decision_id": decision.id,
+                        "ada": decision.ada,
+                        "subject": decision.subject,
+                        "status": status,
+                        "frontend_url": self.frontend_url(decision),
+                        "corrections": result.get("corrections", []),
+                        "flagged": result.get("flagged", []),
+                        "group_correction": result.get("group_correction", False),
+                        "reason": result.get("reason", ""),
+                    }
+                )
             except Exception as exc:
                 logger.error(
                     f"AmountCorrection failed for decision {decision.id}: {exc}",
                     exc_info=True,
                 )
                 errors += 1
-                results.append({
-                    "decision_id": decision.id,
-                    "ada": decision.ada,
-                    "subject": decision.subject,
-                    "status": "error",
-                    "frontend_url": self.frontend_url(decision),
-                    "corrections": [],
-                    "group_correction": False,
-                    "reason": str(exc),
-                })
+                results.append(
+                    {
+                        "decision_id": decision.id,
+                        "ada": decision.ada,
+                        "subject": decision.subject,
+                        "status": "error",
+                        "frontend_url": self.frontend_url(decision),
+                        "corrections": [],
+                        "group_correction": False,
+                        "reason": str(exc),
+                    }
+                )
 
         summary = {
             "total_candidates": total_candidates,

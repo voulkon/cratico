@@ -13,6 +13,12 @@ Canonical cases
 - KAE: decision ``ΨΡΙ0Ω12-0ΙΘ`` — ``expenseAmount`` = ``7.06273001E8``
   (€706,273,001) where the sibling ``kae`` is ``70.6273.001``.
 
+A structurally different problem — the issuing org appearing as its own
+counterpart (``self_as_counterpart``) — is **decision-level**: the amount may
+be perfectly well-formed and is believed; only the counterpart is unknown.
+It is detected by the guard (``collect_self_counterparts``) and surfaced by
+the decision detail API, never flagged here.
+
 This detector is **DB-only** (``needs_text = False``): it compares the recorded
 amount against the decision's own AFMs/KAEs, so it also finds historical rows
 that never went through the verification pipeline — and it costs no document
@@ -32,16 +38,16 @@ from __future__ import annotations
 from decimal import Decimal
 
 from core.services.data_quality.base import (
-    TARGET_UNUSABLE,
     STATUS_CONSISTENT,
     STATUS_DETECTED,
+    TARGET_UNUSABLE,
     BaseDetector,
     Outcome,
 )
 
 
 class NonMonetaryValueDetector(BaseDetector):
-    """Find AFM/KAE-as-amount and self-as-counterpart anomalies."""
+    """Find AFM/KAE-as-amount anomalies (self-as-counterpart is decision-level)."""
 
     slug = "non-monetary-value"
     mode_key = "non_monetary"
@@ -77,19 +83,23 @@ class NonMonetaryValueDetector(BaseDetector):
         limit: int | None = None,
     ) -> list[int]:
         """
-        Decisions with either an amount field inside the value bounds or a
-        relationship whose counterpart AFM equals the issuing org's VAT, and
-        with at least one field not already carrying the invalid-amount marker.
+        Decisions with an amount field inside the value bounds and with at
+        least one field not already carrying the invalid-amount marker.
 
         The bound is on the **individual** ``DecisionAmountField.amount`` (that
         is the value being mistaken for money), not on the decision total —
         which is why this detector declares ``uses_total_amount = False``.
 
+        Self-as-counterpart is deliberately NOT part of the candidate query:
+        it is a decision-level counterpart signal, not an amount anomaly, so
+        the detector has no treatment for it (see
+        ``core.services.non_monetary_value_guard.collect_self_counterparts``).
+
         ``--limit`` is pushed into the SQL (``.distinct()[:limit]``) so a
         bounded run never materialises the whole candidate set; this mirrors
         the ``find_*`` / ``fix_*`` management commands.
         """
-        from django.db.models import F, Q
+        from django.db.models import Q
 
         from core.models.entities import DecisionAmountField
 
@@ -105,28 +115,7 @@ class NonMonetaryValueDetector(BaseDetector):
         if max_amount is not None:
             value_bounds &= Q(amount__lt=max_amount)
 
-        # Extracted entity relationships make this strong structural signal
-        # queryable without broadening the AFM/KAE historical sweep to every
-        # small amount.  Two modes, mirroring the guard's ``_is_self_counterpart``:
-        # exact (9-digit VAT == counterpart AFM) and truncated-prefix (an
-        # 8-digit org VAT that the counterpart AFM starts with, e.g. Παίδων
-        # ``09000980`` → ``090009802``).  The prefix branch is gated to org VATs
-        # of ≥ 8 digits so a junk short VAT can never match.  Placeholder VATs
-        # (all-same-digit, e.g. ``00000000``) are excluded from BOTH branches —
-        # they are filler, never a real AFM, and would otherwise prefix-match
-        # every ``00000000X`` counterpart.
-        org_vat = F("decision__organization__vat_number")
-        plausible_vat = ~Q(decision__organization__vat_number__regex=r"^(\d)\1*$")
-        self_counterpart = plausible_vat & (
-            Q(decision__entity_relationships__entity__afm=org_vat)
-            | (
-                Q(decision__organization__vat_number__regex=r"^\d{8,}$")
-                & Q(
-                    decision__entity_relationships__entity__afm__startswith=org_vat
-                )
-            )
-        )
-        qs = qs.filter(value_bounds | self_counterpart)
+        qs = qs.filter(value_bounds)
         if imported_since is not None:
             qs = qs.filter(decision__created_at__gte=imported_since)
         if imported_until is not None:
@@ -177,7 +166,9 @@ class NonMonetaryValueDetector(BaseDetector):
         ]
         return Outcome(slug=self.slug, status=STATUS_DETECTED, findings=findings)
 
-    def apply(self, decision, outcome: Outcome, *, dry_run: bool = False, **kwargs) -> int:
+    def apply(
+        self, decision, outcome: Outcome, *, dry_run: bool = False, **kwargs
+    ) -> int:
         """
         Write the invalid-amount marker for every flagged field.
 
@@ -200,6 +191,4 @@ class NonMonetaryValueDetector(BaseDetector):
     def _collect(decision, *, use_raw_context: bool = False):
         from core.services.non_monetary_value_guard import collect_non_monetary_values
 
-        return collect_non_monetary_values(
-            decision, use_raw_context=use_raw_context
-        )
+        return collect_non_monetary_values(decision, use_raw_context=use_raw_context)

@@ -19,18 +19,22 @@ Three variants are currently detected:
    same object (``sponsor[i].kae`` next to ``sponsor[i].expenseAmount``).
 
 3. **Self-as-counterpart** — the issuing organization's VAT number appears
-    among the decision's counterpart AFMs. The intended counterpart is unknown,
-    so every amount on the decision is flagged as unusable.
+    among the decision's counterpart AFMs.  Here the amount itself may be
+    perfectly well-formed — what is broken is the *relationship*: the intended
+    counterpart is unknown.  So this variant is **decision-level**, never an
+    amount marker: the amounts stay trusted, and the counterpart issue is
+    reported through :func:`collect_self_counterparts` (detail API, audit
+    notes).  Finding the real counterpart is future work.
 
-Both are 8-9 digit numbers, so they look like plausible euro amounts and —
-since the document text literally contains the value formatted as an amount
-(``99.370.337,00``) — the "exact match wins" policy of the amount verification
-pipeline **confirms** the bogus value instead of flagging it.
+AFM and KAE are 8-9 digit numbers, so they look like plausible euro amounts
+and — since the document text literally contains the value formatted as an
+amount (``99.370.337,00``) — the "exact match wins" policy of the amount
+verification pipeline **confirms** the bogus value instead of flagging it.
 
 The scope is deliberately open: other non-monetary numeric metadata (e.g. a
 protocol number) can be covered by adding a collector plus a
 :data:`KIND_*` — see ``collect_non_monetary_values``.  Coverage is currently
-limited to the two variants above.
+limited to the two amount-level variants above.
 
 This module provides the guard primitives shared by:
 
@@ -421,9 +425,9 @@ class NonMonetaryValue:
     source_field: str
     parent_key_path: str
     amount: Decimal
-    kind: str  # KIND_AFM | KIND_KAE | KIND_SELF_COUNTERPART
+    kind: str  # KIND_AFM | KIND_KAE
     matched_value: str  # the value found (digit-only for KAE)
-    reason: str  # DISCREPANCY_REASON_AFM | DISCREPANCY_REASON_KAE | self counterpart
+    reason: str  # DISCREPANCY_REASON_AFM | DISCREPANCY_REASON_KAE
     note: str
 
 
@@ -433,11 +437,15 @@ def collect_non_monetary_values(
     use_raw_context: bool = False,
 ) -> list[NonMonetaryValue]:
     """
-    Return every amount field of *decision* affected by a non-monetary value
-    or self-as-counterpart relationship.
+    Return every amount field of *decision* whose recorded amount is a
+    non-monetary value (AFM / KAE).
 
     This is the DB-only detector (no document text), so it also finds
     historical rows that never ran through the verification pipeline.
+
+    Self-as-counterpart is deliberately **not** an amount anomaly: there the
+    amount is believed and only the counterpart is unknown, so it is
+    decision-level state — see :func:`collect_self_counterparts`.
 
     Args:
         decision: The ``Decision`` instance.
@@ -448,9 +456,8 @@ def collect_non_monetary_values(
             already loaded (a deferred JSONField would cause per-row queries).
     """
     afms = collect_counterpart_afms(decision)
-    self_counterparts = collect_self_counterparts(decision)
     decision_kaes = collect_kae_codes(decision)
-    if not afms and not self_counterparts and not decision_kaes and not use_raw_context:
+    if not afms and not decision_kaes and not use_raw_context:
         return []
 
     fields = (
@@ -462,20 +469,6 @@ def collect_non_monetary_values(
         if amount is None:
             continue
 
-        # A decision cannot be its own counterparty. The intended counterpart
-        # and real amount are both unknown, so exclude every amount from use.
-        if self_counterparts:
-            anomalies.append(
-                _make_value(
-                    field,
-                    amount,
-                    KIND_SELF_COUNTERPART,
-                    sorted(self_counterparts)[0],
-                    DISCREPANCY_REASON_SELF_COUNTERPART,
-                )
-            )
-            continue
-
         afm = match_afm_amount(amount, afms)
         if afm is not None:
             anomalies.append(
@@ -485,9 +478,7 @@ def collect_non_monetary_values(
 
         kae = None
         if use_raw_context:
-            sibling = kae_code_in_raw_context(
-                getattr(field, "raw_context", None)
-            )
+            sibling = kae_code_in_raw_context(getattr(field, "raw_context", None))
             if sibling:
                 kae = match_kae_amount(amount, {sibling})
         if kae is None and decision_kaes:
@@ -500,6 +491,11 @@ def collect_non_monetary_values(
 
 
 def _make_value(field, amount, kind, matched_value, reason) -> NonMonetaryValue:
+    note = (
+        build_afm_note(matched_value, amount)
+        if kind == KIND_AFM
+        else build_kae_note(matched_value, amount)
+    )
     return NonMonetaryValue(
         field_id=field.id,
         source_field=getattr(field, "source_field_name", "") or "",
@@ -508,15 +504,7 @@ def _make_value(field, amount, kind, matched_value, reason) -> NonMonetaryValue:
         kind=kind,
         matched_value=matched_value,
         reason=reason,
-        note=(
-            build_afm_note(matched_value, amount)
-            if kind == KIND_AFM
-            else (
-                build_kae_note(matched_value, amount)
-                if kind == KIND_KAE
-                else build_self_counterpart_note(matched_value)
-            )
-        ),
+        note=note,
     )
 
 
@@ -538,9 +526,7 @@ def find_afm_amount_fields(
     by_id = {field.id: field for field in fields}
     return [
         (by_id[value.field_id], value.matched_value)
-        for value in collect_non_monetary_values(
-            decision, amount_fields=fields
-        )
+        for value in collect_non_monetary_values(decision, amount_fields=fields)
         if value.kind == KIND_AFM and value.field_id in by_id
     ]
 
