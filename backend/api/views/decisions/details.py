@@ -28,7 +28,16 @@ def decision_detail(request, decision_ref):
             decision_ref,
             Decision.objects.select_related(
                 "organization", "decision_type"
-            ).prefetch_related("signers", "units", "kae_amounts", "attachments"),
+            ).prefetch_related(
+                "signers",
+                "units",
+                "kae_amounts",
+                "attachments",
+                # collect_self_counterparts() below scans the relationships
+                # (and their entities) — prefetch or every detail request
+                # pays 1 + R extra queries for the decision-level signal.
+                "entity_relationships__entity",
+            ),
         )
 
         # Document content availability (so the frontend can decide whether to
