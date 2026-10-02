@@ -30,7 +30,8 @@ test.afterAll(() => lifecycle.teardown());
 
 /**
  * Mirrors shared._ada_token (backend): the ADAs are minted from the run id,
- * so the spec derives them instead of hardcoding.
+ * so the spec derives them instead of hardcoding. Keep the two in sync — if
+ * the backend minting changes, this must change too.
  */
 function decisionAda(index) {
   const hex = createHash('md5').update(lifecycle.runId).digest('hex');
