@@ -54,14 +54,12 @@ from core.services.grouped_amount_detection import _CENTS_AMOUNT_RE
 # Discrepancy reasons used in run.meta / resolution notes
 DISCREPANCY_REASON_AFM = "afm_as_amount"
 DISCREPANCY_REASON_KAE = "kae_as_amount"
-DISCREPANCY_REASON_SELF_COUNTERPART = "self_as_counterpart"
 # Mixed AFM + KAE (or future) cases
 DISCREPANCY_REASON_NON_MONETARY = "non_monetary_value_as_amount"
 
 # Anomaly kinds returned by collect_non_monetary_values
 KIND_AFM = "afm"
 KIND_KAE = "kae"
-KIND_SELF_COUNTERPART = "self_counterpart"
 
 # Minimum digit length for a KAE code to be considered (shorter codes are too
 # likely to collide with ordinary amounts).
