@@ -31,15 +31,15 @@ Real cases currently committed:
 - ``afm_as_amount_raw.json`` — ADA ``Ψ0Α74690Β9-52Ρ``. Sponsor AFM
   ``099370337`` (VIOLAK INTERNATIONAL) recorded as ``expenseAmount``
   ``9.9370337E7`` = €99,370,337.00.
-- ``afm_petridis_raw.json`` — ADA ``ΨΛΘΒΟΡΡ2-ΖΤΞ``. Sponsor AFM
-  ``801380053`` (ΠΕΤΡΙΔΗΣ Θ ΣΠΥΡΙΔΩΝ ΚΑΙ ΣΙΑ Ε Ε) recorded as
-  ``expenseAmount`` ``8.01380053E8`` = €801,380,053.00.
 - ``kae_as_amount_raw.json`` — ADA ``Ψ0ΩΣΟΡΓΠ-Ε45``. Sponsor ``sponsor[0]``
   has KAE ``26.01.00.0000`` recorded as ``expenseAmount`` ``2.601E9``
   = €2,601,000,000.00.
-- ``kae_deh_raw.json`` — ADA ``ΨΡΙ0Ω12-0ΙΘ``. Sponsor ``sponsor[6]`` has
-  KAE ``70.6273.001`` recorded as ``expenseAmount`` ``7.06273001E8``
-  = €706,273,001.00; the other six sponsors are correct.
+
+Regression payload:
+
+- ``self_counterpart_raw.json`` — a raw API-shaped payload where the issuing
+    organization's AFM occurs as a sponsor AFM. Every extracted amount is
+    unusable because the intended counterpart is unknown.
 
 The document text supplied to the verification stage is *derived from the
 value* (e.g. ``99.370.337,00``) — it reproduces the "the amount field holds the
@@ -56,8 +56,10 @@ import pytest
 from core.services.non_monetary_value_guard import (
     DISCREPANCY_REASON_AFM,
     DISCREPANCY_REASON_KAE,
+    DISCREPANCY_REASON_SELF_COUNTERPART,
     KIND_AFM,
     KIND_KAE,
+    KIND_SELF_COUNTERPART,
     collect_non_monetary_values,
 )
 from core.services.amount_correction_service import AmountCorrectionService
@@ -97,16 +99,81 @@ def _digits(value) -> str:
     return "".join(ch for ch in str(value) if ch.isdigit())
 
 
+# ── Org VAT ground truth (from the DB, NOT the payload) ─────────────────────
+# The real self-counterpart payloads carry NO ``extraFieldValues.org`` block —
+# the issuing org's AFM is only in the ``core_organization.vat_number`` row.
+# That is exactly the production situation the guard relies on, so the test
+# seeds the Organization with the DB-truth VAT for these ADAs.  Keyed by ADA.
+ORG_VAT_BY_ADA = {
+    # ΙΦΕΤ Μ.Α.Ε. — org uid 99221541, vat_number 090064864 (DB row).
+    "6Ζ9Ν469ΗΣΥ-Μ6Χ": "090064864",
+    "945Ζ469ΗΣΥ-Λ2Ε": "090064864",
+    # ΠΕΡ.ΓΕΝ. ΝΟΣΟΚΟΜΕΙΟ ΠΑΙΔΩΝ 'ΑΓΛΑΙΑ ΚΥΡΙΑΚΟΥ' — org uid 99222005.
+    # The DB vat_number is 09000980 (8 digits, TRUNCATED) while the real
+    # counterpart AFM on the decision is 090009802 (9 digits).  The
+    # truncated-prefix match catches this: the counterpart starts with the
+    # org's (short) VAT.  Verified against the real DB: the 09000980 prefix
+    # matches exactly one distinct AFM (090009802) across 969 decisions.
+    "6ΜΣΥ46906Ρ-ΑΞΡ": "09000980",
+}
+
+
+def _org_vat_for(payload: dict) -> str:
+    """
+    Issuing-org VAT for a payload: prefer the payload's own ``org.afm``
+    (synthetic cases), else the DB-truth map keyed by ADA (real cases).
+    """
+    from_payload = _digits((_efv(payload).get("org") or {}).get("afm") or "")
+    if from_payload:
+        return from_payload
+    return ORG_VAT_BY_ADA.get(payload.get("ada") or "", "")
+
+
+def _counterpart_afms_naive(payload: dict) -> list[str]:
+    """Every counterpart AFM in the payload, any shape (sponsor / person)."""
+    efv = _efv(payload)
+    afms: list[str] = []
+    for sponsor in efv.get("sponsor") or []:
+        if isinstance(sponsor, dict):
+            afms.append(
+                _digits((sponsor.get("sponsorAFMName") or {}).get("afm") or "")
+            )
+    for person in efv.get("person") or []:
+        if isinstance(person, dict):
+            afms.append(_digits(person.get("afm") or ""))
+    return [a for a in afms if a]
+
+
+def _self_counterpart_afm_naive(org_afm: str, counterpart_afms: list[str]) -> str | None:
+    """
+    Naive mirror of the guard's ``_is_self_counterpart``: return the first
+    counterpart AFM that equals the org VAT (exact) or starts with it when the
+    org VAT is a truncated (≥ 8-digit) value.  Returns the FULL counterpart AFM.
+    """
+    if not org_afm:
+        return None
+    for afm in counterpart_afms:
+        if afm == org_afm:
+            return afm
+    if len(org_afm) >= 8:
+        for afm in counterpart_afms:
+            if len(afm) > len(org_afm) and afm.startswith(org_afm):
+                return afm
+    return None
+
+
 def expected_anomalies(payload: dict) -> set[tuple[str, str, str]]:
     """
     Independently derive the expected anomalies from a raw API payload.
 
     Walks ``extraFieldValues.sponsor[*]`` and flags every ``expenseAmount``
     whose whole-euro value equals either the sibling ``sponsorAFMName.afm`` or
-    the sibling ``kae`` (≥ :data:`MIN_KAE_DIGITS` digits).
+    the sibling ``kae`` (≥ :data:`MIN_KAE_DIGITS` digits). When a sponsor AFM
+    equals ``extraFieldValues.org.afm``, every extracted amount is flagged
+    because the intended counterpart is unknown.
 
     Returns a set of ``(kind, parent_key_path, matched_value)`` tuples:
-      - ``kind`` is ``"afm"`` or ``"kae"``
+    - ``kind`` is ``"afm"``, ``"kae"``, or ``"self_counterpart"``
       - ``parent_key_path`` is ``sponsor[i]``
       - ``matched_value`` is the AFM or the digit-only KAE
 
@@ -114,7 +181,28 @@ def expected_anomalies(payload: dict) -> set[tuple[str, str, str]]:
     raw JSON directly and never touches ``Decision`` rows or guard helpers.
     """
     expected: set[tuple[str, str, str]] = set()
-    for i, sponsor in enumerate(_efv(payload).get("sponsor") or []):
+    efv = _efv(payload)
+    sponsors = efv.get("sponsor") or []
+    org_afm = _org_vat_for(payload)
+    # The matched value recorded is the FULL counterpart AFM (e.g. 090009802),
+    # not the possibly-truncated org VAT.
+    self_afm = _self_counterpart_afm_naive(org_afm, _counterpart_afms_naive(payload))
+
+    if org_afm and self_afm:
+        # Every extracted amount is unusable — the intended counterpart is
+        # unknown.  Flag each sponsor expenseAmount AND each root-level amount
+        # (awardAmount / contractAmount / …) that the extractor would persist.
+        for i, sponsor in enumerate(sponsors):
+            if (isinstance(sponsor, dict) and
+                    (sponsor.get("expenseAmount") or {}).get("amount") is not None):
+                expected.add((KIND_SELF_COUNTERPART, f"sponsor[{i}]", self_afm))
+        for root_field in ("awardAmount", "contractAmount", "budgetAmount"):
+            if (efv.get(root_field) or {}).get("amount") is not None:
+                # Root-level amounts are stored with an empty parent_key_path.
+                expected.add((KIND_SELF_COUNTERPART, "", self_afm))
+        return expected
+
+    for i, sponsor in enumerate(sponsors):
         if not isinstance(sponsor, dict):
             continue
         amount = (sponsor.get("expenseAmount") or {}).get("amount")
@@ -140,17 +228,35 @@ def greek_amount_format(int_value: int) -> str:
 
 # ── Parametrisation over every committed payload ─────────────────────────────
 
-CASES = [
-    pytest.param(path, id=path.stem) for path in _payload_files()
-]
+# Positive cases: the guard is expected to flag at least one amount.
+# Negative cases: a real payload that must NOT be flagged (e.g. the paidon
+# near-miss where the DB org VAT 09000980 ≠ counterpart AFM 090009802).
+POSITIVE_CASES = []
+NEGATIVE_CASES = []
+for _path in _payload_files():
+    _param = pytest.param(_path, id=_path.stem)
+    (POSITIVE_CASES if expected_anomalies(_load(_path)) else NEGATIVE_CASES).append(
+        _param
+    )
+
+# Full-pipeline tests (verification / correction / grouped) only make sense
+# for payloads that actually produce an anomaly.
+CASES = POSITIVE_CASES
 
 
 def _build_decision(payload: dict):
     """Create a Decision from a raw payload and run the real extraction."""
-    from conftest import DecisionFactory
+    from conftest import DecisionFactory, OrganizationFactory
 
     ada = payload.get("ada") or payload.get("decision_id") or "TEST-ADA"
-    decision = DecisionFactory(ada=ada, extra_field_values_json=_efv(payload))
+    organization = OrganizationFactory(
+        vat_number=_org_vat_for(payload) or None
+    )
+    decision = DecisionFactory(
+        ada=ada,
+        organization=organization,
+        extra_field_values_json=_efv(payload),
+    )
     EntityAmountExtractionService().extract_from_decision(decision)
     return decision
 
@@ -183,9 +289,11 @@ def guard_text_and_reason(request):
     )
     _add_text(decision, text)
 
-    reason = (
-        DISCREPANCY_REASON_AFM if kind == KIND_AFM else DISCREPANCY_REASON_KAE
-    )
+    reason = {
+        KIND_AFM: DISCREPANCY_REASON_AFM,
+        KIND_KAE: DISCREPANCY_REASON_KAE,
+        KIND_SELF_COUNTERPART: DISCREPANCY_REASON_SELF_COUNTERPART,
+    }[kind]
     return decision, reason
 
 
@@ -196,7 +304,9 @@ def guard_text_and_reason(request):
 def test_payload_is_well_formed(path):
     payload = _load(path)
     assert payload.get("ada")
-    assert _efv(payload).get("sponsor") is not None
+    # A case must carry at least one counterpart container (sponsor or person).
+    efv = _efv(payload)
+    assert efv.get("sponsor") is not None or efv.get("person") is not None
 
 
 @pytest.mark.parametrize("path", CASES)
@@ -204,17 +314,23 @@ def test_extraction_preserves_amounts(path):
     payload = _load(path)
     decision = _build_decision(payload)
 
+    efv = _efv(payload)
     payload_amounts = [
         Decimal(str((sp["expenseAmount"] or {}).get("amount")))
-        for sp in _efv(payload).get("sponsor") or []
+        for sp in efv.get("sponsor") or []
         if isinstance(sp, dict) and (sp.get("expenseAmount") or {}).get("amount")
     ]
+    # Root-level amounts (awardAmount / contractAmount / …) are extracted too.
+    for root_field in ("awardAmount", "contractAmount", "budgetAmount"):
+        root_amount = (efv.get(root_field) or {}).get("amount")
+        if root_amount is not None:
+            payload_amounts.append(Decimal(str(root_amount)))
     extracted = {f.amount for f in decision.amount_fields.all()}
     for amount in payload_amounts:
         assert amount in extracted, f"{path.stem}: {amount} not extracted"
 
 
-@pytest.mark.parametrize("path", CASES)
+@pytest.mark.parametrize("path", POSITIVE_CASES + NEGATIVE_CASES)
 def test_guard_matches_independent_derivation(path):
     """The guard's DB-only detector must agree with the naive spec."""
     payload = _load(path)
@@ -227,6 +343,14 @@ def test_guard_matches_independent_derivation(path):
         )
     }
     assert got == expected_anomalies(payload)
+
+
+@pytest.mark.parametrize("path", NEGATIVE_CASES)
+def test_no_anomaly_cases_are_not_flagged(path):
+    """Any payload the naive spec derives no anomaly for must stay unflagged."""
+    payload = _load(path)
+    decision = _build_decision(payload)
+    assert collect_non_monetary_values(decision, use_raw_context=True) == []
 
 
 # ── Full pipeline: flagged, never confirmed, never written ───────────────────
@@ -250,8 +374,9 @@ def test_verification_flags_not_confirms(guard_text_and_reason):
         extraction=decision.text_extraction, process="amount"
     )
     assert run.meta["discrepancy_reason"] == expected_reason
-    assert "[AFM-AS-AMOUNT]" in run.meta["discrepancy_note"] or (
-        "[KAE-AS-AMOUNT]" in run.meta["discrepancy_note"]
+    assert any(
+        marker in run.meta["discrepancy_note"]
+        for marker in ("[AFM-AS-AMOUNT]", "[KAE-AS-AMOUNT]", "[SELF-AS-COUNTERPART]")
     )
 
     resolution = TextProcessResolution.objects.get(

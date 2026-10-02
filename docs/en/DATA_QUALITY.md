@@ -219,6 +219,117 @@ data Diavgeia hands over.
 - The marker is idempotent, and `fix_amount_anomalies --clear` (or the
   *clear non-monetary markers* admin action) reverses it.
 
+### Variant: the issuing org as its own counterpart (`self_as_counterpart`)
+
+A structurally different case: the decision's **counterpart AFM equals the
+issuing organization's own VAT number**. The amount itself may be perfectly
+well-formed (e.g. €22,000) — what is broken is the *relationship*. The intended
+counterpart is unknown, so **every** amount on the decision is unusable.
+
+| ADA | org | org VAT (DB) | counterpart AFM on the decision | verdict |
+|---|---|---|---|---|
+| `6Ζ9Ν469ΗΣΥ-Μ6Χ` | ΙΦΕΤ Μ.Α.Ε. | `090064864` | `090064864` (person) | **flagged** — exact match |
+| `945Ζ469ΗΣΥ-Λ2Ε` | ΙΦΕΤ Μ.Α.Ε. | `090064864` | `090064864` (person) | **flagged** — exact match |
+| `6ΜΣΥ46906Ρ-ΑΞΡ` | Νοσοκομείο Παίδων | `09000980` (8 digits, **truncated**) | `090009802` (9 digits) | **flagged** — truncated-prefix match |
+
+**The org VAT is not in the payload.** Real Diavgeia responses for these
+decisions carry **no** `extraFieldValues.org` block — the issuing org's AFM
+lives only in the `core_organization.vat_number` row. The detector therefore
+reads it from the DB, exactly the join the analytics layer already uses:
+
+```
+DecisionEntityRelationship.entity.afm          (the counterpart)
+        ==
+Decision.organization.vat_number               (the issuing org, from the DB)
+```
+
+`collect_org_afm(decision)` reads `decision.organization.vat_number`;
+`collect_self_counterparts(decision)` intersects it with the counterpart AFMs.
+When the intersection is non-empty, `collect_non_monetary_values` flags
+**every** amount field with `reason = "self_as_counterpart"` and
+`matched_value = <full counterpart AFM>` — never a suggested amount.
+
+**Where the counterpart AFMs come from.** Diavgeia has *no validation*: a
+counterpart AFM can appear under `sponsor`, `person`, `grantee`, `grantor`,
+`donationGiver`, `employerOrg`, `primaryOfficer`, and more — and the *type* is
+routinely mislabelled (a company marked `person`, a hospital marked
+`unknown`). So `collect_counterpart_afms` does not trust any single container:
+it harvests every `afm` value found under any known counterpart container of
+`extra_field_values_json` (recursively), unioned with the extracted
+`DecisionEntityRelationship` rows. The `org` block is deliberately excluded —
+that is the issuer, not a counterpart.
+
+**The match is exact *or* truncated-prefix.** Two modes (`_is_self_counterpart`):
+
+- **exact** — the common case: a 9-digit VAT equals a 9-digit counterpart AFM.
+- **truncated prefix** — the org VAT was recorded *short*. Παίδων's DB VAT is
+  the 8-digit `09000980`; the real counterpart AFM on its decisions is the
+  9-digit `090009802`. The counterpart is a self-reference when it **starts
+  with** the org VAT. Verified against prod: the `09000980` prefix matches
+  exactly one distinct AFM (`090009802`) — the org's own name — across
+  **14,534 decisions**. The signal is unambiguous in practice.
+
+Two guards keep the prefix branch surgical:
+
+1. **≥ 8 digits.** A shorter VAT is junk (`011`, `-`), and an N-digit prefix
+   matches up to 10^(9−N) distinct 9-digit AFMs — far too ambiguous.
+2. **No placeholder VATs.** All-same-digit VATs (`00000000`, `999999999`) are
+   filler, never a real AFM. Org `54566`'s `00000000` would otherwise
+   prefix-match every `00000000X` counterpart (3 distinct AFMs on prod).
+   `_is_plausible_org_vat` rejects any all-same-digit value, treating it as
+   absent — in both the Python guard and the SQL candidate query.
+
+The recorded `matched_value` is always the **full counterpart AFM**
+(`090009802`), so the audit trail shows the real counterpart, not the
+truncated VAT.
+
+### Efficiency: daily batch vs. historical backfill
+
+The detector is **DB-only** (`needs_text = False`) — no document reads — so it
+is cheap enough to run over the whole backlog. The two operating modes share
+one candidate query (`NonMonetaryValueDetector.candidate_ids`):
+
+- **Daily ingested batch** — post-import Phase 3
+  (`tasks_post_import._discover_non_monetary_values`) runs the detector over
+  just the decisions imported that day. The candidate set is tiny, so the
+  per-decision `collect_self_counterparts` (one relationship scan + one org
+  read) is negligible. Gated by `POST_IMPORT_ORCHESTRATOR_ENABLED` +
+  `POST_IMPORT_AMOUNT_VERIFICATION_ENABLED`; treatment (writing the marker) by
+  `POST_IMPORT_AMOUNT_ANOMALY_TREATMENT_ENABLED`.
+
+- **Historical backfill** — `find_amount_anomalies` / `fix_amount_anomalies`
+  (and the admin batch view) sweep already-ingested decisions. The candidate
+  query pushes the self-counterpart signal into SQL as an `OR` alongside the
+  amount bounds:
+
+  ```sql
+  ... WHERE (amount >= min AND amount < max)        -- AFM/KAE value bounds
+         OR ( organization.vat_number !~ '^(\d)\1*$'  -- not a placeholder VAT
+              AND ( entity.afm = organization.vat_number          -- exact
+                    OR ( organization.vat_number ~ '^\d{8,}$'     -- truncated
+                         AND entity.afm LIKE organization.vat_number || '%' )))
+  ```
+
+  The join is index-driven end-to-end (`core_afmentity.afm` unique →
+  relationship `entity_id` index → amount-field `decision_id` index); the only
+  sequential scan is on `core_organization` (~3.4k rows on prod, the driving
+  table for the VAT→AFM match). The prefix branch uses the same
+  `core_afmentity.afm` index (a left-anchored `LIKE 'prefix%'` is a range
+  scan, not a seq scan). `--limit` is pushed into the SQL
+  (`.distinct()[:limit]`), so a bounded run never materialises the whole
+  candidate set. This is what makes the structural signal queryable **without**
+  broadening the AFM/KAE sweep to every small amount.
+
+  On prod the org VAT distribution is a long tail of junk over a clean core:
+  3,351 orgs carry a proper 9-digit VAT; the rest are placeholders (`-`, `0`,
+  `00000000`, `xxxxxxxxxx`) or truncated values. The two guards (≥ 8 digits,
+  no all-same-digit) are what let the prefix branch run safely over that tail.
+
+The self-counterpart `OR` branch exists precisely because the value bounds
+(`default_min_amount = €100,000`) would otherwise exclude a well-formed
+€22,000 self-counterpart amount: the structural signal is strong enough to
+surface on its own, regardless of the amount's size.
+
 ### Extending the kinds
 
 A new *kind* of misplaced value is: a collector + a `KIND_*` + a reason constant

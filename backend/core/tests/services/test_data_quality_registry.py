@@ -307,6 +307,157 @@ class TestNonMonetaryValueDetector:
         detector = get_detector("non-monetary-value")
         assert decision.id not in detector.candidate_ids()
 
+    def test_self_counterpart_small_amount_is_still_a_candidate(self):
+        """
+        The self-counterpart structural signal bypasses the amount bounds: a
+        well-formed €10 amount on a self-referencing decision must surface even
+        though it is far below ``default_min_amount``.  This is what the
+        ``OR entity.afm = organization.vat_number`` branch is for.
+        """
+        from conftest import (
+            AFMEntityFactory,
+            DecisionAmountFieldFactory,
+            DecisionEntityRelationshipFactory,
+            DecisionFactory,
+            OrganizationFactory,
+        )
+        from core.services.data_quality import get_detector
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="090064864")
+        )
+        entity = AFMEntityFactory(afm="090064864")
+        DecisionEntityRelationshipFactory(
+            decision=decision, entity=entity, role="person"
+        )
+        DecisionAmountFieldFactory(decision=decision, amount=Decimal("10.00"))
+
+        detector = get_detector("non-monetary-value")
+        assert decision.id in detector.candidate_ids()
+
+    def test_non_self_counterpart_small_amount_is_not_a_candidate(self):
+        """A small amount whose counterpart AFM ≠ org VAT stays out of bounds."""
+        from conftest import (
+            AFMEntityFactory,
+            DecisionAmountFieldFactory,
+            DecisionEntityRelationshipFactory,
+            DecisionFactory,
+            OrganizationFactory,
+        )
+        from core.services.data_quality import get_detector
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="090064864")
+        )
+        other = AFMEntityFactory(afm="099999999")
+        DecisionEntityRelationshipFactory(
+            decision=decision, entity=other, role="person"
+        )
+        DecisionAmountFieldFactory(decision=decision, amount=Decimal("10.00"))
+
+        detector = get_detector("non-monetary-value")
+        assert decision.id not in detector.candidate_ids()
+
+    def test_truncated_org_vat_prefix_is_a_candidate(self):
+        """
+        The Παίδων case at the SQL level: an 8-digit org VAT whose prefix the
+        9-digit counterpart AFM carries must surface via the candidate query's
+        prefix branch, even below the amount bounds.
+        """
+        from conftest import (
+            AFMEntityFactory,
+            DecisionAmountFieldFactory,
+            DecisionEntityRelationshipFactory,
+            DecisionFactory,
+            OrganizationFactory,
+        )
+        from core.services.data_quality import get_detector
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="09000980")
+        )
+        entity = AFMEntityFactory(afm="090009802")
+        DecisionEntityRelationshipFactory(
+            decision=decision, entity=entity, role="person"
+        )
+        DecisionAmountFieldFactory(decision=decision, amount=Decimal("10.00"))
+
+        detector = get_detector("non-monetary-value")
+        assert decision.id in detector.candidate_ids()
+
+    def test_short_junk_org_vat_is_not_a_candidate(self):
+        """A junk short VAT (``011``) must not prefix-match via the SQL branch."""
+        from conftest import (
+            AFMEntityFactory,
+            DecisionAmountFieldFactory,
+            DecisionEntityRelationshipFactory,
+            DecisionFactory,
+            OrganizationFactory,
+        )
+        from core.services.data_quality import get_detector
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="011")
+        )
+        entity = AFMEntityFactory(afm="011999999")
+        DecisionEntityRelationshipFactory(
+            decision=decision, entity=entity, role="person"
+        )
+        DecisionAmountFieldFactory(decision=decision, amount=Decimal("10.00"))
+
+        detector = get_detector("non-monetary-value")
+        assert decision.id not in detector.candidate_ids()
+
+    def test_all_zeros_org_vat_is_not_a_candidate(self):
+        """Placeholder VAT ``00000000`` must not match via either SQL branch."""
+        from conftest import (
+            AFMEntityFactory,
+            DecisionAmountFieldFactory,
+            DecisionEntityRelationshipFactory,
+            DecisionFactory,
+            OrganizationFactory,
+        )
+        from core.services.data_quality import get_detector
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="00000000")
+        )
+        entity = AFMEntityFactory(afm="000000001")
+        DecisionEntityRelationshipFactory(
+            decision=decision, entity=entity, role="person"
+        )
+        DecisionAmountFieldFactory(decision=decision, amount=Decimal("10.00"))
+
+        detector = get_detector("non-monetary-value")
+        assert decision.id not in detector.candidate_ids()
+
+    def test_self_counterpart_flags_every_amount_without_suggesting_a_value(self):
+        from conftest import DecisionAmountFieldFactory, DecisionFactory, OrganizationFactory
+        from core.services.data_quality import get_detector
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="090064864"),
+            extra_field_values_json={
+                "sponsor": [{"sponsorAFMName": {"afm": "090064864"}}]
+            },
+        )
+        first = DecisionAmountFieldFactory(decision=decision, amount=Decimal("10.00"))
+        second = DecisionAmountFieldFactory(decision=decision, amount=Decimal("20.00"))
+
+        detector = get_detector("non-monetary-value")
+        outcome = detector.scan(decision)
+        assert outcome.detected
+        assert {finding.kind for finding in outcome.findings} == {"self_counterpart"}
+        assert {finding.reason for finding in outcome.findings} == {"self_as_counterpart"}
+        assert {finding.suggested for finding in outcome.findings} == {""}
+
+        assert detector.apply(decision, outcome) == 2
+        for field in (first, second):
+            field.refresh_from_db()
+            assert field.verified_amount is None
+            assert field.invalid_amount_reason == "self_as_counterpart"
+            assert field.invalid_amount_value == "090064864"
+
 
 # ---------------------------------------------------------------------------
 # "both" mode

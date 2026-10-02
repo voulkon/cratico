@@ -41,7 +41,7 @@ from core.services.data_quality.base import (
 
 
 class NonMonetaryValueDetector(BaseDetector):
-    """Find amount fields whose value is really an AFM (VAT no.) or a KAE code."""
+    """Find AFM/KAE-as-amount and self-as-counterpart anomalies."""
 
     slug = "non-monetary-value"
     mode_key = "non_monetary"
@@ -77,8 +77,9 @@ class NonMonetaryValueDetector(BaseDetector):
         limit: int | None = None,
     ) -> list[int]:
         """
-        Decisions with at least one amount field inside the value bounds and
-        not already carrying the invalid-amount marker.
+        Decisions with either an amount field inside the value bounds or a
+        relationship whose counterpart AFM equals the issuing org's VAT, and
+        with at least one field not already carrying the invalid-amount marker.
 
         The bound is on the **individual** ``DecisionAmountField.amount`` (that
         is the value being mistaken for money), not on the decision total —
@@ -88,6 +89,8 @@ class NonMonetaryValueDetector(BaseDetector):
         bounded run never materialises the whole candidate set; this mirrors
         the ``find_*`` / ``fix_*`` management commands.
         """
+        from django.db.models import F, Q
+
         from core.models.entities import DecisionAmountField
 
         min_amount, max_amount = self.bounds(min_amount, max_amount)
@@ -96,10 +99,34 @@ class NonMonetaryValueDetector(BaseDetector):
             verified_amount__isnull=True,
             invalid_amount_reason__isnull=True,
         )
+        value_bounds = Q()
         if min_amount is not None:
-            qs = qs.filter(amount__gte=min_amount)
+            value_bounds &= Q(amount__gte=min_amount)
         if max_amount is not None:
-            qs = qs.filter(amount__lt=max_amount)
+            value_bounds &= Q(amount__lt=max_amount)
+
+        # Extracted entity relationships make this strong structural signal
+        # queryable without broadening the AFM/KAE historical sweep to every
+        # small amount.  Two modes, mirroring the guard's ``_is_self_counterpart``:
+        # exact (9-digit VAT == counterpart AFM) and truncated-prefix (an
+        # 8-digit org VAT that the counterpart AFM starts with, e.g. Παίδων
+        # ``09000980`` → ``090009802``).  The prefix branch is gated to org VATs
+        # of ≥ 8 digits so a junk short VAT can never match.  Placeholder VATs
+        # (all-same-digit, e.g. ``00000000``) are excluded from BOTH branches —
+        # they are filler, never a real AFM, and would otherwise prefix-match
+        # every ``00000000X`` counterpart.
+        org_vat = F("decision__organization__vat_number")
+        plausible_vat = ~Q(decision__organization__vat_number__regex=r"^(\d)\1*$")
+        self_counterpart = plausible_vat & (
+            Q(decision__entity_relationships__entity__afm=org_vat)
+            | (
+                Q(decision__organization__vat_number__regex=r"^\d{8,}$")
+                & Q(
+                    decision__entity_relationships__entity__afm__startswith=org_vat
+                )
+            )
+        )
+        qs = qs.filter(value_bounds | self_counterpart)
         if imported_since is not None:
             qs = qs.filter(decision__created_at__gte=imported_since)
         if imported_until is not None:

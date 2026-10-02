@@ -52,6 +52,7 @@ from core.services.non_monetary_value_guard import (
     DISCREPANCY_REASON_AFM,
     DISCREPANCY_REASON_KAE,
     DISCREPANCY_REASON_NON_MONETARY,
+    DISCREPANCY_REASON_SELF_COUNTERPART,
     KIND_AFM,
     KIND_KAE,
     NonMonetaryValue,
@@ -459,6 +460,8 @@ class AmountCorrectionService:
             status = DISCREPANCY_REASON_AFM
         elif reasons == {DISCREPANCY_REASON_KAE}:
             status = DISCREPANCY_REASON_KAE
+        elif reasons == {DISCREPANCY_REASON_SELF_COUNTERPART}:
+            status = DISCREPANCY_REASON_SELF_COUNTERPART
         else:
             status = DISCREPANCY_REASON_NON_MONETARY
         return {

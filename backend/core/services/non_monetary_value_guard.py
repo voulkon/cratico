@@ -7,7 +7,7 @@ Diavgeia API response.  The value exists once, in the wrong field — it is
 *not* duplicated; it is misplaced.  It passes for an amount because it is
 digit-shaped and therefore looks like a plausible 8-figure euro amount.
 
-Two variants are currently detected:
+Three variants are currently detected:
 
 1. **AFM-as-amount** — the counterpart's VAT number (ΑΦΜ). Canonical case:
    decision ``Ψ0Α74690Β9-52Ρ`` where sponsor AFM ``099370337`` (VIOLAK
@@ -17,6 +17,10 @@ Two variants are currently detected:
    ``70.6273.001``) recorded as the amount, e.g. ``706273001``
    = €706,273,001.  The KAE lives as a *sibling* key of the amount inside the
    same object (``sponsor[i].kae`` next to ``sponsor[i].expenseAmount``).
+
+3. **Self-as-counterpart** — the issuing organization's VAT number appears
+    among the decision's counterpart AFMs. The intended counterpart is unknown,
+    so every amount on the decision is flagged as unusable.
 
 Both are 8-9 digit numbers, so they look like plausible euro amounts and —
 since the document text literally contains the value formatted as an amount
@@ -46,12 +50,14 @@ from core.services.grouped_amount_detection import _CENTS_AMOUNT_RE
 # Discrepancy reasons used in run.meta / resolution notes
 DISCREPANCY_REASON_AFM = "afm_as_amount"
 DISCREPANCY_REASON_KAE = "kae_as_amount"
+DISCREPANCY_REASON_SELF_COUNTERPART = "self_as_counterpart"
 # Mixed AFM + KAE (or future) cases
 DISCREPANCY_REASON_NON_MONETARY = "non_monetary_value_as_amount"
 
 # Anomaly kinds returned by collect_non_monetary_values
 KIND_AFM = "afm"
 KIND_KAE = "kae"
+KIND_SELF_COUNTERPART = "self_counterpart"
 
 # Minimum digit length for a KAE code to be considered (shorter codes are too
 # likely to collide with ordinary amounts).
@@ -61,16 +67,61 @@ MIN_KAE_DIGITS = 6
 _CENTS_SUFFIX_RE = re.compile(r"[.,]0{1,2}$")
 
 
+def _digits_only(value: object) -> str:
+    """Strip every non-digit character (dots, slashes, spaces) from *value*."""
+    return "".join(ch for ch in str(value) if ch.isdigit())
+
+
+# Top-level keys of ``extra_field_values_json`` that hold a *counterpart*
+# (never the issuing org).  Diavgeia has no validation: a counterpart AFM can
+# appear under any of these, mislabelled (a company marked ``person``, a
+# hospital marked ``unknown`` …), so we harvest AFMs from every known
+# counterpart container rather than trusting one shape.  The ``org`` block is
+# deliberately excluded — that is the issuer, not a counterpart.
+_COUNTERPART_CONTAINER_KEYS = frozenset(
+    {
+        "sponsor",
+        "person",
+        "grantee",
+        "grantor",
+        "contractor",
+        "awardedPerson",
+        "donationGiver",
+        "donationReceiver",
+        "employerOrg",
+        "primaryOfficer",
+        "secondaryOfficer",
+        "co_competent",
+    }
+)
+
+
+def _harvest_afms(node, out: set[str]) -> None:
+    """Recursively collect every ``afm`` value found under *node*."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key in ("afm", "AFM", "afmNumber"):
+                afm = str(value or "").strip()
+                if afm.isdigit():
+                    out.add(afm)
+            elif isinstance(value, (dict, list)):
+                _harvest_afms(value, out)
+    elif isinstance(node, list):
+        for item in node:
+            _harvest_afms(item, out)
+
 
 def collect_counterpart_afms(decision) -> set[str]:
     """
-    Collect the counterpart (sponsor / supplier) AFMs for a decision.
+    Collect the counterpart (sponsor / supplier / grantee / …) AFMs for a
+    decision.
 
     Sources (union):
       1. ``DecisionEntityRelationship`` rows linked to the decision (any role
          that denotes a counterparty — sponsors, contractors, grantees).
-      2. The raw Diavgeia metadata already stored on the decision
-         (``extra_field_values_json["sponsor"][i]["sponsorAFMName"]["afm"]``).
+      2. The raw Diavgeia metadata already stored on the decision: every
+         ``afm`` under any known counterpart container of
+         ``extra_field_values_json`` (see ``_COUNTERPART_CONTAINER_KEYS``).
 
     Returns a set of digit-only AFM strings (e.g. ``{"099370337"}``).
     """
@@ -91,25 +142,93 @@ def collect_counterpart_afms(decision) -> set[str]:
         # verification pipeline because of the guard
         pass
 
-    # ── 2. Raw Diavgeia sponsor metadata ───────────────────────────────
+    # ── 2. Raw Diavgeia counterpart metadata ───────────────────────────
+    # Harvest AFMs from every known counterpart container.  This mirrors what
+    # the extractor persists as DecisionEntityRelationship rows, so the guard
+    # also works on decisions whose extraction did not link a relationship —
+    # and it does not trust the container's *type* label (a company may be
+    # marked ``person``), only that the container is a counterpart.
     extra = getattr(decision, "extra_field_values_json", None)
     if isinstance(extra, dict):
-        for sponsor in extra.get("sponsor") or []:
-            if not isinstance(sponsor, dict):
-                continue
-            afm_name = sponsor.get("sponsorAFMName") or {}
-            if not isinstance(afm_name, dict):
-                continue
-            afm = str(afm_name.get("afm", "") or "").strip()
-            if afm.isdigit():
-                afms.add(afm)
+        for key in _COUNTERPART_CONTAINER_KEYS:
+            value = extra.get(key)
+            if isinstance(value, (dict, list)):
+                _harvest_afms(value, afms)
 
     return afms
 
 
-def _digits_only(value: object) -> str:
-    """Strip every non-digit character (dots, slashes, spaces) from *value*."""
-    return "".join(ch for ch in str(value) if ch.isdigit())
+def _is_plausible_org_vat(afm: str) -> bool:
+    """
+    Whether a digit string is a plausible real org VAT (not a placeholder).
+
+    Rejects all-same-digit values (``00000000``, ``999999999`` …): Diavgeia has
+    no validation, and these are filler, never a real AFM.  Org ``54566``'s
+    ``00000000`` would otherwise prefix-match every ``00000000X`` counterpart.
+    """
+    return bool(afm) and len(set(afm)) > 1
+
+
+def collect_org_afm(decision) -> str | None:
+    """
+    Return the issuing organization's digit-only VAT number, if present and
+    plausible.  Placeholder VATs (all-same-digit) are treated as absent.
+    """
+    organization = getattr(decision, "organization", None)
+    afm = _digits_only(getattr(organization, "vat_number", "") or "")
+    if not _is_plausible_org_vat(afm):
+        return None
+    return afm
+
+
+# Minimum length for an org VAT to be considered a *truncated* AFM worth a
+# prefix match.  Shorter values (junk like ``011``, ``-``) are too ambiguous —
+# an N-digit prefix matches up to 10^(9-N) distinct 9-digit AFMs.
+MIN_PREFIX_ORG_VAT_DIGITS = 8
+
+
+def _is_self_counterpart(org_afm: str, counterpart_afm: str) -> bool:
+    """
+    Whether *counterpart_afm* is the issuing org's own AFM.
+
+    Two modes:
+      - **exact** — the common case (9-digit VAT == 9-digit counterpart AFM).
+      - **truncated prefix** — the org VAT was recorded short (e.g. the
+        8-digit ``09000980`` for Παίδων, whose real AFM is ``090009802``).
+        The counterpart is a self-reference when it *starts with* the org VAT.
+        Gated to org VATs of ≥ :data:`MIN_PREFIX_ORG_VAT_DIGITS` digits so a
+        junk short VAT can never prefix-match a real counterpart.
+
+    Placeholder org VATs (all-same-digit, e.g. ``00000000``) never match —
+    they are filtered upstream by :func:`collect_org_afm`.
+    """
+    if not org_afm or not counterpart_afm:
+        return False
+    if counterpart_afm == org_afm:
+        return True
+    return (
+        len(org_afm) >= MIN_PREFIX_ORG_VAT_DIGITS
+        and len(counterpart_afm) > len(org_afm)
+        and counterpart_afm.startswith(org_afm)
+    )
+
+
+def collect_self_counterparts(decision) -> set[str]:
+    """
+    Return counterpart AFMs that improperly equal the issuing org's AFM.
+
+    The returned set holds the **full counterpart AFM** (e.g. ``090009802``),
+    not the possibly-truncated org VAT — so the audit trail records the real
+    counterpart value.
+    """
+    org_afm = collect_org_afm(decision)
+    if org_afm is None:
+        return set()
+    return {
+        afm
+        for afm in collect_counterpart_afms(decision)
+        if _is_self_counterpart(org_afm, afm)
+    }
 
 
 def _span_digits_equal_value(raw_span: str, value: str) -> bool:
@@ -302,9 +421,9 @@ class NonMonetaryValue:
     source_field: str
     parent_key_path: str
     amount: Decimal
-    kind: str  # KIND_AFM | KIND_KAE
+    kind: str  # KIND_AFM | KIND_KAE | KIND_SELF_COUNTERPART
     matched_value: str  # the value found (digit-only for KAE)
-    reason: str  # DISCREPANCY_REASON_AFM | DISCREPANCY_REASON_KAE
+    reason: str  # DISCREPANCY_REASON_AFM | DISCREPANCY_REASON_KAE | self counterpart
     note: str
 
 
@@ -314,8 +433,8 @@ def collect_non_monetary_values(
     use_raw_context: bool = False,
 ) -> list[NonMonetaryValue]:
     """
-    Return every amount field of *decision* whose value is really a different,
-    non-monetary numeric field (currently AFM or KAE).
+    Return every amount field of *decision* affected by a non-monetary value
+    or self-as-counterpart relationship.
 
     This is the DB-only detector (no document text), so it also finds
     historical rows that never ran through the verification pipeline.
@@ -329,8 +448,9 @@ def collect_non_monetary_values(
             already loaded (a deferred JSONField would cause per-row queries).
     """
     afms = collect_counterpart_afms(decision)
+    self_counterparts = collect_self_counterparts(decision)
     decision_kaes = collect_kae_codes(decision)
-    if not afms and not decision_kaes and not use_raw_context:
+    if not afms and not self_counterparts and not decision_kaes and not use_raw_context:
         return []
 
     fields = (
@@ -340,6 +460,20 @@ def collect_non_monetary_values(
     for field in fields:
         amount = getattr(field, "amount", None)
         if amount is None:
+            continue
+
+        # A decision cannot be its own counterparty. The intended counterpart
+        # and real amount are both unknown, so exclude every amount from use.
+        if self_counterparts:
+            anomalies.append(
+                _make_value(
+                    field,
+                    amount,
+                    KIND_SELF_COUNTERPART,
+                    sorted(self_counterparts)[0],
+                    DISCREPANCY_REASON_SELF_COUNTERPART,
+                )
+            )
             continue
 
         afm = match_afm_amount(amount, afms)
@@ -377,7 +511,11 @@ def _make_value(field, amount, kind, matched_value, reason) -> NonMonetaryValue:
         note=(
             build_afm_note(matched_value, amount)
             if kind == KIND_AFM
-            else build_kae_note(matched_value, amount)
+            else (
+                build_kae_note(matched_value, amount)
+                if kind == KIND_KAE
+                else build_self_counterpart_note(matched_value)
+            )
         ),
     )
 
@@ -424,4 +562,13 @@ def build_kae_note(kae: str, amount: Decimal | None = None) -> str:
         f"[KAE-AS-AMOUNT] {amount_str} equals the budget classification code "
         f"(ΚΑΕ) {kae} — the amount field holds a non-monetary value; the real "
         f"monetary amount is elsewhere."
+    )
+
+
+def build_self_counterpart_note(afm: str) -> str:
+    """Human-readable audit note for an issuing org as its own counterpart."""
+    return (
+        f"[SELF-AS-COUNTERPART] Counterpart VAT number (ΑΦΜ) {afm} equals "
+        "the issuing organization's VAT number; the intended counterpart and "
+        "real amount require human review."
     )

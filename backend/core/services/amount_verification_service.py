@@ -48,10 +48,13 @@ from core.models.document_analysis import (
 from core.services.non_monetary_value_guard import (
     DISCREPANCY_REASON_AFM,
     DISCREPANCY_REASON_KAE,
+    DISCREPANCY_REASON_SELF_COUNTERPART,
     build_afm_note,
     build_kae_note,
+    build_self_counterpart_note,
     collect_counterpart_afms,
     collect_kae_codes,
+    collect_self_counterparts,
     extract_afm_amount_spans,
     match_afm_amount,
     match_kae_amount,
@@ -320,6 +323,7 @@ class AmountVerificationService:
         # Ψ0Α74690Β9-52Ρ).
         counterpart_afms = collect_counterpart_afms(decision)
         counterpart_kaes = collect_kae_codes(decision)
+        self_counterparts = collect_self_counterparts(decision)
 
         # --- Step 3: Detect the amount in the text (regex or AI) ---
         # The AI path calls the LLM here and returns a single amount; the
@@ -406,10 +410,14 @@ class AmountVerificationService:
             # some other way.
             counterpart_afm = None
             counterpart_kae = None
-            if counterpart_afms or counterpart_kaes:
-                counterpart_afm = match_afm_amount(
-                    verified_amount, counterpart_afms
-                )
+            if self_counterparts:
+                counterpart_afm = sorted(self_counterparts)[0]
+                has_discrepancy = True
+                discrepancy_reason = DISCREPANCY_REASON_SELF_COUNTERPART
+                code_note = build_self_counterpart_note(counterpart_afm)
+                detail = f"self counterpart AFM {counterpart_afm}"
+            elif counterpart_afms or counterpart_kaes:
+                counterpart_afm = match_afm_amount(verified_amount, counterpart_afms)
                 counterpart_kae = (
                     None
                     if counterpart_afm is not None
@@ -429,16 +437,17 @@ class AmountVerificationService:
                             counterpart_kae, verified_amount
                         )
                         detail = f"equals budget KAE {counterpart_kae}"
-                    discrepancy_note = (
-                        f"{code_note} | {discrepancy_note}"
-                        if discrepancy_note
-                        else code_note
-                    )
-                    logger.warning(
-                        f"Decision {decision.id} ({decision.ada}): "
-                        f"non-monetary value recorded as amount detected — "
-                        f"verified={verified_amount} {detail}"
-                    )
+            if discrepancy_reason:
+                discrepancy_note = (
+                    f"{code_note} | {discrepancy_note}"
+                    if discrepancy_note
+                    else code_note
+                )
+                logger.warning(
+                    f"Decision {decision.id} ({decision.ada}): "
+                    f"non-monetary value recorded as amount detected — "
+                    f"verified={verified_amount} {detail}"
+                )
 
             run.status = TextProcessStatus.COMPLETED
             run.error_message = None
@@ -781,12 +790,16 @@ class AmountVerificationService:
         # to a counterpart AFM or a budget KAE is bogus and must be flagged.
         counterpart_afms = collect_counterpart_afms(decision)
         counterpart_kaes = collect_kae_codes(decision)
+        self_counterparts = collect_self_counterparts(decision)
         discrepancy_reason = None
         counterpart_afm = None
         counterpart_kae = None
-        if verified_amount is not None and (
-            counterpart_afms or counterpart_kaes
-        ):
+        if verified_amount is not None and self_counterparts:
+            counterpart_afm = sorted(self_counterparts)[0]
+            has_discrepancy = True
+            discrepancy_reason = DISCREPANCY_REASON_SELF_COUNTERPART
+            raw_response += "\n" + build_self_counterpart_note(counterpart_afm)
+        elif verified_amount is not None and (counterpart_afms or counterpart_kaes):
             counterpart_afm = match_afm_amount(verified_amount, counterpart_afms)
             counterpart_kae = (
                 None

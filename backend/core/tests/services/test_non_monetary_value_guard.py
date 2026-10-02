@@ -31,11 +31,15 @@ import pytest
 from core.services.non_monetary_value_guard import (
     DISCREPANCY_REASON_AFM,
     DISCREPANCY_REASON_KAE,
+    DISCREPANCY_REASON_SELF_COUNTERPART,
     KIND_AFM,
     KIND_KAE,
+    KIND_SELF_COUNTERPART,
     collect_non_monetary_values,
     collect_counterpart_afms,
     collect_kae_codes,
+    collect_org_afm,
+    collect_self_counterparts,
     extract_afm_amount_spans,
     is_afm_amount,
     match_afm_amount,
@@ -192,6 +196,139 @@ class TestCollectCounterpartAfms:
 
         decision = DecisionFactory()
         assert collect_counterpart_afms(decision) == set()
+
+
+class TestSelfCounterpart:
+    def test_collects_issuing_org_afm_and_matching_counterpart(self):
+        from conftest import DecisionFactory, OrganizationFactory
+
+        organization = OrganizationFactory(vat_number="090064864")
+        decision = DecisionFactory(
+            organization=organization,
+            extra_field_values_json={
+                "sponsor": [{"sponsorAFMName": {"afm": "090064864"}}]
+            },
+        )
+
+        assert collect_org_afm(decision) == "090064864"
+        assert collect_self_counterparts(decision) == {"090064864"}
+
+    def test_self_counterpart_flags_every_amount_without_guessing(self):
+        from conftest import DecisionAmountFieldFactory, DecisionFactory, OrganizationFactory
+
+        organization = OrganizationFactory(vat_number="090064864")
+        decision = DecisionFactory(
+            organization=organization,
+            extra_field_values_json={
+                "sponsor": [{"sponsorAFMName": {"afm": "090064864"}}]
+            },
+        )
+        first = DecisionAmountFieldFactory(decision=decision, amount=Decimal("10.00"))
+        second = DecisionAmountFieldFactory(decision=decision, amount=Decimal("20.00"))
+
+        anomalies = collect_non_monetary_values(decision)
+
+        assert {(a.field_id, a.kind, a.reason, a.matched_value) for a in anomalies} == {
+            (first.id, KIND_SELF_COUNTERPART, DISCREPANCY_REASON_SELF_COUNTERPART, "090064864"),
+            (second.id, KIND_SELF_COUNTERPART, DISCREPANCY_REASON_SELF_COUNTERPART, "090064864"),
+        }
+
+    def test_truncated_org_vat_prefix_matches_full_counterpart(self):
+        """
+        The Παίδων case: the DB org VAT is the 8-digit ``09000980`` (truncated)
+        while the real counterpart AFM is the 9-digit ``090009802``.  The
+        prefix match flags it, and records the FULL counterpart AFM.
+        """
+        from conftest import DecisionFactory, OrganizationFactory
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="09000980"),
+            extra_field_values_json={
+                "person": [{"afm": "090009802", "afmType": "EL"}]
+            },
+        )
+
+        assert collect_self_counterparts(decision) == {"090009802"}
+
+    def test_short_junk_org_vat_never_prefix_matches(self):
+        """
+        A junk short VAT (``011``, ``-``) must NOT prefix-match a real
+        counterpart — an N-digit prefix matches up to 10^(9-N) distinct AFMs,
+        so the prefix branch is gated to ≥ 8-digit org VATs.
+        """
+        from conftest import DecisionFactory, OrganizationFactory
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="011"),
+            extra_field_values_json={
+                "person": [{"afm": "011999999", "afmType": "EL"}]
+            },
+        )
+
+        assert collect_self_counterparts(decision) == set()
+
+    def test_unrelated_counterpart_is_not_a_self_counterpart(self):
+        """A counterpart that shares no prefix with the org VAT is ignored."""
+        from conftest import DecisionFactory, OrganizationFactory
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="090064864"),
+            extra_field_values_json={
+                "person": [{"afm": "099999999", "afmType": "EL"}]
+            },
+        )
+
+        assert collect_self_counterparts(decision) == set()
+
+    def test_all_zeros_org_vat_is_treated_as_absent(self):
+        """
+        Org ``54566``'s placeholder VAT ``00000000`` must never match — it is
+        filler, not a real AFM, and would otherwise prefix-match every
+        ``00000000X`` counterpart.  All-same-digit VATs are treated as absent.
+        """
+        from conftest import DecisionFactory, OrganizationFactory
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="00000000"),
+            extra_field_values_json={
+                "person": [{"afm": "000000001", "afmType": "EL"}]
+            },
+        )
+
+        assert collect_org_afm(decision) is None
+        assert collect_self_counterparts(decision) == set()
+
+    def test_counterpart_afm_under_other_containers(self):
+        """
+        Counterpart AFMs appear under many containers (grantee / grantor /
+        donationGiver / …), not just sponsor/person — and Diavgeia mislabels
+        types.  The guard harvests AFMs from every known counterpart container.
+        """
+        from conftest import DecisionFactory, OrganizationFactory
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="090064864"),
+            extra_field_values_json={
+                "grantee": [{"afm": "090064864", "afmType": "EL"}],
+            },
+        )
+
+        assert collect_self_counterparts(decision) == {"090064864"}
+
+    def test_org_block_afm_is_not_a_counterpart(self):
+        """The issuing org's own ``org.afm`` block is NOT a counterpart."""
+        from conftest import DecisionFactory, OrganizationFactory
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="090064864"),
+            extra_field_values_json={
+                "org": {"afm": "090064864", "afmType": "EL"},
+            },
+        )
+
+        # org.afm is the issuer, so it must not be harvested as a counterpart.
+        assert collect_counterpart_afms(decision) == set()
+        assert collect_self_counterparts(decision) == set()
 
 
 # ── Verification service (regex path) ────────────────────────────────────────
