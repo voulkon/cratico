@@ -410,9 +410,12 @@ class AmountVerificationService:
             # unknown — it is recorded as an audit note and left to the
             # detail API / a future counterpart-recovery pass.
             self_counterpart_afm = None
+            self_counterpart_note = None
             if self_counterparts:
                 self_counterpart_afm = sorted(self_counterparts)[0]
-                code_note = build_self_counterpart_note(self_counterpart_afm)
+                self_counterpart_note = build_self_counterpart_note(
+                    self_counterpart_afm
+                )
             counterpart_afm = None
             counterpart_kae = None
             if counterpart_afms or counterpart_kaes:
@@ -443,11 +446,15 @@ class AmountVerificationService:
                     f"non-monetary value recorded as amount detected — "
                     f"verified={verified_amount} {detail}"
                 )
-            elif self_counterpart_afm:
+            # Append unconditionally: a decision can carry BOTH a
+            # self-counterpart signal and an AFM/KAE amount anomaly — the note
+            # must not be dropped just because a real discrepancy was found
+            # (the grouped path records it in raw_response the same way).
+            if self_counterpart_note:
                 discrepancy_note = (
-                    f"{discrepancy_note} | {code_note}"
+                    f"{discrepancy_note} | {self_counterpart_note}"
                     if discrepancy_note
-                    else code_note
+                    else self_counterpart_note
                 )
 
             run.status = TextProcessStatus.COMPLETED
