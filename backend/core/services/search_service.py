@@ -1,4 +1,5 @@
 import json
+import re
 import time
 import uuid
 from typing import Any, Dict, List, Optional
@@ -27,6 +28,7 @@ from loguru import logger
 # Module-level flag so the "document search disabled" warning is logged
 # only once per process instead of on every search request.
 _warned_document_search_disabled = False
+_warned_document_search_flag_disabled = False
 
 # Strips every character that is not a Unicode letter or digit (also removes
 # underscores). This neutralizes all raw-tsquery metacharacters
@@ -469,6 +471,36 @@ class SearchService:
         if not query:
             return {"results": [], "count": 0, "source": "none", "highlights": {}}
 
+        # Posture gate: DOCUMENT_SEARCH_ENABLED turns document *content* search
+        # off entirely (entities-only stance), independent of the indexing
+        # flags. Returns the empty stub so callers/frontend get a well-formed
+        # empty response (postmortem 2026-10-03, fix #8).
+        global _warned_document_search_flag_disabled
+        if not feature_flags.is_enabled("DOCUMENT_SEARCH_ENABLED"):
+            if not _warned_document_search_flag_disabled:
+                _warned_document_search_flag_disabled = True
+                logger.warning(
+                    "Document search disabled by DOCUMENT_SEARCH_ENABLED flag. "
+                    "Only entity search is available."
+                )
+            return {"results": [], "count": 0, "source": "none", "highlights": {}}
+
+        # Server-side min-length guard. PostgreSQL's Greek stemmer produces no
+        # lexemes for 1-2 character tokens, so short queries match nothing via
+        # FTS and previously slid into the unbounded ILIKE fallback — the
+        # modal trigger of the 2026-10-03 worker timeouts (any single common
+        # Greek letter). Mirrors the entity-search guard (fix #3).
+        if self._is_query_too_short_for_fts(query):
+            logger.info(f"document_search skipped: query too short query={query!r}")
+            return {"results": [], "count": 0, "source": "none", "highlights": {}}
+
+        # Correlates entry/fallback/completion log lines for one search request
+        # (postmortem 2026-10-03, fix #7: hung requests used to be anonymous).
+        search_id = uuid.uuid4().hex[:8]
+        logger.info(
+            f"document_search start search_id={search_id} query={query!r} limit={limit}"
+        )
+
         # Document search must validate the full (document) prerequisite scope.
         # Entity search methods below use the lighter 'entity' scope via
         # _get_validated_search_method's default.
@@ -491,9 +523,12 @@ class SearchService:
                     )
                 return {"results": [], "count": 0, "source": "none", "highlights": {}}
 
-            logger.info("OpenSearch disabled, falling back to PostgreSQL search")
+            logger.info(
+                f"OpenSearch disabled, falling back to PostgreSQL search "
+                f"search_id={search_id} query={query!r}"
+            )
             return self._search_documents_postgresql(
-                query, provider, status, is_scanned, limit
+                query, provider, status, is_scanned, limit, search_id=search_id
             )
 
         # Try OpenSearch first
@@ -751,6 +786,10 @@ class SearchService:
         results = []
         try:
             search_query = self._build_prefix_search_query(query)
+            # Single execution: the sliced query is evaluated exactly once.
+            # Do NOT call .exists()/.count() here — both re-run the full FTS
+            # scan (same regression fixed earlier in the 6 entity _search_*_fts
+            # methods).
             vector_results = (
                 qs.filter(search_vector=search_query)
                 .annotate(rank=SearchRank("search_vector", search_query))
@@ -809,7 +848,6 @@ class SearchService:
             f"document_search ILIKE fallback finished search_id={search_id} "
             f"query={query!r} count={len(results)}"
         )
-
         return {
             "results": results,
             "count": len(results),
