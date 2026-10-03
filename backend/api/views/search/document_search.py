@@ -197,6 +197,9 @@ def document_search_api(request):
             ),  # 'opensearch' or 'postgresql'
             "highlights": search_results.get("highlights", {}),
             "capabilities": {
+                "document_search_enabled": feature_flags.is_enabled(
+                    "DOCUMENT_SEARCH_ENABLED"
+                ),
                 "opensearch_enabled": OpenSearchService().is_enabled,
                 "postgres_search_enabled": feature_flags.is_enabled(
                     "INDEX_THE_POSTGRES"

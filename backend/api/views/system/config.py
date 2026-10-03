@@ -36,6 +36,12 @@ def auth_config(request):
         "clerk_publishable_key": get_clerk_publishable_key(),
         "search": {
             "debounce_ms": feature_flags.get_value("SEARCH_DEBOUNCE_MS", 300),
+            # DOCUMENT_SEARCH_ENABLED (postmortem 2026-10-03, fix #8):
+            # lets the UI hide the documents category instead of letting
+            # requests spin when document content search is disabled.
+            "document_search_enabled": feature_flags.is_enabled(
+                "DOCUMENT_SEARCH_ENABLED"
+            ),
         },
     }
 
