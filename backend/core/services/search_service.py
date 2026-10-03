@@ -27,6 +27,12 @@ from loguru import logger
 # only once per process instead of on every search request.
 _warned_document_search_disabled = False
 
+# Strips every character that is not a Unicode letter or digit (also removes
+# underscores). This neutralizes all raw-tsquery metacharacters
+# (: & | ! ( ) ' " * < > \ -) in one pass, so user input can never inject
+# tsquery syntax (postmortem 2026-10-03: 'δε::' → 'syntax error in tsquery').
+_TSQUERY_METACHAR_PATTERN = re.compile(r"[\W_]+", re.UNICODE)
+
 
 class SearchService:
     """Centralized service for all search functionality"""
@@ -157,13 +163,26 @@ class SearchService:
         Build a prefix-matching FTS query so partial inputs like 'ΠΕΙΡΑ' match
         lexemes like 'πειραιωσ' stored in the tsvector.
 
-        Each whitespace-separated word is lowercased and suffixed with ':*'
-        (PostgreSQL's prefix operator), then joined with '&'.
+        Each whitespace-separated word is lowercased, stripped of tsquery
+        metacharacters (``: & | ! ( ) ' " * < >`` and all punctuation — a
+        stray ':' used to survive into the query as ``δε::*`` and raise a
+        Postgres syntax error), and suffixed with ':*' (PostgreSQL's prefix
+        operator), then joined with '&'.
         Example: 'ΠΕΙΡΑ ΤΡΑΠ' → 'πειρα:* & τραπ:*'
+
+        If every word sanitizes away (metacharacter-only input like '!!!'),
+        returns an empty never-matching tsquery (plainto_tsquery of '') so the
+        caller degrades to "no FTS results" instead of a syntax error.
         """
         words = query.strip().lower().split()
-        raw = " & ".join(f"{w}:*" for w in words if w)
-        return SearchQuery(raw, search_type="raw", config=config)
+        sanitized = []
+        for w in words:
+            cleaned = _TSQUERY_METACHAR_PATTERN.sub("", w)
+            if cleaned:
+                sanitized.append(f"{cleaned}:*")
+        if not sanitized:
+            return SearchQuery("", search_type="plain", config=config)
+        return SearchQuery(" & ".join(sanitized), search_type="raw", config=config)
 
     @staticmethod
     def _is_query_too_short_for_fts(query: str) -> bool:
