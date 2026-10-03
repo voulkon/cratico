@@ -507,7 +507,7 @@ const DecisionDetailPage = () => {
           </p>
           <p className="amount-invalid-recorded">
             {t('decisionDetail.amountInvalidRecorded', {
-              recorded: formatAmount(decision.amount),
+              recorded: formatAmount(decision.recorded_amount ?? decision.amount),
             })}
           </p>
         </div>
@@ -553,6 +553,17 @@ const DecisionDetailPage = () => {
                 : t('decisionDetail.amountInvalidKae', {
                     value: decision.invalid_amount_value || '—',
                   })}
+            </p>
+          )}
+
+          {/* Self-as-counterpart: the amount itself is believed — what is
+              broken is the relationship (the counterpart is the issuing org
+              itself).  Warn about the counterpart, keep the amount shown. */}
+          {decision.has_self_counterpart && (
+            <p className="amount-invalid-explanation self-counterpart-note">
+              {t('decisionDetail.selfCounterpartNote', {
+                value: decision.self_counterpart_afm || '—',
+              })}
             </p>
           )}
 

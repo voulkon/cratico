@@ -219,6 +219,112 @@ data Diavgeia hands over.
 - The marker is idempotent, and `fix_amount_anomalies --clear` (or the
   *clear non-monetary markers* admin action) reverses it.
 
+### Variant: the issuing org as its own counterpart (`self_as_counterpart`)
+
+A structurally different case: the decision's **counterpart AFM equals the
+issuing organization's own VAT number**. Here the amount itself may be
+perfectly well-formed (e.g. €22,000) — what is broken is the *relationship*:
+the intended counterpart is unknown. So this variant is **decision-level, not
+an amount problem**: the amounts stay trusted (they count in every total), and
+the counterpart issue is surfaced separately — recovering the real counterpart
+is future work.
+
+| ADA | org | org VAT (DB) | counterpart AFM on the decision | verdict |
+|---|---|---|---|---|
+| `6Ζ9Ν469ΗΣΥ-Μ6Χ` | ΙΦΕΤ Μ.Α.Ε. | `090064864` | `090064864` (person) | counterpart flagged at decision level — exact match |
+| `945Ζ469ΗΣΥ-Λ2Ε` | ΙΦΕΤ Μ.Α.Ε. | `090064864` | `090064864` (person) | counterpart flagged at decision level — exact match |
+| `6ΜΣΥ46906Ρ-ΑΞΡ` | Νοσοκομείο Παίδων | `09000980` (8 digits, **truncated**) | `090009802` (9 digits) | counterpart flagged at decision level — truncated-prefix match |
+
+**The org VAT is not in the payload.** Real Diavgeia responses for these
+decisions carry **no** `extraFieldValues.org` block — the issuing org's AFM
+lives only in the `core_organization.vat_number` row. The detector therefore
+reads it from the DB, exactly the join the analytics layer already uses:
+
+```
+DecisionEntityRelationship.entity.afm          (the counterpart)
+        ==
+Decision.organization.vat_number               (the issuing org, from the DB)
+```
+
+`collect_org_afm(decision)` reads `decision.organization.vat_number`;
+`collect_self_counterparts(decision)` intersects it with the counterpart AFMs.
+When the intersection is non-empty the decision carries the signal — it is
+**not** written into `invalid_amount_reason` (that marker means "this value is
+not money", which is false here). Instead:
+
+- the decision detail API returns `has_self_counterpart` +
+  `self_counterpart_afm` (the **full** counterpart AFM, e.g. `090009802`), and
+  the detail page shows the amount normally with a counterpart warning;
+- amount verification records a `[SELF-AS-COUNTERPART]` audit note
+  (`TextProcessRun.meta["self_counterpart_afm"]`) without a discrepancy —
+  the amount is confirmed as usual when the text matches;
+- legacy markers written by the earlier treatment are cleared by migration
+  `0100_clear_self_counterpart_amount_markers`.
+
+**Where the counterpart AFMs come from.** Diavgeia has *no validation*: a
+counterpart AFM can appear under `sponsor`, `person`, `grantee`, `grantor`,
+`donationGiver`, `employerOrg`, `primaryOfficer`, and more — and the *type* is
+routinely mislabelled (a company marked `person`, a hospital marked
+`unknown`). So `collect_counterpart_afms` does not trust any single container:
+it harvests every `afm` value found under any known counterpart container of
+`extra_field_values_json` (recursively), unioned with the extracted
+`DecisionEntityRelationship` rows. The `org` block is deliberately excluded —
+that is the issuer, not a counterpart.
+
+**The match is exact *or* truncated-prefix.** Two modes (`_is_self_counterpart`):
+
+- **exact** — the common case: a 9-digit VAT equals a 9-digit counterpart AFM.
+- **truncated prefix** — the org VAT was recorded *short*. Παίδων's DB VAT is
+  the 8-digit `09000980`; the real counterpart AFM on its decisions is the
+  9-digit `090009802`. The counterpart is a self-reference when it **starts
+  with** the org VAT. Verified against prod: the `09000980` prefix matches
+  exactly one distinct AFM (`090009802`) — the org's own name — across
+  **14,534 decisions**. The signal is unambiguous in practice.
+
+Two guards keep the prefix match surgical:
+
+1. **≥ 8 digits.** A shorter VAT is junk (`011`, `-`), and an N-digit prefix
+   matches up to 10^(9−N) distinct 9-digit AFMs — far too ambiguous.
+2. **No placeholder VATs.** All-same-digit VATs (`00000000`, `999999999`) are
+   filler, never a real AFM. Org `54566`'s `00000000` would otherwise
+   prefix-match every `00000000X` counterpart (3 distinct AFMs on prod).
+   `_is_plausible_org_vat` rejects any all-same-digit value, treating it as
+   absent.
+
+The reported counterpart is always the **full counterpart AFM**
+(`090009802`), so the audit trail shows the real counterpart, not the
+truncated VAT.
+
+### Efficiency: daily batch vs. historical backfill
+
+The detector is **DB-only** (`needs_text = False`) — no document reads — so it
+is cheap enough to run over the whole backlog. The two operating modes:
+
+- **Daily ingested batch** — post-import Phase 3
+  (`tasks_post_import._discover_non_monetary_values`) runs the detector over
+  just the decisions imported that day. The candidate set is tiny. Gated by
+  `POST_IMPORT_ORCHESTRATOR_ENABLED` +
+  `POST_IMPORT_AMOUNT_VERIFICATION_ENABLED`; treatment (writing the marker) by
+  `POST_IMPORT_AMOUNT_ANOMALY_TREATMENT_ENABLED`.
+
+- **Historical backfill** — `find_amount_anomalies` / `fix_amount_anomalies`
+  (and the admin batch view) sweep already-ingested decisions through the
+  amount-bounded candidate query:
+
+  ```sql
+  ... WHERE amount >= min AND amount < max   -- AFM/KAE value bounds
+  ```
+
+  `--limit` is pushed into the SQL (`.distinct()[:limit]`), so a bounded run
+  never materialises the whole candidate set. Because a mis-recorded AFM/KAE
+  is an 8-9 digit number, the bounds are what keep the sweep tractable.
+
+The self-counterpart signal is deliberately **not** part of the sweep: it has
+no amount-level treatment (the amounts stay valid), so there is nothing for
+the candidate query to select it *for*. It is computed per decision — at
+verification time (the audit note) and at detail time (the API fields) — via
+`collect_self_counterparts`, which costs one relationship scan + one org read.
+
 ### Extending the kinds
 
 A new *kind* of misplaced value is: a collector + a `KIND_*` + a reason constant
@@ -487,11 +593,12 @@ amounts until their TTL expires.
 | `services/test_data_quality_registry.py` | registry invariants; `run_detectors`/`summarize` for both detectors (`can_repair`, never-guess, idempotency, candidate bounds, per-detector failure isolation); model ↔ registry ↔ form agreement |
 | `tasks/test_amount_correction_job_modes.py` | mode expansion, propagation to child tasks, no duplicate fan-out in `both`, unknown mode fails the job |
 | `tasks/test_amount_correction_tasks.py` | a flagged row is never re-selected as “uncorrected” |
-| `services/test_non_monetary_value_pipeline.py` | **data-driven** ground truth (below) |
+| `services/test_non_monetary_value_pipeline.py` | **data-driven** ground truth (below); self-as-counterpart payloads pinned as decision-level (amounts believed, no marker) |
 | `services/test_non_monetary_value_guard.py` | guard primitives (synthetic) |
 | `services/test_amount_verification_service.py` | `data/amount_text_patterns/*.json` regex cases |
 | `services/test_grouped_amount_detection.py` | cents parsing and clone factors |
 | `management/test_fix_amount_anomalies.py`, `management/test_flag_anomalies_admin.py` | CLI/admin contract: dry-run by default, exactly three marker columns, idempotent, `--clear` reverses, never touches `verified_amount` |
+| `frontend/e2e/bad-amounts.spec.js` + `api/e2e_fixtures/bad_amounts.py` | **E2E**: the four display semantics on the decision detail page (corrected + badge, AFM invalid, KAE invalid, self-counterpart warning with the amount kept) — see §5 |
 
 ### Adding a ground-truth case (the highest-value test you can write)
 

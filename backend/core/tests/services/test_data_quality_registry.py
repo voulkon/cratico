@@ -160,7 +160,11 @@ class TestDecimalShiftDetector:
         assert field.verified_amount is None
 
     def test_run_detectors_applies_the_repair(self):
-        from core.services.data_quality import resolve_detectors, run_detectors, summarize
+        from core.services.data_quality import (
+            resolve_detectors,
+            run_detectors,
+            summarize,
+        )
 
         decision = self._shifted_decision()
         runs = run_detectors(decision, resolve_detectors("decimal_shift"))
@@ -173,12 +177,14 @@ class TestDecimalShiftDetector:
         assert field.verified_amount == Decimal("30000.00")
 
     def test_dry_run_reports_would_correct_and_writes_nothing(self):
-        from core.services.data_quality import resolve_detectors, run_detectors, summarize
+        from core.services.data_quality import (
+            resolve_detectors,
+            run_detectors,
+            summarize,
+        )
 
         decision = self._shifted_decision()
-        runs = run_detectors(
-            decision, resolve_detectors("decimal_shift"), dry_run=True
-        )
+        runs = run_detectors(decision, resolve_detectors("decimal_shift"), dry_run=True)
         result = summarize(runs)
 
         assert result["status"] == "would_correct"
@@ -278,12 +284,14 @@ class TestNonMonetaryValueDetector:
         assert detector.apply(decision, detector.scan(decision)) == 1
 
     def test_run_detectors_summarizes_the_flag(self):
-        from core.services.data_quality import resolve_detectors, run_detectors, summarize
+        from core.services.data_quality import (
+            resolve_detectors,
+            run_detectors,
+            summarize,
+        )
 
         decision = self._afm_decision()
-        result = summarize(
-            run_detectors(decision, resolve_detectors("non_monetary"))
-        )
+        result = summarize(run_detectors(decision, resolve_detectors("non_monetary")))
 
         assert result["status"] == "afm_as_amount"
         assert result["written"] == 1
@@ -307,6 +315,163 @@ class TestNonMonetaryValueDetector:
         detector = get_detector("non-monetary-value")
         assert decision.id not in detector.candidate_ids()
 
+    def test_self_counterpart_is_not_an_amount_candidate(self):
+        """
+        Self-as-counterpart is decision-level, not an amount anomaly: a
+        well-formed €10 amount on a self-referencing decision is NOT a
+        candidate and never gets flagged — the counterpart issue lives in
+        ``collect_self_counterparts`` (detail API / audit notes).
+        """
+        from conftest import (
+            AFMEntityFactory,
+            DecisionAmountFieldFactory,
+            DecisionEntityRelationshipFactory,
+            DecisionFactory,
+            OrganizationFactory,
+        )
+        from core.services.data_quality import get_detector
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="090064864")
+        )
+        entity = AFMEntityFactory(afm="090064864")
+        DecisionEntityRelationshipFactory(
+            decision=decision, entity=entity, role="person"
+        )
+        DecisionAmountFieldFactory(decision=decision, amount=Decimal("10.00"))
+
+        detector = get_detector("non-monetary-value")
+        assert decision.id not in detector.candidate_ids()
+        outcome = detector.scan(decision)
+        assert not outcome.detected
+        field = decision.amount_fields.get()
+        field.refresh_from_db()
+        assert field.invalid_amount_reason is None
+
+    def test_non_self_counterpart_small_amount_is_not_a_candidate(self):
+        """A small amount whose counterpart AFM ≠ org VAT stays out of bounds."""
+        from conftest import (
+            AFMEntityFactory,
+            DecisionAmountFieldFactory,
+            DecisionEntityRelationshipFactory,
+            DecisionFactory,
+            OrganizationFactory,
+        )
+        from core.services.data_quality import get_detector
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="090064864")
+        )
+        other = AFMEntityFactory(afm="099999999")
+        DecisionEntityRelationshipFactory(
+            decision=decision, entity=other, role="person"
+        )
+        DecisionAmountFieldFactory(decision=decision, amount=Decimal("10.00"))
+
+        detector = get_detector("non-monetary-value")
+        assert decision.id not in detector.candidate_ids()
+
+    def test_truncated_org_vat_is_not_flagged_as_an_amount_anomaly(self):
+        """
+        The Παίδων case at the detector level: the 8-digit truncated org VAT
+        prefix-matches the 9-digit counterpart AFM, but that is a
+        decision-level counterpart signal — the €10 amount is NOT an anomaly
+        and stays out of the amount-bounded candidate set.
+        """
+        from conftest import (
+            AFMEntityFactory,
+            DecisionAmountFieldFactory,
+            DecisionEntityRelationshipFactory,
+            DecisionFactory,
+            OrganizationFactory,
+        )
+        from core.services.data_quality import get_detector
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="09000980")
+        )
+        entity = AFMEntityFactory(afm="090009802")
+        DecisionEntityRelationshipFactory(
+            decision=decision, entity=entity, role="person"
+        )
+        DecisionAmountFieldFactory(decision=decision, amount=Decimal("10.00"))
+
+        detector = get_detector("non-monetary-value")
+        assert decision.id not in detector.candidate_ids()
+        assert not detector.scan(decision).detected
+
+    def test_short_junk_org_vat_never_yields_findings(self):
+        """A junk short VAT (``011``) never produces an amount finding."""
+        from conftest import (
+            AFMEntityFactory,
+            DecisionAmountFieldFactory,
+            DecisionEntityRelationshipFactory,
+            DecisionFactory,
+            OrganizationFactory,
+        )
+        from core.services.data_quality import get_detector
+
+        decision = DecisionFactory(organization=OrganizationFactory(vat_number="011"))
+        entity = AFMEntityFactory(afm="011999999")
+        DecisionEntityRelationshipFactory(
+            decision=decision, entity=entity, role="person"
+        )
+        DecisionAmountFieldFactory(decision=decision, amount=Decimal("10.00"))
+
+        detector = get_detector("non-monetary-value")
+        assert decision.id not in detector.candidate_ids()
+        assert not detector.scan(decision).detected
+
+    def test_all_zeros_org_vat_never_yields_findings(self):
+        """Placeholder VAT ``00000000`` never produces an amount finding."""
+        from conftest import (
+            AFMEntityFactory,
+            DecisionAmountFieldFactory,
+            DecisionEntityRelationshipFactory,
+            DecisionFactory,
+            OrganizationFactory,
+        )
+        from core.services.data_quality import get_detector
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="00000000")
+        )
+        entity = AFMEntityFactory(afm="000000001")
+        DecisionEntityRelationshipFactory(
+            decision=decision, entity=entity, role="person"
+        )
+        DecisionAmountFieldFactory(decision=decision, amount=Decimal("10.00"))
+
+        detector = get_detector("non-monetary-value")
+        assert decision.id not in detector.candidate_ids()
+        assert not detector.scan(decision).detected
+
+    def test_self_counterpart_amounts_are_never_flagged(self):
+        from conftest import (
+            DecisionAmountFieldFactory,
+            DecisionFactory,
+            OrganizationFactory,
+        )
+        from core.services.data_quality import get_detector
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="090064864"),
+            extra_field_values_json={
+                "sponsor": [{"sponsorAFMName": {"afm": "090064864"}}]
+            },
+        )
+        first = DecisionAmountFieldFactory(decision=decision, amount=Decimal("10.00"))
+        second = DecisionAmountFieldFactory(decision=decision, amount=Decimal("20.00"))
+
+        detector = get_detector("non-monetary-value")
+        outcome = detector.scan(decision)
+        assert not outcome.detected
+        assert detector.apply(decision, outcome) == 0
+        for field in (first, second):
+            field.refresh_from_db()
+            assert field.verified_amount is None
+            assert field.invalid_amount_reason is None
+
 
 # ---------------------------------------------------------------------------
 # "both" mode
@@ -320,7 +485,11 @@ class TestBothMode:
             DecisionFactory,
             DocumentExtractionFactory,
         )
-        from core.services.data_quality import resolve_detectors, run_detectors, summarize
+        from core.services.data_quality import (
+            resolve_detectors,
+            run_detectors,
+            summarize,
+        )
 
         decision = DecisionFactory(
             extra_field_values_json={
@@ -336,9 +505,7 @@ class TestBothMode:
         )
         DocumentExtractionFactory(decision=decision, raw_text="30.000,00")
 
-        result = summarize(
-            run_detectors(decision, resolve_detectors("both"))
-        )
+        result = summarize(run_detectors(decision, resolve_detectors("both")))
 
         # One repair beats the flag for the summary status…
         assert result["status"] == "corrected"
