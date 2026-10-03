@@ -1,5 +1,6 @@
 import json
 import time
+import uuid
 from typing import Any, Dict, List, Optional
 
 from core.constants.search_service import SearchMethod
@@ -541,9 +542,11 @@ class SearchService:
 
         # Fallback to PostgreSQL search only if enabled
         if use_postgres_search:
-            logger.info("Falling back to PostgreSQL search")
+            logger.info(
+                f"Falling back to PostgreSQL search search_id={search_id} query={query!r}"
+            )
             return self._search_documents_postgresql(
-                query, provider, status, is_scanned, limit
+                query, provider, status, is_scanned, limit, search_id=search_id
             )
         else:
             logger.warning(
@@ -696,11 +699,26 @@ class SearchService:
         status: Optional[str] = None,
         is_scanned: Optional[bool] = None,
         limit: int = 100,
+        search_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Fallback PostgreSQL search (original implementation)
-        Only called when INDEX_THE_POSTGRES is enabled
+        PostgreSQL document search (FTS tier).
+
+        Only called when INDEX_THE_POSTGRES is enabled.
+
+        Safety invariants (postmortem 2026-10-03):
+        - The unindexed ``raw_text ILIKE '%...%'`` fallback is a full
+          sequential scan over a 17 GB table — it may never run silently. It
+          is gated behind DOCUMENT_SEARCH_ILIKE_FALLBACK (default off).
+        - FTS is executed exactly once: no ``.exists()``/``.count()``
+          re-executions (the ``count()`` re-scan historically produced
+          600-1050 s responses on broad Greek prefix hits).
+        - Every degradation path logs query= + search_id so hung requests are
+          never anonymous.
         """
+        if search_id is None:
+            search_id = uuid.uuid4().hex[:8]
+
         # Safety check: ensure PostgreSQL search is enabled
         if not feature_flags.is_enabled("INDEX_THE_POSTGRES"):
             logger.error(
@@ -727,7 +745,10 @@ class SearchService:
         if is_scanned is not None:
             qs = qs.filter(is_scanned_document=is_scanned)
 
-        # Try PostgreSQL full-text search first
+        # PostgreSQL full-text search. Input is sanitized by
+        # _build_prefix_search_query, so tsquery metacharacters can no longer
+        # raise a syntax error that silently routed into the ILIKE fallback.
+        results = []
         try:
             search_query = self._build_prefix_search_query(query)
             vector_results = (
@@ -735,42 +756,64 @@ class SearchService:
                 .annotate(rank=SearchRank("search_vector", search_query))
                 .order_by("-rank")
             )
-
-            # If vector search returns results, use them
-            if vector_results.exists():
-                results = [
-                    {
-                        "extraction": ext,
-                        "search_score": float(ext.rank),
-                        "highlights": {},
-                    }
-                    for ext in vector_results[:limit]
-                ]
-                count = vector_results.count()
-            else:
-                # Fallback to direct text search
-                fallback_results = qs.filter(raw_text__icontains=query)[:limit]
-                results = [
-                    {"extraction": ext, "search_score": 1.0, "highlights": {}}
-                    for ext in fallback_results
-                ]
-                count = fallback_results.count()
-        except Exception:
-            # If any error occurs, fall back to direct text search
-            fallback_results = qs.filter(raw_text__icontains=query)[:limit]
             results = [
-                {"extraction": ext, "search_score": 1.0, "highlights": {}}
-                for ext in fallback_results
+                {
+                    "extraction": ext,
+                    "search_score": float(ext.rank),
+                    "highlights": {},
+                }
+                for ext in vector_results[:limit]
             ]
-            count = fallback_results.count()
+        except Exception as e:
+            # Do not silently degrade to an unindexed scan — log and treat as
+            # an FTS miss (the fallback decision below remains explicit).
+            logger.error(
+                f"document_search FTS failed search_id={search_id} "
+                f"query={query!r}: {e}"
+            )
 
-        logger.info(
-            f"PostgreSQL fallback returned {len(results)} results for query: {query}"
+        if results:
+            logger.info(
+                f"document_search FTS hit search_id={search_id} "
+                f"query={query!r} count={len(results)}"
+            )
+            return {
+                "results": results,
+                "count": len(results),
+                "has_more": len(results) >= limit,
+                "source": "postgresql",
+                "highlights": {},
+            }
+
+        # FTS miss or failure. The ILIKE fallback is an unbounded sequential
+        # scan on raw_text (plain TextField, no trigram index) — a degraded
+        # tier decision that must be explicit, logged, bounded, and off by
+        # default (postmortem 2026-10-03, fix #1).
+        if not feature_flags.is_enabled("DOCUMENT_SEARCH_ILIKE_FALLBACK"):
+            logger.warning(
+                f"document_search FTS returned no results; ILIKE fallback is "
+                f"disabled search_id={search_id} query={query!r}"
+            )
+            return {"results": [], "count": 0, "source": "none", "highlights": {}}
+
+        logger.warning(
+            f"document_search ILIKE fallback starting (UNINDEXED sequential scan) "
+            f"search_id={search_id} query={query!r}"
+        )
+        fallback_results = list(qs.filter(raw_text__icontains=query)[:limit])
+        results = [
+            {"extraction": ext, "search_score": 1.0, "highlights": {}}
+            for ext in fallback_results
+        ]
+        logger.warning(
+            f"document_search ILIKE fallback finished search_id={search_id} "
+            f"query={query!r} count={len(results)}"
         )
 
         return {
             "results": results,
-            "count": count,
+            "count": len(results),
+            "has_more": len(results) >= limit,
             "source": "postgresql",
             "highlights": {},
         }
