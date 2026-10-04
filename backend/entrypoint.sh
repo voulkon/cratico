@@ -64,6 +64,17 @@ if [ "$DEBUG" = "True" ]; then
     echo "Starting in debug mode on port ${DJANGO_DEBUG_PORT:-8002}..."
     python -Xfrozen_modules=off -m debugpy --listen 0.0.0.0:${DJANGO_DEBUG_PORT:-8002} manage.py runserver 0.0.0.0:8000
 else
-    echo "Starting in production mode..."
-    gunicorn diavgeia_project.wsgi:application --bind 0.0.0.0:8000 --timeout 300 --workers 2
+    # Postmortem 2026-10-03 (fix #6): `--timeout 300 --workers 2` sync was a
+    # single-request-DoS amplifier — one stuck request occupied 50% of HTTP
+    # capacity for 5 minutes. gthread adds per-worker concurrency so a slow
+    # request no longer eats a whole worker, and the default timeout drops to
+    # 60s (must stay aligned with nginx proxy_read_timeout). All overridable
+    # via env without image rebuilds.
+    echo "Starting in production mode (gthread, workers=${GUNICORN_WORKERS:-2}, threads=${GUNICORN_THREADS:-4}, timeout=${GUNICORN_TIMEOUT:-60}s)..."
+    gunicorn diavgeia_project.wsgi:application \
+        --bind 0.0.0.0:8000 \
+        --worker-class "${GUNICORN_WORKER_CLASS:-gthread}" \
+        --workers "${GUNICORN_WORKERS:-2}" \
+        --threads "${GUNICORN_THREADS:-4}" \
+        --timeout "${GUNICORN_TIMEOUT:-60}"
 fi

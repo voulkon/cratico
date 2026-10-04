@@ -354,6 +354,36 @@ class FeatureFlagService:
             "requires_restart": False,
             "value_type": "integer",
         },
+        "DOCUMENT_SEARCH_ENABLED": {
+            "name": "Document Search Enabled",
+            "description": "Master switch for document *content* search serving "
+            "(the /api/search/documents/ endpoint and the documents leg of "
+            "super search). When disabled, document search returns empty "
+            "results and the frontend hides the documents category — an "
+            "explicit entities-only posture. Deliberately separate from "
+            "INDEX_THE_POSTGRES / INDEX_THE_OPENSEARCH (indexing ≠ serving). "
+            "Delivered to the frontend via /api/system/config/auth/. "
+            "See postmortem 2026-10-03-document-search-worker-timeout, fix #8.",
+            "default": True,
+            "env_var": "DOCUMENT_SEARCH_ENABLED",
+            "category": "search",
+            "requires_restart": False,
+        },
+        "DOCUMENT_SEARCH_ILIKE_FALLBACK": {
+            "name": "Document Search ILIKE Fallback",
+            "description": "Allow PostgreSQL document search to degrade to an "
+            "UNINDEXED raw_text ILIKE '%...%' sequential scan when FTS returns "
+            "no results (or fails). WARNING: on large document tables this scan "
+            "can run for minutes and caused the 2026-10-03 gunicorn WORKER "
+            "TIMEOUTs. Safety invariant: document search may never silently "
+            "degrade to an unindexed scan — keep off until a pg_trgm GIN index "
+            "exists on core_documentextraction.raw_text. "
+            "See postmortem 2026-10-03-document-search-worker-timeout, fix #1.",
+            "default": False,
+            "env_var": "DOCUMENT_SEARCH_ILIKE_FALLBACK",
+            "category": "search",
+            "requires_restart": False,
+        },
         # ── Anonymous API rate limiting ────────────────────────────────
         # Daily per-IP quota for anonymous (unauthenticated) API requests,
         # enforced by api.middleware.rate_limit.RateLimitMiddleware (HTTP 429).
