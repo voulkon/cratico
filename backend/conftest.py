@@ -343,7 +343,7 @@ class ImportJobFactory(DjangoModelFactory):
     total_decisions = 0
     new_decisions = 0
     updated_decisions = 0
-    failed_decisions = 0
+    error_count = 0
     search_params = factory.LazyFunction(dict)
     error_details = None
 

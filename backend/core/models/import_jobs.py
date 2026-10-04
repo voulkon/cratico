@@ -24,6 +24,7 @@ class ImportJobType(models.TextChoices):
 
     DAILY = "daily", _("Daily (cron)")
     BACKFILL = "backfill", _("Backfill (autofarming)")
+    HOURLY = "hourly", _("Hourly (fresh today)")
 
 
 class ImportJob(models.Model):
@@ -61,7 +62,7 @@ class ImportJob(models.Model):
         choices=ImportJobType.choices,
         default=ImportJobType.DAILY,
         verbose_name=_("Import Type"),
-        help_text=_("Daily (cron-triggered) vs backfill (autofarming historical dates)"),
+        help_text=_("Daily (cron-triggered), hourly (fresh today), or backfill (autofarming historical dates)"),
     )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
