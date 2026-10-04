@@ -1,0 +1,1471 @@
+interactions:
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T00%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T01%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T00:00:00+03:00)
+        TO DT(2026-09-20T01:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":0,\"total\":0,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:08:54 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '283'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T01%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T02%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[{\"protocolNumber\":\"417007\",\"subject\":\"\u0388\u03B3\u03BA\u03C1\u03B9\u03C3\u03B7
+        \u03BC\u03B5\u03C4\u03B1\u03BA\u03AF\u03BD\u03B7\u03C3\u03B7\u03C2 \u03C4\u03BF\u03C5
+        \u03BA. \u039A\u03BB\u03BF\u03C5\u03BA\u03AF\u03BD\u03B1 \u0394\u03B7\u03BC\u03B7\u03C4\u03C1\u03AF\u03BF\u03C5
+        \u03C3\u03B5 \u03B5\u03C0\u03AF\u03C3\u03BA\u03B5\u03C8\u03B7 \u03BC\u03B5\u03BB\u03AD\u03C4\u03B7\u03C2
+        \u03C3\u03C4\u03BF \u038C\u03C3\u03BB\u03BF\",\"issueDate\":1789776000000,\"organizationId\":\"100081912\",\"signerIds\":[\"103121\",\"100357\",\"100047758\",\"100007388\"],\"unitIds\":[\"100037650\"],\"decisionTypeId\":\"2.4.7.1\",\"thematicCategoryIds\":[\"44\"],\"extraFieldValues\":{\"kanonistikipraxitype\":null,\"kanonistikiPraxiPublishMedium\":null,\"fek\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\",\"co_competent\":[]},\"privateData\":false,\"ada\":\"6\u039C\u03A1\u039B46\u039D\u039A\u039F\u03A4-\u03A00\u039F\",\"publishTimestamp\":1789857819437,\"submissionTimestamp\":1789857819437,\"versionId\":\"3017d258-725d-4582-99dd-42defc34a6fe\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/6\u039C\u03A1\u039B46\u039D\u039A\u039F\u03A4-\u03A00\u039F\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/6\u039C\u03A1\u039B46\u039D\u039A\u039F\u03A4-\u03A00\u039F\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null}],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T01:00:00+03:00)
+        TO DT(2026-09-20T02:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":1,\"total\":1,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:08:55 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '1239'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T02%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T03%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T02:00:00+03:00)
+        TO DT(2026-09-20T03:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":0,\"total\":0,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:08:55 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '283'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T03%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T04%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T03:00:00+03:00)
+        TO DT(2026-09-20T04:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":0,\"total\":0,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:08:56 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '283'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T04%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T05%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T04:00:00+03:00)
+        TO DT(2026-09-20T05:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":0,\"total\":0,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:08:56 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '283'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T05%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T06%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T05:00:00+03:00)
+        TO DT(2026-09-20T06:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":0,\"total\":0,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:08:58 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '283'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T06%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T07%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[{\"protocolNumber\":\"1849/2026\",\"subject\":\"\u03A0\u03C1\u03BF\u03BC\u03AE\u03B8\u03B5\u03B9\u03B1
+        \u03BA\u03B1\u03C5\u03C3\u03AF\u03BC\u03C9\u03BD \u03B3\u03B9\u03B1 \u03BA\u03AF\u03BD\u03B7\u03C3\u03B7
+        \u03BF\u03C7\u03B7\u03BC\u03AC\u03C4\u03C9\u03BD \u03BA\u03B1\u03B9 \u03BC\u03B7\u03C7\u03B1\u03BD\u03B7\u03BC\u03AC\u03C4\u03C9\u03BD
+        \u03AD\u03C1\u03B3\u03BF\u03C5 \u0394\u0395 \u0391\u03BD\u03B1\u03BA\u03C4\u03BF\u03C1\u03AF\u03BF\u03C5
+        (\u0397\u03BB.\u0394\u03B9\u03B1\u03B3\u03C9\u03BD\u03B9\u03C3\u03BC\u03CC\u03C2)
+        \u039A\u0397\u03A5 9718 \u0391\u03CD\u03B3\u03BF\u03C5\u03C3\u03C4\u03BF\u03C2
+        \ 2026\",\"issueDate\":1789862400000,\"organizationId\":\"6017\",\"signerIds\":[\"100047422\"],\"unitIds\":[\"93483\"],\"decisionTypeId\":\"\u0392.2.2\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"org\":{\"afm\":\"099202692\",\"afmType\":\"EL\",\"enterName\":false,\"name\":\"\u0394\u0397\u039C\u039F\u03A3
+        \u0391\u039A\u03A4\u0399\u039F\u03A5 \u0392\u039F\u039D\u0399\u03A4\u03A3\u0391\u03A3\"},\"skipVatReason\":null,\"sponsor\":[{\"sponsorAFMName\":{\"afm\":\"069752410\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"enterName\":false,\"name\":\"\u039C\u03A0\u0391\u039B\u0391\u03A3\u039A\u0391\u03A3,,\u0393\u0395\u03A9\u03A1\u0393\u0399\u039F\u03A3,\u0393\u0395\u03A1\u0391\u03A3\u0399\u039C\u039F\u03A3\"},\"expenseAmount\":{\"amount\":203.62,\"currency\":\"EUR\"}}],\"relatedEkgrisiDapanis\":[],\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A8\u03A6\u0394\u03A3\u03A96\u0396-\u0392\u03A3\u0395\",\"publishTimestamp\":1789876264279,\"submissionTimestamp\":1789876264279,\"versionId\":\"1a7d04df-d52d-4f61-99df-d64de702324e\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A8\u03A6\u0394\u03A3\u03A96\u0396-\u0392\u03A3\u0395\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A8\u03A6\u0394\u03A3\u03A96\u0396-\u0392\u03A3\u0395\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null}],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T06:00:00+03:00)
+        TO DT(2026-09-20T07:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":1,\"total\":1,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:08:59 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '1543'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T07%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T08%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[{\"protocolNumber\":\"1856/2026\",\"subject\":\"\u03A0\u03C1\u03BF\u03BC\u03AE\u03B8\u03B5\u03B9\u03B1
+        \u03BA\u03B1\u03C5\u03C3\u03AF\u03BC\u03C9\u03BD \u03B3\u03B9\u03B1 \u03BA\u03AF\u03BD\u03B7\u03C3\u03B7
+        \u03BF\u03C7\u03B7\u03BC\u03AC\u03C4\u03C9\u03BD \u03BA\u03B1\u03B9 \u03BC\u03B7\u03C7\u03B1\u03BD\u03B7\u03BC\u03AC\u03C4\u03C9\u03BD
+        \u03AD\u03C1\u03B3\u03BF\u03C5 \u0394\u0395 \u0391\u03BD\u03B1\u03BA\u03C4\u03BF\u03C1\u03AF\u03BF\u03C5
+        (\u0397\u03BB.\u0394\u03B9\u03B1\u03B3\u03C9\u03BD\u03B9\u03C3\u03BC\u03CC\u03C2)
+        \u039A\u0397\u03A5 5031 \u0391\u03CD\u03B3\u03BF\u03C5\u03C3\u03C4\u03BF\u03C2
+        \ 2026\",\"issueDate\":1789862400000,\"organizationId\":\"6017\",\"signerIds\":[\"100047422\"],\"unitIds\":[\"93483\"],\"decisionTypeId\":\"\u0392.2.2\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"org\":{\"afm\":\"099202692\",\"afmType\":\"EL\",\"enterName\":false,\"name\":\"\u0394\u0397\u039C\u039F\u03A3
+        \u0391\u039A\u03A4\u0399\u039F\u03A5 \u0392\u039F\u039D\u0399\u03A4\u03A3\u0391\u03A3\"},\"skipVatReason\":null,\"sponsor\":[{\"sponsorAFMName\":{\"afm\":\"069752410\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"enterName\":false,\"name\":\"\u039C\u03A0\u0391\u039B\u0391\u03A3\u039A\u0391\u03A3,,\u0393\u0395\u03A9\u03A1\u0393\u0399\u039F\u03A3,\u0393\u0395\u03A1\u0391\u03A3\u0399\u039C\u039F\u03A3\"},\"expenseAmount\":{\"amount\":259.82,\"currency\":\"EUR\"}}],\"relatedEkgrisiDapanis\":[],\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"9\u03996\u0392\u03A96\u0396-6\u039A\u03A8\",\"publishTimestamp\":1789880379994,\"submissionTimestamp\":1789880379994,\"versionId\":\"f1be1810-e3c9-4604-997d-5bc00c787688\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/9\u03996\u0392\u03A96\u0396-6\u039A\u03A8\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/9\u03996\u0392\u03A96\u0396-6\u039A\u03A8\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null}],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T07:00:00+03:00)
+        TO DT(2026-09-20T08:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":1,\"total\":7,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:08:59 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '1534'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T08%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T09%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[{\"protocolNumber\":\"60901\",\"subject\":\"\u0395\u0393\u039A\u03A1\u0399\u03A3\u0397
+        \u03A5\u03A0\u0395\u03A1\u039A\u0391\u03A4\u0391\u039D\u0391\u039B\u03A9\u03A3\u0397\u03A3
+        \u039C\u0397\u039D\u039F\u03A3 \u0399\u039F\u03A5\u039D\u0399\u039F\u03A5
+        2026 \u03A4\u039F\u03A5 \u0394\u0397\u039C\u039F\u03A5 \u03A7\u0391\u0399\u0394\u0391\u03A1\u0399\u039F\u03A5\",\"issueDate\":1789689600000,\"organizationId\":\"50196\",\"signerIds\":[\"100033380\"],\"unitIds\":[\"76308\"],\"decisionTypeId\":\"2.4.7.1\",\"thematicCategoryIds\":[\"10004\"],\"extraFieldValues\":{\"kanonistikipraxitype\":null,\"kanonistikiPraxiPublishMedium\":null,\"fek\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\",\"co_competent\":null},\"privateData\":true,\"ada\":\"9\u03A937\u039F\u03A11\u039A-1\u03928\",\"publishTimestamp\":1789883998677,\"submissionTimestamp\":1789883998677,\"versionId\":\"aa55ddbf-2dd0-4e69-8fb6-8156a829b375\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/9\u03A937\u039F\u03A11\u039A-1\u03928\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/9\u03A937\u039F\u03A11\u039A-1\u03928\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null}],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T08:00:00+03:00)
+        TO DT(2026-09-20T09:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":1,\"total\":13,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:08:59 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '1163'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T09%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T10%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[{\"protocolNumber\":\"\u0392/2940\",\"subject\":\"\u03A7\u0395
+        \u0392/2940 - 20/09/2026 \u0393\u0395\u039D\u0399\u039A\u0397 \u03A7\u0397\u039C\u0399\u039A\u03A9\u039D
+        \u03A0\u03A1\u039F\u03AA\u039F\u039D\u03A4\u03A9\u039D  \u0391.\u0395.\",\"issueDate\":1789862400000,\"organizationId\":\"99221912\",\"signerIds\":[\"100059144\"],\"unitIds\":[\"100036346\"],\"decisionTypeId\":\"\u0392.2.2\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"org\":{\"afm\":\"998995401\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"name\":\"\u0393\u0395\u039D\u0399\u039A\u039F
+        \u039D\u039F\u03A3\u039F\u039A\u039F\u039C\u0395\u0399\u039F \u039C\u0395\u03A3\u03A3\u0397\u039D\u0399\u0391\u03A3\"},\"skipVatReason\":null,\"sponsor\":[{\"sponsorAFMName\":{\"afm\":\"094133588\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"name\":\"\u0393\u0395\u039D\u0399\u039A\u0397
+        \u03A7\u0397\u039C\u0399\u039A\u03A9\u039D \u03A0\u03A1\u039F\u03AA\u039F\u039D\u03A4\u03A9\u039D
+        \ \u0391.\u0395.\"},\"expenseAmount\":{\"amount\":491.55,\"currency\":\"EUR\"},\"kae\":\"3.2.3.02.03
+        (131101)\"}],\"relatedEkgrisiDapanis\":null,\"relatedDecisions\":null,\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":true,\"ada\":\"\u03A83\u039464690\u0392\u03A6-\u0393\u03915\",\"publishTimestamp\":1789887591728,\"submissionTimestamp\":1789887591728,\"versionId\":\"13729a75-d602-4617-b47c-3ede6842d607\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A83\u039464690\u0392\u03A6-\u0393\u03915\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A83\u039464690\u0392\u03A6-\u0393\u03915\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null}],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T09:00:00+03:00)
+        TO DT(2026-09-20T10:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":1,\"total\":22,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:09:01 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '1449'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T10%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T11%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[{\"protocolNumber\":\"20248\",\"subject\":\"\u03A7\u0395\u03A0
+        1-1199\",\"issueDate\":1789862400000,\"organizationId\":\"99221921\",\"signerIds\":[\"100001124\"],\"unitIds\":[\"72796\"],\"decisionTypeId\":\"\u0392.2.2\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"org\":{\"afm\":\"999227410\",\"afmType\":\"EL\",\"enterName\":false,\"name\":\"\u0393\u0395\u039D\u0399\u039A\u039F
+        \u039D\u039F\u03A3\u039F\u039A\u039F\u039C\u0395\u0399\u039F \u039A\u039F\u039C\u039F\u03A4\u0397\u039D\u0397\u03A3
+        \u03A3\u0399\u03A3\u039C\u0391\u039D\u039F\u0393\u039B\u0395\u0399\u039F\"},\"skipVatReason\":null,\"sponsor\":[{\"sponsorAFMName\":{\"afm\":\"997608794\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"enterName\":false,\"name\":\"SYNERGY
+        HEALTH CARE \u0395\u0399\u03A3\u0391\u0393\u03A9\u0393\u0397 \u0391\u039D\u03A4\u0399\u03A0\u03A1\u039F\u03A3\u03A9\u03A0\u0395\u03A5\u03A3\u0397
+        \u039A\u0391\u0399 \u0395\u039C\u03A0\u039F\u03A1\u0399\u0391 \u0399\u0391\u03A4\u03A1\u0399\u039A\u03A9\u039D
+        \u0395\u0399\u0394\u03A9\u039D \u0391\u039D\u03A9\u039D\u03A5\u039C\u0397
+        \u0395\u03A4\u0391\u0399\u03A1\u0395\u0399\u0391\"},\"expenseAmount\":{\"amount\":843.2,\"currency\":\"EUR\"},\"kae\":\"32302030001001\"}],\"relatedEkgrisiDapanis\":[],\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"6\u0396\u039B04690\u0392\u0391-\u03A6\u03A5\u039C\",\"publishTimestamp\":1789891000453,\"submissionTimestamp\":1789891000453,\"versionId\":\"c0ac658e-3e98-45b9-b5ac-39d1213bd7d6\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/6\u0396\u039B04690\u0392\u0391-\u03A6\u03A5\u039C\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/6\u0396\u039B04690\u0392\u0391-\u03A6\u03A5\u039C\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null}],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T10:00:00+03:00)
+        TO DT(2026-09-20T11:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":1,\"total\":56,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:09:02 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '1505'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T11%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T12%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[{\"protocolNumber\":\"20248\",\"subject\":\"\u03A7\u0395\u03A0
+        1-1202\",\"issueDate\":1789862400000,\"organizationId\":\"99221921\",\"signerIds\":[\"100001124\"],\"unitIds\":[\"72796\"],\"decisionTypeId\":\"\u0392.2.2\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"org\":{\"afm\":\"999227410\",\"afmType\":\"EL\",\"enterName\":false,\"name\":\"\u0393\u0395\u039D\u0399\u039A\u039F
+        \u039D\u039F\u03A3\u039F\u039A\u039F\u039C\u0395\u0399\u039F \u039A\u039F\u039C\u039F\u03A4\u0397\u039D\u0397\u03A3
+        \u03A3\u0399\u03A3\u039C\u0391\u039D\u039F\u0393\u039B\u0395\u0399\u039F\"},\"skipVatReason\":null,\"sponsor\":[{\"sponsorAFMName\":{\"afm\":\"091569759\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"enterName\":false,\"name\":\"\u0391\u03A6\u039F\u0399
+        \u0391 \u03A3\u0395\u039B\u0399\u0394\u0397 \u0391\u039D\u03A9\u039D\u03A5\u039C\u0397
+        \u0395\u03A4\u0391\u0399\u03A1\u0399\u0391 \u0395\u03A0\u0399\u03A3\u03A4\u0397\u039C\u039F\u039D\u0399\u039A\u039F\u03A5
+        \u0395\u039E\u039F\u03A0\u039B\u0399\u03A3\u039C\u039F\u03A5\"},\"expenseAmount\":{\"amount\":2386.63,\"currency\":\"EUR\"},\"kae\":\"24203040001001\"}],\"relatedEkgrisiDapanis\":[],\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A1\u03931\u03924690\u0392\u0391-\u03A3\u039D\u03A4\",\"publishTimestamp\":1789894695612,\"submissionTimestamp\":1789894695612,\"versionId\":\"67e2e819-b365-4baf-8ef3-a4702d8aa614\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A1\u03931\u03924690\u0392\u0391-\u03A3\u039D\u03A4\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A1\u03931\u03924690\u0392\u0391-\u03A3\u039D\u03A4\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null}],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T11:00:00+03:00)
+        TO DT(2026-09-20T12:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":1,\"total\":34,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:09:02 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '1465'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T12%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T13%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[{\"protocolNumber\":\"\u0392/2958\",\"subject\":\"\u03A7\u0395
+        \u0392/2958 - 20/09/2026 CPI AE\",\"issueDate\":1789862400000,\"organizationId\":\"99221912\",\"signerIds\":[\"100059144\"],\"unitIds\":[\"100036346\"],\"decisionTypeId\":\"\u0392.2.2\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"org\":{\"afm\":\"998995401\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"name\":\"\u0393\u0395\u039D\u0399\u039A\u039F
+        \u039D\u039F\u03A3\u039F\u039A\u039F\u039C\u0395\u0399\u039F \u039C\u0395\u03A3\u03A3\u0397\u039D\u0399\u0391\u03A3\"},\"skipVatReason\":null,\"sponsor\":[{\"sponsorAFMName\":{\"afm\":\"094432029\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"name\":\"CPI
+        AE\"},\"expenseAmount\":{\"amount\":232.45,\"currency\":\"EUR\"},\"kae\":\"3.2.3.09.89.008
+        (128101)\"}],\"relatedEkgrisiDapanis\":null,\"relatedDecisions\":null,\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":true,\"ada\":\"9\u0397\u039D64690\u0392\u03A6-9\u03A94\",\"publishTimestamp\":1789898241871,\"submissionTimestamp\":1789898241871,\"versionId\":\"fdee0d64-0ee0-40d2-89bb-d43ce7396045\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/9\u0397\u039D64690\u0392\u03A6-9\u03A94\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/9\u0397\u039D64690\u0392\u03A6-9\u03A94\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null}],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T12:00:00+03:00)
+        TO DT(2026-09-20T13:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":1,\"total\":33,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:09:03 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '1354'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T13%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T14%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[{\"protocolNumber\":\"7954/ 26/2100236\",\"subject\":\"\u03A0\u03C1\u03BF\u03C3\u03C9\u03C1\u03B9\u03BD\u03AD\u03C2
+        \u03BA\u03C5\u03BA\u03BB\u03BF\u03C6\u03BF\u03C1\u03B9\u03B1\u03BA\u03AD\u03C2
+        \u03C1\u03C5\u03B8\u03BC\u03AF\u03C3\u03B5\u03B9\u03C2.\",\"issueDate\":1789862400000,\"organizationId\":\"100054489\",\"signerIds\":[\"100072702\"],\"unitIds\":[\"100001795\"],\"decisionTypeId\":\"\u0391.2\",\"thematicCategoryIds\":[\"48\"],\"extraFieldValues\":{\"fek\":{},\"kanonistikipraxiaa\":null,\"kanonistikipraxitype\":null,\"co_competent\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"9\u0394\u0395\u039246\u039C\u03A4\u039B\u0392-\u039C\u03A73\",\"publishTimestamp\":1789901949336,\"submissionTimestamp\":1789901949336,\"versionId\":\"92b5c49e-4f4a-4ed1-bc0a-fb5e779f48b7\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/9\u0394\u0395\u039246\u039C\u03A4\u039B\u0392-\u039C\u03A73\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/9\u0394\u0395\u039246\u039C\u03A4\u039B\u0392-\u039C\u03A73\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null}],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T13:00:00+03:00)
+        TO DT(2026-09-20T14:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":1,\"total\":26,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:09:04 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '1136'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T14%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T15%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[{\"protocolNumber\":\"\u0391\u0394\u0391  669/26\",\"subject\":\"\u0391\u03A0\u039F\u03A6\u0391\u03A3\u0397
+        \u0391\u039D\u0391\u039B\u0397\u03A8\u0397\u03A3 \u0394\u0391\u03A0\u0391\u039D\u0397\u03A3
+        00669/2026 \u0393\u0399\u0391 \u039A\u0391\u03A4\u0391\u03A3\u039A\u0395\u03A5\u0397
+        \u0396\u0399\u039C\u03A0\u03A9 \u03A3\u03A0\u0391\u03A3\u03A4\u039F \u039C\u0395\u03A4\u0391
+        \u03A5\u039B\u0399\u039A\u03A9\u039D.\",\"issueDate\":1787011200000,\"organizationId\":\"52414\",\"signerIds\":[\"116885\"],\"unitIds\":[\"100019368\"],\"decisionTypeId\":\"\u0392.1.3\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"financialYear\":2026,\"budgettype\":\"\u03A4\u03B1\u03BA\u03C4\u03B9\u03BA\u03CC\u03C2
+        \u03A0\u03C1\u03BF\u03CB\u03C0\u03BF\u03BB\u03BF\u03B3\u03B9\u03C3\u03BC\u03CC\u03C2\",\"entryNumber\":null,\"partialead\":false,\"recalledExpenseDecision\":false,\"amountWithVAT\":{\"amount\":793.6,\"currency\":\"EUR\"},\"amountWithKae\":[],\"relatedPartialADA\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"91\u039C\u0399\u039F\u039B\u039B\u0398-\u03A8\u03A13\",\"publishTimestamp\":1789905318740,\"submissionTimestamp\":1789905318740,\"versionId\":\"8d05feaa-881c-4e62-b18b-93dcce8a1b74\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/91\u039C\u0399\u039F\u039B\u039B\u0398-\u03A8\u03A13\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/91\u039C\u0399\u039F\u039B\u039B\u0398-\u03A8\u03A13\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null}],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T14:00:00+03:00)
+        TO DT(2026-09-20T15:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":1,\"total\":20,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:09:05 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '1346'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T15%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T16%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[{\"protocolNumber\":\"\u039C-51\",\"subject\":\"\u03A7\u03C1\u03B7\u03BC\u03B1\u03C4\u03B9\u03BA\u03CC
+        \u0395\u03BD\u03C4\u03B1\u03BB\u03BC\u03B1 \u03A0\u03BB\u03B7\u03C1\u03C9\u03BC\u03AE\u03C2
+        \u039C-51 \u03B3\u03B9\u03B1 :(1200) \u0395\u039A\u039A\u0391\u0398\u0391\u03A1\u0399\u03A3\u0397
+        \u039C\u0397\u039D\u039F\u03A3 \u0399\u039F\u03A5\u039D\u0399\u039F\u03A5
+        - \u03A5\u03A0\u0397\u03A1\u0395\u03A3\u0399\u0391 \u039A\u0391\u0398\u0391\u03A1\u0399\u039F\u03A4\u0397\u03A4\u0391\u03A3
+        & \u0397\u039B\u0395\u039A\u03A4\u03A1\u039F\u03A6\u03A9\u03A4\u0399\u03A3\u039C\u039F\u03A5\",\"issueDate\":1781827200000,\"organizationId\":\"6321\",\"signerIds\":[\"100074348\"],\"unitIds\":[\"81386\"],\"decisionTypeId\":\"\u0392.2.2\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"org\":{\"afm\":\"090406463\",\"afmType\":\"EL\",\"name\":\"\u0394\u0397\u039C\u039F\u03A3
+        \u0397\u03A1\u03A9\u0399\u039A\u0397\u03A3 \u039D\u0397\u03A3\u039F\u03A5
+        \u03A8\u0391\u03A1\u03A9\u039D\"},\"skipVatReason\":\"SKIP_VAT_REASON_1\",\"sponsor\":null,\"relatedEkgrisiDapanis\":null,\"relatedDecisions\":null,\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A1\u03A1\u03A6\u0394\u03A9\u0397\u03A7-\u039F7\u03A6\",\"publishTimestamp\":1789909044611,\"submissionTimestamp\":1789909044611,\"versionId\":\"06d489ef-8a66-455c-aba7-e29652679751\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A1\u03A1\u03A6\u0394\u03A9\u0397\u03A7-\u039F7\u03A6\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A1\u03A1\u03A6\u0394\u03A9\u0397\u03A7-\u039F7\u03A6\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null}],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T15:00:00+03:00)
+        TO DT(2026-09-20T16:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":1,\"total\":21,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:09:05 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '1334'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T16%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T17%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[{\"protocolNumber\":\"8032/10/56-\u03BA\u03B2\u0384\",\"subject\":\"\u03A3\u03C5\u03BC\u03C6\u03C9\u03BD\u03B7\u03C4\u03B9\u03BA\u03CC
+        \u03C0\u03C1\u03BF\u03BC\u03AE\u03B8\u03B5\u03B9\u03B1\u03C2 \u03B5\u03BA\u03B1\u03C4\u03CC\u03BD
+        \u03B5\u03AF\u03BA\u03BF\u03C3\u03B9 \u03C4\u03B5\u03C3\u03C3\u03AC\u03C1\u03C9\u03BD
+        (124) \u03C7\u03B5\u03B9\u03BC\u03B5\u03C1\u03B9\u03BD\u03CE\u03BD \u03B5\u03BB\u03B1\u03C3\u03C4\u03B9\u03BA\u03CE\u03BD
+        \u03B5\u03C0\u03B9\u03C3\u03CE\u03C4\u03C1\u03C9\u03BD, \u03C0\u03C1\u03BF\u03C2
+        \u03B1\u03C0\u03BF\u03C6\u03C5\u03B3\u03AE \u03B1\u03BA\u03B9\u03BD\u03B7\u03C4\u03BF\u03C0\u03BF\u03AF\u03B7\u03C3\u03B7\u03C2
+        \u03C4\u03BF\u03C5 \u03BC\u03B7\u03C7\u03B1\u03BD\u03BF\u03BA\u03AF\u03BD\u03B7\u03C4\u03BF\u03C5
+        \u03C3\u03C4\u03CC\u03BB\u03BF\u03C5 \u03BA\u03B1\u03B9 \u03C0\u03C1\u03BF\u03C2
+        \u03BA\u03AC\u03BB\u03C5\u03C8\u03B7 \u03C4\u03C9\u03BD \u03B1\u03BD\u03B5\u03BB\u03B1\u03C3\u03C4\u03B9\u03BA\u03CE\u03BD
+        \u03B1\u03BD\u03B1\u03B3\u03BA\u03CE\u03BD \u03C4\u03B7\u03C2 \u0394.\u0391.
+        \u03A6\u039B\u03A9\u03A1\u0399\u039D\u0391\u03A3 \u03B3\u03B9\u03B1 \u03C4\u03BF
+        \u03AD\u03C4\u03BF\u03C2 2026.\",\"issueDate\":1789862400000,\"organizationId\":\"100054489\",\"signerIds\":[\"100102175\"],\"unitIds\":[\"100001772\"],\"decisionTypeId\":\"\u0394.1\",\"thematicCategoryIds\":[\"24\"],\"extraFieldValues\":{\"person\":[{\"afm\":\"802353927\",\"name\":\"\u0394\u039F\u0394\u039F\u03A5\u03A1\u0391\u0393\u0391\u03A3
+        \u0395 \u0395\",\"enterName\":false,\"afmType\":\"EL\"}],\"awardAmount\":{\"amount\":17236.0,\"currency\":\"EUR\"},\"assignmentType\":\"\u03A0\u03C1\u03BF\u03BC\u03AE\u03B8\u03B5\u03B9\u03B5\u03C2\",\"cpv\":[\"34350000-5\"],\"textRelatedADA\":\"968\u039246\u039C\u03A4\u039B\u0392-\u03A9\u039F4\",\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A8\u03937346\u039C\u03A4\u039B\u0392-\u03A6\u03935\",\"publishTimestamp\":1789912718260,\"submissionTimestamp\":1789912718260,\"versionId\":\"666c5fe2-50f6-41aa-89e1-4e023abddb2b\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A8\u03937346\u039C\u03A4\u039B\u0392-\u03A6\u03935\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A8\u03937346\u039C\u03A4\u039B\u0392-\u03A6\u03935\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null}],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T16:00:00+03:00)
+        TO DT(2026-09-20T17:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":1,\"total\":4,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:09:06 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '1619'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T17%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T18%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[{\"protocolNumber\":\"1061\",\"subject\":\"\u0391\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7
+        \u0391\u03BD\u03AC\u03BB\u03B7\u03C8\u03B7\u03C2 \u03A5\u03C0\u03BF\u03C7\u03C1\u03AD\u03C9\u03C3\u03B7\u03C2
+        \u0392-2 \u03B3\u03B9\u03B1 :\u0395\u03C1\u03B3\u03BF\u03B4\u03BF\u03C4\u03B9\u03BA\u03AD\u03C2
+        \u03B5\u03B9\u03C3\u03C6\u03BF\u03C1\u03AD\u03C2 \u03C5\u03C0\u03AD\u03C1
+        e-\u0395\u03A6\u039A\u0391 \u03B5\u03C0\u03AF \u03C4\u03B1\u03BA\u03C4\u03B9\u03BA\u03CE\u03BD
+        \u03B1\u03C0\u03BF\u03B4\u03BF\u03C7\u03CE\u03BD \u03C0\u03C1\u03BF\u03C3\u03C9\u03C0\u03B9\u03BA\u03BF\u03CD
+        \u03BC\u03B5 \u03C3\u03C7\u03AD\u03C3\u03B7 \u03B5\u03C1\u03B3\u03B1\u03C3\u03AF\u03B1\u03C2
+        \u03B9\u03B4\u03B9\u03C9\u03C4\u03B9\u03BA\u03BF\u03CD \u03B4\u03B9\u03BA\u03B1\u03AF\u03BF\u03C5
+        \u03BF\u03C1\u03B9\u03C3\u03BC\u03AD\u03BD\u03BF\u03C5 \u03C7\u03C1\u03CC\u03BD\u03BF\u03C5
+        (\u0399\u0394\u039F\u03A7)\",\"issueDate\":1781827200000,\"organizationId\":\"6321\",\"signerIds\":[\"100074348\",\"111794\"],\"unitIds\":[\"81386\"],\"decisionTypeId\":\"\u0392.1.3\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"financialYear\":2026,\"budgettype\":\"\u03A4\u03B1\u03BA\u03C4\u03B9\u03BA\u03CC\u03C2
+        \u03A0\u03C1\u03BF\u03CB\u03C0\u03BF\u03BB\u03BF\u03B3\u03B9\u03C3\u03BC\u03CC\u03C2\",\"entryNumber\":\"\u0392-2\",\"partialead\":false,\"recalledExpenseDecision\":false,\"amountWithVAT\":{\"amount\":2400.0,\"currency\":\"EUR\"},\"amountWithKae\":[{\"kae\":\"010.2190301.002\",\"amountWithVAT\":2400.0,\"kaeCreditRemainder\":0.0,\"kaeBudgetRemainder\":0.0}],\"relatedPartialADA\":null,\"relatedDecisions\":null,\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A1\u039F\u039C6\u03A9\u0397\u03A7-\u03A6\u0397\u03A6\",\"publishTimestamp\":1789915233064,\"submissionTimestamp\":1789915233064,\"versionId\":\"f53c9497-52c5-4eff-9ede-feb95691b112\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A1\u039F\u039C6\u03A9\u0397\u03A7-\u03A6\u0397\u03A6\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A1\u039F\u039C6\u03A9\u0397\u03A7-\u03A6\u0397\u03A6\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null}],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T17:00:00+03:00)
+        TO DT(2026-09-20T18:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":1,\"total\":4,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:09:07 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '1612'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T18%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T19%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[{\"protocolNumber\":\"194/2026\",\"subject\":\"\u03A7.\u0395
+        194 \u039C\u0399\u03A3\u0398\u039F\u0394\u039F\u03A3\u0399\u0391 \u0395\u0399\u0394.
+        \u03A3\u03A5\u039C\u0392\u039F\u03A5\u039B\u039F\u0399 \u0391'15\u039D\u0398\u0397\u039C\u0395\u03A1\u039F
+        \u039F\u039A\u03A4\u03A9\u0392\u03A1\u0399\u039F\u03A3 2026\",\"issueDate\":1789689600000,\"organizationId\":\"100053939\",\"signerIds\":[\"100055749\"],\"unitIds\":[\"100055750\"],\"decisionTypeId\":\"\u0392.2.2\",\"thematicCategoryIds\":[\"44\"],\"extraFieldValues\":{\"org\":{\"afm\":\"997098126\",\"afmType\":\"EL\",\"enterName\":false,\"name\":\"\u03A6\u039F\u03A1\u0395\u0391\u03A3
+        \u0394\u0399\u0391\u03A7\u0395\u0399\u03A1\u0399\u03A3\u0397\u03A3 \u039A\u039F\u0399\u039D\u039F\u03A7\u03A1\u0397\u03A3\u03A4\u03A9\u039D
+        \u0395\u039D\u03A4\u039F\u03A3 \u03A4\u039F\u03A5 \u039C\u0397\u03A4\u03A1\u039F\u03A0\u039F\u039B\u0399\u03A4\u0399\u039A\u039F\u03A5
+        \u03A0\u039F\u039B\u039F\u03A5 \u0395\u039B\u039B\u0397\u039D\u0399\u039A\u039F\u03A5
+        \u0391\u0393\u0399\u039F\u03A5 \u039A\u039F\u03A3\u039C\u0391\"},\"skipVatReason\":\"SKIP_VAT_REASON_1\",\"sponsor\":[],\"relatedEkgrisiDapanis\":[],\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A1\u03A9\u03A7\u039646\u039C\u03A55\u03A7-94\u039D\",\"publishTimestamp\":1789919900167,\"submissionTimestamp\":1789919900167,\"versionId\":\"3c0d2489-c1ac-45e9-8d1d-33041cd79d35\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A1\u03A9\u03A7\u039646\u039C\u03A55\u03A7-94\u039D\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A1\u03A9\u03A7\u039646\u039C\u03A55\u03A7-94\u039D\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null}],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T18:00:00+03:00)
+        TO DT(2026-09-20T19:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":1,\"total\":6,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:09:07 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '1381'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T19%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T20%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[{\"protocolNumber\":\"8007/6/7\",\"subject\":\"\u03A4\u03C1\u03BF\u03C6\u03BF\u03B4\u03BF\u03C3\u03AF\u03B1
+        \u0391\u03BB\u03BB\u03BF\u03B4\u03B1\u03C0\u03CE\u03BD \u03BA\u03C1\u03B1\u03C4\u03BF\u03C5\u03BC\u03AD\u03BD\u03C9\u03BD
+        \u03BC\u03B7\u03BD\u03CC\u03C2 \u0399\u039F\u03A5\u039B\u0399\u039F\u03A5
+        2026 \u03C4\u03B7\u03C2 \u0394/\u03BD\u03C3\u03B7\u03C2 \u0391\u03C3\u03C4\u03C5\u03BD\u03BF\u03BC\u03AF\u03B1\u03C2
+        \u03A0\u03B5\u03B9\u03C1\u03B1\u03B9\u03AC .\",\"issueDate\":1789776000000,\"organizationId\":\"100054489\",\"signerIds\":[\"100080113\"],\"unitIds\":[\"70911\"],\"decisionTypeId\":\"\u0392.2.1\",\"thematicCategoryIds\":[\"24\"],\"extraFieldValues\":{\"org\":{\"afm\":\"090169846\",\"afmType\":\"EL\",\"enterName\":false,\"name\":\"\u03A5\u03A0\u039F\u03A5\u03A1\u0393\u0395\u0399\u039F
+        \u0394\u0397\u039C\u039F\u03A3\u0399\u0391\u03A3 \u03A4\u0391\u039E\u0397\u03A3
+        \u039A\u0391\u0399  \u03A0\u03A1\u039F\u03A3\u03A4\u0391\u03A3\u0399\u0391\u03A3
+        \u03A4\u039F\u03A5 \u03A0\u039F\u039B\u0399\u03A4\u0397\"},\"sponsor\":[{\"sponsorAFMName\":{\"afm\":\"090169846\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"enterName\":false,\"name\":\"\u03A5\u03A0\u039F\u03A5\u03A1\u0393\u0395\u0399\u039F
+        \u0394\u0397\u039C\u039F\u03A3\u0399\u0391\u03A3 \u03A4\u0391\u039E\u0397\u03A3
+        \u039A\u0391\u0399  \u03A0\u03A1\u039F\u03A3\u03A4\u0391\u03A3\u0399\u0391\u03A3
+        \u03A4\u039F\u03A5 \u03A0\u039F\u039B\u0399\u03A4\u0397\"},\"expenseAmount\":{\"amount\":2019.28,\"currency\":\"EUR\"},\"cpv\":\"55520000-1\",\"kae\":\"2250989001\"}],\"relatedAnalipsiYpoxreosis\":[],\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u0395\u039F\u0398646\u039C\u03A4\u039B\u0392-9\u03A87\",\"publishTimestamp\":1789923334693,\"submissionTimestamp\":1789923334693,\"versionId\":\"0e4b42f2-83ec-4d09-9151-9295d67591d0\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u0395\u039F\u0398646\u039C\u03A4\u039B\u0392-9\u03A87\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u0395\u039F\u0398646\u039C\u03A4\u039B\u0392-9\u03A87\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null}],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T19:00:00+03:00)
+        TO DT(2026-09-20T20:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":1,\"total\":2,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:09:07 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '1614'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T20%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T21%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[{\"protocolNumber\":\"8\",\"subject\":\"\u0394\u0399\u0391\u0393\u03A9\u039D\u0399\u03A3\u039C\u039F\u0399
+        - \u03A3\u03A5\u039C\u0392\u0391\u03A3\u0395\u0399\u03A3\",\"issueDate\":1789862400000,\"organizationId\":\"6\",\"signerIds\":[\"100105627\"],\"unitIds\":[\"100061210\"],\"decisionTypeId\":\"\u0393.3.4\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"contractType\":\"\u03A3\u03CD\u03BC\u03B2\u03B1\u03C3\u03B7
+        \u0388\u03C1\u03B3\u03BF\u03C5\",\"numberOfPeople\":1,\"financedProject\":false,\"person\":[{\"afm\":\"059998831\",\"name\":\"\u039A\u039F\u039D\u0399\u0394\u0391\u03A1\u0397\u03A3,,\u0399\u03A9\u0391\u039D\u039D\u0397\u03A3,\u039A\u03A9\u039D\u03A3\u03A4\u0391\u039D\u03A4\u0399\u039D\u039F\u03A3\",\"enterName\":false,\"afmType\":\"EL\"}],\"contractAmount\":{\"amount\":322.58,\"currency\":\"EUR\"},\"duration\":\"60\",\"relatedDecisions\":[{\"relatedDecisionsADA\":\"9\u039F\u03A4\u039F6-\u0399\u0394\u039A\"}],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"9\u039A\u03A986-\u0394\u0397\u03A4\",\"publishTimestamp\":1789926895171,\"submissionTimestamp\":1789926895171,\"versionId\":\"f13a9362-a300-40b3-a43d-0e1774219d5f\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/9\u039A\u03A986-\u0394\u0397\u03A4\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/9\u039A\u03A986-\u0394\u0397\u03A4\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null}],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T20:00:00+03:00)
+        TO DT(2026-09-20T21:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":1,\"total\":14,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:09:08 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '1309'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T21%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T22%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[{\"protocolNumber\":\"824/2026\",\"subject\":\"\u0388\u03B3\u03BA\u03C1\u03B9\u03C3\u03B7
+        \u03C4\u03C9\u03BD \u03C4\u03B5\u03C7\u03BD\u03B9\u03BA\u03CE\u03BD \u03C0\u03C1\u03BF\u03B4\u03B9\u03B1\u03B3\u03C1\u03B1\u03C6\u03CE\u03BD
+        \u03C4\u03B7\u03C2 \u03C5\u03C0\u2019 \u03B1\u03C1\u03B9\u03B8\u03BC. 09/2026\\n\u039C\u03B5\u03BB\u03AD\u03C4\u03B7\u03C2
+        \u03C4\u03BF\u03C5 \u0394\u03AE\u03BC\u03BF\u03C5 \u0395\u03BB\u03B1\u03C6\u03BF\u03BD\u03AE\u03C3\u03BF\u03C5
+        \u03BC\u03B5 \u03C4\u03AF\u03C4\u03BB\u03BF: \xAB\u03A0\u0391\u03A1\u039F\u03A7\u0397\u03A3
+        \u03A5\u03A0\u0397\u03A1\u0395\u03A3\u0399\u03A9\u039D\\n\u0394\u0399\u039F\u03A1\u0393\u0391\u039D\u03A9\u03A3\u0397\u03A3
+        \u039A\u0391\u0399 \u03A5\u039B\u039F\u03A0\u039F\u0399\u0397\u03A3\u0397\u03A3
+        \u0395\u039D\u039F\u03A3 \u03A4\u0391\u039E\u0399\u0394\u0399\u039F\u03A5
+        \u0395\u039E\u039F\u0399\u039A\u0395\u0399\u03A9\u03A3\u0397\u03A3, \u0393\u0399\u0391
+        \u03A4\u0397\u039D\\n\u03A4\u039F\u03A5\u03A1\u0399\u03A3\u03A4\u0399\u039A\u0397
+        \u03A0\u03A1\u039F\u0392\u039F\u039B\u0397 \u03A4\u039F\u03A5 \u0394\u0397\u039C\u039F\u03A5
+        \u0395\u039B\u0391\u03A6\u039F\u039D\u0397\u03A3\u039F\u03A5\",\"issueDate\":1789603200000,\"organizationId\":\"6088\",\"signerIds\":[\"100084718\"],\"unitIds\":[\"81992\"],\"decisionTypeId\":\"\u0392.2.1\",\"thematicCategoryIds\":[\"16\"],\"extraFieldValues\":{\"org\":{\"afm\":\"099176123\",\"afmType\":\"EL\",\"enterName\":false,\"name\":\"\u0394\u0397\u039C\u039F\u03A3
+        \u0395\u039B\u0391\u03A6\u039F\u039D\u0397\u03A3\u039F\u03A5\"},\"sponsor\":[{\"sponsorAFMName\":{},\"expenseAmount\":{\"amount\":18600.0,\"currency\":\"EUR\"}}],\"relatedAnalipsiYpoxreosis\":[],\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"93\u039A\u03A4\u03A9\u03A14-0\u03A30\",\"publishTimestamp\":1789633173530,\"submissionTimestamp\":1789930750305,\"versionId\":\"2285dad7-f185-4956-a4ef-138a8a04a983\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/93\u039A\u03A4\u03A9\u03A14-0\u03A30\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/93\u039A\u03A4\u03A9\u03A14-0\u03A30\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":\"001256da-f177-457c-a816-66c4c867a8c7\"}],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T21:00:00+03:00)
+        TO DT(2026-09-20T22:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":1,\"total\":18,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:09:09 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '1599'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T22%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T23%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[{\"protocolNumber\":\"7673\",\"subject\":\"\u0395\u039E\u039F\u0394\u0391
+        \u0397\u039B\u0395\u039A\u03A4\u03A1\u0399\u039A\u039F\u03A5 \u03A1\u0395\u03A5\u039C\u0391\u03A4\u039F\u03A3\",\"issueDate\":1789689600000,\"organizationId\":\"99221937\",\"signerIds\":[\"100090292\"],\"unitIds\":[\"73073\"],\"decisionTypeId\":\"\u0392.1.3\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"financialYear\":2026,\"budgettype\":\"\u03A4\u03B1\u03BA\u03C4\u03B9\u03BA\u03CC\u03C2
+        \u03A0\u03C1\u03BF\u03CB\u03C0\u03BF\u03BB\u03BF\u03B3\u03B9\u03C3\u03BC\u03CC\u03C2\",\"entryNumber\":\"571\",\"partialead\":true,\"recalledExpenseDecision\":false,\"amountWithVAT\":{\"amount\":150000.0,\"currency\":\"EUR\"},\"amountWithKae\":[],\"relatedPartialADA\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A1\u03A68\u039446907\u03A1-\u03A454\",\"publishTimestamp\":1789933954557,\"submissionTimestamp\":1789933954557,\"versionId\":\"a069c70b-3209-48c1-aaed-655115438fc5\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A1\u03A68\u039446907\u03A1-\u03A454\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A1\u03A68\u039446907\u03A1-\u03A454\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null}],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T22:00:00+03:00)
+        TO DT(2026-09-20T23:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":1,\"total\":11,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:09:09 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '1256'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T23%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-21T00%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=1
+  response:
+    body:
+      string: "{\"decisions\":[{\"protocolNumber\":\"152 / 2026\",\"subject\":\"\u0391\u03BD\u03B1\u03B8\u03B5\u03C3\u03B7
+        \u03C5\u03C0\u03B7\u03C1\u03B5\u03C3\u03B9\u03C9\u03BD \u03C3\u03C5\u03BC\u03B2\u03BF\u03C5\u03BB\u03C9\u03BD\",\"issueDate\":1789862400000,\"organizationId\":\"50545\",\"signerIds\":[\"100087150\"],\"unitIds\":[\"83577\"],\"decisionTypeId\":\"\u0394.1\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"person\":[],\"awardAmount\":{\"amount\":null,\"currency\":\"EUR\"},\"assignmentType\":\"\u03A5\u03C0\u03B7\u03C1\u03B5\u03C3\u03AF\u03B5\u03C2\",\"cpv\":[],\"textRelatedADA\":null,\"relatedDecisions\":null,\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"6\u0394\u03A4\u0395\u039F\u03A1\u0394\u03A5-\u0392\u039C3\",\"publishTimestamp\":1789937632635,\"submissionTimestamp\":1789937632635,\"versionId\":\"e31d202d-8e04-47c4-bf4e-4837528d49f7\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/6\u0394\u03A4\u0395\u039F\u03A1\u0394\u03A5-\u0392\u039C3\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/6\u0394\u03A4\u0395\u039F\u03A1\u0394\u03A5-\u0392\u039C3\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null}],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T23:00:00+03:00)
+        TO DT(2026-09-21T00:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":1,\"actualSize\":1,\"total\":8,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:09:09 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '1147'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T10%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T11%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=0&size=50
+  response:
+    body:
+      string: "{\"decisions\":[{\"protocolNumber\":\"20248\",\"subject\":\"\u03A7\u0395\u03A0
+        1-1199\",\"issueDate\":1789862400000,\"organizationId\":\"99221921\",\"signerIds\":[\"100001124\"],\"unitIds\":[\"72796\"],\"decisionTypeId\":\"\u0392.2.2\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"org\":{\"afm\":\"999227410\",\"afmType\":\"EL\",\"enterName\":false,\"name\":\"\u0393\u0395\u039D\u0399\u039A\u039F
+        \u039D\u039F\u03A3\u039F\u039A\u039F\u039C\u0395\u0399\u039F \u039A\u039F\u039C\u039F\u03A4\u0397\u039D\u0397\u03A3
+        \u03A3\u0399\u03A3\u039C\u0391\u039D\u039F\u0393\u039B\u0395\u0399\u039F\"},\"skipVatReason\":null,\"sponsor\":[{\"sponsorAFMName\":{\"afm\":\"997608794\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"enterName\":false,\"name\":\"SYNERGY
+        HEALTH CARE \u0395\u0399\u03A3\u0391\u0393\u03A9\u0393\u0397 \u0391\u039D\u03A4\u0399\u03A0\u03A1\u039F\u03A3\u03A9\u03A0\u0395\u03A5\u03A3\u0397
+        \u039A\u0391\u0399 \u0395\u039C\u03A0\u039F\u03A1\u0399\u0391 \u0399\u0391\u03A4\u03A1\u0399\u039A\u03A9\u039D
+        \u0395\u0399\u0394\u03A9\u039D \u0391\u039D\u03A9\u039D\u03A5\u039C\u0397
+        \u0395\u03A4\u0391\u0399\u03A1\u0395\u0399\u0391\"},\"expenseAmount\":{\"amount\":843.2,\"currency\":\"EUR\"},\"kae\":\"32302030001001\"}],\"relatedEkgrisiDapanis\":[],\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"6\u0396\u039B04690\u0392\u0391-\u03A6\u03A5\u039C\",\"publishTimestamp\":1789891000453,\"submissionTimestamp\":1789891000453,\"versionId\":\"c0ac658e-3e98-45b9-b5ac-39d1213bd7d6\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/6\u0396\u039B04690\u0392\u0391-\u03A6\u03A5\u039C\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/6\u0396\u039B04690\u0392\u0391-\u03A6\u03A5\u039C\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"2501/25/371-\u03B1\u0384\",\"subject\":\"\u0391\u03C0\u03B1\u03B3\u03CC\u03C1\u03B5\u03C5\u03C3\u03B7
+        \u03BA\u03C5\u03BA\u03BB\u03BF\u03C6\u03BF\u03C1\u03AF\u03B1\u03C2 - \u03C3\u03C4\u03AC\u03C3\u03B7\u03C2
+        \u03BA\u03B1\u03B9 \u03C3\u03C4\u03AC\u03B8\u03BC\u03B5\u03C5\u03C3\u03B7\u03C2
+        \u03C4\u03C9\u03BD \u03BF\u03C7\u03B7\u03BC\u03AC\u03C4\u03C9\u03BD  \u03CC\u03BB\u03C9\u03BD
+        \u03C4\u03C9\u03BD \u03BA\u03B1\u03C4\u03B7\u03B3\u03BF\u03C1\u03B9\u03CE\u03BD
+        \u03C3\u03C4\u03B7\u03BD \u0394\u03C1\u03AC\u03BC\u03B1, \u03B1\u03C0\u03CC
+        \u03C4\u03B7 \u03B4\u03B9\u03B1\u03C3\u03C4\u03B1\u03CD\u03C1\u03C9\u03C3\u03B7
+        \u03C4\u03B7\u03C2 \u03BF\u03B4\u03BF\u03CD 19\u03B7\u03C2 \u039C\u03B1\u0390\u03BF\u03C5
+        \u03BA\u03B1\u03B9 \u0397\u03C6\u03B1\u03B9\u03C3\u03C4\u03AF\u03C9\u03BD\u03BF\u03C2
+        \ \u03AD\u03C9\u03C2 \u03C4\u03BF  \u03CD\u03C8\u03BF\u03C2 \u03C4\u03B7\u03C2
+        \u03BF\u03B4\u03BF\u03CD 19\u03B7\u03C2 \u039C\u03B1\u0390\u03BF\u03C5 130,
+        \u03B1\u03C0\u03CC \u03C4\u03B7\u03BD \u0394\u03B5\u03C5\u03C4\u03AD\u03C1\u03B1
+        21/09/2026 \u03AD\u03C9\u03C2 \u03BA\u03B1\u03B9 \u03C4\u03B7 \u03A0\u03B1\u03C1\u03B1\u03C3\u03BA\u03B5\u03C5\u03AE
+        \ 25/09/2026 \u03BA\u03B1\u03C4\u03AC \u03C4\u03B9\u03C2 \u03CE\u03C1\u03B5\u03C2
+        07:00\u0384 \u03AD\u03C9\u03C2 15:30\u0384, \u03C0\u03C1\u03BF\u03BA\u03B5\u03B9\u03BC\u03AD\u03BD\u03BF\u03C5
+        \u03C0\u03C1\u03B1\u03B3\u03BC\u03B1\u03C4\u03BF\u03C0\u03BF\u03B9\u03B7\u03B8\u03BF\u03CD\u03BD
+        \u03B5\u03C1\u03B3\u03B1\u03C3\u03AF\u03B5\u03C2 \u03BA\u03B1\u03C4\u03B1\u03C3\u03BA\u03B5\u03C5\u03AE\u03C2
+        \u03BD\u03AD\u03BF\u03C5 \u03B4\u03B9\u03BA\u03C4\u03CD\u03BF\u03C5 \u03CD\u03B4\u03C1\u03B5\u03C5\u03C3\u03B7\u03C2
+        \u03B1\u03C0\u03CC \u03C4\u03B7\u03BD \u0394.\u0395.\u03A5.\u0391.\u0394.\",\"issueDate\":1789862400000,\"organizationId\":\"100054489\",\"signerIds\":[\"100102141\"],\"unitIds\":[\"100001758\"],\"decisionTypeId\":\"\u0391.2\",\"thematicCategoryIds\":[\"28\"],\"extraFieldValues\":{\"fek\":{},\"kanonistikipraxiaa\":null,\"kanonistikipraxitype\":null,\"co_competent\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"9\u03A8\u0399\u039D46\u039C\u03A4\u039B\u0392-\u0393\u03A49\",\"publishTimestamp\":1789890958309,\"submissionTimestamp\":1789890958309,\"versionId\":\"708eab93-7b90-4c6c-a876-f6c2559ce63a\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/9\u03A8\u0399\u039D46\u039C\u03A4\u039B\u0392-\u0393\u03A49\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/9\u03A8\u0399\u039D46\u039C\u03A4\u039B\u0392-\u0393\u03A49\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"2262/2026\",\"subject\":\"\u0395\u03BA\u03C4\u03AD\u03BB\u03B5\u03C3\u03B7
+        \u03A4\u03B1\u03C7\u03C5\u03B4\u03C1\u03BF\u03BC\u03B9\u03BA\u03AD\u03C2 \u03A5\u03C0\u03B7\u03C1\u03B5\u03C3\u03AF\u03B5\u03C2\",\"issueDate\":1789344000000,\"organizationId\":\"52893\",\"signerIds\":[\"118252\"],\"unitIds\":[\"100000239\"],\"decisionTypeId\":\"\u0394.1\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"person\":[{\"afm\":\"094026421\",\"name\":\"\u0395\u039B\u039B\u0397\u039D\u0399\u039A\u0391
+        \u03A4\u0391\u03A7\u03A5\u0394\u03A1\u039F\u039C\u0395\u0399\u0391\",\"enterName\":false,\"afmType\":\"EL\"}],\"awardAmount\":{\"amount\":15.4,\"currency\":\"EUR\"},\"assignmentType\":\"\u03A5\u03C0\u03B7\u03C1\u03B5\u03C3\u03AF\u03B5\u03C2\",\"cpv\":[\"64110000-0\"],\"textRelatedADA\":\"\u03A8\u03A9\u03A3\u0397\u039F\u039B23-\u03978\u039B\",\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A1\u03A8\u0396\u0397\u039F\u039B23-\u03A3\u03A9\u03A5\",\"publishTimestamp\":1789890947979,\"submissionTimestamp\":1789890947979,\"versionId\":\"6197a450-96bc-4844-abaf-b15cd5ce2532\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A1\u03A8\u0396\u0397\u039F\u039B23-\u03A3\u03A9\u03A5\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A1\u03A8\u0396\u0397\u039F\u039B23-\u03A3\u03A9\u03A5\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"8045/22/126319-1\",\"subject\":\"\u0391\u03A0\u039F\u03A6\u0391\u03A3\u0397
+        \u0391\u039D\u0391\u039B\u0397\u03A8\u0397\u03A3 \u03A5\u03A0\u039F\u03A7\u03A1\u0395\u03A9\u03A3\u0397\u03A3
+        (8045/22/126319-1)\",\"issueDate\":1789862400000,\"organizationId\":\"100054489\",\"signerIds\":[\"100098914\"],\"unitIds\":[\"95086\"],\"decisionTypeId\":\"\u0392.1.3\",\"thematicCategoryIds\":[\"24\"],\"extraFieldValues\":{\"financialYear\":2026,\"budgettype\":\"\u03A4\u03B1\u03BA\u03C4\u03B9\u03BA\u03CC\u03C2
+        \u03A0\u03C1\u03BF\u03CB\u03C0\u03BF\u03BB\u03BF\u03B3\u03B9\u03C3\u03BC\u03CC\u03C2\",\"entryNumber\":\"82428\",\"partialead\":true,\"recalledExpenseDecision\":false,\"amountWithVAT\":{\"amount\":225.0,\"currency\":\"EUR\"},\"amountWithKae\":[],\"relatedPartialADA\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A8\u03A8\u03A3\u039346\u039C\u03A4\u039B\u0392-\u039400\",\"publishTimestamp\":1789890862903,\"submissionTimestamp\":1789890862903,\"versionId\":\"c146942c-e495-4d37-a4b0-a66a0a6685c3\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A8\u03A8\u03A3\u039346\u039C\u03A4\u039B\u0392-\u039400\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A8\u03A8\u03A3\u039346\u039C\u03A4\u039B\u0392-\u039400\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"\u0392/2945\",\"subject\":\"\u03A7\u0395
+        \u0392/2945 - 20/09/2026 \u0395\u039D\u0394\u039F\u03A3\u039A\u039F\u03A0\u0399\u039A\u0397
+        \u0391.\u0395.\",\"issueDate\":1789862400000,\"organizationId\":\"99221912\",\"signerIds\":[\"100059144\"],\"unitIds\":[\"100036346\"],\"decisionTypeId\":\"\u0392.2.2\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"org\":{\"afm\":\"998995401\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"name\":\"\u0393\u0395\u039D\u0399\u039A\u039F
+        \u039D\u039F\u03A3\u039F\u039A\u039F\u039C\u0395\u0399\u039F \u039C\u0395\u03A3\u03A3\u0397\u039D\u0399\u0391\u03A3\"},\"skipVatReason\":null,\"sponsor\":[{\"sponsorAFMName\":{\"afm\":\"094504367\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"name\":\"\u0395\u039D\u0394\u039F\u03A3\u039A\u039F\u03A0\u0399\u039A\u0397
+        \u0391.\u0395.\"},\"expenseAmount\":{\"amount\":1860.0,\"currency\":\"EUR\"},\"kae\":\"3.2.3.09.06.001
+        (143901)\"},{\"sponsorAFMName\":{\"afm\":\"094504367\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"name\":\"\u0395\u039D\u0394\u039F\u03A3\u039A\u039F\u03A0\u0399\u039A\u0397
+        \u0391.\u0395.\"},\"expenseAmount\":{\"amount\":190.8,\"currency\":\"EUR\"},\"kae\":\"3.2.3.09.89.013
+        (135101)\"}],\"relatedEkgrisiDapanis\":null,\"relatedDecisions\":null,\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":true,\"ada\":\"\u03A8\u03941\u03A14690\u0392\u03A6-\u0399\u03A1\u03A0\",\"publishTimestamp\":1789890826518,\"submissionTimestamp\":1789890826518,\"versionId\":\"2ad3b056-2aa8-42f7-92ab-edd90428bd4a\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A8\u03941\u03A14690\u0392\u03A6-\u0399\u03A1\u03A0\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A8\u03941\u03A14690\u0392\u03A6-\u0399\u03A1\u03A0\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"3236/2026\",\"subject\":\"\u0391\u0391\u03A5320_2026
+        \u0391\u03A0\u039F\u03A6\u0391\u03A3\u0397 \u0394\u0397\u039C\u0391\u03A1\u03A7\u039F\u03A5
+        588_2026  \u0394\u0399\u0391\u0398\u0395\u03A3\u0397 \u03A0\u0399\u03A3\u03A4\u03A9\u03A3\u0397\u03A3
+        \u0391\u039B\u0395 2420989.020\",\"issueDate\":1789862400000,\"organizationId\":\"6235\",\"signerIds\":[\"100002181\"],\"unitIds\":[\"81513\"],\"decisionTypeId\":\"\u0392.1.3\",\"thematicCategoryIds\":[\"24\"],\"extraFieldValues\":{\"financialYear\":2026,\"budgettype\":\"\u03A4\u03B1\u03BA\u03C4\u03B9\u03BA\u03CC\u03C2
+        \u03A0\u03C1\u03BF\u03CB\u03C0\u03BF\u03BB\u03BF\u03B3\u03B9\u03C3\u03BC\u03CC\u03C2\",\"entryNumber\":\"1\",\"partialead\":false,\"recalledExpenseDecision\":false,\"amountWithVAT\":{\"amount\":13000.0,\"currency\":\"EUR\"},\"amountWithKae\":[],\"relatedPartialADA\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"6\u039D\u039F3\u03A9\u039E\u039E-\u0394\u0391\u03A6\",\"publishTimestamp\":1789890769503,\"submissionTimestamp\":1789890769503,\"versionId\":\"a1159838-81c7-4f66-ace9-fb17ab35c778\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/6\u039D\u039F3\u03A9\u039E\u039E-\u0394\u0391\u03A6\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/6\u039D\u039F3\u03A9\u039E\u039E-\u0394\u0391\u03A6\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"8045/22/125093-1\",\"subject\":\"\u0391\u03A0\u039F\u03A6\u0391\u03A3\u0397
+        \u0391\u039D\u0391\u039B\u0397\u03A8\u0397\u03A3 \u03A5\u03A0\u039F\u03A7\u03A1\u0395\u03A9\u03A3\u0397\u03A3\",\"issueDate\":1789862400000,\"organizationId\":\"100054489\",\"signerIds\":[\"100098914\"],\"unitIds\":[\"95086\"],\"decisionTypeId\":\"\u0392.1.3\",\"thematicCategoryIds\":[\"24\"],\"extraFieldValues\":{\"financialYear\":2026,\"budgettype\":\"\u03A4\u03B1\u03BA\u03C4\u03B9\u03BA\u03CC\u03C2
+        \u03A0\u03C1\u03BF\u03CB\u03C0\u03BF\u03BB\u03BF\u03B3\u03B9\u03C3\u03BC\u03CC\u03C2\",\"entryNumber\":\"81196\",\"partialead\":true,\"recalledExpenseDecision\":false,\"amountWithVAT\":{\"amount\":2500.0,\"currency\":\"EUR\"},\"amountWithKae\":[],\"relatedPartialADA\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"9\u0392\u0396\u03A546\u039C\u03A4\u039B\u0392-\u0393\u039E\u039A\",\"publishTimestamp\":1789890590422,\"submissionTimestamp\":1789890590422,\"versionId\":\"f862643a-5a2f-4eae-b39c-7fbd59129a6c\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/9\u0392\u0396\u03A546\u039C\u03A4\u039B\u0392-\u0393\u039E\u039A\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/9\u0392\u0396\u03A546\u039C\u03A4\u039B\u0392-\u0393\u039E\u039A\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"2501/10/851-\u03B1\u0384\",\"subject\":\"\xAB\u039A\u03C5\u03BA\u03BB\u03BF\u03C6\u03BF\u03C1\u03B9\u03B1\u03BA\u03AD\u03C2
+        \u03C1\u03C5\u03B8\u03BC\u03AF\u03C3\u03B5\u03B9\u03C2::UFBB \u03A3\u039A\u0391\u0393\u0399\u039F\u03A0\u039F\u03A5\u039B\u0395\u0399\u039F
+        2 : \xAB\u0395\u03C1\u03B3\u03B1\u03C3\u03AF\u03B5\u03C2 \u03BA\u03B1\u03C4\u03B1\u03C3\u03BA\u03B5\u03C5\u03AE\u03C2
+        \u03B4\u03B9\u03BA\u03C4\u03CD\u03BF\u03C5 \u03BF\u03C0\u03C4\u03B9\u03BA\u03CE\u03BD
+        \u03B9\u03BD\u03CE\u03BD \u03B3\u03B9\u03B1 \u03C4\u03B1 \u03C3\u03C0\u03AF\u03C4\u03B9\u03B1
+        \xBB \u0386\u03B4\u03B5\u03B9\u03B1 \u03C7\u03BF\u03C1\u03AE\u03B3\u03B7\u03C3\u03B7\u03C2
+        \u03B4\u03B9\u03BA\u03B1\u03B9\u03CE\u03BC\u03B1\u03C4\u03BF\u03C2 \u03B4\u03B9\u03AD\u03BB\u03B5\u03C5\u03C3\u03B7\u03C2
+        \u03B1\u03C0\u03CC \u03C4\u03BF\u03BD \u0394\u03AE\u03BC\u03BF \u03A0\u03B1\u03C4\u03C1\u03CE\u03BD
+        (\u0396\u0395\u03A5\u039E\u0399\u03A3)\xBB.\",\"issueDate\":1789862400000,\"organizationId\":\"100054489\",\"signerIds\":[\"100046352\"],\"unitIds\":[\"100001793\"],\"decisionTypeId\":\"\u0391.2\",\"thematicCategoryIds\":[\"48\"],\"extraFieldValues\":{\"fek\":{},\"kanonistikipraxiaa\":null,\"kanonistikipraxitype\":null,\"co_competent\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"6\u0394\u03A7\u039846\u039C\u03A4\u039B\u0392-\u03A501\",\"publishTimestamp\":1789890557730,\"submissionTimestamp\":1789890557730,\"versionId\":\"2473223e-cf75-466a-a81d-fc97a2531b5e\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/6\u0394\u03A7\u039846\u039C\u03A4\u039B\u0392-\u03A501\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/6\u0394\u03A7\u039846\u039C\u03A4\u039B\u0392-\u03A501\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"2260/2026\",\"subject\":\"\u0391\u03BD\u03AC\u03B8\u03B5\u03C3\u03B7
+        \u03A0\u03C1\u03BF\u03BC\u03AE\u03B8\u03B5\u03B9\u03B1\u03C2 \u0391\u03BD\u03C4\u03B1\u03BB\u03BB\u03B1\u03BA\u03C4\u03B9\u03BA\u03CE\u03BD
+        \u2013 \u03A3\u03B5\u03C4 \u03A3\u03C5\u03BC\u03C0\u03BB\u03AD\u03BA\u03C4\u03B7
+        \u03B3\u03B9\u03B1 \u03C4\u03BF \u03CC\u03C7\u03B7\u03BC\u03B1 \u03BC\u03AC\u03C1\u03BA\u03B1\u03C2
+        NISSAN NAVARA \u03BC\u03B5 \u03B1\u03C1\u03B9\u03B8\u03BC\u03CC \u03BA\u03C5\u03BA\u03BB\u03BF\u03C6\u03BF\u03C1\u03AF\u03B1\u03C2
+        \u0395\u03A1\u03A4 2083\",\"issueDate\":1789344000000,\"organizationId\":\"52893\",\"signerIds\":[\"118252\"],\"unitIds\":[\"100000239\"],\"decisionTypeId\":\"\u0394.1\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"person\":[{\"afm\":\"103490299\",\"name\":\"\u039B\u0391\u0399\u039D\u0391\u03A3,,\u03A7\u0391\u03A1\u0391\u039B\u0391\u039C\u03A0\u039F\u03A3,\u03A3\u03A4\u0395\u03A1\u0393\u0399\u039F\u03A3\",\"enterName\":false,\"afmType\":\"EL\"}],\"awardAmount\":{\"amount\":130.0,\"currency\":\"EUR\"},\"assignmentType\":\"\u03A0\u03C1\u03BF\u03BC\u03AE\u03B8\u03B5\u03B9\u03B5\u03C2\",\"cpv\":[\"34330000-9\"],\"textRelatedADA\":\"9\u039C\u0398\u0392\u039F\u039B23-\u03A4\u03A57\",\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"68\u0399\u0396\u039F\u039B23-50\u0393\",\"publishTimestamp\":1789890527921,\"submissionTimestamp\":1789890527921,\"versionId\":\"58a51cc7-c85d-4505-9182-14b7d85b7a1c\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/68\u0399\u0396\u039F\u039B23-50\u0393\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/68\u0399\u0396\u039F\u039B23-50\u0393\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"\u03A3\u03C5\u03BD\u03B5\u03B4\u03C1\u03AF\u03B1\u03C3\u03B7
+        10\u03B7/17-9-2026\",\"subject\":\"\u039B\u03AE\u03C8\u03B7 \u03B1\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7\u03C2
+        \u03C3\u03BA\u03BF\u03C0\u03B9\u03BC\u03CC\u03C4\u03B7\u03C4\u03B1\u03C2,
+        \u03AD\u03B3\u03BA\u03C1\u03B9\u03C3\u03B7\u03C2 \u03C4\u03B5\u03C7\u03BD\u03B9\u03BA\u03CE\u03BD
+        \u03C0\u03C1\u03BF\u03B4\u03B9\u03B1\u03B3\u03C1\u03B1\u03C6\u03CE\u03BD \u03AD\u03B3\u03BA\u03C1\u03B9\u03C3\u03B7\u03C2
+        \u03C0\u03AF\u03C3\u03C4\u03C9\u03C3\u03B7\u03C2 \u03BA\u03B1\u03B9 \u03B4\u03B9\u03B1\u03B4\u03B9\u03BA\u03B1\u03C3\u03AF\u03B1
+        \u03B1\u03BD\u03AC\u03B8\u03B5\u03C3\u03B7\u03C2 , \u03B3\u03B9\u03B1 \u03C4\u03B7\u03BD
+        \u03B1\u03BD\u03B1\u03B2\u03AC\u03B8\u03BC\u03B9\u03C3\u03B7 \u03BA\u03B1\u03B9
+        \u03B2\u03B5\u03BB\u03C4\u03AF\u03C9\u03C3\u03B7 \u03C4\u03BF\u03C5 \u03BA\u03AD\u03BD\u03C4\u03C1\u03BF\u03C5
+        \u03B1\u03B5\u03C1\u03AF\u03C9\u03BD  \u03C4\u03BF\u03C5 \u0393\u03B5\u03BD\u03B9\u03BA\u03BF\u03CD
+        \u039D\u03BF\u03C3\u03BF\u03BA\u03BF\u03BC\u03B5\u03AF\u03BF\u03C5, \u03C3\u03C5\u03BD\u03BF\u03BB\u03B9\u03BA\u03AE\u03C2
+        \u03C0\u03C1\u03BF\u03CB\u03C0\u03BF\u03BB\u03BF\u03B3\u03B9\u03B6\u03CC\u03BC\u03B5\u03BD\u03B7\u03C2
+        \u03B4\u03B1\u03C0\u03AC\u03BD\u03B7\u03C2 25.951,46\u20AC \u03C3\u03C5\u03BC\u03C0\u03B5\u03C1\u03B9\u03BB\u03B1\u03BC\u03B2\u03B1\u03BD\u03BF\u03BC\u03AD\u03BD\u03BF\u03C5
+        \u03A6.\u03A0.\u0391. 24% \u03B3\u03B9\u03B1 \u03C4\u03B7\u03BD \u03C0\u03C1\u03BF\u03BC\u03AE\u03B8\u03B5\u03B9\u03B1
+        \u03B1\u03BD\u03C4\u03B1\u03BB\u03BB\u03B1\u03BA\u03C4\u03B9\u03BA\u03CE\u03BD
+        \u03BA\u03B1\u03B9 4.216,00 \u03C3\u03C5\u03BC\u03C0\u03B5\u03C1\u03B9\u03BB\u03B1\u03BC\u03B2\u03B1\u03BD\u03BF\u03BC\u03AD\u03BD\u03BF\u03C5
+        \u03A6\u03A0\u0391 24% \u03B3\u03B9\u03B1 \u03C4\u03B7 \u03C5\u03C0\u03B7\u03C1\u03B5\u03C3\u03AF\u03B1
+        \u03B5\u03B3\u03BA\u03B1\u03C4\u03AC\u03C3\u03C4\u03B1\u03C3\u03B7\u03C2.\",\"issueDate\":1789862400000,\"organizationId\":\"99221925\",\"signerIds\":[\"100099506\"],\"unitIds\":[\"11127\"],\"decisionTypeId\":\"\u0391.2\",\"thematicCategoryIds\":[\"10004\"],\"extraFieldValues\":{\"fek\":{},\"kanonistikipraxiaa\":null,\"kanonistikipraxitype\":\"\u03A0\u03C1\u03AC\u03BE\u03B7
+        \u039F\u03C1\u03B3\u03AC\u03BD\u03BF\u03C5 \u0394\u03B9\u03BF\u03AF\u03BA\u03B7\u03C3\u03B7\u03C2
+        \u039D.\u03A0.\u0394.\u0394.\",\"co_competent\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"9\u03A40\u039A4690\u0392\u03A7-\u03A0\u03918\",\"publishTimestamp\":1789890473417,\"submissionTimestamp\":1789890473417,\"versionId\":\"b1c6b7b1-7c74-4bf7-88e5-b8ab0cde5cb7\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/9\u03A40\u039A4690\u0392\u03A7-\u03A0\u03918\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/9\u03A40\u039A4690\u0392\u03A7-\u03A0\u03918\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"8045/22/125109-1\",\"subject\":\"\u0391\u03A0\u039F\u03A6\u0391\u03A3\u0397
+        \u0391\u039D\u0391\u039B\u0397\u03A8\u0397\u03A3 \u03A5\u03A0\u039F\u03A7\u03A1\u0395\u03A9\u03A3\u0397\u03A3\",\"issueDate\":1789862400000,\"organizationId\":\"100054489\",\"signerIds\":[\"100098914\"],\"unitIds\":[\"95086\"],\"decisionTypeId\":\"\u0392.1.3\",\"thematicCategoryIds\":[\"24\"],\"extraFieldValues\":{\"financialYear\":2026,\"budgettype\":\"\u03A4\u03B1\u03BA\u03C4\u03B9\u03BA\u03CC\u03C2
+        \u03A0\u03C1\u03BF\u03CB\u03C0\u03BF\u03BB\u03BF\u03B3\u03B9\u03C3\u03BC\u03CC\u03C2\",\"entryNumber\":\"81195\",\"partialead\":true,\"recalledExpenseDecision\":false,\"amountWithVAT\":{\"amount\":2000.0,\"currency\":\"EUR\"},\"amountWithKae\":[],\"relatedPartialADA\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A1\u039F3846\u039C\u03A4\u039B\u0392-\u039C4\u0391\",\"publishTimestamp\":1789890308582,\"submissionTimestamp\":1789890308582,\"versionId\":\"4995e1f9-b358-47ee-9191-4304e6d026a2\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A1\u039F3846\u039C\u03A4\u039B\u0392-\u039C4\u0391\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A1\u039F3846\u039C\u03A4\u039B\u0392-\u039C4\u0391\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"192/2026\",\"subject\":\"\u039B\u03AE\u03C8\u03B7
+        \ \u03B1\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7\u03C2  \u03C0\u03B5\u03C1\u03AF
+        \u03B1\u03C0\u03BF\u03B4\u03BF\u03C7\u03AE\u03C2 \u03C4\u03B7\u03C2 \u03B5\u03C0\u03B9\u03C4\u03C1\u03BF\u03C0\u03AE\u03C2
+        \u03C7\u03B1\u03C1\u03B1\u03BA\u03C4\u03B7\u03C1\u03B9\u03C3\u03BC\u03BF\u03CD
+        & \u03C0\u03B1\u03C1\u03B1\u03BB\u03B1\u03B2\u03AE\u03C2 \u03C6\u03C5\u03C3\u03B9\u03BA\u03BF\u03CD
+        \u03B5\u03B4\u03AC\u03C6\u03BF\u03C5\u03C2 \u03C4\u03BF\u03C5 \u03AD\u03C1\u03B3\u03BF\u03C5
+        \xAB\u0391\u03BD\u03AC\u03C0\u03BB\u03B1\u03C3\u03B7 \u03A1\u03AD\u03BC\u03B1\u03C4\u03BF\u03C2
+        \u03A0\u03B1\u03BD\u03B1\u03B3\u03AF\u03C4\u03C3\u03B1\u03C2 \u0394\u0395
+        \u0393\u03AD\u03C1\u03B1\u03BA\u03B1 \u03B3\u03B9\u03B1 \u03C4\u03B7 \u03B4\u03B7\u03BC\u03B9\u03BF\u03C5\u03C1\u03B3\u03AF\u03B1
+        \u03C0\u03AC\u03C1\u03BA\u03BF\u03C5 \u03B1\u03BD\u03B1\u03C8\u03C5\u03C7\u03AE\u03C2.\",\"issueDate\":1789862400000,\"organizationId\":\"6234\",\"signerIds\":[\"100086589\"],\"unitIds\":[\"83227\"],\"decisionTypeId\":\"2.4.7.1\",\"thematicCategoryIds\":[\"10004\"],\"extraFieldValues\":{\"kanonistikipraxitype\":null,\"kanonistikiPraxiPublishMedium\":null,\"fek\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\",\"co_competent\":null},\"privateData\":false,\"ada\":\"916\u039B\u03A9\u039E\u039A-\u0391\u039A\u039C\",\"publishTimestamp\":1789890301950,\"submissionTimestamp\":1789890301950,\"versionId\":\"8556e956-088d-4289-a421-fde8ea64e0a3\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/916\u039B\u03A9\u039E\u039A-\u0391\u039A\u039C\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/916\u039B\u03A9\u039E\u039A-\u0391\u039A\u039C\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"2920\",\"subject\":\"(\u0391\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7
+        \u0391\u03C0\u03B5\u03C5\u03B8\u03B5\u03AF\u03B1\u03C2 \u0391\u03BD\u03AC\u03B8\u03B5\u03C3\u03B7\u03C2
+        \u03C4\u03B7\u03C2 \u03A5\u03C0\u0384 \u0391\u03C1\u03B9\u03B8\u03BC. 34/2026
+        \u03A0\u03A5\u03A0)\",\"issueDate\":1789689600000,\"organizationId\":\"6\",\"signerIds\":[\"100104247\"],\"unitIds\":[\"100062573\"],\"decisionTypeId\":\"\u0394.1\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"person\":[],\"awardAmount\":{\"amount\":12383.6,\"currency\":\"EUR\"},\"assignmentType\":\"\u03A0\u03C1\u03BF\u03BC\u03AE\u03B8\u03B5\u03B9\u03B5\u03C2\",\"cpv\":[\"32235000-9\"],\"textRelatedADA\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A8\u039C156-\u039F9\u03A7\",\"publishTimestamp\":1789890244408,\"submissionTimestamp\":1789890244408,\"versionId\":\"691c0f92-9f35-46a9-86b1-578c5dd0d903\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A8\u039C156-\u039F9\u03A7\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A8\u039C156-\u039F9\u03A7\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"\u0392/2944\",\"subject\":\"\u03A7\u0395
+        \u0392/2944 - 20/09/2026 \u0394\u039F\u03A5\u03A1\u039C\u039F\u03A5\u03A3\u039F\u0393\u039B\u039F\u03A5
+        \u0391. \u0395. \u0392. \u0395.(DUCASCO)\",\"issueDate\":1789862400000,\"organizationId\":\"99221912\",\"signerIds\":[\"100059144\"],\"unitIds\":[\"100036346\"],\"decisionTypeId\":\"\u0392.2.2\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"org\":{\"afm\":\"998995401\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"name\":\"\u0393\u0395\u039D\u0399\u039A\u039F
+        \u039D\u039F\u03A3\u039F\u039A\u039F\u039C\u0395\u0399\u039F \u039C\u0395\u03A3\u03A3\u0397\u039D\u0399\u0391\u03A3\"},\"skipVatReason\":null,\"sponsor\":[{\"sponsorAFMName\":{\"afm\":\"999640490\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"name\":\"\u0394\u039F\u03A5\u03A1\u039C\u039F\u03A5\u03A3\u039F\u0393\u039B\u039F\u03A5
+        \u0391. \u0395. \u0392. \u0395.(DUCASCO)\"},\"expenseAmount\":{\"amount\":1225.9,\"currency\":\"EUR\"},\"kae\":\"3.2.3.02.03
+        (131101)\"}],\"relatedEkgrisiDapanis\":null,\"relatedDecisions\":null,\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":true,\"ada\":\"\u03A81\u039C\u03954690\u0392\u03A6-\u039C7\u039A\",\"publishTimestamp\":1789890089013,\"submissionTimestamp\":1789890089013,\"versionId\":\"9a84ddf6-7ac2-45e9-94f8-131a01a3e512\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A81\u039C\u03954690\u0392\u03A6-\u039C7\u039A\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A81\u039C\u03954690\u0392\u03A6-\u039C7\u039A\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"\u0394-00-127701-17\",\"subject\":\"\u0391\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7
+        \u03B4\u03B7\u03BC\u03BF\u03C3\u03B9\u03BF\u03C0\u03BF\u03AF\u03B7\u03C3\u03B7\u03C2
+        \u03B5\u03B3\u03BA\u03B5\u03BA\u03C1\u03B9\u03BC\u03AD\u03BD\u03B7\u03C2 \u03B4\u03B1\u03C0\u03AC\u03BD\u03B7\u03C2
+        \u039A\u0394 \u03BC\u03B5 \u03B1\u03C1\u03B9\u03B8\u03BC\u03CC \u03C0\u03C1\u03C9\u03C4\u03BF\u03BA\u03CC\u03BB\u03BB\u03BF\u03C5
+        127701-17 (01/09/2026)\",\"issueDate\":1789862400000,\"organizationId\":\"99220974\",\"signerIds\":[\"100098083\"],\"unitIds\":[\"74837\"],\"decisionTypeId\":\"\u0392.2.2\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"org\":{\"afm\":\"099785242\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"name\":\"\u0395.\u039A.\u0395.\u03A4.\u0391.\"},\"skipVatReason\":null,\"sponsor\":[{\"sponsorAFMName\":{\"afm\":\"094360202\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"name\":\"ACS
+        \u03A4\u0391\u03A7\u03A5\u0394\u03A1\u039F\u039C\u0399\u039A\u0395\u03A3 \u03A5\u03A0\u0397\u03A1\u0395\u03A3\u0399\u0395\u03A3
+        \u0391\u0395\u0395\"},\"expenseAmount\":{\"amount\":20.81,\"currency\":\"EUR\"}}],\"relatedEkgrisiDapanis\":null,\"relatedDecisions\":null,\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"95\u03A46469\u0397\u03A18-\u03A6\u03A6\u039E\",\"publishTimestamp\":1789889976040,\"submissionTimestamp\":1789889976040,\"versionId\":\"d1fbe410-271f-46a4-bd0e-45bc20a39753\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/95\u03A46469\u0397\u03A18-\u03A6\u03A6\u039E\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/95\u03A46469\u0397\u03A18-\u03A6\u03A6\u039E\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"\u03A3\u03C5\u03BD\u03B5\u03B4\u03C1\u03AF\u03B1\u03C3\u03B7
+        10\u03B7/17-9-2026\",\"subject\":\"\u039B\u03AE\u03C8\u03B7 \u03B1\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7\u03C2
+        \u03B3\u03B9\u03B1  \u03C4\u03B7\u03BD \u03AD\u03B3\u03BA\u03C1\u03B9\u03C3\u03B7
+        \u03C3\u03BA\u03BF\u03C0\u03B9\u03BC\u03CC\u03C4\u03B7\u03C4\u03B1\u03C2 ,
+        \u03B4\u03B1\u03C0\u03AC\u03BD\u03B7\u03C2 \u03C0\u03AF\u03C3\u03C4\u03C9\u03C3\u03B7\u03C2,
+        \u03BA\u03B1\u03B9 \u03C4\u03B5\u03C7\u03BD\u03B9\u03BA\u03CE\u03BD \u03C0\u03C1\u03BF\u03B4\u03B9\u03B1\u03B3\u03C1\u03B1\u03C6\u03CE\u03BD
+        \u03BA\u03B1\u03B8\u03CE\u03C2 \u03BA\u03B1\u03B9 \u03B3\u03B9\u03B1 \u03C4\u03B1
+        \u03B1\u03C0\u03BF\u03C4\u03B5\u03BB\u03AD\u03C3\u03BC\u03B1\u03C4\u03B1 \u03C4\u03B7\u03C2
+        \ \u03AD\u03C1\u03B5\u03C5\u03BD\u03B1\u03C2 \u03B1\u03B3\u03BF\u03C1\u03AC\u03C2
+        \u03BA\u03B1\u03B9 \u03C4\u03B7\u03C2 \u03B5\u03C0\u03B9\u03BB\u03BF\u03B3\u03AE\u03C2
+        \u03C0\u03C1\u03BF\u03C3\u03C9\u03C1\u03B9\u03BD\u03BF\u03CD \u03BC\u03B5\u03B9\u03BF\u03B4\u03CC\u03C4\u03B7
+        \u03B3\u03B9\u03B1 \u03C4\u03B7\u03BD \u03C0\u03B1\u03C1\u03BF\u03C7\u03AE
+        \u03A5\u03C0\u03B7\u03C1\u03B5\u03C3\u03B9\u03CE\u03BD \xAB\u03A3\u03A5\u039D\u03A4\u0397\u03A1\u0397\u03A3\u0397
+        \u03A0\u03A1\u0391\u03A3\u0399\u039D\u039F\u03A5 \u03A0\u0395\u03A1\u0399\u0392\u0391\u039B\u039B\u039F\u039D\u03A4\u039F\u03A3
+        \u03A7\u03A9\u03A1\u039F\u03A5\xBB\u03C4\u03B1 \u03BF\u03C5 \u0393.\u039D.\u039B\u0395\u03A5\u039A\u0391\u0394\u0391\u03A3
+        \ \u03BC\u03B5 CPV: 77310000-6 , \u03B4\u03B9\u03AC\u03C1\u03BA\u03B5\u03B9\u03B1\u03C2
+        \u03B4\u03CE\u03B4\u03B5\u03BA\u03B1 (12) \u03BC\u03B7\u03BD\u03CE\u03BD.\",\"issueDate\":1789862400000,\"organizationId\":\"99221925\",\"signerIds\":[\"100099506\"],\"unitIds\":[\"11127\"],\"decisionTypeId\":\"\u0391.2\",\"thematicCategoryIds\":[\"10004\"],\"extraFieldValues\":{\"fek\":{},\"kanonistikipraxiaa\":null,\"kanonistikipraxitype\":\"\u03A0\u03C1\u03AC\u03BE\u03B7
+        \u039F\u03C1\u03B3\u03AC\u03BD\u03BF\u03C5 \u0394\u03B9\u03BF\u03AF\u03BA\u03B7\u03C3\u03B7\u03C2
+        \u039D.\u03A0.\u0394.\u0394.\",\"co_competent\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A8\u039C\u039A\u03954690\u0392\u03A7-\u0394\u0392\u0394\",\"publishTimestamp\":1789889954772,\"submissionTimestamp\":1789889954772,\"versionId\":\"e79b2839-6c02-483c-9507-63fedf775e3c\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A8\u039C\u039A\u03954690\u0392\u03A7-\u0394\u0392\u0394\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A8\u039C\u039A\u03954690\u0392\u03A7-\u0394\u0392\u0394\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"190/2026\",\"subject\":\"\u039B\u03AE\u03C8\u03B7
+        \ \u03B1\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7\u03C2  \u03C0\u03B5\u03C1\u03AF
+        \u03BA\u03B1\u03B8\u03BF\u03C1\u03B9\u03C3\u03BC\u03BF\u03CD \u03BF\u03C1\u03AF\u03C9\u03BD
+        \u03B1\u03C0\u03BF\u03B6\u03B7\u03BC\u03AF\u03C9\u03C3\u03B7\u03C2 \u03C4\u03C9\u03BD
+        \u03A0\u03C1\u03BF\u03AD\u03B4\u03C1\u03C9\u03BD \u03A3\u03C5\u03BC\u03B2\u03BF\u03C5\u03BB\u03AF\u03C9\u03BD
+        \u03C4\u03C9\u03BD \u03B4\u03B7\u03BC\u03BF\u03C4\u03B9\u03BA\u03CE\u03BD
+        \u03BA\u03BF\u03B9\u03BD\u03BF\u03C4\u03AE\u03C4\u03C9\u03BD \u03B3\u03B9\u03B1
+        \u03C4\u03B7 \u03C3\u03C5\u03BC\u03BC\u03B5\u03C4\u03BF\u03C7\u03AE \u03C4\u03BF\u03C5\u03C2
+        \u03C3\u03C4\u03B9\u03C2 \u03C3\u03C5\u03BD\u03B5\u03B4\u03C1\u03B9\u03AC\u03C3\u03B5\u03B9\u03C2
+        \u03B3\u03B9\u03B1 \u03C4\u03BF \u03AD\u03C4\u03BF\u03C2 2026 \u03BC\u03B5\u03C4\u03AC
+        \u03C4\u03B7\u03BD \u03B5\u03C6\u03B1\u03C1\u03BC\u03BF\u03B3\u03AE \u03C4\u03BF\u03C5
+        \u039D5314/2026 \xAB\u039A\u03CE\u03B4\u03B9\u03BA\u03B1 \u03A4\u03BF\u03C0\u03B9\u03BA\u03AE\u03C2
+        \u0391\u03C5\u03C4\u03BF\u03B4\u03B9\u03BF\u03AF\u03BA\u03B7\u03C3\u03B7\u03C2
+        (\u0391\u0384 103)\xBB.\",\"issueDate\":1789862400000,\"organizationId\":\"6234\",\"signerIds\":[\"100086589\"],\"unitIds\":[\"83227\"],\"decisionTypeId\":\"2.4.7.1\",\"thematicCategoryIds\":[\"10004\"],\"extraFieldValues\":{\"kanonistikipraxitype\":null,\"kanonistikiPraxiPublishMedium\":null,\"fek\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\",\"co_competent\":null},\"privateData\":false,\"ada\":\"62\u0394\u039A\u03A9\u039E\u039A-\u039E\u03A3\u039E\",\"publishTimestamp\":1789889935431,\"submissionTimestamp\":1789889935431,\"versionId\":\"f276c131-3563-46df-a6db-1c2805f9bcfa\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/62\u0394\u039A\u03A9\u039E\u039A-\u039E\u03A3\u039E\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/62\u0394\u039A\u03A9\u039E\u039A-\u039E\u03A3\u039E\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"3234/2026\",\"subject\":\"\u0391\u03A0\u039F\u03A6\u0391\u03A3\u0397
+        \u0394\u0397\u039C\u0391\u03A1\u03A7\u039F\u03A5587_2026_\u0395\u0393\u039A\u03A1\u0399\u03A3\u0397_\u03A4\u0395\u03A7\u039D\u0399\u039A\u03A9\u039D
+        \u03A0\u03A1\u039F\u0394\u0399\u0391\u0393\u03A1\u0391\u03A6\u03A9\u039D \u03C0\u03C1\u03BF\u03BC\u03B7\u03B8\u03B5\u03B9\u03B1
+        \u03B7\u03BB\u03B5\u03BA\u03C4\u03C1 \u03C3\u03C5\u03B3\u03BA\u03C1\u03BF\u03C4\u03B7\u03BC\u03B1\u03C4\u03BF\u03C2\",\"issueDate\":1789862400000,\"organizationId\":\"6235\",\"signerIds\":[\"100002181\"],\"unitIds\":[\"81513\"],\"decisionTypeId\":\"\u0392.2.1\",\"thematicCategoryIds\":[\"24\"],\"extraFieldValues\":{\"org\":{\"afm\":\"090114939\",\"afmType\":\"EL\",\"enterName\":false,\"name\":\"\u0394\u0397\u039C\u039F\u03A3
+        \u03A0\u0391\u039E\u03A9\u039D\"},\"sponsor\":[{\"sponsorAFMName\":{},\"expenseAmount\":{\"amount\":13000.0,\"currency\":\"EUR\"}}],\"relatedAnalipsiYpoxreosis\":[],\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A845\u03A8\u03A9\u039E\u039E-\u0394\u03983\",\"publishTimestamp\":1789889850128,\"submissionTimestamp\":1789889850128,\"versionId\":\"2820749c-858c-4b0c-b229-4617edbcbd79\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A845\u03A8\u03A9\u039E\u039E-\u0394\u03983\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A845\u03A8\u03A9\u039E\u039E-\u0394\u03983\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"189/2026\",\"subject\":\"\u039B\u03AE\u03C8\u03B7
+        \ \u03B1\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7\u03C2  \u03C0\u03B5\u03C1\u03AF
+        \u03BA\u03B1\u03B8\u03BF\u03C1\u03B9\u03C3\u03BC\u03BF\u03CD \u03BF\u03C1\u03AF\u03C9\u03BD
+        \u03B1\u03C0\u03BF\u03B6\u03B7\u03BC\u03AF\u03C9\u03C3\u03B7\u03C2 \u03C4\u03C9\u03BD
+        \u03BC\u03B5\u03BB\u03CE\u03BD \u03C4\u03BF\u03C5 \u0394\u03B7\u03BC\u03BF\u03C4\u03B9\u03BA\u03BF\u03CD
+        \u03A3\u03C5\u03BC\u03B2\u03BF\u03C5\u03BB\u03AF\u03BF\u03C5 \u03B3\u03B9\u03B1
+        \u03C4\u03B7 \u03C3\u03C5\u03BC\u03BC\u03B5\u03C4\u03BF\u03C7\u03AE \u03C4\u03BF\u03C5\u03C2
+        \u03C3\u03C4\u03B9\u03C2 \u03C3\u03C5\u03BD\u03B5\u03B4\u03C1\u03B9\u03AC\u03C3\u03B5\u03B9\u03C2
+        \u03B3\u03B9\u03B1 \u03C4\u03BF \u03AD\u03C4\u03BF\u03C2 2026 \u03BC\u03B5\u03C4\u03AC
+        \u03C4\u03B7\u03BD \u03B5\u03C6\u03B1\u03C1\u03BC\u03BF\u03B3\u03AE \u03C4\u03BF\u03C5
+        \u039D5314/2026 \xAB\u039A\u03CE\u03B4\u03B9\u03BA\u03B1 \u03A4\u03BF\u03C0\u03B9\u03BA\u03AE\u03C2
+        \u0391\u03C5\u03C4\u03BF\u03B4\u03B9\u03BF\u03AF\u03BA\u03B7\u03C3\u03B7\u03C2
+        (\u0391\u0384 103)\xBB.\",\"issueDate\":1789862400000,\"organizationId\":\"6234\",\"signerIds\":[\"100086589\"],\"unitIds\":[\"83227\"],\"decisionTypeId\":\"2.4.7.1\",\"thematicCategoryIds\":[\"10004\"],\"extraFieldValues\":{\"kanonistikipraxitype\":null,\"kanonistikiPraxiPublishMedium\":null,\"fek\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\",\"co_competent\":null},\"privateData\":false,\"ada\":\"92\u0399\u039F\u03A9\u039E\u039A-\u039F\u03A9\u0396\",\"publishTimestamp\":1789889832501,\"submissionTimestamp\":1789889832501,\"versionId\":\"8472b5ef-bbaf-4930-85cf-d97cb7aa4688\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/92\u0399\u039F\u03A9\u039E\u039A-\u039F\u03A9\u0396\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/92\u0399\u039F\u03A9\u039E\u039A-\u039F\u03A9\u0396\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"8045/1/593-\u03B3\u0384\",\"subject\":\"\\\"\u03A0\u03B1\u03C1\u03BF\u03C7\u03AE
+        \u03C5\u03C0\u03B7\u03C1\u03B5\u03C3\u03B9\u03CE\u03BD \u03AD\u03BA\u03B4\u03BF\u03C3\u03B7\u03C2
+        \u03C0\u03B9\u03C3\u03C4\u03BF\u03C0\u03BF\u03B9\u03B7\u03C4\u03B9\u03BA\u03BF\u03CD
+        \u03C0\u03B5\u03C1\u03B9\u03BF\u03B4\u03B9\u03BA\u03BF\u03CD \u03B5\u03BB\u03AD\u03B3\u03C7\u03BF\u03C5
+        \u03B4\u03CD\u03BF (02) \u03B1\u03BD\u03B5\u03BB\u03BA\u03C5\u03C3\u03C4\u03AE\u03C1\u03C9\u03BD,
+        \u03C0\u03C1\u03BF\u03C2 \u03BA\u03AC\u03BB\u03C5\u03C8\u03B7 \u03B1\u03BD\u03B1\u03B3\u03BA\u03CE\u03BD
+        \u03C4\u03BF\u03C5 \u0391\u03C3\u03C4\u03C5\u03BD\u03BF\u03BC\u03B9\u03BA\u03BF\u03CD
+        \u039C\u03B5\u03B3\u03AC\u03C1\u03BF\u03C5 \u03C4\u03B7\u03C2 \u0394\u03B9\u03B5\u03CD\u03B8\u03C5\u03BD\u03C3\u03B7\u03C2
+        \u0391\u03C3\u03C4\u03C5\u03BD\u03BF\u03BC\u03AF\u03B1\u03C2 \u039C\u03B1\u03B3\u03BD\u03B7\u03C3\u03AF\u03B1\u03C2,
+        \u03B3\u03B9\u03B1 \u03C4\u03BF \u03AD\u03C4\u03BF\u03C2 2026.\\\"\",\"issueDate\":1789862400000,\"organizationId\":\"100054489\",\"signerIds\":[\"100102012\"],\"unitIds\":[\"100001784\"],\"decisionTypeId\":\"\u0394.2.1\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"cpv\":[\"50750000-7\"],\"contestProgressType\":\"\u0391\u03BD\u03BF\u03B9\u03BA\u03C4\u03CC\u03C2\",\"manifestSelectionCriterion\":\"\u03A7\u03B1\u03BC\u03B7\u03BB\u03CC\u03C4\u03B5\u03C1\u03B7
+        \u03A4\u03B9\u03BC\u03AE\",\"manifestContractType\":\"\u03A5\u03C0\u03B7\u03C1\u03B5\u03C3\u03AF\u03B5\u03C2\",\"orgBudgetCode\":\"\u03A4\u03B1\u03BA\u03C4\u03B9\u03BA\u03CC\u03C2
+        \u03A0\u03C1\u03BF\u03CB\u03C0\u03BF\u03BB\u03BF\u03B3\u03B9\u03C3\u03BC\u03CC\u03C2\",\"estimatedAmount\":{\"amount\":322.58,\"currency\":\"EUR\"},\"textRelatedADA\":\"\u03A8\u0393\u039C\u03A046\u039C\u03A4\u039B\u0392-6\u0398\u0399\",\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A8\u0396\u0391246\u039C\u03A4\u039B\u0392-\u0392\u0398\u0399\",\"publishTimestamp\":1789889826997,\"submissionTimestamp\":1789889826997,\"versionId\":\"1709cc5e-c17e-4391-b0dc-bad8da05df9e\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A8\u0396\u0391246\u039C\u03A4\u039B\u0392-\u0392\u0398\u0399\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A8\u0396\u0391246\u039C\u03A4\u039B\u0392-\u0392\u0398\u0399\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"2455\",\"subject\":\"\u03A0\u03C1\u03BF\u03BC\u03AE\u03B8\u03B5\u03B9\u03B1
+        \u03BA\u03B1\u03B9 \u0395\u03B3\u03BA\u03B1\u03C4\u03AC\u03C3\u03C4\u03B1\u03C3\u03B7
+        \u03A3\u03C5\u03C3\u03C4\u03AE\u03BC\u03B1\u03C4\u03BF\u03C2 \u0395\u03BB\u03AD\u03B3\u03C7\u03BF\u03C5
+        \u03A0\u03C1\u03CC\u03C3\u03B2\u03B1\u03C3\u03B7\u03C2 (Access Control), \u03C3\u03C4\u03B7
+        \u039C\u03B1\u03C1\u03AF\u03BD\u03B1 \u03A4\u03BF\u03CD\u03C1\u03BB\u03BF\u03C5
+        \u039C\u03C5\u03BA\u03CC\u03BD\u03BF\u03C5 \",\"issueDate\":1789603200000,\"organizationId\":\"50261\",\"signerIds\":[\"100087495\"],\"unitIds\":[\"92887\"],\"decisionTypeId\":\"\u0392.1.3\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"financialYear\":2026,\"budgettype\":\"\u03A4\u03B1\u03BA\u03C4\u03B9\u03BA\u03CC\u03C2
+        \u03A0\u03C1\u03BF\u03CB\u03C0\u03BF\u03BB\u03BF\u03B3\u03B9\u03C3\u03BC\u03CC\u03C2\",\"entryNumber\":\"\u0391/220\",\"partialead\":false,\"recalledExpenseDecision\":false,\"amountWithVAT\":{\"amount\":19443.2,\"currency\":\"EUR\"},\"amountWithKae\":[{\"amountWithVAT\":19443.2,\"kae\":\"030.3120302.001\",\"kaeBudgetRemainder\":37200.0,\"kaeCreditRemainder\":9769.09}],\"relatedPartialADA\":null,\"relatedDecisions\":null,\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A8\u03936\u03A0\u039F\u03A10\u03A1-\u03922\u0395\",\"publishTimestamp\":1789889823505,\"submissionTimestamp\":1789889823505,\"versionId\":\"7ec268b6-1cfb-4d0d-be90-9410d2eaf33c\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A8\u03936\u03A0\u039F\u03A10\u03A1-\u03922\u0395\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A8\u03936\u03A0\u039F\u03A10\u03A1-\u03922\u0395\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"20248\",\"subject\":\"\u03A7\u0395\u03A0
+        1-1198\",\"issueDate\":1789862400000,\"organizationId\":\"99221921\",\"signerIds\":[\"100001124\"],\"unitIds\":[\"72796\"],\"decisionTypeId\":\"\u0392.2.2\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"org\":{\"afm\":\"999227410\",\"afmType\":\"EL\",\"enterName\":false,\"name\":\"\u0393\u0395\u039D\u0399\u039A\u039F
+        \u039D\u039F\u03A3\u039F\u039A\u039F\u039C\u0395\u0399\u039F \u039A\u039F\u039C\u039F\u03A4\u0397\u039D\u0397\u03A3
+        \u03A3\u0399\u03A3\u039C\u0391\u039D\u039F\u0393\u039B\u0395\u0399\u039F\"},\"skipVatReason\":null,\"sponsor\":[{\"sponsorAFMName\":{\"afm\":\"997608794\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"enterName\":false,\"name\":\"SYNERGY
+        HEALTH CARE \u0395\u0399\u03A3\u0391\u0393\u03A9\u0393\u0397 \u0391\u039D\u03A4\u0399\u03A0\u03A1\u039F\u03A3\u03A9\u03A0\u0395\u03A5\u03A3\u0397
+        \u039A\u0391\u0399 \u0395\u039C\u03A0\u039F\u03A1\u0399\u0391 \u0399\u0391\u03A4\u03A1\u0399\u039A\u03A9\u039D
+        \u0395\u0399\u0394\u03A9\u039D \u0391\u039D\u03A9\u039D\u03A5\u039C\u0397
+        \u0395\u03A4\u0391\u0399\u03A1\u0395\u0399\u0391\"},\"expenseAmount\":{\"amount\":2858.9,\"currency\":\"EUR\"},\"kae\":\"32302030001001\"}],\"relatedEkgrisiDapanis\":[],\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"9\u039C\u0395\u03A04690\u0392\u0391-6\u0394\u039D\",\"publishTimestamp\":1789889669717,\"submissionTimestamp\":1789889669717,\"versionId\":\"af81957d-768a-4032-a938-6a6a911a1073\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/9\u039C\u0395\u03A04690\u0392\u0391-6\u0394\u039D\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/9\u039C\u0395\u03A04690\u0392\u0391-6\u0394\u039D\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"188/2026\",\"subject\":\"\u039B\u03AE\u03C8\u03B7
+        \ \u03B1\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7\u03C2  \u03C0\u03B5\u03C1\u03AF
+        \u03C0\u03C1\u03BF\u03C3\u03C9\u03C1\u03B9\u03BD\u03AE\u03C2 \u03C0\u03B1\u03C1\u03B1\u03C7\u03CE\u03C1\u03B7\u03C3\u03B7\u03C2
+        \u03C4\u03BC\u03AE\u03BC\u03B1\u03C4\u03BF\u03C2 \u039A\u03A7 \u03C0\u03C1\u03BF\u03C2
+        \u03B5\u03C0\u03AD\u03BA\u03C4\u03B1\u03C3\u03B7 \u03C5\u03C6\u03B9\u03C3\u03C4\u03AC\u03BC\u03B5\u03BD\u03BF\u03C5
+        \u03B5\u03C1\u03B3\u03BF\u03C4\u03B1\u03BE\u03AF\u03BF\u03C5 \u03C4\u03BF\u03C5
+        \u03C5\u03C0\u03BF\u03AD\u03C1\u03B3\u03BF\u03C5 2 \xAB\u0391\u03C1\u03C7\u03B1\u03B9\u03BF\u03BB\u03BF\u03B3\u03B9\u03BA\u03AD\u03C2
+        \u03AD\u03C1\u03B5\u03C5\u03BD\u03B5\u03C2 \u03BA\u03B1\u03B9 \u03B5\u03C1\u03B3\u03B1\u03C3\u03AF\u03B5\u03C2\xBB
+        \u03C3\u03C4\u03BF \u03C0\u03BB\u03B1\u03AF\u03C3\u03B9\u03BF \u03C4\u03BF\u03C5
+        \u03AD\u03C1\u03B3\u03BF\u03C5 \xAB\u039A\u03B1\u03C4\u03B1\u03C3\u03BA\u03B5\u03C5\u03AE
+        \u03B4\u03B9\u03BA\u03C4\u03CD\u03BF\u03C5 \u03B1\u03C0\u03BF\u03C7\u03AD\u03C4\u03B5\u03C5\u03C3\u03B7\u03C2
+        \u03B1\u03BA\u03B1\u03B8\u03AC\u03C1\u03C4\u03C9\u03BD \u0394\u03AE\u03BC\u03BF\u03C5
+        \u03A0\u03B1\u03BB\u03BB\u03AE\u03BD\u03B7\u03C2\xBB, \u03C3\u03C4\u03BF \u039F\u03A4
+        227 \u03C4\u03B7\u03C2 \u03A0\u0395 \xAB\u039C\u03C0\u03B1\u03BB\u03AC\u03BD\u03B1\xBB
+        \u03C3\u03C4\u03B7 \u0394\u0395 \u0393\u03AD\u03C1\u03B1\u03BA\u03B1 \u03C4\u03BF\u03C5
+        \u0394\u03AE\u03BC\u03BF\u03C5 \u03A0\u03B1\u03BB\u03BB\u03AE\u03BD\u03B7\u03C2.\",\"issueDate\":1789862400000,\"organizationId\":\"6234\",\"signerIds\":[\"100086589\"],\"unitIds\":[\"83227\"],\"decisionTypeId\":\"2.4.7.1\",\"thematicCategoryIds\":[\"10004\"],\"extraFieldValues\":{\"kanonistikipraxitype\":null,\"kanonistikiPraxiPublishMedium\":null,\"fek\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\",\"co_competent\":null},\"privateData\":false,\"ada\":\"92\u03A93\u03A9\u039E\u039A-3\u039D\u0396\",\"publishTimestamp\":1789889647502,\"submissionTimestamp\":1789889647502,\"versionId\":\"43500ff4-87ea-459a-8563-3838c4328b09\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/92\u03A93\u03A9\u039E\u039A-3\u039D\u0396\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/92\u03A93\u03A9\u039E\u039A-3\u039D\u0396\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"2235/2026\",\"subject\":\"\u0391\u03BD\u03AC\u03B8\u03B5\u03C3\u03B7
+        \u03A0\u03C1\u03BF\u03BC\u03AE\u03B8\u03B5\u03B9\u03B1\u03C2 \u0391\u03BD\u03C4\u03B1\u03BB\u03BB\u03B1\u03BA\u03C4\u03B9\u03BA\u03CE\u03BD
+        \u2013 \u03A3\u03B5\u03C4 \u03C1\u03BF\u03C5\u03BB\u03B5\u03BC\u03AC\u03BD
+        \u03C4\u03C1\u03BF\u03C7\u03CE\u03BD \u03B3\u03B9\u03B1 \u03C4\u03BF \u03CC\u03C7\u03B7\u03BC\u03B1
+        \u03BC\u03AC\u03C1\u03BA\u03B1\u03C2 NISSAN NAVARA \u03BC\u03B5 \u03B1\u03C1\u03B9\u03B8\u03BC\u03CC
+        \u03BA\u03C5\u03BA\u03BB\u03BF\u03C6\u03BF\u03C1\u03AF\u03B1\u03C2 \u0395\u03A1\u03A4
+        2083\",\"issueDate\":1788998400000,\"organizationId\":\"52893\",\"signerIds\":[\"118252\"],\"unitIds\":[\"100000239\"],\"decisionTypeId\":\"\u0394.1\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"person\":[{\"afm\":\"103490299\",\"name\":\"\u039B\u0391\u0399\u039D\u0391\u03A3,,\u03A7\u0391\u03A1\u0391\u039B\u0391\u039C\u03A0\u039F\u03A3,\u03A3\u03A4\u0395\u03A1\u0393\u0399\u039F\u03A3\",\"enterName\":false,\"afmType\":\"EL\"}],\"awardAmount\":{\"amount\":55.0,\"currency\":\"EUR\"},\"assignmentType\":\"\u03A0\u03C1\u03BF\u03BC\u03AE\u03B8\u03B5\u03B9\u03B5\u03C2\",\"cpv\":[\"34330000-9\"],\"textRelatedADA\":\"9\u039C\u0398\u0392\u039F\u039B23-\u03A4\u03A57\",\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A8\u03A34\u03A6\u039F\u039B23-\u039D\u0397\u0391\",\"publishTimestamp\":1789889595081,\"submissionTimestamp\":1789889595081,\"versionId\":\"f9f71459-0e38-499d-a3d7-3fa28793c628\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A8\u03A34\u03A6\u039F\u039B23-\u039D\u0397\u0391\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A8\u03A34\u03A6\u039F\u039B23-\u039D\u0397\u0391\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"187/2026\",\"subject\":\"\u039B\u03AE\u03C8\u03B7
+        \ \u03B1\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7\u03C2  \u03C0\u03B5\u03C1\u03AF
+        \u03B5\u03C0\u03B9\u03BA\u03B1\u03B9\u03C1\u03BF\u03C0\u03BF\u03AF\u03B7\u03C3\u03B7\u03C2
+        \u03C4\u03B7\u03C2 \u03C5\u03C0. \u03B1\u03C1\u03B9\u03B8\u03BC. 247/2025
+        \u03B1\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7\u03C2 \u0394\u03B7\u03BC\u03BF\u03C4\u03B9\u03BA\u03BF\u03CD
+        \u03A3\u03C5\u03BC\u03B2\u03BF\u03C5\u03BB\u03AF\u03BF\u03C5 \u03C0\u03B5\u03C1\u03AF
+        \u03B1\u03C0\u03BF\u03B4\u03BF\u03C7\u03AE\u03C2 \u03C4\u03B7\u03C2 \u03B4\u03C9\u03C1\u03B5\u03AC\u03BD
+        \u03C0\u03B1\u03C1\u03B1\u03C7\u03CE\u03C1\u03B7\u03C3\u03B7\u03C2 \u03BA\u03B1\u03B9
+        \u03BA\u03B1\u03C4\u03AC \u03C0\u03BB\u03AE\u03C1\u03B7 \u03BA\u03C5\u03C1\u03B9\u03CC\u03C4\u03B7\u03C4\u03B1
+        \u03C0\u03C1\u03BF\u03C2 \u03C4\u03BF\u03BD \u0394\u03AE\u03BC\u03BF \u03A0\u03B1\u03BB\u03BB\u03AE\u03BD\u03B7\u03C2
+        \u03C4\u03C9\u03BD \u03B1\u03BA\u03B9\u03BD\u03AE\u03C4\u03C9\u03BD \u03BC\u03B5
+        \u039A\u0391\u0395\u039A 05039232901 \u03BA\u03B1\u03B9 050392330001 (\u03C4\u03BC\u03AE\u03BC\u03B1\u03C4\u03B1
+        \u03C4\u03BF\u03C5 \u0394\u03B7\u03BC\u03BF\u03C3\u03AF\u03BF\u03C5 \u039A\u03C4\u03AE\u03BC\u03B1\u03C4\u03BF\u03C2
+        \u03BC\u03B5 \u0391\u0392\u039A 280 \u2013 \u03A3\u03C4\u03B1\u03B8\u03BC\u03CC\u03C2
+        \u0393\u03AD\u03C1\u03B1\u03BA\u03B1).\",\"issueDate\":1789862400000,\"organizationId\":\"6234\",\"signerIds\":[\"100086589\"],\"unitIds\":[\"83227\"],\"decisionTypeId\":\"2.4.7.1\",\"thematicCategoryIds\":[\"10004\"],\"extraFieldValues\":{\"kanonistikipraxitype\":null,\"kanonistikiPraxiPublishMedium\":null,\"fek\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\",\"co_competent\":null},\"privateData\":false,\"ada\":\"9\u039B\u03A5\u0391\u03A9\u039E\u039A-\u03A3\u039C\u03A8\",\"publishTimestamp\":1789889509558,\"submissionTimestamp\":1789889509558,\"versionId\":\"3ee18423-846e-4f39-a0fe-02a3d97600f8\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/9\u039B\u03A5\u0391\u03A9\u039E\u039A-\u03A3\u039C\u03A8\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/9\u039B\u03A5\u0391\u03A9\u039E\u039A-\u03A3\u039C\u03A8\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"8045/22/126041-1\",\"subject\":\"\u0391\u03A0\u039F\u03A6\u0391\u03A3\u0397
+        \u0391\u039D\u0391\u039B\u0397\u03A8\u0397\u03A3 \u03A5\u03A0\u039F\u03A7\u03A1\u0395\u03A9\u03A3\u0397\u03A3\",\"issueDate\":1789862400000,\"organizationId\":\"100054489\",\"signerIds\":[\"100098914\"],\"unitIds\":[\"95086\"],\"decisionTypeId\":\"\u0392.1.3\",\"thematicCategoryIds\":[\"24\"],\"extraFieldValues\":{\"financialYear\":2026,\"budgettype\":\"\u03A4\u03B1\u03BA\u03C4\u03B9\u03BA\u03CC\u03C2
+        \u03A0\u03C1\u03BF\u03CB\u03C0\u03BF\u03BB\u03BF\u03B3\u03B9\u03C3\u03BC\u03CC\u03C2\",\"entryNumber\":\"82041\",\"partialead\":false,\"recalledExpenseDecision\":false,\"amountWithVAT\":{\"amount\":2500.0,\"currency\":\"EUR\"},\"amountWithKae\":[],\"relatedPartialADA\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A8\u03A8\u039B\u039B46\u039C\u03A4\u039B\u0392-\u03A4\u03A7\u039E\",\"publishTimestamp\":1789889490911,\"submissionTimestamp\":1789889490911,\"versionId\":\"e269bfb2-680a-4e81-a03d-4796009d32ec\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A8\u03A8\u039B\u039B46\u039C\u03A4\u039B\u0392-\u03A4\u03A7\u039E\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A8\u03A8\u039B\u039B46\u039C\u03A4\u039B\u0392-\u03A4\u03A7\u039E\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"\u03A3\u03C5\u03BD\u03B5\u03B4\u03C1\u03AF\u03B1\u03C3\u03B7
+        10\u03B7/17-9-2026\",\"subject\":\"\u039B\u03AE\u03C8\u03B7 \u03B1\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7\u03C2
+        \u03B3\u03B9\u03B1 \u03C4\u03B7\u03BD \u03AD\u03B3\u03BA\u03C1\u03B9\u03C3\u03B7
+        \u03C3\u03BA\u03BF\u03C0\u03B9\u03BC\u03CC\u03C4\u03B7\u03C4\u03B1\u03C2,
+        \u03B4\u03B1\u03C0\u03AC\u03BD\u03B7\u03C2 \u03BA\u03B1\u03B9 \u03B4\u03B9\u03AC\u03B8\u03B5\u03C3\u03B7\u03C2
+        \u03C0\u03AF\u03C3\u03C4\u03C9\u03C3\u03B7\u03C2, \u03C4\u03C9\u03BD \u03C4\u03B5\u03C7\u03BD\u03B9\u03BA\u03CE\u03BD
+        \u03C0\u03C1\u03BF\u03B4\u03B9\u03B1\u03B3\u03C1\u03B1\u03C6\u03CE\u03BD,
+        \u03BA\u03B1\u03B8\u03CE\u03C2 \u03BA\u03B1\u03B9 \u03C4\u03C9\u03BD \u03B1\u03C0\u03BF\u03C4\u03B5\u03BB\u03B5\u03C3\u03BC\u03AC\u03C4\u03C9\u03BD
+        \u03C4\u03B7\u03C2 \u03AD\u03C1\u03B5\u03C5\u03BD\u03B1\u03C2 \u03B1\u03B3\u03BF\u03C1\u03AC\u03C2
+        \u03BA\u03B1\u03B9 \u03C4\u03B7\u03C2 \u03B5\u03C0\u03B9\u03BB\u03BF\u03B3\u03AE\u03C2
+        \u03C0\u03C1\u03BF\u03C3\u03C9\u03C1\u03B9\u03BD\u03BF\u03CD \u03BC\u03B5\u03B9\u03BF\u03B4\u03CC\u03C4\u03B7
+        \u03B3\u03B9\u03B1 \u03C4\u03B7\u03BD  \u03C0\u03C1\u03BF\u03BC\u03AE\u03B8\u03B5\u03B9\u03B1
+        \xABtest \u03C4\u03B1\u03C7\u03B5\u03AF\u03B1\u03C2 \u03B1\u03BD\u03AF\u03C7\u03BD\u03B5\u03C5\u03C3\u03B7\u03C2
+        PANCREATIC STONE PROTEIN(PSP)  \u03B3\u03B9\u03B1 \u03C0\u03C1\u03CC\u03B3\u03BD\u03C9\u03C3\u03B7
+        \u03BA\u03B1\u03B9 \u03B1\u03BD\u03C4\u03B9\u03BC\u03B5\u03C4\u03CE\u03C0\u03B9\u03C3\u03B7
+        \u03C0\u03B5\u03C1\u03B9\u03C3\u03C4\u03B1\u03C4\u03B9\u03BA\u03CE\u03BD  \u03C3\u03AE\u03C8\u03B7\u03C2
+        \ \u03BC\u03B5 \u03C0\u03B1\u03C1\u03B1\u03C7\u03CE\u03C1\u03B7\u03C3\u03B7
+        \u03C3\u03C5\u03BD\u03BF\u03B4\u03BF\u03CD \u03B5\u03BE\u03BF\u03C0\u03BB\u03B9\u03C3\u03BC\u03BF\u03CD
+        (\u0394\u03B9\u03B1\u03B3\u03BD\u03C9\u03C3\u03C4\u03B9\u03BA\u03AE \u03C3\u03C5\u03C3\u03BA\u03B5\u03C5\u03AE)\xBB,
+        \u03B4\u03B9\u03AC\u03C1\u03BA\u03B5\u03B9\u03B1\u03C2 \u03B5\u03BD\u03CC\u03C2
+        (1) \u03AD\u03C4\u03BF\u03C5\u03C2.\",\"issueDate\":1789862400000,\"organizationId\":\"99221925\",\"signerIds\":[\"100099506\"],\"unitIds\":[\"11127\"],\"decisionTypeId\":\"\u0391.2\",\"thematicCategoryIds\":[\"10004\"],\"extraFieldValues\":{\"fek\":{},\"kanonistikipraxiaa\":null,\"kanonistikipraxitype\":\"\u03A0\u03C1\u03AC\u03BE\u03B7
+        \u039F\u03C1\u03B3\u03AC\u03BD\u03BF\u03C5 \u0394\u03B9\u03BF\u03AF\u03BA\u03B7\u03C3\u03B7\u03C2
+        \u039D.\u03A0.\u0394.\u0394.\",\"co_competent\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A8\u0392424690\u0392\u03A7-\u039E\u039C\u0399\",\"publishTimestamp\":1789889484208,\"submissionTimestamp\":1789889484208,\"versionId\":\"5616d629-eafb-4585-8ede-1ddfd7f266a2\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A8\u0392424690\u0392\u03A7-\u039E\u039C\u0399\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A8\u0392424690\u0392\u03A7-\u039E\u039C\u0399\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"1860/2026\",\"subject\":\"\u03A0\u03C1\u03BF\u03BC\u03AE\u03B8\u03B5\u03B9\u03B1
+        \u03BA\u03B1\u03C5\u03C3\u03AF\u03BC\u03C9\u03BD \u03B3\u03B9\u03B1 \u03BA\u03AF\u03BD\u03B7\u03C3\u03B7
+        \u03BF\u03C7\u03B7\u03BC\u03AC\u03C4\u03C9\u03BD \u03BA\u03B1\u03B9 \u03BC\u03B7\u03C7\u03B1\u03BD\u03B7\u03BC\u03AC\u03C4\u03C9\u03BD
+        \u03AD\u03C1\u03B3\u03BF\u03C5 \u0394\u0395 \u0391\u03BD\u03B1\u03BA\u03C4\u03BF\u03C1\u03AF\u03BF\u03C5
+        (\u0397\u03BB.\u0394\u03B9\u03B1\u03B3\u03C9\u03BD\u03B9\u03C3\u03BC\u03CC\u03C2)
+        \u039A\u0397\u0399 8999 \u0391\u03CD\u03B3\u03BF\u03C5\u03C3\u03C4\u03BF\u03C2
+        \ 2026\",\"issueDate\":1789862400000,\"organizationId\":\"6017\",\"signerIds\":[\"100047422\"],\"unitIds\":[\"93483\"],\"decisionTypeId\":\"\u0392.2.2\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"org\":{\"afm\":\"099202692\",\"afmType\":\"EL\",\"enterName\":false,\"name\":\"\u0394\u0397\u039C\u039F\u03A3
+        \u0391\u039A\u03A4\u0399\u039F\u03A5 \u0392\u039F\u039D\u0399\u03A4\u03A3\u0391\u03A3\"},\"skipVatReason\":null,\"sponsor\":[{\"sponsorAFMName\":{\"afm\":\"069752410\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"enterName\":false,\"name\":\"\u039C\u03A0\u0391\u039B\u0391\u03A3\u039A\u0391\u03A3,,\u0393\u0395\u03A9\u03A1\u0393\u0399\u039F\u03A3,\u0393\u0395\u03A1\u0391\u03A3\u0399\u039C\u039F\u03A3\"},\"expenseAmount\":{\"amount\":1233.71,\"currency\":\"EUR\"}}],\"relatedEkgrisiDapanis\":[],\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A8\u0396\u039E\u03A6\u03A96\u0396-\u03937\u039F\",\"publishTimestamp\":1789889468502,\"submissionTimestamp\":1789889468502,\"versionId\":\"c6996429-e58b-431e-9937-00e28e291d32\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A8\u0396\u039E\u03A6\u03A96\u0396-\u03937\u039F\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A8\u0396\u039E\u03A6\u03A96\u0396-\u03937\u039F\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"2501/10/1972-\u03B3\u0384\",\"subject\":\"\xAB\u03A0\u03B1\u03C1\u03AC\u03C4\u03B1\u03C3\u03B7
+        \u03AD\u03BA\u03C4\u03B1\u03BA\u03C4\u03C9\u03BD \u03C0\u03C1\u03BF\u03C3\u03C9\u03C1\u03B9\u03BD\u03CE\u03BD
+        \u03BA\u03C5\u03BA\u03BB\u03BF\u03C6\u03BF\u03C1\u03B9\u03B1\u03BA\u03CE\u03BD
+        \u03C1\u03C5\u03B8\u03BC\u03AF\u03C3\u03B5\u03C9\u03BD \u03B5\u03C0\u03AF
+        \u03C4\u03B7\u03C2 \u03BF\u03B4\u03BF\u03CD \u039A\u03BF\u03BD\u03B4\u03CD\u03BB\u03B7,
+        \u03B3\u03B9\u03B1 \u03C4\u03B7\u03BD \u03B5\u03BA\u03C4\u03AD\u03BB\u03B5\u03C3\u03B7
+        \u03C4\u03BF\u03C5 \u03AD\u03C1\u03B3\u03BF\u03C5 \xAB\u0391\u03A3\u03A4\u0399\u039A\u0397
+        \u0391\u039D\u0391\u0396\u03A9\u039F\u0393\u039F\u039D\u0397\u03A3\u0397 \u0392\u039F\u03A1\u0395\u0399\u039F\u03A5
+        \u03A4\u039C\u0397\u039C\u0391\u03A4\u039F\u03A3 \u0391\u039B\u0395\u039E\u0391\u039D\u0394\u03A1\u039F\u03A5\u03A0\u039F\u039B\u0397\u03A3
+        \u039A\u0391\u0399 \u0391\u039D\u0391\u03A0\u039B\u0391\u03A3\u0397\u03A3
+        \u0394\u0399\u039A\u03A4\u03A5\u039F\u03A5 \u03A0\u039F\u0394\u0397\u039B\u0391\u03A4\u039F\u0394\u03A1\u039F\u039C\u03A9\u039D\xBB,
+        \u03C4\u03BF\u03C5 \u0394\u03AE\u03BC\u03BF\u03C5 \u0391\u03BB\u03B5\u03BE\u03B1\u03BD\u03B4\u03C1\u03BF\u03CD\u03C0\u03BF\u03BB\u03B7\u03C2.\",\"issueDate\":1789862400000,\"organizationId\":\"100054489\",\"signerIds\":[\"100059710\"],\"unitIds\":[\"100001757\"],\"decisionTypeId\":\"\u0391.2\",\"thematicCategoryIds\":[\"28\"],\"extraFieldValues\":{\"fek\":{},\"kanonistikipraxiaa\":null,\"kanonistikipraxitype\":null,\"co_competent\":null,\"relatedDecisions\":[{\"relatedDecisionsADA\":\"\u03A8\u03A00\u039E46\u039C\u03A4\u039B\u0392-75\u0392\"}],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"65\u0393\u039946\u039C\u03A4\u039B\u0392-\u03A807\",\"publishTimestamp\":1789889427593,\"submissionTimestamp\":1789889427593,\"versionId\":\"1e2def41-5c80-43bd-bf5f-390c4c929536\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/65\u0393\u039946\u039C\u03A4\u039B\u0392-\u03A807\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/65\u0393\u039946\u039C\u03A4\u039B\u0392-\u03A807\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"\u0391\u03A1.
+        \u03A0\u03A1\u03A9\u03A4. 3778//15-09-26\",\"subject\":\"\u0391\u039D\u0391\u039B\u03A9\u03A3\u0397
+        \u03A0\u03A1\u039F\u03A5\u03A0\u039F\u039B\u039F\u0393\u0399\u03A3\u039C\u039F\u03A5
+        \u0391\u03A5\u0393\u039F\u03A5\u03A3\u03A4\u039F\u03A5 2026\",\"issueDate\":1789862400000,\"organizationId\":\"50228\",\"signerIds\":[\"100104233\"],\"unitIds\":[\"10719\"],\"decisionTypeId\":\"\u0392.3\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"accountType\":\"\u0391\u03C0\u03BF\u03BB\u03BF\u03B3\u03B9\u03C3\u03BC\u03CC\u03C2\",\"financialYear\":2026,\"timePeriod\":null,\"isAccountApprovalForOtherOrg\":false,\"refersToOtherOrgAccount\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"6\u03A48\u039E\u039F\u03A1\u0397\u0395-\u03A6\u039D\u0393\",\"publishTimestamp\":1789889385397,\"submissionTimestamp\":1789889385397,\"versionId\":\"745eaab4-6474-40dc-914f-24c64c6fd1f5\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/6\u03A48\u039E\u039F\u03A1\u0397\u0395-\u03A6\u039D\u0393\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/6\u03A48\u039E\u039F\u03A1\u0397\u0395-\u03A6\u039D\u0393\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"8045/22/126052-1\",\"subject\":\"\u0391\u03A0\u039F\u03A6\u0391\u03A3\u0397
+        \u0391\u039D\u0391\u039B\u0397\u03A8\u0397\u03A3 \u03A5\u03A0\u039F\u03A7\u03A1\u0395\u03A9\u03A3\u0397\u03A3\",\"issueDate\":1789862400000,\"organizationId\":\"100054489\",\"signerIds\":[\"100098914\"],\"unitIds\":[\"95086\"],\"decisionTypeId\":\"\u0392.1.3\",\"thematicCategoryIds\":[\"24\"],\"extraFieldValues\":{\"financialYear\":2026,\"budgettype\":\"\u03A4\u03B1\u03BA\u03C4\u03B9\u03BA\u03CC\u03C2
+        \u03A0\u03C1\u03BF\u03CB\u03C0\u03BF\u03BB\u03BF\u03B3\u03B9\u03C3\u03BC\u03CC\u03C2\",\"entryNumber\":\"82040\",\"partialead\":true,\"recalledExpenseDecision\":false,\"amountWithVAT\":{\"amount\":2000.0,\"currency\":\"EUR\"},\"amountWithKae\":[],\"relatedPartialADA\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"98\u03A8\u039C46\u039C\u03A4\u039B\u0392-\u039B\u03A55\",\"publishTimestamp\":1789889376357,\"submissionTimestamp\":1789889376357,\"versionId\":\"667c9f2a-3885-4df4-9475-d58e0652f06a\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/98\u03A8\u039C46\u039C\u03A4\u039B\u0392-\u039B\u03A55\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/98\u03A8\u039C46\u039C\u03A4\u039B\u0392-\u039B\u03A55\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"186/2026\",\"subject\":\"\u039B\u03AE\u03C8\u03B7
+        \ \u03B1\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7\u03C2  \u03C0\u03B5\u03C1\u03AF
+        \u03BA\u03BF\u03C0\u03AE\u03C2 \u03AE \u03BC\u03B7  1 \u03B4\u03AD\u03BD\u03C4\u03C1\u03BF\u03C5
+        \u03C3\u03C4\u03B7\u03BD \u03BF\u03B4\u03CC \u039A\u03C5\u03BA\u03BB\u03B1\u03BC\u03AF\u03BD\u03C9\u03BD,
+        \u03C4\u03B7\u03C2 \u0394.\u0395 \u0393\u03AD\u03C1\u03B1\u03BA\u03B1, \u03C4\u03BF\u03C5
+        \u0394\u03AE\u03BC\u03BF\u03C5 \u03A0\u03B1\u03BB\u03BB\u03AE\u03BD\u03B7\u03C2,
+        \u03CD\u03C3\u03C4\u03B5\u03C1\u03B1 \u03B1\u03C0\u03CC \u03B1\u03AF\u03C4\u03B7\u03C3\u03B7
+        \u03C4\u03BF\u03C5 \u03BA. \u03A1.\u0399.\",\"issueDate\":1789862400000,\"organizationId\":\"6234\",\"signerIds\":[\"100086589\"],\"unitIds\":[\"83227\"],\"decisionTypeId\":\"2.4.7.1\",\"thematicCategoryIds\":[\"10004\"],\"extraFieldValues\":{\"kanonistikipraxitype\":null,\"kanonistikiPraxiPublishMedium\":null,\"fek\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\",\"co_competent\":null},\"privateData\":false,\"ada\":\"9\u039D\u0396\u03A7\u03A9\u039E\u039A-511\",\"publishTimestamp\":1789889355884,\"submissionTimestamp\":1789889355884,\"versionId\":\"3fa57900-6ede-41c0-adac-8252a17c5ef5\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/9\u039D\u0396\u03A7\u03A9\u039E\u039A-511\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/9\u039D\u0396\u03A7\u03A9\u039E\u039A-511\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"185/2026\",\"subject\":\"\u039B\u03AE\u03C8\u03B7
+        \ \u03B1\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7\u03C2  \u03C0\u03B5\u03C1\u03AF
+        \u03C4\u03BF\u03C0\u03BF\u03B8\u03AD\u03C4\u03B7\u03C3\u03B7\u03C2 \u03C6\u03C9\u03C4\u03B5\u03B9\u03BD\u03BF\u03CD
+        \u03C3\u03B7\u03BC\u03B1\u03C4\u03BF\u03B4\u03CC\u03C4\u03B7 \u03B4\u03B9\u03AC\u03B2\u03B1\u03C3\u03B7\u03C2
+        \u03B3\u03B9\u03B1 \u03C0\u03B5\u03B6\u03BF\u03CD\u03C2 (\u03C0\u03B5\u03B6\u03BF\u03C6\u03AC\u03BD\u03B1\u03C1\u03BF)
+        \u03C0\u03BB\u03B7\u03C3\u03AF\u03BF\u03BD \u03C4\u03B7\u03C2 \u03B5\u03B9\u03C3\u03CC\u03B4\u03BF\u03C5
+        \u03C4\u03BF\u03C5 BYRON COLLEGE \u03B5\u03C0\u03AF \u03C4\u03B7\u03C2 \u039B.\u0391\u03BD\u03B8\u03BF\u03CD\u03C3\u03B7\u03C2
+        \u03C4\u03BF\u03C5 \u0394\u03AE\u03BC\u03BF\u03C5 \u03A0\u03B1\u03BB\u03BB\u03AE\u03BD\u03B7\u03C2.\",\"issueDate\":1789862400000,\"organizationId\":\"6234\",\"signerIds\":[\"100086589\"],\"unitIds\":[\"83227\"],\"decisionTypeId\":\"2.4.7.1\",\"thematicCategoryIds\":[\"10004\"],\"extraFieldValues\":{\"kanonistikipraxitype\":null,\"kanonistikiPraxiPublishMedium\":null,\"fek\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\",\"co_competent\":null},\"privateData\":false,\"ada\":\"\u03A8\u03A1\u03A43\u03A9\u039E\u039A-\u039A\u03A1\u03A3\",\"publishTimestamp\":1789889238807,\"submissionTimestamp\":1789889238807,\"versionId\":\"d9bc3918-bfd2-4976-9489-527aca4892f0\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A8\u03A1\u03A43\u03A9\u039E\u039A-\u039A\u03A1\u03A3\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A8\u03A1\u03A43\u03A9\u039E\u039A-\u039A\u03A1\u03A3\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"8045/22/126205-1\",\"subject\":\"\u0391\u03A0\u039F\u03A6\u0391\u03A3\u0397
+        \u0391\u039D\u0391\u039B\u0397\u03A8\u0397\u03A3 \u03A5\u03A0\u039F\u03A7\u03A1\u0395\u03A9\u03A3\u0397\u03A3\",\"issueDate\":1789862400000,\"organizationId\":\"100054489\",\"signerIds\":[\"100098914\"],\"unitIds\":[\"95086\"],\"decisionTypeId\":\"\u0392.1.3\",\"thematicCategoryIds\":[\"24\"],\"extraFieldValues\":{\"financialYear\":2026,\"budgettype\":\"\u03A4\u03B1\u03BA\u03C4\u03B9\u03BA\u03CC\u03C2
+        \u03A0\u03C1\u03BF\u03CB\u03C0\u03BF\u03BB\u03BF\u03B3\u03B9\u03C3\u03BC\u03CC\u03C2\",\"entryNumber\":\"82447\",\"partialead\":true,\"recalledExpenseDecision\":false,\"amountWithVAT\":{\"amount\":160.0,\"currency\":\"EUR\"},\"amountWithKae\":[],\"relatedPartialADA\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A8\u0397\u03A6546\u039C\u03A4\u039B\u0392-\u03A0\u03935\",\"publishTimestamp\":1789889136915,\"submissionTimestamp\":1789889136915,\"versionId\":\"a2cc860e-2997-45fe-bb4d-7f52dd16b7c8\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A8\u0397\u03A6546\u039C\u03A4\u039B\u0392-\u03A0\u03935\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A8\u0397\u03A6546\u039C\u03A4\u039B\u0392-\u03A0\u03935\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"184/2026\",\"subject\":\"\u039B\u03AE\u03C8\u03B7
+        \ \u03B1\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7\u03C2  \u03C0\u03B5\u03C1\u03AF
+        \u03B1\u03C0\u03BF\u03B6\u03B7\u03BC\u03AF\u03C9\u03C3\u03B7\u03C2 \u03C3\u03C4\u03B7\u03BD
+        \u0395.\u039A., \u03BB\u03CC\u03B3\u03C9 \u03C1\u03C5\u03BC\u03BF\u03C4\u03BF\u03BC\u03AF\u03B1\u03C2
+        \u03C4\u03BF\u03C5 \u03BF\u03B9\u03BA\u03BF\u03C0\u03AD\u03B4\u03BF\u03C5
+        \u03BC\u03B5 \u039A.\u0391. 1115001 \u03C3\u03C4\u03BF \u039F\u03A4 1111 \u03C3\u03C4\u03B7\u03BD
+        \u03A0\u03BF\u03BB\u03B5\u03BF\u03B4\u03BF\u03BC\u03B9\u03BA\u03AE \u0395\u03BD\u03CC\u03C4\u03B7\u03C4\u03B1
+        \u03A0\u0395 11 \xAB\u0392\u0391\u039A\u0391\u039B\u039F\u03A0\u039F\u03A5\u039B\u039F\xBB
+        \u03C4\u03B7\u03C2 \u0394\u0395 \u03A0\u03B1\u03BB\u03BB\u03AE\u03BD\u03B7\u03C2
+        \u03C4\u03BF\u03C5 \u0394\u03AE\u03BC\u03BF\u03C5 \u03A0\u03B1\u03BB\u03BB\u03AE\u03BD\u03B7\u03C2.\",\"issueDate\":1789862400000,\"organizationId\":\"6234\",\"signerIds\":[\"100086589\"],\"unitIds\":[\"83227\"],\"decisionTypeId\":\"2.4.7.1\",\"thematicCategoryIds\":[\"10004\"],\"extraFieldValues\":{\"kanonistikipraxitype\":null,\"kanonistikiPraxiPublishMedium\":null,\"fek\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\",\"co_competent\":null},\"privateData\":false,\"ada\":\"9\u039E\u03A17\u03A9\u039E\u039A-\u03A1\u039C\u03A1\",\"publishTimestamp\":1789889120962,\"submissionTimestamp\":1789889120962,\"versionId\":\"ed72e8a0-9611-4026-b1c6-ce511d4c4efd\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/9\u039E\u03A17\u03A9\u039E\u039A-\u03A1\u039C\u03A1\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/9\u039E\u03A17\u03A9\u039E\u039A-\u03A1\u039C\u03A1\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"\u0392/2943\",\"subject\":\"\u03A7\u0395
+        \u0392/2943 - 20/09/2026 \u039A.\u0393\u0395\u03A1\u039C\u0391\u039D\u039F\u03A3
+        \u0399\u0391\u03A4\u03A1\u0399\u039A\u0391  \u0391.\u0395.\",\"issueDate\":1789862400000,\"organizationId\":\"99221912\",\"signerIds\":[\"100059144\"],\"unitIds\":[\"100036346\"],\"decisionTypeId\":\"\u0392.2.2\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"org\":{\"afm\":\"998995401\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"name\":\"\u0393\u0395\u039D\u0399\u039A\u039F
+        \u039D\u039F\u03A3\u039F\u039A\u039F\u039C\u0395\u0399\u039F \u039C\u0395\u03A3\u03A3\u0397\u039D\u0399\u0391\u03A3\"},\"skipVatReason\":null,\"sponsor\":[{\"sponsorAFMName\":{\"afm\":\"081734344\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"name\":\"\u039A.\u0393\u0395\u03A1\u039C\u0391\u039D\u039F\u03A3
+        \u0399\u0391\u03A4\u03A1\u0399\u039A\u0391  \u0391.\u0395.\"},\"expenseAmount\":{\"amount\":58.28,\"currency\":\"EUR\"},\"kae\":\"3.2.3.02.03
+        (131101)\"}],\"relatedEkgrisiDapanis\":null,\"relatedDecisions\":null,\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":true,\"ada\":\"982\u039F4690\u0392\u03A6-\u039D\u0398\u0397\",\"publishTimestamp\":1789889089447,\"submissionTimestamp\":1789889089447,\"versionId\":\"8d45d422-92d6-4792-8a8f-591b5d43a2ab\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/982\u039F4690\u0392\u03A6-\u039D\u0398\u0397\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/982\u039F4690\u0392\u03A6-\u039D\u0398\u0397\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"183/2026\",\"subject\":\"\u039B\u03AE\u03C8\u03B7
+        \ \u03B1\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7\u03C2  \u03C0\u03B5\u03C1\u03AF
+        \u03B1\u03C0\u03BF\u03B6\u03B7\u03BC\u03AF\u03C9\u03C3\u03B7\u03C2 \u03C3\u03C4\u03BF\u03C5\u03C2
+        \u0391.\u03A0. (50%) \u03BA\u03B1\u03B9 \u0391.\u03A0. (50%), \u03BB\u03CC\u03B3\u03C9
+        \u03C1\u03C5\u03BC\u03BF\u03C4\u03BF\u03BC\u03AF\u03B1\u03C2 \u03C4\u03BF\u03C5
+        \u03BF\u03B9\u03BA\u03BF\u03C0\u03AD\u03B4\u03BF\u03C5 \u03BC\u03B5 \u039A.\u0391.
+        1112036 \u03C3\u03C4\u03BF \u039F\u03A4 1120 \u03BA\u03B1\u03B9 \u0391\u03A1.
+        \u039F\u0399\u039A. 05\u039D \u03C3\u03C4\u03B7\u03BD \u03A0\u03BF\u03BB\u03B5\u03BF\u03B4\u03BF\u03BC\u03B9\u03BA\u03AE
+        \u0395\u03BD\u03CC\u03C4\u03B7\u03C4\u03B1 \u03A0\u0395 11 \xAB\u0392\u0391\u039A\u0391\u039B\u039F\u03A0\u039F\u03A5\u039B\u039F\xBB
+        \u03C4\u03B7\u03C2 \u0394\u0395 \u03A0\u03B1\u03BB\u03BB\u03AE\u03BD\u03B7\u03C2
+        \u03C4\u03BF\u03C5 \u0394\u03AE\u03BC\u03BF\u03C5 \u03A0\u03B1\u03BB\u03BB\u03AE\u03BD\u03B7\u03C2.\",\"issueDate\":1789862400000,\"organizationId\":\"6234\",\"signerIds\":[\"100086589\"],\"unitIds\":[\"83227\"],\"decisionTypeId\":\"2.4.7.1\",\"thematicCategoryIds\":[\"10004\"],\"extraFieldValues\":{\"kanonistikipraxitype\":null,\"kanonistikiPraxiPublishMedium\":null,\"fek\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\",\"co_competent\":null},\"privateData\":false,\"ada\":\"\u03A14\u03965\u03A9\u039E\u039A-\u0395\u039A2\",\"publishTimestamp\":1789889012106,\"submissionTimestamp\":1789889012106,\"versionId\":\"8019aafb-3a85-4ef0-9e79-97b244d300ce\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A14\u03965\u03A9\u039E\u039A-\u0395\u039A2\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A14\u03965\u03A9\u039E\u039A-\u0395\u039A2\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"1859/2026\",\"subject\":\"\u03C1\u03BF\u03BC\u03AE\u03B8\u03B5\u03B9\u03B1
+        \u03BA\u03B1\u03C5\u03C3\u03AF\u03BC\u03C9\u03BD \u03B3\u03B9\u03B1 \u03BA\u03AF\u03BD\u03B7\u03C3\u03B7
+        \u03BF\u03C7\u03B7\u03BC\u03AC\u03C4\u03C9\u03BD \u03BA\u03B1\u03B9 \u03BC\u03B7\u03C7\u03B1\u03BD\u03B7\u03BC\u03AC\u03C4\u03C9\u03BD
+        \u03AD\u03C1\u03B3\u03BF\u03C5 \u0394\u0395 \u0391\u03BD\u03B1\u03BA\u03C4\u03BF\u03C1\u03AF\u03BF\u03C5
+        (\u0397\u03BB.\u0394\u03B9\u03B1\u03B3\u03C9\u03BD\u03B9\u03C3\u03BC\u03CC\u03C2)
+        \u039A\u0397\u0399 9043 \u0391\u03CD\u03B3\u03BF\u03C5\u03C3\u03C4\u03BF\u03C2
+        \ 2026\",\"issueDate\":1789862400000,\"organizationId\":\"6017\",\"signerIds\":[\"100047422\"],\"unitIds\":[\"93483\"],\"decisionTypeId\":\"\u0392.2.2\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"org\":{\"afm\":\"099202692\",\"afmType\":\"EL\",\"enterName\":false,\"name\":\"\u0394\u0397\u039C\u039F\u03A3
+        \u0391\u039A\u03A4\u0399\u039F\u03A5 \u0392\u039F\u039D\u0399\u03A4\u03A3\u0391\u03A3\"},\"skipVatReason\":null,\"sponsor\":[{\"sponsorAFMName\":{\"afm\":\"069752410\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"enterName\":false,\"name\":\"\u039C\u03A0\u0391\u039B\u0391\u03A3\u039A\u0391\u03A3,,\u0393\u0395\u03A9\u03A1\u0393\u0399\u039F\u03A3,\u0393\u0395\u03A1\u0391\u03A3\u0399\u039C\u039F\u03A3\"},\"expenseAmount\":{\"amount\":326.85,\"currency\":\"EUR\"}}],\"relatedEkgrisiDapanis\":[],\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"9\u03A387\u03A96\u0396-0\u03921\",\"publishTimestamp\":1789888960367,\"submissionTimestamp\":1789888960367,\"versionId\":\"9dfb8e50-447a-4057-924c-025213b3298e\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/9\u03A387\u03A96\u0396-0\u03921\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/9\u03A387\u03A96\u0396-0\u03921\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"1652/26/2009637\",\"subject\":\"\u03A0\u03B1\u03C1\u03B1\u03AF\u03C4\u03B7\u03C3\u03B7
+        \u03B1\u03C0\u03CC \u03C4\u03B7\u03BD \u03B5\u03BA\u03C0\u03B1\u03AF\u03B4\u03B5\u03C5\u03C3\u03B7
+        \u03B4\u03CD\u03BF (2) \u0394\u03BF\u03BA\u03AF\u03BC\u03C9\u03BD \u0391\u03C3\u03C4\u03C5\u03C6\u03C5\u03BB\u03AC\u03BA\u03C9\u03BD.
+        - \u0394\u03B9\u03B1\u03B3\u03C1\u03B1\u03C6\u03AE \u03B1\u03C0\u03CC \u03C4\u03B7
+        \u03A3\u03C7\u03BF\u03BB\u03AE \u0391\u03C3\u03C4\u03C5\u03C6\u03C5\u03BB\u03AC\u03BA\u03C9\u03BD
+        \u03BA\u03B1\u03B9 \u03B1\u03C0\u03CC\u03BB\u03C5\u03C3\u03AE \u03C4\u03BF\u03C5\u03C2
+        \u03B1\u03C0\u03CC \u03C4\u03B7\u03BD \u0395\u03BB\u03BB\u03B7\u03BD\u03B9\u03BA\u03AE
+        \u0391\u03C3\u03C4\u03C5\u03BD\u03BF\u03BC\u03AF\u03B1.\",\"issueDate\":1788912000000,\"organizationId\":\"100054489\",\"signerIds\":[\"100078909\"],\"unitIds\":[\"100011709\"],\"decisionTypeId\":\"2.4.7.1\",\"thematicCategoryIds\":[\"44\"],\"extraFieldValues\":{\"kanonistikipraxitype\":\"10003\",\"kanonistikiPraxiPublishMedium\":\"\u03C3\u03C4\u03BF
+        \u03A6\u0395\u039A\",\"fek\":{\"aa\":\"4522\",\"issue\":\"fektype_C\",\"issueyear\":2026},\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\",\"co_competent\":null},\"privateData\":true,\"ada\":\"\u03A80\u039E\u039146\u039C\u03A4\u039B\u0392-61\u03A6\",\"publishTimestamp\":1789888958581,\"submissionTimestamp\":1789888958581,\"versionId\":\"17bfb2d0-d405-432e-9da7-ff1551120f75\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A80\u039E\u039146\u039C\u03A4\u039B\u0392-61\u03A6\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A80\u039E\u039146\u039C\u03A4\u039B\u0392-61\u03A6\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"\u03A3\u03C5\u03BD\u03B5\u03B4\u03C1\u03AF\u03B1\u03C3\u03B7
+        10\u03B7/17-9-2026\",\"subject\":\"\u0395\u03B9\u03C3\u03AE\u03B3\u03B7\u03C3\u03B7
+        \u03C3\u03BA\u03BF\u03C0\u03B9\u03BC\u03CC\u03C4\u03B7\u03C4\u03B1\u03C2,
+        \u03B4\u03B1\u03C0\u03AC\u03BD\u03B7\u03C2, \u03B4\u03B9\u03AC\u03B8\u03B5\u03C3\u03B7\u03C2
+        \u03C0\u03AF\u03C3\u03C4\u03C9\u03C3\u03B7\u03C2 \u03BA\u03B1\u03B9 \u03B4\u03B9\u03B1\u03B4\u03B9\u03BA\u03B1\u03C3\u03AF\u03B1
+        \u03B1\u03BD\u03AC\u03B8\u03B5\u03C3\u03B7\u03C2 \u03B3\u03B9\u03B1 \u03C4\u03B7\u03BD
+        \u03C5\u03C0\u03B7\u03C1\u03B5\u03C3\u03AF\u03B1 \xAB \u03B5\u03C4\u03AE\u03C3\u03B9\u03B1\u03C2
+        \u03C4\u03B1\u03BA\u03C4\u03B9\u03BA\u03AE \u03C3\u03C5\u03BD\u03C4\u03AE\u03C1\u03B7\u03C3\u03B7
+        \u03C3\u03C4\u03BF\u03C5\u03C2 \u0397\u03BB\u03B5\u03BA\u03C4\u03C1\u03B9\u03BA\u03BF\u03CD\u03C2
+        \u03A0\u03AF\u03BD\u03B1\u03BA\u03B5\u03C2 \u03B9\u03B1\u03C4\u03C1\u03B9\u03BA\u03CE\u03BD
+        \u03C7\u03CE\u03C1\u03C9\u03BD \u03C7\u03B5\u03B9\u03C1\u03BF\u03C5\u03C1\u03B3\u03B5\u03AF\u03C9\u03BD
+        \u03BA\u03B1\u03B9 \u039C\u0391\u03A6/\u039C\u0395\u0398\xBB  \u03C4\u03BF\u03C5
+        \ \u0393\u03B5\u03BD\u03B9\u03BA\u03BF\u03CD \u039D\u03BF\u03C3\u03BF\u03BA\u03BF\u03BC\u03B5\u03AF\u03BF\u03C5
+        \u039B\u03B5\u03C5\u03BA\u03AC\u03B4\u03B1\u03C2 , \u03BC\u03B5 CPV 33180000-5\",\"issueDate\":1789862400000,\"organizationId\":\"99221925\",\"signerIds\":[\"100099506\"],\"unitIds\":[\"11127\"],\"decisionTypeId\":\"\u0391.2\",\"thematicCategoryIds\":[\"10004\"],\"extraFieldValues\":{\"fek\":{},\"kanonistikipraxiaa\":null,\"kanonistikipraxitype\":\"\u03A0\u03C1\u03AC\u03BE\u03B7
+        \u039F\u03C1\u03B3\u03AC\u03BD\u03BF\u03C5 \u0394\u03B9\u03BF\u03AF\u03BA\u03B7\u03C3\u03B7\u03C2
+        \u039D.\u03A0.\u0394.\u0394.\",\"co_competent\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A8\u039F\u039494690\u0392\u03A7-\u03994\u039A\",\"publishTimestamp\":1789888936355,\"submissionTimestamp\":1789888936355,\"versionId\":\"5d563d0d-09d4-4bf4-a0cb-4b83c56214cd\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A8\u039F\u039494690\u0392\u03A7-\u03994\u039A\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A8\u039F\u039494690\u0392\u03A7-\u03994\u039A\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"8045/22/125972-1\",\"subject\":\"\u0391\u03A0\u039F\u03A6\u0391\u03A3\u0397
+        \u0391\u039D\u0391\u039B\u0397\u03A8\u0397\u03A3 \u03A5\u03A0\u039F\u03A7\u03A1\u0395\u03A9\u03A3\u0397\u03A3\",\"issueDate\":1789862400000,\"organizationId\":\"100054489\",\"signerIds\":[\"100098914\"],\"unitIds\":[\"95086\"],\"decisionTypeId\":\"\u0392.1.3\",\"thematicCategoryIds\":[\"24\"],\"extraFieldValues\":{\"financialYear\":2026,\"budgettype\":\"\u03A4\u03B1\u03BA\u03C4\u03B9\u03BA\u03CC\u03C2
+        \u03A0\u03C1\u03BF\u03CB\u03C0\u03BF\u03BB\u03BF\u03B3\u03B9\u03C3\u03BC\u03CC\u03C2\",\"entryNumber\":\"82091\",\"partialead\":true,\"recalledExpenseDecision\":false,\"amountWithVAT\":{\"amount\":2650.0,\"currency\":\"EUR\"},\"amountWithKae\":[],\"relatedPartialADA\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A8\u03A4\u03A4\u03A746\u039C\u03A4\u039B\u0392-\u03A3\u03A7\u03A8\",\"publishTimestamp\":1789888669205,\"submissionTimestamp\":1789888847152,\"versionId\":\"56382827-893d-4f76-8fd4-3f5b4776f5e5\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A8\u03A4\u03A4\u03A746\u039C\u03A4\u039B\u0392-\u03A3\u03A7\u03A8\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A8\u03A4\u03A4\u03A746\u039C\u03A4\u039B\u0392-\u03A3\u03A7\u03A8\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":\"a31ac6f0-deee-4cf9-8c7b-30e90016a3a8\"},{\"protocolNumber\":\"182/2026\",\"subject\":\"\u039B\u03AE\u03C8\u03B7
+        \ \u03B1\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7\u03C2  \u03C0\u03B5\u03C1\u03AF
+        \u03AD\u03B3\u03BA\u03C1\u03B9\u03C3\u03B7\u03C2 \u03A0\u03BB\u03B1\u03B9\u03C3\u03AF\u03BF\u03C5
+        \u039F\u03C1\u03B3\u03AC\u03BD\u03C9\u03C3\u03B7\u03C2 \u03BA\u03B1\u03B9
+        \u039B\u03B5\u03B9\u03C4\u03BF\u03C5\u03C1\u03B3\u03AF\u03B1\u03C2 \u03C4\u03BF\u03C5
+        \u0394\u03B9\u03BA\u03C4\u03CD\u03BF\u03C5 \u039A\u03BF\u03B9\u03BD\u03C9\u03BD\u03B9\u03BA\u03BF\u03CD
+        \u0395\u03B8\u03B5\u03BB\u03BF\u03BD\u03C4\u03B9\u03C3\u03BC\u03BF\u03CD \xAB\u03B5\u0398\u0395\u039B\u03BF\u03BD\u03C4\u03A9\xBB
+        \u03BA\u03B1\u03B9 \u03C3\u03CD\u03C3\u03C4\u03B1\u03C3\u03B7 \u039C\u03B7\u03C4\u03C1\u03CE\u03BF\u03C5
+        \u039A\u03BF\u03B9\u03BD\u03C9\u03BD\u03B9\u03BA\u03BF\u03CD \u0395\u03B8\u03B5\u03BB\u03BF\u03BD\u03C4\u03B9\u03C3\u03BC\u03BF\u03CD
+        \u0394\u03AE\u03BC\u03BF\u03C5 \u03A0\u03B1\u03BB\u03BB\u03AE\u03BD\u03B7\u03C2.\",\"issueDate\":1789862400000,\"organizationId\":\"6234\",\"signerIds\":[\"100086589\"],\"unitIds\":[\"83227\"],\"decisionTypeId\":\"2.4.7.1\",\"thematicCategoryIds\":[\"10004\"],\"extraFieldValues\":{\"kanonistikipraxitype\":null,\"kanonistikiPraxiPublishMedium\":null,\"fek\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\",\"co_competent\":null},\"privateData\":false,\"ada\":\"97\u03933\u03A9\u039E\u039A-\u0397\u03A7\u0398\",\"publishTimestamp\":1789888844422,\"submissionTimestamp\":1789888844422,\"versionId\":\"7cdc203f-b7f6-488b-affd-029e13cc475f\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/97\u03933\u03A9\u039E\u039A-\u0397\u03A7\u0398\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/97\u03933\u03A9\u039E\u039A-\u0397\u03A7\u0398\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"\u0392/2942\",\"subject\":\"\u03A7\u0395
+        \u0392/2942 - 20/09/2026 \u0392\u0399\u039F\u039A\u039F\u039D \u0399\u0391\u03A4\u03A1\u0399\u039A\u0391
+        & \u0392\u0399\u039F\u03A4\u0395\u03A7\u039D\u039F\u039B\u039F\u0393\u0399\u039A\u0391
+        \u03A0\u03A1\u039F\u0399\u039F\u039D\u03A4\u0391 \u0395.\u03A0.\u0395.\",\"issueDate\":1789862400000,\"organizationId\":\"99221912\",\"signerIds\":[\"100059144\"],\"unitIds\":[\"100036346\"],\"decisionTypeId\":\"\u0392.2.2\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"org\":{\"afm\":\"998995401\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"name\":\"\u0393\u0395\u039D\u0399\u039A\u039F
+        \u039D\u039F\u03A3\u039F\u039A\u039F\u039C\u0395\u0399\u039F \u039C\u0395\u03A3\u03A3\u0397\u039D\u0399\u0391\u03A3\"},\"skipVatReason\":null,\"sponsor\":[{\"sponsorAFMName\":{\"afm\":\"999656321\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"name\":\"\u0392\u0399\u039F\u039A\u039F\u039D
+        \u0399\u0391\u03A4\u03A1\u0399\u039A\u0391 & \u0392\u0399\u039F\u03A4\u0395\u03A7\u039D\u039F\u039B\u039F\u0393\u0399\u039A\u0391
+        \u03A0\u03A1\u039F\u0399\u039F\u039D\u03A4\u0391 \u0395.\u03A0.\u0395.\"},\"expenseAmount\":{\"amount\":6962.6,\"currency\":\"EUR\"},\"kae\":\"3.2.3.02.03
+        (131101)\"}],\"relatedEkgrisiDapanis\":null,\"relatedDecisions\":null,\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":true,\"ada\":\"\u03A80\u0394\u039E4690\u0392\u03A6-17\u03A7\",\"publishTimestamp\":1789888693237,\"submissionTimestamp\":1789888693237,\"versionId\":\"a57a683f-5465-4dbb-b7ba-88c73c1ddbca\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A80\u0394\u039E4690\u0392\u03A6-17\u03A7\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A80\u0394\u039E4690\u0392\u03A6-17\u03A7\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"180/2026\",\"subject\":\"\u039B\u03AE\u03C8\u03B7
+        \ \u03B1\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7\u03C2  \u03C0\u03B5\u03C1\u03AF
+        \u03BF\u03C1\u03B9\u03C3\u03BC\u03BF\u03CD \u03B5\u03BA\u03C0\u03C1\u03BF\u03C3\u03CE\u03C0\u03C9\u03BD
+        \u03C4\u03BF\u03C5 \u0394\u03AE\u03BC\u03BF\u03C5 \u03A0\u03B1\u03BB\u03BB\u03AE\u03BD\u03B7\u03C2
+        \u03C3\u03C4\u03B1 \u03A3\u03C7\u03BF\u03BB\u03B9\u03BA\u03AC \u03A3\u03C5\u03BC\u03B2\u03BF\u03CD\u03BB\u03B9\u03B1
+        \u03C4\u03C9\u03BD \u03C3\u03C7\u03BF\u03BB\u03B9\u03BA\u03CE\u03BD \u03BC\u03BF\u03BD\u03AC\u03B4\u03C9\u03BD
+        \u03A0\u03C1\u03C9\u03C4\u03BF\u03B2\u03AC\u03B8\u03BC\u03B9\u03B1\u03C2 \u03BA\u03B1\u03B9
+        \u0394\u03B5\u03C5\u03C4\u03B5\u03C1\u03BF\u03B2\u03AC\u03B8\u03BC\u03B9\u03B1\u03C2
+        \u0395\u03BA\u03C0\u03B1\u03AF\u03B4\u03B5\u03C5\u03C3\u03B7\u03C2 \u03B3\u03B9\u03B1
+        \u03C4\u03BF \u03C3\u03C7\u03BF\u03BB\u03B9\u03BA\u03CC \u03AD\u03C4\u03BF\u03C2
+        2026-2027.\",\"issueDate\":1789862400000,\"organizationId\":\"6234\",\"signerIds\":[\"100086589\"],\"unitIds\":[\"83227\"],\"decisionTypeId\":\"2.4.7.1\",\"thematicCategoryIds\":[\"10004\"],\"extraFieldValues\":{\"kanonistikipraxitype\":null,\"kanonistikiPraxiPublishMedium\":null,\"fek\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\",\"co_competent\":null},\"privateData\":false,\"ada\":\"9\u03A1\u0394\u03A0\u03A9\u039E\u039A-\u039F\u0392\u03A8\",\"publishTimestamp\":1789888678294,\"submissionTimestamp\":1789888678294,\"versionId\":\"c8781c9d-b468-43eb-901d-696cab618898\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/9\u03A1\u0394\u03A0\u03A9\u039E\u039A-\u039F\u0392\u03A8\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/9\u03A1\u0394\u03A0\u03A9\u039E\u039A-\u039F\u0392\u03A8\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"179/2026\",\"subject\":\"\u039B\u03AE\u03C8\u03B7
+        \ \u03B1\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7\u03C2  \u03C0\u03B5\u03C1\u03AF
+        \u03AD\u03B3\u03BA\u03C1\u03B9\u03C3\u03B7\u03C2,  \u03BC\u03B5\u03C1\u03B9\u03BA\u03AE\u03C2
+        \u03A4\u03C1\u03BF\u03C0\u03BF\u03C0\u03BF\u03AF\u03B7\u03C3\u03B7\u03C2 \u03C4\u03BF\u03C5
+        \u039F\u03C1\u03B3\u03B1\u03BD\u03B9\u03C3\u03BC\u03BF\u03CD \u0395\u03C3\u03C9\u03C4\u03B5\u03C1\u03B9\u03BA\u03AE\u03C2
+        \u03A5\u03C0\u03B7\u03C1\u03B5\u03C3\u03AF\u03B1\u03C2 (\u039F.\u0395.\u03A5.)
+        \u0394\u03AE\u03BC\u03BF\u03C5 \u03A0\u03B1\u03BB\u03BB\u03AE\u03BD\u03B7\u03C2
+        (\u03A6\u0395\u039A 105/\u03C4. \u0392\u0384/31-01-2012 ) \u03B1\u03BD\u03B1\u03C6\u03BF\u03C1\u03B9\u03BA\u03AC
+        \u03BC\u03B5 \u03C4\u03B7  \u03C3\u03CD\u03C3\u03C4\u03B1\u03C3\u03B7 \u03BF\u03C1\u03B3\u03B1\u03BD\u03B9\u03BA\u03CE\u03BD
+        \u03B8\u03AD\u03C3\u03B5\u03C9\u03BD \u03C4\u03B1\u03BA\u03C4\u03B9\u03BA\u03BF\u03CD
+        \u03C0\u03C1\u03BF\u03C3\u03C9\u03C0\u03B9\u03BA\u03BF\u03CD \u03C3\u03C4\u03BF\u03C5\u03C2
+        \u03B4\u03B7\u03BC\u03BF\u03C4\u03B9\u03BA\u03BF\u03CD\u03C2 \u03C0\u03B1\u03B9\u03B4\u03B9\u03BA\u03BF\u03CD\u03C2,
+        \u03B2\u03C1\u03B5\u03C6\u03B9\u03BA\u03BF\u03CD\u03C2 \u03BA\u03B1\u03B9
+        \u03B2\u03C1\u03B5\u03C6\u03BF\u03BD\u03B7\u03C0\u03B9\u03B1\u03BA\u03BF\u03CD\u03C2
+        \u03C3\u03C4\u03B1\u03B8\u03BC\u03BF\u03CD\u03C2, \u03BA\u03B1\u03C4\u2019
+        \u03B5\u03C6\u03B1\u03C1\u03BC\u03BF\u03B3\u03AE \u03C4\u03C9\u03BD \u03AC\u03C1\u03B8\u03C1\u03C9\u03BD
+        759 & 768 \u03C4\u03BF\u03C5 \u03BD. 5314/2026\xBB.\",\"issueDate\":1789862400000,\"organizationId\":\"6234\",\"signerIds\":[\"100086589\"],\"unitIds\":[\"83227\"],\"decisionTypeId\":\"2.4.7.1\",\"thematicCategoryIds\":[\"10004\"],\"extraFieldValues\":{\"kanonistikipraxitype\":null,\"kanonistikiPraxiPublishMedium\":null,\"fek\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\",\"co_competent\":null},\"privateData\":false,\"ada\":\"687\u0395\u03A9\u039E\u039A-\u03A4\u03938\",\"publishTimestamp\":1789888517528,\"submissionTimestamp\":1789888517528,\"versionId\":\"f2496810-4aa0-4a57-a266-a3941bff31de\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/687\u0395\u03A9\u039E\u039A-\u03A4\u03938\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/687\u0395\u03A9\u039E\u039A-\u03A4\u03938\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"2256/2026\",\"subject\":\"\u0391\u03BD\u03AC\u03B8\u03B5\u03C3\u03B7
+        \u03B5\u03BA\u03C4\u03AD\u03BB\u03B5\u03C3\u03B7\u03C2 \u03B5\u03C1\u03B3\u03B1\u03C3\u03B9\u03CE\u03BD
+        \u0391\u03C0\u03CC\u03C6\u03C1\u03B1\u03BE\u03B7\u03C2 \u03B3\u03B9\u03B1
+        \u0395\u03C0\u03B9\u03C3\u03BA\u03B5\u03C5\u03AE - \u03A3\u03C5\u03BD\u03C4\u03AE\u03C1\u03B7\u03C3\u03B7
+        - \u039A\u03B1\u03B8\u03B1\u03C1\u03B9\u03C3\u03BC\u03CC\u03C2 \u03C6\u03C1\u03B5\u03B1\u03C4\u03AF\u03C9\u03BD
+        \u03B1\u03C0\u03BF\u03C7\u03AD\u03C4\u03B5\u03C5\u03C3\u03B7\u03C2 \u03C3\u03C4\u03B7
+        \u0394.\u0395. \u039A\u03B5\u03C1\u03BA\u03AF\u03BD\u03B7\u03C2\",\"issueDate\":1789084800000,\"organizationId\":\"52893\",\"signerIds\":[\"118252\"],\"unitIds\":[\"100000239\"],\"decisionTypeId\":\"\u0394.1\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"person\":[{\"afm\":\"802276930\",\"name\":\"\u03A0\u0391\u03A3\u03A7\u0391\u039B\u0397\u03A3
+        \u039C\u03A0\u039F\u03A5\u03A1\u0392\u0391\u039D\u0397\u03A3 \u039F \u0395\",\"enterName\":false,\"afmType\":\"EL\"}],\"awardAmount\":{\"amount\":2455.2,\"currency\":\"EUR\"},\"assignmentType\":\"\u03A5\u03C0\u03B7\u03C1\u03B5\u03C3\u03AF\u03B5\u03C2\",\"cpv\":[\"90470000-2\"],\"textRelatedADA\":\"6\u039D\u0396\u03A0\u039F\u039B23-9\u03952\",\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A8\u03A9\u039F3\u039F\u039B23-7\u0395\u0397\",\"publishTimestamp\":1789888499059,\"submissionTimestamp\":1789888499059,\"versionId\":\"4d5898e4-4297-4aa4-a8dd-d233ea99e026\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A8\u03A9\u039F3\u039F\u039B23-7\u0395\u0397\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A8\u03A9\u039F3\u039F\u039B23-7\u0395\u0397\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"20248\",\"subject\":\"\u03A7\u0395\u03A0
+        1-1197\",\"issueDate\":1789862400000,\"organizationId\":\"99221921\",\"signerIds\":[\"100001124\"],\"unitIds\":[\"72796\"],\"decisionTypeId\":\"\u0392.2.2\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"org\":{\"afm\":\"999227410\",\"afmType\":\"EL\",\"enterName\":false,\"name\":\"\u0393\u0395\u039D\u0399\u039A\u039F
+        \u039D\u039F\u03A3\u039F\u039A\u039F\u039C\u0395\u0399\u039F \u039A\u039F\u039C\u039F\u03A4\u0397\u039D\u0397\u03A3
+        \u03A3\u0399\u03A3\u039C\u0391\u039D\u039F\u0393\u039B\u0395\u0399\u039F\"},\"skipVatReason\":null,\"sponsor\":[{\"sponsorAFMName\":{\"afm\":\"093628458\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"enterName\":false,\"name\":\"BBD
+        \u039D\u0399\u039A\u039F\u039B\u0391\u039F\u03A3 \u039B\u0391\u0399\u039D\u0399\u03A9\u03A4\u0397\u03A3
+        \u0391\u0395\u0392\u0395 \u03A0\u0391\u03A1\u0391\u0393\u03A9\u0393\u0397
+        \u0395\u0399\u03A3\u0391\u0393\u03A9\u0393\u0397 \u039A\u0391\u0399 \u0395\u039C\u03A0\u039F\u03A1\u0399\u0391
+        \u03A5\u0393\u0395\u0399\u039F\u039D\u039F\u039C\u0399\u039A\u039F\u03A5 \u03A5\u039B\u0399\u039A\u039F\u03A5
+        \u0391\u039D\u03A9\u039D\u03A5\u039C\u039F\u03A3 \u0395\u039C\u03A0\u039F\u03A1\u0399\u039A\u0397
+        \u0392\u0399\u039F\u039C\u0397\u03A7\u0391\u039D\u0399\u039A\u0397 \u0395\u03A4\u0391\u0399\u03A1\u0395\u0399\u0391\"},\"expenseAmount\":{\"amount\":607.84,\"currency\":\"EUR\"},\"kae\":\"24101050001001\"},{\"sponsorAFMName\":{\"afm\":\"093628458\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"enterName\":false,\"name\":\"BBD
+        \u039D\u0399\u039A\u039F\u039B\u0391\u039F\u03A3 \u039B\u0391\u0399\u039D\u0399\u03A9\u03A4\u0397\u03A3
+        \u0391\u0395\u0392\u0395 \u03A0\u0391\u03A1\u0391\u0393\u03A9\u0393\u0397
+        \u0395\u0399\u03A3\u0391\u0393\u03A9\u0393\u0397 \u039A\u0391\u0399 \u0395\u039C\u03A0\u039F\u03A1\u0399\u0391
+        \u03A5\u0393\u0395\u0399\u039F\u039D\u039F\u039C\u0399\u039A\u039F\u03A5 \u03A5\u039B\u0399\u039A\u039F\u03A5
+        \u0391\u039D\u03A9\u039D\u03A5\u039C\u039F\u03A3 \u0395\u039C\u03A0\u039F\u03A1\u0399\u039A\u0397
+        \u0392\u0399\u039F\u039C\u0397\u03A7\u0391\u039D\u0399\u039A\u0397 \u0395\u03A4\u0391\u0399\u03A1\u0395\u0399\u0391\"},\"expenseAmount\":{\"amount\":5008.13,\"currency\":\"EUR\"},\"kae\":\"32302030001001\"}],\"relatedEkgrisiDapanis\":[],\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"9\u0397\u039484690\u0392\u0391-\u0393\u03A43\",\"publishTimestamp\":1789888403806,\"submissionTimestamp\":1789888403806,\"versionId\":\"589c87d1-50e0-40fa-8e79-1f4f4a13ef1b\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/9\u0397\u039484690\u0392\u0391-\u0393\u03A43\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/9\u0397\u039484690\u0392\u0391-\u0393\u03A43\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"\u03A3\u03C5\u03BD\u03B5\u03B4\u03C1\u03AF\u03B1\u03C3\u03B7
+        10\u03B7/17-9-2026\",\"subject\":\"\u039B\u03AE\u03C8\u03B7 \u03B1\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7\u03C2
+        \u03B3\u03B9\u03B1 \u03C4\u03B7\u03BD \u03C0\u03B1\u03C1\u03BF\u03C7\u03AE
+        \u03C5\u03C0\u03B7\u03C1\u03B5\u03C3\u03B9\u03CE\u03BD \u03C0\u03BF\u03C5
+        \u03B1\u03C6\u03BF\u03C1\u03AC \u03C3\u03C4\u03B7 \xAB\u03A3\u03C5\u03BD\u03C4\u03AE\u03C1\u03B7\u03C3\u03B7
+        \u03A3\u03C5\u03C3\u03C4\u03B7\u03BC\u03AC\u03C4\u03C9\u03BD \u0395\u03C0\u03B5\u03BE\u03B5\u03C1\u03B3\u03B1\u03C3\u03AF\u03B1\u03C2
+        \u039D\u03B5\u03C1\u03BF\u03CD\xBB \u03C4\u03BF\u03C5 \u0393\u03B5\u03BD\u03B9\u03BA\u03BF\u03CD
+        \u039D\u03BF\u03C3\u03BF\u03BA\u03BF\u03BC\u03B5\u03AF\u03BF\u03C5 \u039B\u03B5\u03C5\u03BA\u03AC\u03B4\u03B1\u03C2
+        \u03B4\u03B9\u03AC\u03C1\u03BA\u03B5\u03B9\u03B1\u03C2 \u03B5\u03BD\u03CC\u03C2
+        \u03AD\u03C4\u03BF\u03C5\u03C2.\",\"issueDate\":1789862400000,\"organizationId\":\"99221925\",\"signerIds\":[\"100099506\"],\"unitIds\":[\"11127\"],\"decisionTypeId\":\"\u0391.2\",\"thematicCategoryIds\":[\"10004\"],\"extraFieldValues\":{\"fek\":{},\"kanonistikipraxiaa\":null,\"kanonistikipraxitype\":\"\u03A0\u03C1\u03AC\u03BE\u03B7
+        \u039F\u03C1\u03B3\u03AC\u03BD\u03BF\u03C5 \u0394\u03B9\u03BF\u03AF\u03BA\u03B7\u03C3\u03B7\u03C2
+        \u039D.\u03A0.\u0394.\u0394.\",\"co_competent\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"6\u039C\u03A7\u039C4690\u0392\u03A7-\u0395\u03940\",\"publishTimestamp\":1789888402718,\"submissionTimestamp\":1789888402718,\"versionId\":\"6ce79836-9cd8-4eab-8562-c5233819c29f\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/6\u039C\u03A7\u039C4690\u0392\u03A7-\u0395\u03940\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/6\u039C\u03A7\u039C4690\u0392\u03A7-\u0395\u03940\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"178/2026\",\"subject\":\"\u039B\u03AE\u03C8\u03B7
+        \ \u03B1\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7\u03C2  \u03C0\u03B5\u03C1\u03AF
+        \u03AD\u03B3\u03BA\u03C1\u03B9\u03C3\u03B7\u03C2 \u03BB\u03BF\u03B3\u03B1\u03C1\u03B9\u03B1\u03C3\u03BC\u03BF\u03CD
+        \u03B4\u03B9\u03B1\u03C7\u03B5\u03AF\u03C1\u03B9\u03C3\u03B7\u03C2 2025 (\u03B1\u03C0\u03BF\u03BB\u03BF\u03B3\u03B9\u03C3\u03BC\u03BF\u03CD)
+        \u0394\u03AE\u03BC\u03BF\u03C5 \u03A0\u03B1\u03BB\u03BB\u03AE\u03BD\u03B7\u03C2.\",\"issueDate\":1789862400000,\"organizationId\":\"6234\",\"signerIds\":[\"100086589\"],\"unitIds\":[\"83227\"],\"decisionTypeId\":\"2.4.7.1\",\"thematicCategoryIds\":[\"10004\"],\"extraFieldValues\":{\"kanonistikipraxitype\":null,\"kanonistikiPraxiPublishMedium\":null,\"fek\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\",\"co_competent\":null},\"privateData\":false,\"ada\":\"\u03A1\u039F\u0391\u0398\u03A9\u039E\u039A-\u03A0\u0392\u03A6\",\"publishTimestamp\":1789888347258,\"submissionTimestamp\":1789888347258,\"versionId\":\"bc203299-10d7-43fb-9d85-5fb068a002ad\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A1\u039F\u0391\u0398\u03A9\u039E\u039A-\u03A0\u0392\u03A6\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A1\u039F\u0391\u0398\u03A9\u039E\u039A-\u03A0\u0392\u03A6\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"1858/2026\",\"subject\":\"\u03A0\u03C1\u03BF\u03BC\u03AE\u03B8\u03B5\u03B9\u03B1
+        \u03BA\u03B1\u03C5\u03C3\u03AF\u03BC\u03C9\u03BD \u03B3\u03B9\u03B1 \u03BA\u03AF\u03BD\u03B7\u03C3\u03B7
+        \u03BF\u03C7\u03B7\u03BC\u03AC\u03C4\u03C9\u03BD \u03BA\u03B1\u03B9 \u03BC\u03B7\u03C7\u03B1\u03BD\u03B7\u03BC\u03AC\u03C4\u03C9\u03BD
+        \u03AD\u03C1\u03B3\u03BF\u03C5 \u0394\u0395 \u0391\u03BD\u03B1\u03BA\u03C4\u03BF\u03C1\u03AF\u03BF\u03C5
+        (\u0397\u03BB.\u0394\u03B9\u03B1\u03B3\u03C9\u03BD\u03B9\u03C3\u03BC\u03CC\u03C2)
+        \u039A\u0397\u0399 9026 \u0391\u03CD\u03B3\u03BF\u03C5\u03C3\u03C4\u03BF\u03C2
+        \ 2026\",\"issueDate\":1789862400000,\"organizationId\":\"6017\",\"signerIds\":[\"100047422\"],\"unitIds\":[\"93483\"],\"decisionTypeId\":\"\u0392.2.2\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"org\":{\"afm\":\"099202692\",\"afmType\":\"EL\",\"enterName\":false,\"name\":\"\u0394\u0397\u039C\u039F\u03A3
+        \u0391\u039A\u03A4\u0399\u039F\u03A5 \u0392\u039F\u039D\u0399\u03A4\u03A3\u0391\u03A3\"},\"skipVatReason\":null,\"sponsor\":[{\"sponsorAFMName\":{\"afm\":\"069752410\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"enterName\":false,\"name\":\"\u039C\u03A0\u0391\u039B\u0391\u03A3\u039A\u0391\u03A3,,\u0393\u0395\u03A9\u03A1\u0393\u0399\u039F\u03A3,\u0393\u0395\u03A1\u0391\u03A3\u0399\u039C\u039F\u03A3\"},\"expenseAmount\":{\"amount\":189.39,\"currency\":\"EUR\"}}],\"relatedEkgrisiDapanis\":[],\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"9\u03A6\u03A7\u03A4\u03A96\u0396-\u03A3\u03A4\u0392\",\"publishTimestamp\":1789888167689,\"submissionTimestamp\":1789888167689,\"versionId\":\"f5710241-2a97-4e4e-8ad0-57550783ab70\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/9\u03A6\u03A7\u03A4\u03A96\u0396-\u03A3\u03A4\u0392\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/9\u03A6\u03A7\u03A4\u03A96\u0396-\u03A3\u03A4\u0392\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null}],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T10:00:00+03:00)
+        TO DT(2026-09-20T11:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":0,\"size\":50,\"actualSize\":50,\"total\":56,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:09:10 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '58649'
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      Accept:
+      - application/json
+      Accept-Encoding:
+      - gzip, deflate
+      Connection:
+      - keep-alive
+      User-Agent:
+      - python-requests/2.34.2
+    method: GET
+    uri: https://diavgeia.gov.gr/opendata/search/advanced?q=submissionTimestamp%3A%5BDT%282026-09-20T10%3A00%3A00%2B03%3A00%29+TO+DT%282026-09-20T11%3A00%3A00%2B03%3A00%29%5D+AND+status%3A%22%CE%91%CE%BD%CE%B1%CF%81%CF%84%CE%B7%CE%BC%CE%AD%CE%BD%CE%B7%22&page=1&size=50
+  response:
+    body:
+      string: "{\"decisions\":[{\"protocolNumber\":\"\u0392/2941\",\"subject\":\"\u03A7\u0395
+        \u0392/2941 - 20/09/2026 \u0392\u0399\u039F\u03A0\u03A1\u039F\u039C\u0397\u0398\u0395\u03A5\u03A4\u0399\u039A\u0397
+        \u0395.\u03A0.\u0395.\",\"issueDate\":1789862400000,\"organizationId\":\"99221912\",\"signerIds\":[\"100059144\"],\"unitIds\":[\"100036346\"],\"decisionTypeId\":\"\u0392.2.2\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"org\":{\"afm\":\"998995401\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"name\":\"\u0393\u0395\u039D\u0399\u039A\u039F
+        \u039D\u039F\u03A3\u039F\u039A\u039F\u039C\u0395\u0399\u039F \u039C\u0395\u03A3\u03A3\u0397\u039D\u0399\u0391\u03A3\"},\"skipVatReason\":null,\"sponsor\":[{\"sponsorAFMName\":{\"afm\":\"099007886\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"name\":\"\u0392\u0399\u039F\u03A0\u03A1\u039F\u039C\u0397\u0398\u0395\u03A5\u03A4\u0399\u039A\u0397
+        \u0395.\u03A0.\u0395.\"},\"expenseAmount\":{\"amount\":219.11,\"currency\":\"EUR\"},\"kae\":\"3.2.3.02.03
+        (131101)\"},{\"sponsorAFMName\":{\"afm\":\"099007886\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"name\":\"\u0392\u0399\u039F\u03A0\u03A1\u039F\u039C\u0397\u0398\u0395\u03A5\u03A4\u0399\u039A\u0397
+        \u0395.\u03A0.\u0395.\"},\"expenseAmount\":{\"amount\":0.0,\"currency\":\"EUR\"},\"kae\":\"3.2.3.02.03
+        (131101)\"},{\"sponsorAFMName\":{\"afm\":\"099007886\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"name\":\"\u0392\u0399\u039F\u03A0\u03A1\u039F\u039C\u0397\u0398\u0395\u03A5\u03A4\u0399\u039A\u0397
+        \u0395.\u03A0.\u0395.\"},\"expenseAmount\":{\"amount\":369.02,\"currency\":\"EUR\"},\"kae\":\"3.2.3.09.89.010
+        (189901)\"}],\"relatedEkgrisiDapanis\":null,\"relatedDecisions\":null,\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":true,\"ada\":\"\u03A86\u0397\u039F4690\u0392\u03A6-\u03A7\u0391\u039A\",\"publishTimestamp\":1789888077206,\"submissionTimestamp\":1789888077206,\"versionId\":\"5e5fe466-c861-4321-93e5-8c8b155db775\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A86\u0397\u039F4690\u0392\u03A6-\u03A7\u0391\u039A\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A86\u0397\u039F4690\u0392\u03A6-\u03A7\u0391\u039A\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"70271/\u03A3.38216/\u03A6.\u03A0\u039B\u0397\u039C\u039B\u0391\u03A123.\u0392.14
+        \u03A3\u03C7\u03B5\u03C4.: 47433\",\"subject\":\"\u0392\u0395\u0392\u0391\u0399\u03A9\u03A3\u0397
+        \u03A0\u0395\u03A1\u0391\u0399\u03A9\u03A3\u0397\u03A3 \u0395\u03A1\u0393\u0391\u03A3\u0399\u03A9\u039D
+        \u0395\u03A0\u0399\u03A3\u039A\u0395\u03A5\u0397\u03A3\\n(\u0394.\u039A.\u0391.
+        \u03A3\u03B5 \u03A0\u03BF\u03C3\u03BF\u03C3\u03C4\u03CC 70%) \u03B9\u03B4\u03B9\u03BF\u03BA\u03C4\u03B7\u03C3\u03AF\u03B1\u03C2
+        \ \u0394\u03B7\u03BC\u03AE\u03C4\u03C1\u03B9\u03BF\u03C5 \u03A3\u03B1\u03BB\u03B9\u03CE\u03C1\u03B1
+        \u03C4\u03BF\u03C5 \u0392\u03B1\u03C3\u03B9\u03BB\u03B5\u03AF\u03BF\u03C5.\\n\u0391\u03A1.
+        \u0391\u0394\u0395\u0399\u0391\u03A3: 5580/\u03A0\u039B\u0397\u039C\u039B\u0391\u03A123/\u03A4.\u0391.\u0395.\u03A6.\u039A.-\u0391.\u0391.\",\"issueDate\":1789689600000,\"organizationId\":\"100068650\",\"signerIds\":[\"100082328\"],\"unitIds\":[\"100082322\"],\"decisionTypeId\":\"2.4.7.1\",\"thematicCategoryIds\":[\"52\",\"28\"],\"extraFieldValues\":{\"kanonistikipraxitype\":\"10003\",\"kanonistikiPraxiPublishMedium\":null,\"fek\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\",\"co_competent\":null},\"privateData\":true,\"ada\":\"91\u0399\u039646\u039D\u03A0\u0399\u0398-\u03922\u0393\",\"publishTimestamp\":1789888075013,\"submissionTimestamp\":1789888075013,\"versionId\":\"976a8688-d5b4-4254-bbb9-e083bead449d\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/91\u0399\u039646\u039D\u03A0\u0399\u0398-\u03922\u0393\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/91\u0399\u039646\u039D\u03A0\u0399\u0398-\u03922\u0393\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"2947/18-09-2026\",\"subject\":\"\u0391\u03A0\u039F\u03A6\u0391\u03A3\u0397
+        \u0395\u0393\u039A\u03A1\u0399\u03A3\u0397\u03A3 \u0391\u0399\u03A4\u0397\u039C\u0391\u03A4\u039F\u03A3
+        \u0393\u0399\u0391 \u03A4\u0397\u039D \u03A0\u03A1\u039F\u039C\u0397\u0398\u0395\u0399\u0391
+        \u0398\u03A5\u03A1\u03A9\u039D \u039A\u0391\u0399 \u03A0\u039F\u039C\u039F\u039B\u038F\u039D
+        \u0393\u0399\u0391 \u03A4\u0391 \u0394\u03A9\u039C\u0391\u03A4\u0399\u0391
+        \u03A3\u03A4\u039F\u039D \u03A5\u03A0\u039F\u0393\u0395\u0399\u039F \u03A7\u03A9\u03A1\u039F
+        \u03A4\u0397\u03A3 \u039C\u039F\u039D\u0391\u0394\u0391\u03A3 \u039A\u039F\u039D\u0399\u03A4\u03A3\u0391\u03A3
+        \u03A4\u039F\u03A5 \u03A0.\u03A0.\u03A0.\u0399\u03A9\u0391\u039D\u039D\u0399\u039D\u03A9\u039D.\",\"issueDate\":1789862400000,\"organizationId\":\"55403\",\"signerIds\":[\"100056041\"],\"unitIds\":[\"94531\"],\"decisionTypeId\":\"\u0391.2\",\"thematicCategoryIds\":[\"16\"],\"extraFieldValues\":{\"fek\":{},\"kanonistikipraxiaa\":null,\"kanonistikipraxitype\":null,\"co_competent\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"9\u039522\u039F\u039E\u03A7\u0393-\u03A6\u039F\u0398\",\"publishTimestamp\":1789887893099,\"submissionTimestamp\":1789887893099,\"versionId\":\"0eff01a8-4e22-4ac1-82ee-a5dd742ca855\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/9\u039522\u039F\u039E\u03A7\u0393-\u03A6\u039F\u0398\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/9\u039522\u039F\u039E\u03A7\u0393-\u03A6\u039F\u0398\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"8041/6/2-\u03B5\u0384\",\"subject\":\"\u0391\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7
+        \u03B1\u03C0\u03B5\u03C5\u03B8\u03B5\u03AF\u03B1\u03C2 \u03B1\u03BD\u03AC\u03B8\u03B5\u03C3\u03B7\u03C2
+        \u03B3\u03B9\u03B1 \u03C4\u03B7\u03BD \u03C0\u03B1\u03C1\u03BF\u03C7\u03AE
+        \u03C5\u03C0\u03B7\u03C1\u03B5\u03C3\u03B9\u03CE\u03BD \u03BA\u03B1\u03B8\u03B1\u03C1\u03B9\u03CC\u03C4\u03B7\u03C4\u03B1\u03C2
+        \u03C3\u03C4\u03B7 \u03BD\u03B5\u03BF\u03CA\u03B4\u03C1\u03C5\u03B8\u03B5\u03AF\u03C3\u03B1
+        \u03A5\u03C0\u03BF\u03B4\u03B9\u03B5\u03CD\u03B8\u03C5\u03BD\u03C3\u03B7 \u0391\u03C3\u03C4\u03C5\u03BD\u03BF\u03BC\u03AF\u03B1\u03C2
+        \u039C\u03B5\u03C3\u03C3\u03B1\u03C1\u03AC\u03C2 \u03B7 \u03BF\u03C0\u03BF\u03AF\u03B1
+        \u03B4\u03B5\u03BD \u03C0\u03B5\u03C1\u03B9\u03BB\u03B1\u03BC\u03B2\u03AC\u03BD\u03B5\u03C4\u03B1\u03B9
+        (\u03B1) \u03C3\u03C4\u03B7\u03BD \u03C5\u03C0\u2019 \u03B1\u03C1\u03B9\u03B8.
+        8773/25/248489 \u03B1\u03C0\u03CC 3-2-2025 \u0391\u03C0\u03CC\u03C6\u03B1\u03C3\u03B7
+        \u03C4\u03BF\u03C5 \u0394\u03B9\u03B5\u03C5\u03B8\u03C5\u03BD\u03C4\u03AE
+        \u03C4\u03B7\u03C2 \u0394\u03B9\u03B5\u03CD\u03B8\u03C5\u03BD\u03C3\u03B7\u03C2
+        \u0391\u03C3\u03C4\u03C5\u03BD\u03BF\u03BC\u03AF\u03B1\u03C2 \u0397\u03C1\u03B1\u03BA\u03BB\u03B5\u03AF\u03BF\u03C5
+        \u03BC\u03B5 \u0391.\u0394.\u0391. 9\u0399\u03A6046\u039C\u03A4\u039B\u0392-9\u0398\u0393
+        \u03BA\u03B1\u03B9 \u0391.\u0394.\u0391.\u039C. 25REQ016244453 \u03BC\u03B5
+        \u03B8\u03AD\u03BC\u03B1 \xAB\u0388\u03B3\u03BA\u03C1\u03B9\u03C3\u03B7 \u03B1\u03BD\u03AC\u03BB\u03B7\u03C8\u03B7\u03C2
+        \u03C0\u03BF\u03BB\u03C5\u03B5\u03C4\u03BF\u03CD\u03C2 \u03C5\u03C0\u03BF\u03C7\u03C1\u03AD\u03C9\u03C3\u03B7\u03C2
+        \u03B3\u03B9\u03B1 \u03C4\u03B1 \u03BF\u03B9\u03BA\u03BF\u03BD\u03BF\u03BC\u03B9\u03BA\u03AC
+        \u03AD\u03C4\u03B7 2026 \u03BA\u03B1\u03B9 2027\xBB \u03BA\u03B1\u03B9 (\u03B2)
+        \u03C3\u03C4\u03B7\u03BD \u03C5\u03C0\u2019 \u03B1\u03C1\u03B9\u03B8\u03BC.
+        28006/25/292514 \u03B1\u03C0\u03CC 7-2-2025 \u03B2\u03B5\u03B2\u03B1\u03AF\u03C9\u03C3\u03B7
+        \u03BA\u03B1\u03C4\u03AC \u03C0\u03B1\u03C1. 8 \u03C4\u03BF\u03C5 \u03B1\u03C1\u03B8.
+        66 \u03C4\u03BF\u03C5 \u039D.4811/2021 \u03A6.\u0395.\u039A. \u0391\u0384
+        \ 108, \u03BC\u03B5 \u0391.\u0394.\u0391.\u03A1\u0396\u03A8\u039846\u039C\u03A4\u039B\u0392-\u03A3\u03A6\u03A8,
+        \u03B3\u03B9\u03B1 \u03C4\u03BF \u03C7\u03C1\u03BF\u03BD\u03B9\u03BA\u03CC
+        \u03B4\u03B9\u03AC\u03C3\u03C4\u03B7\u03BC\u03B1 \u03B1\u03C0\u03CC 1-10-2026
+        \u03AD\u03C9\u03C2 31-12-2026.\",\"issueDate\":1789862400000,\"organizationId\":\"100054489\",\"signerIds\":[\"100102071\"],\"unitIds\":[\"100001812\"],\"decisionTypeId\":\"\u0394.1\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"person\":[{\"afm\":\"802842298\",\"name\":\"MASTER
+        CLEAN SERVICES \u0395 \u0395\",\"enterName\":false,\"afmType\":\"EL\"}],\"awardAmount\":{\"amount\":4278.0,\"currency\":\"EUR\"},\"assignmentType\":\"\u03A5\u03C0\u03B7\u03C1\u03B5\u03C3\u03AF\u03B5\u03C2\",\"cpv\":[\"90910000-9\"],\"textRelatedADA\":\"\u03A88\u03A8\u03A546\u039C\u03A4\u039B\u0392-\u03A57\u039F\",\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"9\u0397\u0392546\u039C\u03A4\u039B\u0392-\u0399\u039A\u0394\",\"publishTimestamp\":1789887861325,\"submissionTimestamp\":1789887861325,\"versionId\":\"29cc834e-e227-4b66-88b1-a32d6cb3ac2e\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/9\u0397\u0392546\u039C\u03A4\u039B\u0392-\u0399\u039A\u0394\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/9\u0397\u0392546\u039C\u03A4\u039B\u0392-\u0399\u039A\u0394\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"1857/2026\",\"subject\":\"\u03A0\u03C1\u03BF\u03BC\u03AE\u03B8\u03B5\u03B9\u03B1
+        \u03BA\u03B1\u03C5\u03C3\u03AF\u03BC\u03C9\u03BD \u03B3\u03B9\u03B1 \u03BA\u03AF\u03BD\u03B7\u03C3\u03B7
+        \u03BF\u03C7\u03B7\u03BC\u03AC\u03C4\u03C9\u03BD \u03BA\u03B1\u03B9 \u03BC\u03B7\u03C7\u03B1\u03BD\u03B7\u03BC\u03AC\u03C4\u03C9\u03BD
+        \u03AD\u03C1\u03B3\u03BF\u03C5 \u0394\u0395 \u0391\u03BD\u03B1\u03BA\u03C4\u03BF\u03C1\u03AF\u03BF\u03C5
+        (\u0397\u03BB.\u0394\u03B9\u03B1\u03B3\u03C9\u03BD\u03B9\u03C3\u03BC\u03CC\u03C2)
+        \u039C\u0395 40385 \u0391\u03CD\u03B3\u03BF\u03C5\u03C3\u03C4\u03BF\u03C2
+        \ 2026\",\"issueDate\":1789862400000,\"organizationId\":\"6017\",\"signerIds\":[\"100047422\"],\"unitIds\":[\"93483\"],\"decisionTypeId\":\"\u0392.2.2\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"org\":{\"afm\":\"099202692\",\"afmType\":\"EL\",\"enterName\":false,\"name\":\"\u0394\u0397\u039C\u039F\u03A3
+        \u0391\u039A\u03A4\u0399\u039F\u03A5 \u0392\u039F\u039D\u0399\u03A4\u03A3\u0391\u03A3\"},\"skipVatReason\":null,\"sponsor\":[{\"sponsorAFMName\":{\"afm\":\"069752410\",\"afmType\":\"EL\",\"afmCountry\":\"EL\",\"enterName\":false,\"name\":\"\u039C\u03A0\u0391\u039B\u0391\u03A3\u039A\u0391\u03A3,,\u0393\u0395\u03A9\u03A1\u0393\u0399\u039F\u03A3,\u0393\u0395\u03A1\u0391\u03A3\u0399\u039C\u039F\u03A3\"},\"expenseAmount\":{\"amount\":1971.22,\"currency\":\"EUR\"}}],\"relatedEkgrisiDapanis\":[],\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"\u03A8\u03A0\u03A4\u03A1\u03A96\u0396-\u039A90\",\"publishTimestamp\":1789887683001,\"submissionTimestamp\":1789887683001,\"versionId\":\"fd115469-4e40-4cd4-9c67-ef676df9c821\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/\u03A8\u03A0\u03A4\u03A1\u03A96\u0396-\u039A90\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/\u03A8\u03A0\u03A4\u03A1\u03A96\u0396-\u039A90\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null},{\"protocolNumber\":\"512690\",\"subject\":\"\u03A0\u03A1\u039F\u03A3\u039B\u0397\u03A8\u0395\u0399\u03A3
+        \u03A3\u0395\u03A0\u03A4\u0395\u039C\u0392\u03A1\u0399\u039F\u03A5 2026 (4)\",\"issueDate\":1789862400000,\"organizationId\":\"99221129\",\"signerIds\":[\"100088039\"],\"unitIds\":[\"100087860\"],\"decisionTypeId\":\"\u0393.3.4\",\"thematicCategoryIds\":[\"44\"],\"extraFieldValues\":{\"contractType\":\"\u03A3\u03CD\u03BC\u03B2\u03B1\u03C3\u03B7
+        \u0399\u03B4\u03B9\u03C9\u03C4\u03B9\u03BA\u03BF\u03CD \u0394\u03B9\u03BA\u03B1\u03AF\u03BF\u03C5
+        \u0391\u03BF\u03C1\u03AF\u03C3\u03C4\u03BF\u03C5 \u03A7\u03C1\u03CC\u03BD\u03BF\u03C5\",\"numberOfPeople\":null,\"financedProject\":null,\"person\":null,\"contractAmount\":null,\"duration\":null,\"relatedDecisions\":[],\"documentType\":\"\u03A0\u03A1\u0391\u039E\u0397\"},\"privateData\":false,\"ada\":\"63\u039B\u039F469\u03971\u0393-\u03A6\u0393\u0396\",\"publishTimestamp\":1789887605298,\"submissionTimestamp\":1789887605298,\"versionId\":\"7b2202fc-b589-407b-baaf-7ae168e112a2\",\"status\":\"PUBLISHED\",\"url\":\"https://diavgeia.gov.gr/luminapi/api/decisions/63\u039B\u039F469\u03971\u0393-\u03A6\u0393\u0396\",\"documentUrl\":\"https://diavgeia.gov.gr/doc/63\u039B\u039F469\u03971\u0393-\u03A6\u0393\u0396\",\"documentChecksum\":null,\"attachments\":[],\"warnings\":null,\"correctedVersionId\":null}],\"info\":{\"query\":\"submissionTimestamp:[DT(2026-09-20T10:00:00+03:00)
+        TO DT(2026-09-20T11:00:00+03:00)] AND status:\\\"\u0391\u03BD\u03B1\u03C1\u03C4\u03B7\u03BC\u03AD\u03BD\u03B7\\\"
+        AND issueDate:[DT(2026-04-09T00:00:00) TO DT(2026-10-06T23:59:59)]\",\"page\":1,\"size\":50,\"actualSize\":6,\"total\":56,\"order\":\"recent\"}}"
+    headers:
+      Connection:
+      - keep-alive
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Tue, 06 Oct 2026 09:09:10 GMT
+      Server:
+      - nginx
+      Transfer-Encoding:
+      - chunked
+      content-length:
+      - '8045'
+    status:
+      code: 200
+      message: OK
+version: 1

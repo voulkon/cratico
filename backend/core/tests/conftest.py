@@ -3,6 +3,7 @@ from urllib.parse import quote
 
 import pytest
 import responses
+import vcr
 from core.fetchers.nominatim_fetcher import NominatimFetcher
 from core.models.decisions import Decision
 from core.pydantic_models.geo_data import NominatimResult
@@ -145,6 +146,31 @@ def fetched_geo_data_success_full(
         result = nominatim_fetcher.fetch_geo_data(label_to_query)
 
     return result
+
+
+# --- VCR Integration Tests ---
+
+
+@pytest.fixture
+def vcr_config():
+    """Provide VCR configuration for tests."""
+    return vcr.VCR(
+        serializer="yaml",
+        cassette_library_dir="fixtures/vcr_cassettes",
+        record_mode="once",
+        match_on=["uri", "method"],
+        decode_compressed_response=True,
+    )
+
+
+@pytest.fixture
+def daily_decisions_vcr_cassette(vcr_config):
+    """Factory fixture to create VCR cassettes."""
+
+    def _create_cassette(cassette_name):
+        return vcr_config.use_cassette(cassette_name)
+
+    return _create_cassette
 
 
 @pytest.fixture
