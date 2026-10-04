@@ -179,6 +179,10 @@ services:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
       - DEBUG=${DEBUG:-false}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+      # Canonical first, then legacy: https://crati.co,https://preview-test.crati.co
+      # Feeds ALLOWED_HOSTS (via FRONTEND_HOSTNAMES), CORS/CSRF/CSP, and the
+      # canonical base URL used in notification emails (frontend_base_url()).
+      - FRONTEND_DOMAINS=${FRONTEND_DOMAINS}
       - GEMI_API_KEY=${GEMI_API_KEY}
       - STEALTH_MODE=${STEALTH_MODE:-false}
       - STEALTH_ALLOWLIST=${STEALTH_ALLOWLIST:-false}
@@ -229,6 +233,8 @@ services:
       - JAEGER_HOST=${JAEGER_HOST:-jaeger}
       - JAEGER_PORT=${JAEGER_PORT:-4317}
       - GEMI_API_KEY=${GEMI_API_KEY}
+      # Needed so worker-generated notification emails link to the canonical host.
+      - FRONTEND_DOMAINS=${FRONTEND_DOMAINS}
       - LIGHT_WORKER=${LIGHT_WORKER:-false}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
@@ -251,6 +257,8 @@ services:
       - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:5432/${POSTGRES_DB}
       - CELERY_BROKER_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//
       - GEMI_API_KEY=${GEMI_API_KEY}
+      # Needed so beat-scheduled notification emails link to the canonical host.
+      - FRONTEND_DOMAINS=${FRONTEND_DOMAINS}
 
   flower:
     build:
@@ -292,7 +300,9 @@ services:
       context: .
       dockerfile: docker/Dockerfile.nginx
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # Mounted as an envsubst template: the nginx entrypoint renders
+      # ${CANONICAL_DOMAIN} / ${LEGACY_REDIRECT_FROM} into conf.d/default.conf.
+      - ./nginx/default.conf:/etc/nginx/templates/default.conf.template:ro
     expose:
       - "80"
     # NOTE: jaeger is intentionally NOT a dependency — it's behind the
@@ -304,6 +314,12 @@ services:
     - STAGING_MODE=${STAGING_MODE:-false}
     - STAGING_USERNAME=${STAGING_USERNAME:-}
     - STAGING_PASSWORD=${STAGING_PASSWORD:-}
+    # Canonical host + optional legacy host(s) that 301-redirect to it
+    # (space-separated list works). LEGACY_REDIRECT_FROM defaults to a
+    # non-matching placeholder, so deployments without a legacy domain
+    # can simply omit it — the redirect block becomes a harmless no-op.
+    - CANONICAL_DOMAIN=${CANONICAL_DOMAIN:-crati.co}
+    - LEGACY_REDIRECT_FROM=${LEGACY_REDIRECT_FROM:-_.invalid}
     networks:
       - internal   # reach backend/frontend/flower upstreams
       - coolify    # only proxy-facing service on the shared network
