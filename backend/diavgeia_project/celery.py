@@ -288,6 +288,14 @@ app.conf.beat_schedule = {
         "task": "core.tasks.tasks_auto_import.auto_hourly_import_task",
         "schedule": crontab(minute=auto_hourly_import_minute),  # every hour at :MM
     },
+    # Daily hourly-coverage reconciliation — report-only safety net that
+    # compares our yesterday publish_date_day count against the official
+    # Diavgeia submission-date count.  Runs at 01:00, after the 00:30 daily
+    # issue-date import has settled.  Self-gates on AUTO_HOURLY_IMPORT_ENABLED.
+    "reconcile-hourly-coverage": {
+        "task": "core.tasks.tasks_auto_import.reconcile_hourly_coverage_task",
+        "schedule": crontab(hour=1, minute=0),  # daily, after 00:30 daily import
+    },
     # Auto Company GEMI Import — virtuous-cycle recovery heartbeat (daily at 02:00)
     # The cycle is self-sustaining once started (chains itself via Celery link);
     # this beat entry only restarts the chain if it died unexpectedly.

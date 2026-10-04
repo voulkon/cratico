@@ -25,11 +25,20 @@ from core.models.decisions import Decision
 from core.models.import_jobs import ImportJob, ImportJobStatus, ImportJobType
 from core.models.sync_status import SyncStatus
 from core.services.coverage_service import BackfillCoverageService
+from core.services.decision_fetch_reconcile_service import (
+    DecisionFetchReconcileService,
+)
 from core.services.feature_flag_service import feature_flags
 from core.services.import_job_queue import ImportJobQueue
+from core.tasks.tasks_post_import import log_task_run
 from django.db.models import Max
 from django.utils import timezone
 from loguru import logger
+
+# Percentage drift (our count vs. the official submission-day count) above which
+# the daily coverage reconciliation logs a WARNING.  Revocations/corrections
+# create small day-level noise; calibrate against the first weeks of real data.
+RECONCILE_WARNING_TOLERANCE_PCT = 2.0
 
 
 @shared_task
@@ -141,6 +150,66 @@ def auto_hourly_import_task():
     except Exception as e:
         logger.error(f"Failed to queue hourly import: {e}")
         return {"status": "error", "error": str(e)}
+
+
+@shared_task
+@log_task_run(swallow_errors=True)
+def reconcile_hourly_coverage_task():
+    """
+    Daily production safety net for the hourly import (report-only).
+
+    Compares our ``publish_date_day`` count for yesterday against the official
+    Diavgeia submission-date count.  This *detects* drift; it never repairs —
+    the 00:30 issue-date daily import already re-sweeps yesterday, so most
+    hourly misses self-heal within the day.
+
+    Only runs if AUTO_HOURLY_IMPORT_ENABLED is true.
+    """
+    if not feature_flags.is_enabled("AUTO_HOURLY_IMPORT_ENABLED"):
+        logger.info(
+            "AUTO_HOURLY_IMPORT_ENABLED is disabled, skipping hourly coverage "
+            "reconciliation"
+        )
+        return {"status": "skipped", "reason": "feature_flag_disabled"}
+
+    yesterday = timezone.localdate() - timedelta(days=1)
+
+    # publish_date_day is the indexed Athens submission-day, matching the
+    # official endpoint's semantics exactly.
+    our_count = Decision.objects.filter(publish_date_day=yesterday).count()
+
+    official = DecisionFetchReconcileService().get_official_count_for_date(yesterday)
+    if official is None:
+        logger.info(
+            f"Hourly coverage reconciliation skipped for {yesterday}: "
+            f"no official data available"
+        )
+        return {"status": "skipped", "reason": "no_official_data"}
+
+    difference = our_count - official
+    percentage_diff = (difference / official * 100) if official > 0 else 0
+
+    logger.info(
+        f"Hourly coverage reconciliation for {yesterday}: "
+        f"our={our_count}, official={official}, "
+        f"diff={difference} ({percentage_diff:.2f}%)"
+    )
+
+    if abs(percentage_diff) > RECONCILE_WARNING_TOLERANCE_PCT:
+        logger.warning(
+            f"Hourly coverage drift for {yesterday}: our={our_count}, "
+            f"official={official}, diff={difference} ({percentage_diff:.2f}%) "
+            f"exceeds {RECONCILE_WARNING_TOLERANCE_PCT}% tolerance"
+        )
+
+    return {
+        "status": "completed",
+        "date": str(yesterday),
+        "our_count": our_count,
+        "official_count": official,
+        "difference": difference,
+        "percentage_diff": percentage_diff,
+    }
 
 
 @shared_task
