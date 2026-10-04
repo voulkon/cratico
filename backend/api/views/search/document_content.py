@@ -1,4 +1,5 @@
 from core.models.decisions import Decision
+from api.utils.decision_refs import resolve_decision
 from django.conf import settings
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
@@ -11,18 +12,20 @@ from rest_framework.response import Response
     method="get",
     manual_parameters=[
         openapi.Parameter(
-            "decision_id",
+            "decision_ref",
             openapi.IN_PATH,
-            description="Decision ID (integer)",
-            type=openapi.TYPE_INTEGER,
+            description="Decision reference: integer ID or ΑΔΑ (ADA)",
+            type=openapi.TYPE_STRING,
             required=True,
         ),
     ],
 )
 @api_view(["GET"])
 @permission_classes([PublicReadOnly])
-def get_document_content_api_dev(request, decision_id):
-    """Get document content / extraction status for a specific decision by ID.
+def get_document_content_api_dev(request, decision_ref):
+    """Get document content / extraction status for a specific decision.
+
+    ``decision_ref`` is either the integer PK or the ΑΔΑ (ADA).
 
     Returns 200 with ``status`` field in all cases so the frontend can poll:
     - ``COMPLETED``: ``raw_text`` and metadata are present.
@@ -38,13 +41,13 @@ def get_document_content_api_dev(request, decision_id):
     try:
         from core.models.document_analysis import DocumentExtraction
 
-        decision = Decision.objects.get(id=decision_id)
+        decision = resolve_decision(decision_ref)
 
         try:
             extraction = DocumentExtraction.objects.get(decision=decision)
 
             base = {
-                "decision_id": decision_id,
+                "decision_id": decision.id,
                 "ada": decision.ada,
                 "extraction_id": extraction.id,
                 "status": extraction.extraction_status,
@@ -98,7 +101,7 @@ def get_document_content_api_dev(request, decision_id):
         except DocumentExtraction.DoesNotExist:
             return Response(
                 {
-                    "decision_id": decision_id,
+                    "decision_id": decision.id,
                     "ada": decision.ada,
                     "status": "NOT_FOUND",
                 }

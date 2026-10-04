@@ -102,48 +102,14 @@ class StealthModeMiddleware:
         """
         Manually run DRF authentication to check if request has valid credentials.
         Returns the authenticated user or None.
+
+        Delegates to api.utils.drf_auth so the stealth middleware and
+        RateLimitMiddleware resolve the identity of token/Bearer/API-key
+        requests exactly the same way.
         """
-        from django.conf import settings
-        from rest_framework.request import Request as DRFRequest
+        from api.utils.drf_auth import authenticate_request
 
-        # Check for force-authenticated requests first (used by APIClient in tests).
-        # When DRF's APIClient.force_authenticate() is used, the ForceAuthClientHandler
-        # sets _force_auth_user on the Django request before middleware runs.
-        # We must handle this here because the settings-based authentication classes
-        # below look for real credentials (headers/tokens), not the force-auth metadata.
-        force_user = getattr(request, '_force_auth_user', None)
-        if force_user is not None:
-            return force_user
-
-        # Wrap Django request in DRF request
-        drf_request = DRFRequest(request)
-
-        # Try each authentication class configured in REST_FRAMEWORK settings
-        auth_classes = []
-        rest_config = getattr(settings, "REST_FRAMEWORK", {})
-        auth_class_paths = rest_config.get("DEFAULT_AUTHENTICATION_CLASSES", [])
-
-        for auth_class_path in auth_class_paths:
-            try:
-                # Import the authentication class
-                module_path, class_name = auth_class_path.rsplit(".", 1)
-                module = __import__(module_path, fromlist=[class_name])
-                auth_class = getattr(module, class_name)
-                auth_classes.append(auth_class())
-            except (ImportError, AttributeError):
-                continue
-
-        # Try to authenticate with each class
-        for authenticator in auth_classes:
-            try:
-                result = authenticator.authenticate(drf_request)
-                if result is not None:
-                    user, auth = result
-                    return user
-            except Exception:
-                continue
-
-        return None
+        return authenticate_request(request)
 
     def _check_user_allowed(self, user):
         """

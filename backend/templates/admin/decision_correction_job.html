@@ -14,7 +14,7 @@
 <div id="content-main">
   <h1>
     {% if job.dry_run %}🧪{% else %}⚙️{% endif %}
-    Correction Job
+    Data-quality job
     <code style="font-size:14px;">{{ job.job_id }}</code>
   </h1>
 
@@ -24,8 +24,9 @@
     {% elif job.status == 'failed' %}<span style="color:#721c24;">✗ failed</span>
     {% elif job.status == 'running' %}<span style="color:#856404;">▶ running…</span>
     {% else %}{{ job.status }}{% endif %}
-    &nbsp;·&nbsp; threshold €{{ job.threshold }}
-    &nbsp;·&nbsp; {% if job.dry_run %}dry-run{% else %}applying corrections{% endif %}
+    &nbsp;·&nbsp; <strong>{{ job.get_mode_display }}</strong>
+    &nbsp;·&nbsp; €{{ job.threshold }}{% if job.max_amount %}–€{{ job.max_amount }}{% endif %}
+    &nbsp;·&nbsp; {% if job.dry_run %}dry-run{% else %}applying changes{% endif %}
     &nbsp;·&nbsp; read-if-missing {% if job.read_if_missing %}on{% else %}off{% endif %}
   </p>
 
@@ -43,6 +44,7 @@
 
   <div style="background:#f8f9fa;border:1px solid #dee2e6;border-radius:6px;padding:14px;margin-bottom:18px;max-width:640px;">
     <strong style="color:#155724;">{{ job.corrected }} corrected</strong> ·
+    <strong style="color:#856404;">{{ job.flagged }} flagged</strong> ·
     {{ job.consistent }} consistent ·
     {{ job.no_text }} no text ·
     {{ job.skipped }} skipped ·
@@ -58,12 +60,13 @@
         <th style="padding:8px;">Subject</th>
         <th style="padding:8px;">Status</th>
         <th style="padding:8px;">Corrections</th>
+        <th style="padding:8px;">Flagged (unrepairable)</th>
         <th style="padding:8px;">Frontend</th>
       </tr>
     </thead>
     <tbody>
       {% for r in results %}
-      <tr style="border-bottom:1px solid #eee;{% if r.status == 'corrected' or r.status == 'would_correct' %}background:#f0fff4;{% elif r.status == 'error' %}background:#fff5f5;{% endif %}">
+      <tr style="border-bottom:1px solid #eee;{% if r.status == 'corrected' or r.status == 'would_correct' %}background:#f0fff4;{% elif r.status == 'error' %}background:#fff5f5;{% elif r.flagged %}background:#fffdf0;{% endif %}">
         <td style="padding:8px;white-space:nowrap;">{{ r.ada }}</td>
         <td style="padding:8px;max-width:260px;">{{ r.subject|truncatewords:12 }}</td>
         <td style="padding:8px;">
@@ -72,9 +75,19 @@
         <td style="padding:8px;">
           {% for c in r.corrections %}
             <div style="font-size:12px;"><code>{{ c.source_field }}</code>:
-              €{{ c.db_amount }} → <strong>€{{ c.corrected_to }}</strong> (×{{ c.clone_factor }})</div>
+              €{{ c.recorded }} → <strong>€{{ c.suggested }}</strong>
+              <span style="color:#888;">[{{ c.detector }}]</span></div>
           {% empty %}
-            <span style="color:#999;">{% if r.reason %}{{ r.reason }}{% else %}—{% endif %}</span>
+            <span style="color:#999;">—</span>
+          {% endfor %}
+        </td>
+        <td style="padding:8px;">
+          {% for f in r.flagged %}
+            <div style="font-size:12px;color:#856404;"><code>{{ f.source_field }}</code>:
+              €{{ f.recorded }} = {{ f.kind|upper }} {{ f.payload.matched_value }}
+              <span style="color:#888;">[{{ f.detector }}]</span></div>
+          {% empty %}
+            <span style="color:#999;">—{% if r.reason and not r.corrections %} {{ r.reason }}{% endif %}</span>
           {% endfor %}
         </td>
         <td style="padding:8px;"><a href="{{ r.frontend_url }}" target="_blank">view →</a></td>

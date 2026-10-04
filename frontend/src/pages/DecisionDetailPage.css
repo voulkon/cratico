@@ -252,6 +252,13 @@
   color: var(--color-error);
 }
 
+/* Self-as-counterpart: the amount is believed; only the counterpart is
+   unknown (it equals the issuing organization's own VAT number).  A caution,
+   not an error — the amount stays displayed. */
+.self-counterpart-note {
+  color: var(--warning-text);
+}
+
 .amount-corrected-badge {
   position: relative;
   display: inline-flex;

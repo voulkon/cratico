@@ -1,3 +1,29 @@
+"""
+Rate limiting middleware.
+
+Two independent counters share this code path:
+
+* authenticated callers  -> ``ratelimit:user:<id>``  (``user.daily_request_limit``)
+* everyone else          -> ``ratelimit:ip:<ip>``    (``ANON_API_DAILY_LIMIT``)
+
+Two subtleties this middleware has to get right:
+
+1. **Identity.** ``request.user`` is populated by Django's
+   ``AuthenticationMiddleware``, which only understands session cookies. The
+   SPA authenticates with ``Authorization: Token <key>`` (DRF
+   ``TokenAuthentication``), so ``request.user`` is ``AnonymousUser`` for every
+   logged-in SPA call. Counting those against the anonymous per-IP bucket meant
+   the per-user limit and the staff exemption were unreachable for token
+   traffic. ``_resolve_user()`` falls back to the DRF authenticators.
+
+2. **Boot chatter.** A single page load fires 8-15 ``/api/`` calls (auth/me,
+   system config, per-widget dashboards...). Charging all of them against the
+   daily quota made ``ANON_API_DAILY_LIMIT=300`` mean ~25 page loads. Safe
+   reads of the endpoints the SPA always calls (the same set the threat layer
+   already ignores via ``security_service.is_noisy_endpoint``) are therefore
+   not counted. Writes and everything else still are.
+"""
+
 import time
 
 from loguru import logger
@@ -55,15 +81,23 @@ class RateLimitMiddleware:
             response = self.get_response(request)
             return self.add_cors_headers(response)
 
+        # ── Boot/widget chatter is not billed ────────────────────────────
+        # Safe reads of the endpoints the SPA fires on every navigation are
+        # free (see the module docstring). Analytics above still records them.
+        if self._is_noisy_read(request):
+            return self.get_response(request)
+
+        # ── Resolve the caller (session cookie OR DRF token) ─────────────
+        user = self._resolve_user(request)
+
         # Skip rate limiting in development, for staff users, or when the
         # RESOLVED client IP is missing/local/private. We decide exclusively
         # from get_client_ip(): nginx's REMOTE_ADDR is a private compose/CF
         # gateway in every real stack, so it must not drive the exemption.
         client_ip = get_client_ip(request)
-        is_staff_user = request.user.is_authenticated and request.user.is_staff
         if (
             settings.DEBUG
-            or is_staff_user
+            or (user is not None and user.is_staff)
             or not client_ip
             or is_infrastructure_ip(client_ip)
         ):
@@ -71,26 +105,27 @@ class RateLimitMiddleware:
 
         # ── Diagnostic log (remove once confirmed working) ────────────────
         # nginx's REMOTE_ADDR is only logged for diagnostics — it no longer
-        # drives the exemption (see the gate above).
+        # drives the exemption (see the gate above). "anonymous" here means no
+        # session AND no usable DRF credential.
         logger.warning(
             "RateLimitMiddleware applying limit: path={} user={} is_staff={} "
             "client_ip={} remote_addr={}",
             request.path,
-            getattr(request.user, "username", "anonymous"),
-            request.user.is_staff if request.user.is_authenticated else False,
+            getattr(user, "username", "anonymous") if user else "anonymous",
+            bool(user and user.is_staff),
             client_ip,
             request.META.get("REMOTE_ADDR", ""),
         )
 
-        if request.user.is_authenticated:
-            key = get_user_ratelimit_key(request.user.id)
+        if user is not None:
+            key = get_user_ratelimit_key(user.id)
 
             # Read usage from Django cache (NOT raw redis — cache adds a
             # ":1:" version prefix, so raw redis reads always miss).
             usage = cache.get(key, {"count": 0, "reset_time": time.time() + 86400})
 
             # Get user's limit from their subscription
-            limit = request.user.daily_request_limit
+            limit = user.daily_request_limit
 
             # Check if limit reached
             if usage["count"] >= limit:
@@ -177,6 +212,47 @@ class RateLimitMiddleware:
             return self.add_cors_headers(response)
 
         return self.get_response(request)
+
+    @staticmethod
+    def _resolve_user(request):
+        """
+        Return the authenticated caller, or None if truly anonymous.
+
+        Session-authenticated requests come straight from ``request.user``
+        (Django ``AuthenticationMiddleware``). Token/Bearer/API-key requests are
+        resolved through the DRF authenticators, so the limiter keys them by
+        user id exactly like the API view will.
+        """
+        django_user = getattr(request, "user", None)
+        if django_user is not None and django_user.is_authenticated:
+            return django_user
+
+        from api.utils.drf_auth import authenticate_request
+
+        resolved = authenticate_request(request)
+        if resolved is not None:
+            # Keep downstream middleware, logging and (defensive) views that read
+            # request.user consistent with the identity the API view will see.
+            request.user = resolved
+        return resolved
+
+    @staticmethod
+    def _is_noisy_read(request):
+        """
+        True for safe reads of endpoints the SPA calls on every page.
+
+        Single source of truth: ``security_service.is_noisy_endpoint``, which the
+        threat layer already uses so that normal browsing cannot self-ban. Only
+        safe methods qualify — writes on the same paths (e.g. bookmark
+        mutations) keep consuming quota, so the carve-out cannot be used to
+        hammer a mutating endpoint for free.
+        """
+        if request.method not in ("GET", "HEAD", "OPTIONS"):
+            return False
+
+        from api.services.security_service import is_noisy_endpoint
+
+        return is_noisy_endpoint(request.path)
 
     def record_api_request(self, request):
         """Record API request analytics in Redis"""

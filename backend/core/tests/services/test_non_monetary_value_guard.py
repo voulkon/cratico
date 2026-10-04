@@ -22,27 +22,31 @@ Covered:
   - ``AmountCorrectionService`` never writes such a value into verified_amount
   - DB-only discovery helper + ``find_amount_anomalies`` command (JSON/CSV)
   - decisions without AFMs/KAEs behave unchanged
+  - self-as-counterpart is decision-level: amounts stay believed, the
+    counterpart issue is recorded as a note / detail-API field
 """
 
 from decimal import Decimal
 
 import pytest
 
+from core.services.amount_correction_service import AmountCorrectionService
+from core.services.amount_verification_service import AmountVerificationService
 from core.services.non_monetary_value_guard import (
     DISCREPANCY_REASON_AFM,
     DISCREPANCY_REASON_KAE,
     KIND_AFM,
     KIND_KAE,
-    collect_non_monetary_values,
     collect_counterpart_afms,
     collect_kae_codes,
+    collect_non_monetary_values,
+    collect_org_afm,
+    collect_self_counterparts,
     extract_afm_amount_spans,
     is_afm_amount,
     match_afm_amount,
     match_kae_amount,
 )
-from core.services.amount_correction_service import AmountCorrectionService
-from core.services.amount_verification_service import AmountVerificationService
 
 pytestmark = pytest.mark.django_db
 
@@ -167,9 +171,7 @@ class TestCollectCounterpartAfms:
         from conftest import DecisionFactory
 
         decision = DecisionFactory(
-            extra_field_values_json=REAL_CASE_EXTRACTION_JSON[
-                "extra_field_values_json"
-            ]
+            extra_field_values_json=REAL_CASE_EXTRACTION_JSON["extra_field_values_json"]
         )
         assert collect_counterpart_afms(decision) == {AFM}
 
@@ -194,6 +196,142 @@ class TestCollectCounterpartAfms:
         assert collect_counterpart_afms(decision) == set()
 
 
+class TestSelfCounterpart:
+    def test_collects_issuing_org_afm_and_matching_counterpart(self):
+        from conftest import DecisionFactory, OrganizationFactory
+
+        organization = OrganizationFactory(vat_number="090064864")
+        decision = DecisionFactory(
+            organization=organization,
+            extra_field_values_json={
+                "sponsor": [{"sponsorAFMName": {"afm": "090064864"}}]
+            },
+        )
+
+        assert collect_org_afm(decision) == "090064864"
+        assert collect_self_counterparts(decision) == {"090064864"}
+
+    def test_self_counterpart_amounts_stay_valid(self):
+        """
+        Self-as-counterpart is a **decision-level** counterpart problem, not
+        an amount problem: the amounts may be perfectly well-formed and are
+        believed, so ``collect_non_monetary_values`` must NOT flag them — the
+        counterpart issue lives in ``collect_self_counterparts``.
+        """
+        from conftest import (
+            DecisionAmountFieldFactory,
+            DecisionFactory,
+            OrganizationFactory,
+        )
+
+        organization = OrganizationFactory(vat_number="090064864")
+        decision = DecisionFactory(
+            organization=organization,
+            extra_field_values_json={
+                "sponsor": [{"sponsorAFMName": {"afm": "090064864"}}]
+            },
+        )
+        first = DecisionAmountFieldFactory(decision=decision, amount=Decimal("10.00"))
+        second = DecisionAmountFieldFactory(decision=decision, amount=Decimal("20.00"))
+
+        assert collect_self_counterparts(decision) == {"090064864"}
+        assert collect_non_monetary_values(decision) == []
+
+        first.refresh_from_db()
+        second.refresh_from_db()
+        assert first.invalid_amount_reason is None
+        assert second.invalid_amount_reason is None
+
+    def test_truncated_org_vat_prefix_matches_full_counterpart(self):
+        """
+        The Παίδων case: the DB org VAT is the 8-digit ``09000980`` (truncated)
+        while the real counterpart AFM is the 9-digit ``090009802``.  The
+        prefix match flags it, and records the FULL counterpart AFM.
+        """
+        from conftest import DecisionFactory, OrganizationFactory
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="09000980"),
+            extra_field_values_json={"person": [{"afm": "090009802", "afmType": "EL"}]},
+        )
+
+        assert collect_self_counterparts(decision) == {"090009802"}
+
+    def test_short_junk_org_vat_never_prefix_matches(self):
+        """
+        A junk short VAT (``011``, ``-``) must NOT prefix-match a real
+        counterpart — an N-digit prefix matches up to 10^(9-N) distinct AFMs,
+        so the prefix branch is gated to ≥ 8-digit org VATs.
+        """
+        from conftest import DecisionFactory, OrganizationFactory
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="011"),
+            extra_field_values_json={"person": [{"afm": "011999999", "afmType": "EL"}]},
+        )
+
+        assert collect_self_counterparts(decision) == set()
+
+    def test_unrelated_counterpart_is_not_a_self_counterpart(self):
+        """A counterpart that shares no prefix with the org VAT is ignored."""
+        from conftest import DecisionFactory, OrganizationFactory
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="090064864"),
+            extra_field_values_json={"person": [{"afm": "099999999", "afmType": "EL"}]},
+        )
+
+        assert collect_self_counterparts(decision) == set()
+
+    def test_all_zeros_org_vat_is_treated_as_absent(self):
+        """
+        Org ``54566``'s placeholder VAT ``00000000`` must never match — it is
+        filler, not a real AFM, and would otherwise prefix-match every
+        ``00000000X`` counterpart.  All-same-digit VATs are treated as absent.
+        """
+        from conftest import DecisionFactory, OrganizationFactory
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="00000000"),
+            extra_field_values_json={"person": [{"afm": "000000001", "afmType": "EL"}]},
+        )
+
+        assert collect_org_afm(decision) is None
+        assert collect_self_counterparts(decision) == set()
+
+    def test_counterpart_afm_under_other_containers(self):
+        """
+        Counterpart AFMs appear under many containers (grantee / grantor /
+        donationGiver / …), not just sponsor/person — and Diavgeia mislabels
+        types.  The guard harvests AFMs from every known counterpart container.
+        """
+        from conftest import DecisionFactory, OrganizationFactory
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="090064864"),
+            extra_field_values_json={
+                "grantee": [{"afm": "090064864", "afmType": "EL"}],
+            },
+        )
+
+        assert collect_self_counterparts(decision) == {"090064864"}
+
+    def test_org_block_afm_is_not_a_counterpart(self):
+        """The issuing org's own ``org.afm`` block is NOT a counterpart."""
+        from conftest import DecisionFactory, OrganizationFactory
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="090064864"),
+            extra_field_values_json={
+                "org": {"afm": "090064864", "afmType": "EL"},
+            },
+        )
+
+        # org.afm is the issuer, so it must not be harvested as a counterpart.
+        assert collect_counterpart_afms(decision) == set()
+        assert collect_self_counterparts(decision) == set()
+
+
 # ── Verification service (regex path) ────────────────────────────────────────
 
 
@@ -206,9 +344,7 @@ def _make_violak_decision(text: str, amount: Decimal = AFM_AMOUNT):
     )
 
     decision = DecisionFactory(
-        extra_field_values_json=REAL_CASE_EXTRACTION_JSON[
-            "extra_field_values_json"
-        ]
+        extra_field_values_json=REAL_CASE_EXTRACTION_JSON["extra_field_values_json"]
     )
     DecisionAmountFieldFactory(
         decision=decision,
@@ -229,9 +365,7 @@ def _make_kae_decision(text: str, amount: Decimal = KAE_MISPLACED_AMOUNT):
     )
 
     decision = DecisionFactory(
-        extra_field_values_json=REAL_KAE_CASE_EXTRACTION_JSON[
-            "extra_field_values_json"
-        ]
+        extra_field_values_json=REAL_KAE_CASE_EXTRACTION_JSON["extra_field_values_json"]
     )
     DecisionAmountFieldFactory(
         decision=decision,
@@ -250,9 +384,7 @@ class TestVerifyDecisionAfmGuard:
             "Εγκρίνεται δαπάνη ποσού 99.370.337,00 € "
             "προς VIOLAK INTERNATIONAL (ΑΦΜ 099370337)."
         )
-        result = AmountVerificationService().verify_decision(
-            decision, method="regex"
-        )
+        result = AmountVerificationService().verify_decision(decision, method="regex")
 
         assert result["status"] == "completed"
         assert result["has_discrepancy"] is True
@@ -282,9 +414,7 @@ class TestVerifyDecisionAfmGuard:
             text="Εγκρίνεται δαπάνη ποσού 99.370.338,00 €.",
             amount=Decimal("99370338.00"),
         )
-        result = AmountVerificationService().verify_decision(
-            decision, method="regex"
-        )
+        result = AmountVerificationService().verify_decision(decision, method="regex")
 
         assert result["status"] == "completed"
         assert result["has_discrepancy"] is False
@@ -299,15 +429,11 @@ class TestVerifyDecisionAfmGuard:
         )
 
         decision = DecisionFactory()
-        DecisionAmountFieldFactory(
-            decision=decision, amount=Decimal("30000.00")
-        )
+        DecisionAmountFieldFactory(decision=decision, amount=Decimal("30000.00"))
         DocumentExtractionFactory(
             decision=decision, raw_text="Εγκρίνεται δαπάνη 30.000,00 €."
         )
-        result = AmountVerificationService().verify_decision(
-            decision, method="regex"
-        )
+        result = AmountVerificationService().verify_decision(decision, method="regex")
 
         assert result["status"] == "completed"
         assert result["has_discrepancy"] is False
@@ -330,9 +456,7 @@ class TestVerifyDecisionAfmGuard:
 class TestVerifyWithGroupedAfmGuard:
     def test_cents_detector_path_same_verdict(self):
         """verify_with_grouped reports the same afm_as_amount verdict."""
-        decision = _make_violak_decision(
-            "Εγκρίνεται δαπάνη ποσού 99.370.337,00 €."
-        )
+        decision = _make_violak_decision("Εγκρίνεται δαπάνη ποσού 99.370.337,00 €.")
         result = AmountVerificationService().verify_with_grouped(decision)
 
         assert result["status"] == "completed"
@@ -347,9 +471,7 @@ class TestVerifyWithGroupedAfmGuard:
         )
 
         decision = DecisionFactory()
-        DecisionAmountFieldFactory(
-            decision=decision, amount=Decimal("30000.00")
-        )
+        DecisionAmountFieldFactory(decision=decision, amount=Decimal("30000.00"))
         DocumentExtractionFactory(
             decision=decision, raw_text="Εγκρίνεται δαπάνη 30.000,00 €."
         )
@@ -359,14 +481,105 @@ class TestVerifyWithGroupedAfmGuard:
         assert result["discrepancy_reason"] is None
 
 
+# ── Self-as-counterpart: decision-level, amounts stay believed ───────────────
+
+
+class TestSelfCounterpartVerification:
+    """
+    The issuing org appearing as its own counterpart must never invalidate
+    the amounts: the amount is believed, the counterpart is what is unknown.
+    Verification therefore records the issue as an audit note, not a
+    discrepancy — and correction leaves the amounts alone.
+    """
+
+    def _make_self_counterpart_decision(self, text: str):
+        from conftest import (
+            DecisionAmountFieldFactory,
+            DecisionFactory,
+            DocumentExtractionFactory,
+            OrganizationFactory,
+        )
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="090064864"),
+            extra_field_values_json={"person": [{"afm": "090064864", "afmType": "EL"}]},
+        )
+        DecisionAmountFieldFactory(
+            decision=decision,
+            parent_key_path="awardAmount",
+            source_field_name="awardAmount",
+            amount=Decimal("22000.00"),
+        )
+        DocumentExtractionFactory(decision=decision, raw_text=text)
+        return decision
+
+    def test_regex_verification_confirms_amount_and_records_note(self):
+        decision = self._make_self_counterpart_decision(
+            "Εγκρίνεται δαπάνη ποσού 22.000,00 €."
+        )
+        result = AmountVerificationService().verify_decision(decision, method="regex")
+
+        assert result["status"] == "completed"
+        assert result["has_discrepancy"] is False
+        assert result["discrepancy_reason"] is None
+
+        from core.models.document_analysis import (
+            TextProcessResolution,
+            TextProcessRun,
+        )
+
+        run = TextProcessRun.objects.get(
+            extraction=decision.text_extraction, process="amount"
+        )
+        assert run.meta["self_counterpart_afm"] == "090064864"
+        assert "[SELF-AS-COUNTERPART]" in run.meta["discrepancy_note"]
+        assert "discrepancy_reason" not in run.meta
+
+        resolution = TextProcessResolution.objects.get(
+            decision=decision, process="amount"
+        )
+        assert resolution.has_discrepancy is False
+        assert "[SELF-AS-COUNTERPART]" in resolution.note
+
+    def test_grouped_path_confirms_amount_and_records_note(self):
+        decision = self._make_self_counterpart_decision(
+            "Εγκρίνεται δαπάνη ποσού 22.000,00 €."
+        )
+        result = AmountVerificationService().verify_with_grouped(decision)
+
+        assert result["status"] == "completed"
+        assert result["has_discrepancy"] is False
+        assert result["discrepancy_reason"] is None
+
+        from core.models.document_analysis import TextProcessRun
+
+        run = TextProcessRun.objects.get(
+            extraction=decision.text_extraction, process="amount"
+        )
+        assert run.meta["self_counterpart_afm"] == "090064864"
+        assert "[SELF-AS-COUNTERPART]" in run.meta["raw_response"]
+
+    def test_correction_keeps_amounts_and_writes_nothing(self):
+        decision = self._make_self_counterpart_decision(
+            "Εγκρίνεται δαπάνη ποσού 22.000,00 €."
+        )
+        result = AmountCorrectionService(threshold=Decimal("1")).correct_decision(
+            decision
+        )
+
+        assert result["status"] == "consistent"
+        decision.refresh_from_db()
+        field = decision.amount_fields.get()
+        assert field.verified_amount is None
+        assert field.invalid_amount_reason is None
+
+
 # ── Correction service ───────────────────────────────────────────────────────
 
 
 class TestCorrectionAfmGuard:
     def test_correction_never_writes_afm_into_verified_amount(self):
-        decision = _make_violak_decision(
-            "Εγκρίνεται δαπάνη ποσού 99.370.337,00 €."
-        )
+        decision = _make_violak_decision("Εγκρίνεται δαπάνη ποσού 99.370.337,00 €.")
         result = AmountCorrectionService(threshold=Decimal("0")).correct_decision(
             decision
         )
@@ -384,9 +597,7 @@ class TestCorrectionAfmGuard:
 
     def test_correction_flags_field_as_invalid(self):
         """The row is marked invalid so facets exclude it from totals."""
-        decision = _make_violak_decision(
-            "Εγκρίνεται δαπάνη ποσού 99.370.337,00 €."
-        )
+        decision = _make_violak_decision("Εγκρίνεται δαπάνη ποσού 99.370.337,00 €.")
         AmountCorrectionService(threshold=Decimal("0")).correct_decision(decision)
 
         field = decision.amount_fields.get()
@@ -399,12 +610,10 @@ class TestCorrectionAfmGuard:
 
     def test_dry_run_does_not_flag(self):
         """dry_run must report the flag without persisting it."""
-        decision = _make_violak_decision(
-            "Εγκρίνεται δαπάνη ποσού 99.370.337,00 €."
+        decision = _make_violak_decision("Εγκρίνεται δαπάνη ποσού 99.370.337,00 €.")
+        result = AmountCorrectionService(threshold=Decimal("0")).correct_decision(
+            decision, dry_run=True
         )
-        result = AmountCorrectionService(
-            threshold=Decimal("0")
-        ).correct_decision(decision, dry_run=True)
 
         assert result["status"] == DISCREPANCY_REASON_AFM
         field = decision.amount_fields.get()
@@ -423,9 +632,7 @@ class TestCorrectionAfmGuard:
         from conftest import DecisionAmountFieldFactory, DecisionFactory
 
         decision = DecisionFactory(
-            extra_field_values_json=REAL_CASE_EXTRACTION_JSON[
-                "extra_field_values_json"
-            ]
+            extra_field_values_json=REAL_CASE_EXTRACTION_JSON["extra_field_values_json"]
         )
         DecisionAmountFieldFactory(
             decision=decision,
@@ -439,9 +646,9 @@ class TestCorrectionAfmGuard:
         ) as mock_extract, patch.object(
             AmountCorrectionService, "_get_text", return_value=None
         ):
-            result = AmountCorrectionService(
-                threshold=Decimal("0")
-            ).correct_decision(decision)
+            result = AmountCorrectionService(threshold=Decimal("0")).correct_decision(
+                decision
+            )
 
         mock_extract.assert_not_called()
         assert result["status"] == DISCREPANCY_REASON_AFM
@@ -462,9 +669,7 @@ class TestCorrectionAfmGuard:
         )
 
         decision = DecisionFactory(
-            extra_field_values_json=REAL_CASE_EXTRACTION_JSON[
-                "extra_field_values_json"
-            ]
+            extra_field_values_json=REAL_CASE_EXTRACTION_JSON["extra_field_values_json"]
         )
         afm_field = DecisionAmountFieldFactory(
             decision=decision,
@@ -498,16 +703,13 @@ class TestCorrectionAfmGuard:
 
     def test_correction_afm_only_case_status(self):
         """When the only 'match' is the AFM itself, status reflects it."""
-        decision = _make_violak_decision(
-            "Εγκρίνεται δαπάνη ποσού 99.370.337,00 €."
-        )
+        decision = _make_violak_decision("Εγκρίνεται δαπάνη ποσού 99.370.337,00 €.")
         result = AmountCorrectionService(threshold=Decimal("0")).correct_decision(
             decision
         )
         assert result["status"] == "afm_as_amount"
         assert all(
-            field.verified_amount is None
-            for field in decision.amount_fields.all()
+            field.verified_amount is None for field in decision.amount_fields.all()
         )
 
     def test_correction_normal_shift_still_works(self):
@@ -519,9 +721,7 @@ class TestCorrectionAfmGuard:
         )
 
         decision = DecisionFactory()
-        DecisionAmountFieldFactory(
-            decision=decision, amount=Decimal("30000.00")
-        )
+        DecisionAmountFieldFactory(decision=decision, amount=Decimal("30000.00"))
         DocumentExtractionFactory(
             decision=decision, raw_text="Εγκρίνεται δαπάνη 300,00 €."
         )
@@ -577,9 +777,7 @@ class TestFindAfmAmountFields:
     def test_ignores_legitimate_amount(self):
         from core.services.non_monetary_value_guard import find_afm_amount_fields
 
-        decision = _make_violak_decision(
-            "irrelevant", amount=Decimal("99370338.00")
-        )
+        decision = _make_violak_decision("irrelevant", amount=Decimal("99370338.00"))
         assert find_afm_amount_fields(decision) == []
 
     def test_ignores_decision_without_afms(self):
@@ -690,9 +888,7 @@ class TestFindAmountAnomaliesCommand:
         assert "No non-monetary-value-as-amount cases found" in output
 
     def test_marks_already_flagged(self):
-        decision = _make_violak_decision(
-            "Εγκρίνεται δαπάνη ποσού 99.370.337,00 €."
-        )
+        decision = _make_violak_decision("Εγκρίνεται δαπάνη ποσού 99.370.337,00 €.")
         # Run the guard so a resolution note exists, then discover it.
         AmountVerificationService().verify_decision(decision, method="regex")
         output = self._run()
@@ -766,9 +962,7 @@ class TestKaeAnomalyCollection:
 class TestKaeVerification:
     def test_kae_flagged_not_confirmed(self):
         decision = _make_kae_decision(_make_kae_text())
-        result = AmountVerificationService().verify_decision(
-            decision, method="regex"
-        )
+        result = AmountVerificationService().verify_decision(decision, method="regex")
         assert result["status"] == "completed"
         assert result["has_discrepancy"] is True
         assert result["discrepancy_reason"] == DISCREPANCY_REASON_KAE
@@ -798,9 +992,7 @@ class TestKaeVerification:
             "Εγκρίνεται δαπάνη ποσού 27.910,03 €.",
             amount=KAE_CORRECT_AMOUNT,
         )
-        result = AmountVerificationService().verify_decision(
-            decision, method="regex"
-        )
+        result = AmountVerificationService().verify_decision(decision, method="regex")
         assert result["discrepancy_reason"] is None
 
     def test_grouped_path_flags_kae(self):
@@ -811,7 +1003,9 @@ class TestKaeVerification:
 
     def test_batch_counts_kae(self):
         _make_kae_decision(_make_kae_text(), amount=Decimal("706273001.00"))
-        summary = AmountVerificationService(threshold=Decimal("1")).verify_high_value_decisions()
+        summary = AmountVerificationService(
+            threshold=Decimal("1")
+        ).verify_high_value_decisions()
         assert summary["kae_as_amount_discrepancies"] >= 1
 
 
@@ -831,8 +1025,6 @@ class TestKaeCorrection:
             assert result["matched_values"]
 
 
-
-
 # ── Known-bad amounts are excluded from money, surfaced for review ──────────
 
 
@@ -842,26 +1034,20 @@ class TestInvalidAmountExcludedFromTotals:
     def test_decision_total_drops_flagged_amount(self):
         from core.services.financial_calculation_service import financial_service
 
-        decision = _make_violak_decision(
-            "Εγκρίνεται δαπάνη ποσού 99.370.337,00 €."
-        )
+        decision = _make_violak_decision("Εγκρίνεται δαπάνη ποσού 99.370.337,00 €.")
         # Before the guard runs, the bogus amount counts (the bug).
         assert financial_service.get_decision_total_amount(decision) == AFM_AMOUNT
 
         AmountCorrectionService(threshold=Decimal("0")).correct_decision(decision)
 
         # After flagging, the only field is excluded → total is zero.
-        assert financial_service.get_decision_total_amount(decision) == Decimal(
-            "0.00"
-        )
+        assert financial_service.get_decision_total_amount(decision) == Decimal("0.00")
 
     def test_facet_sum_drops_flagged_amount(self):
         from core.models.decisions import Decision
         from core.services.decision_facets import effective_amount_sum
 
-        decision = _make_violak_decision(
-            "Εγκρίνεται δαπάνη ποσού 99.370.337,00 €."
-        )
+        decision = _make_violak_decision("Εγκρίνεται δαπάνη ποσού 99.370.337,00 €.")
         AmountCorrectionService(threshold=Decimal("0")).correct_decision(decision)
 
         total = Decision.objects.filter(id=decision.id).aggregate(
@@ -873,9 +1059,7 @@ class TestInvalidAmountExcludedFromTotals:
         from core.models.decisions import Decision
         from core.services.decision_projections import paginate_decisions
 
-        decision = _make_violak_decision(
-            "Εγκρίνεται δαπάνη ποσού 99.370.337,00 €."
-        )
+        decision = _make_violak_decision("Εγκρίνεται δαπάνη ποσού 99.370.337,00 €.")
         AmountCorrectionService(threshold=Decimal("0")).correct_decision(decision)
 
         data = paginate_decisions(
@@ -892,15 +1076,11 @@ class TestFeedbackPoolIncludesFlagged:
     def test_pending_decisions_includes_flagged(self):
         from core.services.diavgeia_feedback_service import DiavgeiaFeedbackService
 
-        decision = _make_violak_decision(
-            "Εγκρίνεται δαπάνη ποσού 99.370.337,00 €."
-        )
+        decision = _make_violak_decision("Εγκρίνεται δαπάνη ποσού 99.370.337,00 €.")
         AmountCorrectionService(threshold=Decimal("0")).correct_decision(decision)
 
         pending = set(
-            DiavgeiaFeedbackService()
-            .pending_decisions()
-            .values_list("id", flat=True)
+            DiavgeiaFeedbackService().pending_decisions().values_list("id", flat=True)
         )
         assert decision.id in pending
 
@@ -912,9 +1092,7 @@ class TestFeedbackPoolIncludesFlagged:
         DecisionAmountFieldFactory(decision=decision, amount=Decimal("30000.00"))
 
         pending = set(
-            DiavgeiaFeedbackService()
-            .pending_decisions()
-            .values_list("id", flat=True)
+            DiavgeiaFeedbackService().pending_decisions().values_list("id", flat=True)
         )
         assert decision.id not in pending
 
@@ -925,9 +1103,7 @@ class TestInvalidAmountDetailApi:
     def test_detail_reports_invalid_amount(self):
         from api.views.decisions.details import decision_detail
 
-        decision = _make_violak_decision(
-            "Εγκρίνεται δαπάνη ποσού 99.370.337,00 €."
-        )
+        decision = _make_violak_decision("Εγκρίνεται δαπάνη ποσού 99.370.337,00 €.")
         AmountCorrectionService(threshold=Decimal("0")).correct_decision(decision)
 
         from django.test import RequestFactory
@@ -939,3 +1115,46 @@ class TestInvalidAmountDetailApi:
         assert payload["has_invalid_amount"] is True
         assert payload["invalid_amount_reason"] == DISCREPANCY_REASON_AFM
         assert payload["invalid_amount_value"] == AFM
+        assert payload["recorded_amount"] == float(AFM_AMOUNT)
+
+    def test_detail_reports_self_counterpart_with_valid_amount(self):
+        """
+        The self-as-counterpart case is decision-level: the amount is
+        believed (so it is returned), and the counterpart issue is exposed
+        separately — never as an invalid amount.
+        """
+        from conftest import (
+            DecisionAmountFieldFactory,
+            DecisionFactory,
+            OrganizationFactory,
+        )
+        from core.services.non_monetary_value_guard import (
+            collect_self_counterparts,
+        )
+
+        decision = DecisionFactory(
+            organization=OrganizationFactory(vat_number="090064864"),
+            extra_field_values_json={"person": [{"afm": "090064864", "afmType": "EL"}]},
+        )
+        DecisionAmountFieldFactory(
+            decision=decision,
+            parent_key_path="awardAmount",
+            source_field_name="awardAmount",
+            amount=Decimal("22000.00"),
+        )
+
+        assert collect_self_counterparts(decision) == {"090064864"}
+
+        from django.test import RequestFactory
+
+        from api.views.decisions.details import decision_detail
+
+        request = RequestFactory().get(f"/api/decisions/{decision.id}/")
+        response = decision_detail(request, decision.id)
+        payload = response.data
+
+        assert payload["has_invalid_amount"] is False
+        assert payload["invalid_amount_reason"] is None
+        assert payload["amount"] == 22000.0
+        assert payload["has_self_counterpart"] is True
+        assert payload["self_counterpart_afm"] == "090064864"

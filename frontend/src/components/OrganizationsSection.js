@@ -6,6 +6,7 @@ import useInfiniteScroll from '../hooks/useInfiniteScroll';
 import apiClient from '../api/client';
 import { CollapsibleSection, DashboardSectionLoading } from './DashboardGrid';
 import { formatCompactAmount } from '../utils/format';
+import { buildEntityUrl } from '../utils/entityLinks';
 
 const PAGE_SIZE = 6;
 
@@ -123,7 +124,7 @@ const OrganizationsSection = ({
               <button
                 key={org.uid}
                 className="dashboard-item-card"
-                onClick={() => navigate(`/entity/organization/${org.uid}`)}
+                onClick={() => navigate(buildEntityUrl('organization', org.uid, dateRange))}
               >
                 <div className="dashboard-item-left">
                   <span className="dashboard-rank">#{index + 1}</span>

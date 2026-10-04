@@ -31,6 +31,11 @@ const useUrlFilters = (defaultValues = {}) => {
   const [directAssignmentsOnly, setDirectAssignmentsOnly] = useState(
     searchParams.get('direct_assignments_only') === 'true' || defaultValues.directAssignmentsOnly || false
   );
+  // Date window carried in the URL (e.g. seeded by a dashboard card link).
+  // Not rendered from here — the page owns timeRange — but kept so updateUrl
+  // can preserve it across sort/filter changes.
+  const [startDate, setStartDate] = useState(searchParams.get('start_date') || '');
+  const [endDate, setEndDate] = useState(searchParams.get('end_date') || '');
 
   // Sync state with URL when params change
   // We intentionally only listen to searchParams changes to avoid circular updates
@@ -44,6 +49,8 @@ const useUrlFilters = (defaultValues = {}) => {
     const urlMinAmount = searchParams.get('minAmount') || '';
     const urlMaxAmount = searchParams.get('maxAmount') || '';
     const urlDirectAssignmentsOnly = searchParams.get('direct_assignments_only') === 'true';
+    const urlStartDate = searchParams.get('start_date') || '';
+    const urlEndDate = searchParams.get('end_date') || '';
 
     if (urlSort && urlSort !== sortBy) setSortBy(urlSort);
     if (urlSearch !== searchQuery) setSearchQuery(urlSearch);
@@ -54,6 +61,8 @@ const useUrlFilters = (defaultValues = {}) => {
       setAmountFilters({ minAmount: urlMinAmount, maxAmount: urlMaxAmount });
     }
     if (urlDirectAssignmentsOnly !== directAssignmentsOnly) setDirectAssignmentsOnly(urlDirectAssignmentsOnly);
+    if (urlStartDate !== startDate) setStartDate(urlStartDate);
+    if (urlEndDate !== endDate) setEndDate(urlEndDate);
   }, [searchParams]);
 
   // Update URL with current filter state
@@ -77,8 +86,16 @@ const useUrlFilters = (defaultValues = {}) => {
     if (finalAmountFilters.maxAmount) newParams.set('maxAmount', finalAmountFilters.maxAmount);
     if (finalDirectAssignmentsOnly) newParams.set('direct_assignments_only', 'true');
 
+    // Date window: preserved from the current URL unless the caller overrides
+    // it.  This keeps a range seeded by a cross-page link (dashboard card →
+    // entity page) alive when only a sort/filter changes.
+    const finalStartDate = updates.startDate !== undefined ? updates.startDate : searchParams.get('start_date');
+    const finalEndDate = updates.endDate !== undefined ? updates.endDate : searchParams.get('end_date');
+    if (finalStartDate) newParams.set('start_date', finalStartDate);
+    if (finalEndDate) newParams.set('end_date', finalEndDate);
+
     setSearchParams(newParams);
-  }, [sortBy, searchQuery, selectedTypes, selectedRoles, selectedOrgs, amountFilters, directAssignmentsOnly, setSearchParams]);
+  }, [sortBy, searchQuery, selectedTypes, selectedRoles, selectedOrgs, amountFilters, directAssignmentsOnly, searchParams, setSearchParams]);
 
   // Helper functions
   // `forceChecked` is optional: when provided (boolean), the type is added or
@@ -150,6 +167,8 @@ const useUrlFilters = (defaultValues = {}) => {
     selectedOrgs,
     amountFilters,
     directAssignmentsOnly,
+    startDate,
+    endDate,
     activeFiltersCount,
 
     // Setters

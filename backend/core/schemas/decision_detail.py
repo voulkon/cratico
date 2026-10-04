@@ -13,7 +13,6 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-
 # ── Nested models ──────────────────────────────────────────────
 
 
@@ -108,3 +107,11 @@ class DecisionDetailResponse(BaseModel):
     has_invalid_amount: bool = False
     invalid_amount_reason: Optional[str] = None
     invalid_amount_value: Optional[str] = None
+    # The raw value Diavgeia recorded in the amount field (for the UI to show
+    # what was written, even though it is excluded from every total).
+    recorded_amount: Optional[float] = None
+    # Decision-level counterpart issue: a counterpart AFM equals the issuing
+    # organization's own VAT number.  The amounts are believed — only the
+    # counterpart is unknown (recovered in a future pass).
+    has_self_counterpart: bool = False
+    self_counterpart_afm: Optional[str] = None

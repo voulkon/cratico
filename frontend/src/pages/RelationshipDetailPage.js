@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { useViewport } from '../contexts/ViewportContext';
 import useUrlFilters from '../hooks/useUrlFilters';
 import useDecisionsList from '../hooks/useDecisionsList';
 import useDecisionTypes from '../hooks/useDecisionTypes';
@@ -25,8 +26,34 @@ const RelationshipDetailPage = () => {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
 
+  // On narrow screens the fixed top bar is far too short (≈32px) to show the
+  // entity names meaningfully, so we render them inline in the page body there
+  // instead of portalling them into the top bar.
+  const { isMobile } = useViewport();
+
   const [entity, setEntity] = useState(null);
   const [organization, setOrganization] = useState(null);
+
+  // Once the inline header scrolls out of view we pin a compact one-line bar
+  // in its place, so the entity pairing stays visible while browsing.
+  const inlineHeaderRef = useRef(null);
+  const [isHeaderStuck, setIsHeaderStuck] = useState(false);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setIsHeaderStuck(false);
+      return undefined;
+    }
+    const el = inlineHeaderRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return undefined;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsHeaderStuck(!entry.isIntersecting),
+      { threshold: 0 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isMobile, entity, organization]);
 
   // Build a compact tab title: truncate both names so they fit on the browser tab
   const truncate = (s, max = 15) => (s && s.length > max ? s.slice(0, max) + '…' : s);
@@ -264,28 +291,85 @@ const RelationshipDetailPage = () => {
 
   return (
     <div className="relationship-detail-page">
-      {/* Relationship entity cards rendered into the fixed top bar */}
-      <TopBarSlot>
-        <div className="relationship-entities relationship-entities-topbar">
-          <button
-            className="entity-card entity-card-topbar clickable"
-            onClick={() => navigate(`/entity/afm/${afm}`)}
+      {/* Entity header. Desktop: compact cards portalled into the fixed top
+          bar. Mobile: the same cards rendered inline at the top of the page
+          body, where there is room for readable names and IDs. */}
+      {isMobile ? (
+        <>
+          <div
+            ref={inlineHeaderRef}
+            className="relationship-header relationship-header-inline"
           >
-            <span className="entity-name">{entity.name}</span>
-            <span className="entity-id">AFM: {afm}</span>
-          </button>
+            <div className="relationship-entities relationship-entities-inline">
+              <button
+                className="entity-card clickable"
+                onClick={() => navigate(`/entity/afm/${afm}`)}
+              >
+                <span className="entity-name">{entity.name}</span>
+                <span className="entity-id">AFM: {afm}</span>
+              </button>
 
-          <span className="connector-icon connector-icon-topbar">⇄</span>
+              <span className="connector-icon">⇄</span>
 
-          <button
-            className="entity-card entity-card-topbar clickable"
-            onClick={() => navigate(`/entity/organization/${orgUid}`)}
-          >
-            <span className="entity-name">{organization.label}</span>
-            <span className="entity-id">UID: {orgUid}</span>
-          </button>
-        </div>
-      </TopBarSlot>
+              <button
+                className="entity-card clickable"
+                onClick={() => navigate(`/entity/organization/${orgUid}`)}
+              >
+                <span className="entity-name">{organization.label}</span>
+                <span className="entity-id">UID: {orgUid}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Once the inline header scrolls away, reuse the otherwise-empty
+              top-bar slot for a compact one-line context bar. */}
+          {isHeaderStuck && (
+            <TopBarSlot>
+              <div className="relationship-compact-bar">
+                <button
+                  type="button"
+                  className="relationship-compact-name"
+                  onClick={() => navigate(`/entity/afm/${afm}`)}
+                  title={entity.name}
+                >
+                  {entity.name}
+                </button>
+                <span className="relationship-compact-connector">⇄</span>
+                <button
+                  type="button"
+                  className="relationship-compact-name"
+                  onClick={() => navigate(`/entity/organization/${orgUid}`)}
+                  title={organization.label}
+                >
+                  {organization.label}
+                </button>
+              </div>
+            </TopBarSlot>
+          )}
+        </>
+      ) : (
+        <TopBarSlot>
+          <div className="relationship-entities relationship-entities-topbar">
+            <button
+              className="entity-card entity-card-topbar clickable"
+              onClick={() => navigate(`/entity/afm/${afm}`)}
+            >
+              <span className="entity-name">{entity.name}</span>
+              <span className="entity-id">AFM: {afm}</span>
+            </button>
+
+            <span className="connector-icon connector-icon-topbar">⇄</span>
+
+            <button
+              className="entity-card entity-card-topbar clickable"
+              onClick={() => navigate(`/entity/organization/${orgUid}`)}
+            >
+              <span className="entity-name">{organization.label}</span>
+              <span className="entity-id">UID: {orgUid}</span>
+            </button>
+          </div>
+        </TopBarSlot>
+      )}
 
       {/* Breadcrumb */}
       <div className="breadcrumb">

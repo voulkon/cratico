@@ -29,6 +29,9 @@ export const AuthConfigProvider = ({ children }) => {
     // Search UX tunables (feature-flag driven, backend-controlled).
     search: {
       debounce_ms: 300,
+      // Whether document *content* search is served (DOCUMENT_SEARCH_ENABLED
+      // flag). Default true; backend delivers the real value.
+      document_search_enabled: true,
     },
   });
   const [loading, setLoading] = useState(true);
@@ -61,6 +64,7 @@ export const AuthConfigProvider = ({ children }) => {
     authMethods: config.auth_methods ?? ['django'],
     clerkPublishableKey: config.clerk_publishable_key ?? null,
     searchDebounceMs: config.search?.debounce_ms ?? 300,
+    documentSearchEnabled: config.search?.document_search_enabled ?? true,
     loading,
     error,
     refetch: fetchAuthConfig,

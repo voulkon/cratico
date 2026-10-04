@@ -43,6 +43,10 @@ REGISTRY = {
         "setup": "search.setup",
         "teardown": "search.teardown",
     },
+    "bad-amounts": {
+        "setup": "bad_amounts.setup",
+        "teardown": "bad_amounts.teardown",
+    },
 }
 
 

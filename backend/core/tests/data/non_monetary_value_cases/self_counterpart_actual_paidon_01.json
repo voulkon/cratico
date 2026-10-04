@@ -1,0 +1,47 @@
+{
+    "protocolNumber": "17766/24.09.2026",
+    "subject": "ΠΡΟΣΚΛΗΣΗ ΥΠΟΒΟΛΗΣ ΠΡΟΣΦΟΡΑΣ ΓΙΑ ΠΛΥΣΗ ΙΜΑΤΙΣΜΟΥ",
+    "issueDate": 1790294400000,
+    "organizationId": "99222005",
+    "signerIds": [
+        "100073152"
+    ],
+    "unitIds": [
+        "74502"
+    ],
+    "decisionTypeId": "Δ.1",
+    "thematicCategoryIds": [
+        "20"
+    ],
+    "extraFieldValues": {
+        "person": [
+            {
+                "afm": "090009802",
+                "name": "ΓΕΝΙΚΟ ΝΟΣΟΚΟΜΕΙΟ ΠΑΙΔΩΝ ΑΘΗΝΩΝ ΠΑΝΑΓΙΩΤΟΥ ΚΑΙ ΑΓΛΑΙΑΣ ΚΥΡΙΑΚΟΥ",
+                "enterName": false,
+                "afmType": "EL"
+            }
+        ],
+        "awardAmount": {
+            "amount": 37200.0,
+            "currency": "EUR"
+        },
+        "assignmentType": "Υπηρεσίες",
+        "cpv": null,
+        "textRelatedADA": null,
+        "relatedDecisions": [],
+        "documentType": "ΠΡΑΞΗ"
+    },
+    "privateData": false,
+    "ada": "6ΜΣΥ46906Ρ-ΑΞΡ",
+    "publishTimestamp": 1790315647936,
+    "submissionTimestamp": 1790315647936,
+    "versionId": "13d269a2-ab4a-4562-9837-5caee4579e37",
+    "status": "PUBLISHED",
+    "url": "https://diavgeia.gov.gr/luminapi/api/decisions/6ΜΣΥ46906Ρ-ΑΞΡ",
+    "documentUrl": "https://diavgeia.gov.gr/doc/6ΜΣΥ46906Ρ-ΑΞΡ",
+    "documentChecksum": null,
+    "attachments": [],
+    "warnings": null,
+    "correctedVersionId": null
+}

@@ -44,9 +44,14 @@ const SuperSearch = ({
   // Backend-controlled search debounce (SEARCH_DEBOUNCE_MS feature flag,
   // delivered via /api/system/config/auth/). Falls back to 300ms while the
   // config is loading or if the endpoint is unavailable.
-  const { searchDebounceMs } = useAuthConfig();
+  const { searchDebounceMs, documentSearchEnabled } = useAuthConfig();
   const debounceMsRef = useRef(300);
   debounceMsRef.current = searchDebounceMs ?? 300;
+  // When document content search is disabled server-side (DOCUMENT_SEARCH_ENABLED),
+  // skip the documents leg entirely instead of letting it spin against an
+  // endpoint that only ever returns empty results.
+  const documentSearchEnabledRef = useRef(true);
+  documentSearchEnabledRef.current = documentSearchEnabled ?? true;
   const inputRef = useRef(null);
   const resultsRef = useRef(null);
   const searchTimeoutRef = useRef(null);
@@ -100,7 +105,7 @@ const SuperSearch = ({
     try {
       // Start streaming search with the abort signal
       streamSearch(searchQuery, {
-        includeDocuments: showFullResults,
+        includeDocuments: showFullResults && documentSearchEnabledRef.current,
         limit: 5,
         signal: controller.signal,
 

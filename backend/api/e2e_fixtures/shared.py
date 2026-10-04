@@ -53,14 +53,18 @@ def unit_uid(run_id: str, i: int = 0) -> str:
 
 def decision_ada(run_id: str, i: int = 0) -> str:
     # Decision.ada is max_length=15, so the run id is compressed to a short
-    # base36 token. Format: E2E<token8><idx> → fits with 2-digit indexes.
+    # hex token. Format: E2E<token8><idx> → fits with 2-digit indexes.
     # Teardown filters with the same token prefix (see ada_prefix).
     token = _ada_token(run_id)
     return f"E2E{token}{i}".upper()
 
 
 def _ada_token(run_id: str) -> str:
-    """Stable 8-char base36 token for a run id (collision-safe for e2e)."""
+    """Stable 8-char hex token for a run id (collision-safe for e2e).
+
+    Mirrored in JS by ``decisionAda()`` in frontend/e2e/bad-amounts.spec.js —
+    keep the two in sync.
+    """
     import hashlib
 
     return format(int(hashlib.md5(run_id.encode()).hexdigest(), 16) % 36**8, "x")[

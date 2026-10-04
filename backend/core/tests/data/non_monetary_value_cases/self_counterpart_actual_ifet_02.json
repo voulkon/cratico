@@ -1,0 +1,47 @@
+{
+    "protocolNumber": "6608",
+    "subject": "Σύμβαση για την παροχή υπηρεσιών συνολικού σχεδιασμού, οργάνωσης, κινηματογράφησης και παραγωγής οπτικοακουστικού υλικού για την ολοκληρωμένη παρουσίαση της δραστηριότητας και της εταιρικής ταυτότητας της ΙΦΕΤ Μ.Α.Ε.",
+    "issueDate": 1790726400000,
+    "organizationId": "99221541",
+    "signerIds": [
+        "100084109"
+    ],
+    "unitIds": [
+        "94331"
+    ],
+    "decisionTypeId": "Δ.1",
+    "thematicCategoryIds": [
+        "10007"
+    ],
+    "extraFieldValues": {
+        "person": [
+            {
+                "afm": "090064864",
+                "name": "ΙΝΣΤΙΤΟΥΤΟ ΦΑΡΜΑΚΕΥΤΙΚΗΣ ΕΡΕΥΝΑΣ ΚΑΙ ΤΕΧΝΟΛΟΓΙΑΣ ΜΟΝΟΠΡΟΣΩΠΗ ΑΝΩΝΥΜΗ ΕΤΑΙΡΕΙΑ",
+                "enterName": false,
+                "afmType": "EL"
+            }
+        ],
+        "awardAmount": {
+            "amount": 21900.0,
+            "currency": "EUR"
+        },
+        "assignmentType": "Υπηρεσίες",
+        "cpv": null,
+        "textRelatedADA": null,
+        "relatedDecisions": [],
+        "documentType": "ΠΡΑΞΗ"
+    },
+    "privateData": false,
+    "ada": "945Ζ469ΗΣΥ-Λ2Ε",
+    "publishTimestamp": 1790760950916,
+    "submissionTimestamp": 1790760950916,
+    "versionId": "b2ad5c22-44aa-448d-9fe3-f0a5718a0105",
+    "status": "PUBLISHED",
+    "url": "https://diavgeia.gov.gr/luminapi/api/decisions/945Ζ469ΗΣΥ-Λ2Ε",
+    "documentUrl": "https://diavgeia.gov.gr/doc/945Ζ469ΗΣΥ-Λ2Ε",
+    "documentChecksum": null,
+    "attachments": [],
+    "warnings": null,
+    "correctedVersionId": null
+}

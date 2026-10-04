@@ -7,7 +7,8 @@ flag, and the orchestrator chains them in the right order.
 
 To add new post-import work:
   1. Create your @shared_task (in its own module if large, or here if small)
-  2. Add it to the chain in post_daily_import_orchestrator()
+  2. Add it to the TAIL in _post_verification_tail_chain() — never to the
+     orchestrator chain (see "DISPATCHED EXACTLY ONCE" below)
   3. Add a feature flag key to KNOWN_FLAGS in feature_flag_service.py
 
 Execution order (via Celery chord — sequential, fail-fast):
@@ -16,6 +17,15 @@ Execution order (via Celery chord — sequential, fail-fast):
       └─ chord body continues: compute_entity_rankings  →  invalidate_browse_cache
          →  warm_analytics_cache  →  trigger_check_all_subscriptions
   (amount correction)                (DB snapshots)             (Redis cache)             (Notifications)
+
+DISPATCHED EXACTLY ONCE (2026-09-15 incident): the orchestrator queues ONLY
+``verify_high_value_amounts``, and that task owns the tail
+(rankings → invalidate → warm → notifications) — it dispatches it inline when
+there is nothing to verify (flag off / no candidates / candidate query failed)
+and from the chord body otherwise.  Previously the orchestrator chain carried
+the tail as well, so every tail task ran TWICE per import; the two concurrent
+notification fan-outs then created a duplicate NotificationBatch per
+subscription (see issues/2026-09-15-duplicate-notification-batches.md).
 
 Amount verification runs FIRST: it is the only step that mutates monetary values
 (``verified_amount`` + the invalid-amount marker), and the steps that read
@@ -32,6 +42,16 @@ the whole batch.  One child task per decision bounds memory per child, makes
 the memory limits effective, isolates failures to a single decision, and gives
 per-decision progress in the logs.  The chord body guarantees the rest of the
 post-import chain still runs only after ALL children complete.
+
+FAILURE RESILIENCE: the tail dispatch can never be silently skipped —
+  * if a chord child dies permanently (killed past ``max_retries``, broker
+    loss), Celery marks the chord failed and the body never runs, so the
+    ``link_error`` errback on the body (``amount_verification_chord_error_tail``)
+    queues the tail instead;
+  * if the chord cannot even be dispatched (broker down at queue time), the
+    parent queues the tail itself before re-raising;
+  * inside ``finalize_amount_verification`` every pre-tail step is individually
+    wrapped, so a failure there cannot block the tail dispatch.
 
 Views warmed (all DashboardGrid sections):
   explore_orgs               → OrganizationsSection
@@ -253,8 +273,70 @@ def _build_warmup_sentinel_keys(
             limit=page_size, offset="0",
         )]
 
+    if view_name == "top_banded_da_receivers":
+        return [response_cache.build_key(
+            "top_banded_da_receivers",
+            start_date=start_str, end_date=end_str,
+            limit=page_size, offset="0",
+        )]
+
+    if view_name == "top_banded_da_givers":
+        return [response_cache.build_key(
+            "top_banded_da_givers",
+            start_date=start_str, end_date=end_str,
+            limit=page_size, offset="0",
+        )]
+
     # Fallback for unknown views
     return []
+
+
+# ---------------------------------------------------------------------------
+# The post-verification tail — dispatched exactly ONCE per post-import run
+# ---------------------------------------------------------------------------
+
+
+def _post_verification_tail_chain(reference_date_str: str | None = None):
+    """
+    Build the chain of everything that runs AFTER amount verification.
+
+    This is the ONE place the tail is defined, and it is dispatched from the
+    ONE place below — so no tail task can be queued twice (see the module
+    docstring: a duplicated ``trigger_check_all_subscriptions`` is what created
+    the duplicate notification batches on 2026-09-15).
+    """
+    return chain(
+        # Track 2: Compute entity rankings (DB snapshots) from corrected amounts
+        compute_entity_rankings.si(reference_date_str=reference_date_str),
+        # Invalidate browse caches so fresh entity data appears after import
+        # (runs before warming; it touches the disjoint "browse" prefix)
+        invalidate_browse_cache.si(),
+        # Track 1: Warm the response cache for heavy views with fresh amounts
+        warm_analytics_cache.si(reference_date_str=reference_date_str),
+        # Notifications: Check all active subscriptions against the new data
+        trigger_check_all_subscriptions.si(reference_date_str=reference_date_str),
+    )
+
+
+def _dispatch_post_verification_tail(
+    reference_date_str: str | None = None, *, reason: str
+) -> str | None:
+    """
+    Dispatch the post-verification tail exactly once and return its task id.
+
+    Called from ``verify_high_value_amounts`` when verification is skipped
+    (flag off / nothing to verify / candidate query failed) and from
+    ``finalize_amount_verification`` when the chord has finished — never from
+    both for the same run.
+
+    Args:
+        reason: Short label for the log line (why the tail runs now).
+    """
+    result = _post_verification_tail_chain(reference_date_str).apply_async()
+    logger.info(
+        f"Post-import tail dispatched (chain task id: {result.id}, reason: {reason})"
+    )
+    return str(result.id)
 
 
 # ---------------------------------------------------------------------------
@@ -290,30 +372,19 @@ def post_daily_import_orchestrator(job_id: int, reference_date_str: str):
 
     reference_date = date.fromisoformat(reference_date_str)
 
-    # Build the task chain — add new tasks here ↓
-    #
-    # A Celery ``chain`` is SEQUENTIAL (each task starts only after the
-    # previous one succeeds), not concurrent.  Order matters for correctness:
-    task_chain = chain(
-        # Amount Verification: the ONLY step that mutates monetary values
-        # (verified_amount + invalid-amount marker).  It must run before any
-        # step that reads amounts through the facet layer — otherwise
-        # rankings and warmed caches encode pre-correction figures.
-        verify_high_value_amounts.si(reference_date_str=reference_date_str),
-        # Track 2: Compute entity rankings (DB snapshots) from corrected amounts
-        compute_entity_rankings.si(reference_date_str=reference_date_str),
-        # Invalidate browse caches so fresh entity data appears after import
-        # (runs before warming; it touches the disjoint "browse" prefix)
-        invalidate_browse_cache.si(),
-        # Track 1: Warm the response cache for heavy views with fresh amounts
-        warm_analytics_cache.si(reference_date_str=reference_date_str),
-        # Notifications: Check all active subscriptions against the new data
-        trigger_check_all_subscriptions.si(reference_date_str=reference_date_str),
-    )
-
-    result = task_chain.apply_async()
+    # Amount verification is the ONLY thing queued here — it owns the rest of
+    # the post-import work and dispatches the tail exactly once:
+    #   * inline, when the flag is off or there is nothing to verify, or
+    #   * from the chord body, once every verification child finished (so the
+    #     tail never reads amounts that are about to be corrected).
+    # Queuing the tail here as well made each of its tasks run twice per
+    # import — two concurrent notification fan-outs, one duplicate
+    # NotificationBatch per subscription (2026-09-15).
+    result = verify_high_value_amounts.si(
+        reference_date_str=reference_date_str
+    ).apply_async()
     logger.info(
-        f"Post-import chain dispatched (chain task id: {result.id}) "
+        f"Post-import chain dispatched (verification task id: {result.id}) "
         f"for job #{job_id}"
     )
 
@@ -393,6 +464,8 @@ def warm_analytics_cache(reference_date_str: str | None = None):
       - top_payments              (decisions/top-payments/)         page_size=5, max_limit=100
       - top_direct_assignments    (decisions/top-direct-assignments/) page_size=5, max_limit=100
       - top_by_amount             (decisions/top-by-amount/)        page_size=5, max_limit=100
+      - top_banded_da_receivers   (decisions/top-banded-da-receivers/) page_size=5, max_limit=100
+      - top_banded_da_givers      (decisions/top-banded-da-givers/) page_size=5, max_limit=100
 
     Views NOT warmed (frontend no longer calls these directly):
       - explore_decisions      frontend uses unified?view=decisions (not cached)
@@ -411,6 +484,8 @@ def warm_analytics_cache(reference_date_str: str | None = None):
     from core.services.analytics_precalc_service import (
         warm_da_top_pairs_window,
         warm_explore_orgs_window,
+        warm_top_banded_da_givers_window,
+        warm_top_banded_da_receivers_window,
         warm_top_by_amount_window,
         warm_top_direct_assignments_window,
         warm_top_payments_window,
@@ -458,6 +533,8 @@ def warm_analytics_cache(reference_date_str: str | None = None):
             ("top_payments", warm_top_payments_window, {"max_limit": 100, "page_size": 5}),
             ("top_direct_assignments", warm_top_direct_assignments_window, {"max_limit": 100, "page_size": 5}),
             ("top_by_amount", warm_top_by_amount_window, {"max_limit": 100, "page_size": 5}),
+            ("top_banded_da_receivers", warm_top_banded_da_receivers_window, {"max_limit": 100, "page_size": 5}),
+            ("top_banded_da_givers", warm_top_banded_da_givers_window, {"max_limit": 100, "page_size": 5}),
         ]:
             # ── Build sentinel warmup keys so L2 (defer_on_miss) can
             #     detect that L3 is already working on this view ──────
@@ -723,9 +800,20 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
     """
     if not feature_flags.is_enabled("POST_IMPORT_AMOUNT_VERIFICATION_ENABLED"):
         logger.debug(
-            "POST_IMPORT_AMOUNT_VERIFICATION_ENABLED is disabled, skipping"
+            "POST_IMPORT_AMOUNT_VERIFICATION_ENABLED is disabled, skipping "
+            "verification — dispatching the rest of the post-import work"
         )
-        return {"status": "skipped", "reason": "feature_flag_disabled"}
+        # Verification owns the tail: with the flag off, nothing else will
+        # queue it, so rankings / cache warming / notifications would silently
+        # stop running if we returned here.
+        tail_task_id = _dispatch_post_verification_tail(
+            reference_date_str, reason="amount_verification_disabled"
+        )
+        return {
+            "status": "skipped",
+            "reason": "feature_flag_disabled",
+            "tail_task_id": tail_task_id,
+        }
 
     from datetime import datetime, timedelta
 
@@ -757,11 +845,24 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
     # the limited candidate set; we reuse its query shape via the same
     # service so the candidate selection stays in ONE place.
     verify_service = AmountVerificationService()
-    decisions = verify_service.get_high_value_candidates(
-        imported_since=imported_since,
-        imported_until=imported_until,
-        limit=VERIFY_CANDIDATE_LIMIT,
-    )
+    try:
+        decisions = verify_service.get_high_value_candidates(
+            imported_since=imported_since,
+            imported_until=imported_until,
+            limit=VERIFY_CANDIDATE_LIMIT,
+        )
+    except Exception:
+        # No amount was touched, so the tail is still safe — and this task is
+        # the only thing that queues it, so a failed candidate query must not
+        # skip rankings / cache warming / notifications.
+        logger.exception(
+            "Amount verification candidate query failed — running the "
+            "post-import tail anyway"
+        )
+        _dispatch_post_verification_tail(
+            reference_date_str, reason="amount_verification_error"
+        )
+        raise
 
     total = len(decisions)
     logger.info(
@@ -796,9 +897,32 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
     # NOTE: the body MUST be a mutable signature (.s) — a chord passes the
     # header results as the body's first positional argument, and .si would
     # silently discard them (batch_summaries would arrive empty).
-    task_chord = chord(header)(
-        finalize_amount_verification.s(reference_date_str=reference_date_str)
+    body = finalize_amount_verification.s(reference_date_str=reference_date_str)
+    # If a header child fails permanently (killed past max_retries, broker
+    # loss), Celery marks the chord failed and the body NEVER runs — without
+    # this errback, rankings / cache warming / notifications would silently
+    # skip that import.  No further amounts will be corrected this run, so
+    # dispatching the tail is safe.
+    body.link_error(
+        amount_verification_chord_error_tail.s(
+            reference_date_str=reference_date_str
+        )
     )
+    try:
+        task_chord = chord(header)(body)
+    except Exception:
+        # The chord never got dispatched (broker down, serialisation error):
+        # no amount was touched, so the tail is still safe — and this task is
+        # the only thing that queues it.  Re-raise so the failure surfaces
+        # (log_task_run records it as status=error).
+        logger.exception(
+            "Amount verification chord dispatch failed — running the "
+            "post-import tail anyway"
+        )
+        _dispatch_post_verification_tail(
+            reference_date_str, reason="amount_verification_dispatch_error"
+        )
+        raise
 
     logger.info(
         f"Amount verification fan-out: {len(batches)} batch(es) of up to "
@@ -837,13 +961,16 @@ def verify_correct_decision_batch(self, decision_ids: list[int]) -> dict:
     from django.db import close_old_connections
 
     from core.models.decisions import Decision
-    from core.services.amount_correction_service import AmountCorrectionService
     from core.services.amount_verification_service import AmountVerificationService
+    from core.services.data_quality import resolve_detectors, run_detectors, summarize
 
     close_old_connections()
 
     verify_service = AmountVerificationService()
-    correction_service = AmountCorrectionService()
+    # The registry owns which detectors run here — this task does not name an
+    # algorithm.  Post-import Phase 2 is the decimal-shift correction; the
+    # non-monetary sweep is Phase 3 (its own flag).
+    detectors = resolve_detectors("decimal_shift")
 
     summary = {
         "verified": 0,
@@ -852,6 +979,7 @@ def verify_correct_decision_batch(self, decision_ids: list[int]) -> dict:
         "consistent": 0,
         "no_text": 0,
         "skipped": 0,
+        "flagged": 0,
         "errors": 0,
     }
 
@@ -867,9 +995,16 @@ def verify_correct_decision_batch(self, decision_ids: list[int]) -> dict:
                 if verify_result.get("has_discrepancy"):
                     summary["discrepancies"] += 1
 
-            # Phase 2: correction (cents-based, mutates verified_amount).
-            correct_result = correction_service.correct_decision(
-                decision, dry_run=False, read_if_missing=True
+            # Phase 2: correction — mutates ``verified_amount`` through the
+            # detector selected by the registry (Phase 2 = decimal-shift;
+            # the non-monetary sweep is Phase 3, behind its own flag).
+            correct_result = summarize(
+                run_detectors(
+                    decision,
+                    detectors,
+                    dry_run=False,
+                    read_if_missing=True,
+                )
             )
             status = correct_result["status"]
             if status in ("corrected", "would_correct"):
@@ -878,6 +1013,8 @@ def verify_correct_decision_batch(self, decision_ids: list[int]) -> dict:
                 summary["consistent"] += 1
             elif status == "no_text_amounts_found":
                 summary["no_text"] += 1
+            elif status == "flagged" or status.endswith("_as_amount"):
+                summary["flagged"] += 1
             else:
                 summary["skipped"] += 1
         except Exception as exc:
@@ -897,18 +1034,54 @@ def verify_correct_decision_batch(self, decision_ids: list[int]) -> dict:
 
 @shared_task
 @log_task_run(swallow_errors=True)
+def amount_verification_chord_error_tail(
+    request, exc, tb, reference_date_str: str | None = None
+):
+    """
+    Celery errback for the verification chord body.
+
+    Attached via ``link_error`` in ``verify_high_value_amounts``: if a header
+    child fails permanently (killed past ``max_retries``, broker loss), Celery
+    marks the chord failed and ``finalize_amount_verification`` never runs —
+    so without this errback, rankings / cache warming / notifications would
+    silently skip that import.
+
+    Celery invokes errbacks as ``(request, exc, traceback)``; the reference
+    date arrives as a partial kwarg bound when the chord is built.  Running
+    the tail here is safe: the amounts the dead child never corrected simply
+    stay uncorrected until the next import.
+    """
+    logger.error(
+        f"Amount verification chord FAILED ({exc!r}) — dispatching the "
+        f"post-import tail anyway"
+    )
+    tail_task_id = _dispatch_post_verification_tail(
+        reference_date_str, reason="amount_verification_chord_error"
+    )
+    return {
+        "status": "tail_dispatched",
+        "reason": "amount_verification_chord_error",
+        "chord_error": str(exc),
+        "tail_task_id": tail_task_id,
+    }
+
+
+@shared_task
+@log_task_run(swallow_errors=True)
 def finalize_amount_verification(
     batch_summaries: list[dict],
     reference_date_str: str | None = None,
 ):
     """
     Chord body: aggregate child results, invalidate caches, run discovery,
-    and CONTINUE the post-import chain.
+    and dispatch the post-verification tail
+    (see ``_dispatch_post_verification_tail``).
 
     Receives the list of per-batch summary dicts from the chord header.
-    Dispatches the remaining post-import tasks (rankings → invalidate →
-    warm → notifications) as a nested chain so the ordering guarantee
-    (amounts corrected BEFORE anything reads them) is preserved.
+    This is the single dispatch point of the tail on the chord path — the
+    orchestrator queued only ``verify_high_value_amounts`` — so the ordering
+    guarantee (amounts corrected BEFORE anything reads them) still holds,
+    without any tail task ever being queued twice.
     """
     from datetime import datetime, timedelta
 
@@ -932,6 +1105,7 @@ def finalize_amount_verification(
         "consistent": 0,
         "no_text": 0,
         "skipped": 0,
+        "flagged": 0,
         "errors": 0,
     }
     for s in batch_summaries or []:
@@ -951,38 +1125,58 @@ def finalize_amount_verification(
     # keep serving pre-correction figures.  These prefixes cover the views
     # that read amounts via the facet layer (explore_orgs / da_top_pairs are
     # NOT matched by the "top_" prefix).
-    if totals["corrected"] or totals["discrepancies"]:
-        from core.services.response_cache_service import response_cache
+    if totals["corrected"] or totals["discrepancies"] or totals.get("flagged"):
+        try:
+            from core.services.response_cache_service import response_cache
 
-        invalidated = sum(
-            response_cache.invalidate_prefix(prefix)
-            for prefix in ("top_", "da_top_pairs", "explore_orgs")
-        )
-        logger.info(
-            f"Amount correction changed values — invalidated {invalidated} "
-            f"amount-dependent analytics cache key(s)"
-        )
+            invalidated = sum(
+                response_cache.invalidate_prefix(prefix)
+                for prefix in ("top_", "da_top_pairs", "explore_orgs")
+            )
+            logger.info(
+                f"Amount correction changed values — invalidated {invalidated} "
+                f"amount-dependent analytics cache key(s)"
+            )
+        except Exception:
+            # Stale caches are self-healing (TTL + next import's warmup);
+            # a Redis hiccup here must not block the tail dispatch below.
+            logger.exception(
+                "Cache invalidation after amount verification failed — "
+                "stale analytics caches may persist until the next import"
+            )
 
-    # ── Discovery (non-monetary values recorded as amounts) ───────────
-    # DB-only, read-only sweep — see _discover_non_monetary_values.
-    discovery_result = _discover_non_monetary_values(
-        imported_since=imported_since,
-        imported_until=imported_until,
-    )
+    # ── Discovery / treatment (non-monetary values recorded as amounts) ──
+    # DB-only sweep (no document read).  Reporting is always on; writing the
+    # invalid-amount marker is opt-in behind
+    # POST_IMPORT_AMOUNT_ANOMALY_TREATMENT_ENABLED, because it drops the row
+    # out of every monetary aggregation.  See _discover_non_monetary_values.
+    try:
+        anomaly_treatment = feature_flags.is_enabled(
+            "POST_IMPORT_AMOUNT_ANOMALY_TREATMENT_ENABLED"
+        )
+        discovery_result = _discover_non_monetary_values(
+            imported_since=imported_since,
+            imported_until=imported_until,
+            apply=anomaly_treatment,
+        )
+        if anomaly_treatment and discovery_result.get("applied_fields"):
+            totals["flagged"] = totals.get("flagged", 0) + discovery_result[
+                "applied_fields"
+            ]
+    except Exception as exc:
+        # This sweep must not skip the tail: a failure here is reported, not
+        # fatal (the tail is what keeps rankings/caches/notifications fresh).
+        logger.exception("Non-monetary-value discovery failed")
+        discovery_result = {"status": "error", "error": str(exc)}
 
     # ── Continue the post-import chain ────────────────────────────────
-    # The chord replaced the first link of the old chain, so the remaining
-    # tasks are dispatched here, in the same order as before.
-    continuation = chain(
-        compute_entity_rankings.si(reference_date_str=reference_date_str),
-        invalidate_browse_cache.si(),
-        warm_analytics_cache.si(reference_date_str=reference_date_str),
-        trigger_check_all_subscriptions.si(reference_date_str=reference_date_str),
-    )
-    continuation_result = continuation.apply_async()
-    logger.info(
-        f"Post-import continuation dispatched (chain task id: "
-        f"{continuation_result.id}) for reference date {ref}"
+    # The orchestrator queued ONLY ``verify_high_value_amounts``, so this is
+    # the single dispatch point of the tail for this run — amount correction
+    # (the chord children) has finished by the time we get here.  Everything
+    # above is individually wrapped so a failure there cannot keep this
+    # dispatch from running.
+    continuation_task_id = _dispatch_post_verification_tail(
+        reference_date_str, reason="amount_verification_complete"
     )
 
     return {
@@ -990,28 +1184,39 @@ def finalize_amount_verification(
         "reference_date": str(ref),
         "totals": totals,
         "discovery": discovery_result,
-        "continuation_task_id": str(continuation_result.id),
+        "continuation_task_id": continuation_task_id,
     }
 
 
 def _discover_non_monetary_values(
     imported_since=None,
     imported_until=None,
+    apply: bool = False,
 ) -> dict:
     """
-    Log (and count) decisions imported in the window whose recorded amount is
-    actually a non-monetary value (AFM/KAE).
+    Find decisions imported in the window whose recorded amount is actually a
+    non-monetary value (AFM/KAE), and (optionally) flag them.
 
-    Read-only: it never mutates ``verified_amount`` — the guard already
-    refuses to write such values there.  The purpose is observability so
-    operators know a case needs the real amount looked up manually.
+    Reporting is always safe: the sweep reads only the database, never a
+    document, and it never writes ``verified_amount`` — the guard refuses to
+    write such a value there, because the real amount is unknown.
+
+    ``apply=True`` additionally writes the **invalid-amount marker**
+    (``invalid_amount_reason`` / ``_value`` / ``_flagged_at``) so the decision
+    leaves every monetary aggregation and enters the feedback pool.  That is
+    the treatment half of the guard; it is opt-in because it is a write.
+    Callers must gate it on
+    ``POST_IMPORT_AMOUNT_ANOMALY_TREATMENT_ENABLED``.
+
+    The detector (``data_quality.NonMonetaryValueDetector``) owns the
+    detection *and* the write, so this sweep cannot drift from the CLI/admin
+    path that runs the same detector.
     """
     from core.models.decisions import Decision
-    from core.services.non_monetary_value_guard import (
-        KIND_AFM,
-        KIND_KAE,
-        collect_non_monetary_values,
-    )
+    from core.services.data_quality import NonMonetaryValueDetector
+    from core.services.non_monetary_value_guard import KIND_AFM, KIND_KAE
+
+    detector = NonMonetaryValueDetector()
 
     decisions = (
         Decision.objects.filter(
@@ -1027,36 +1232,50 @@ def _discover_non_monetary_values(
 
     afm_count = 0
     kae_count = 0
+    applied_decisions = 0
+    applied_fields = 0
     flagged: list[dict] = []
 
     for decision in decisions.iterator(chunk_size=500):
-        anomalies = collect_non_monetary_values(decision)
-        if not anomalies:
+        outcome = detector.scan(decision)
+        if not outcome.detected:
             continue
-        for anomaly in anomalies:
-            if anomaly.kind == KIND_AFM:
+
+        if apply:
+            # ``apply`` re-detects (the detector is DB-only and idempotent);
+            # going through it keeps a single write path.
+            written = detector.apply(decision, outcome)
+            if written:
+                applied_decisions += 1
+                applied_fields += written
+
+        for finding in outcome.findings:
+            if finding.kind == KIND_AFM:
                 afm_count += 1
-            elif anomaly.kind == KIND_KAE:
+            elif finding.kind == KIND_KAE:
                 kae_count += 1
             flagged.append(
                 {
                     "ada": decision.ada,
-                    "kind": anomaly.kind,
-                    "source_field": anomaly.source_field,
-                    "amount": str(anomaly.amount),
-                    "matched_value": anomaly.matched_value,
+                    "kind": finding.kind,
+                    "source_field": finding.source_field,
+                    "amount": finding.recorded,
+                    "matched_value": finding.payload.get("matched_value", ""),
                 }
             )
             logger.warning(
                 f"Non-monetary-value-as-amount: decision {decision.id} "
-                f"({decision.ada}) {anomaly.source_field}="
-                f"{anomaly.amount} equals {anomaly.kind} {anomaly.matched_value}"
+                f"({decision.ada}) {finding.source_field}={finding.recorded} "
+                f"equals {finding.kind} {finding.payload.get('matched_value', '')}"
+                f"{' [flagged]' if apply else ' [report only]'}"
             )
 
     result = {
         "afm_anomalies": afm_count,
         "kae_anomalies": kae_count,
         "total_anomalies": afm_count + kae_count,
+        "applied_decisions": applied_decisions,
+        "applied_fields": applied_fields,
         "sample": flagged[:50],
     }
     logger.info(f"Non-monetary-value discovery: {result}")

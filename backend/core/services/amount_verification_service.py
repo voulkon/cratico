@@ -36,6 +36,8 @@ from collections import Counter
 from decimal import Decimal
 from typing import Any
 
+from loguru import logger
+
 from core.models.decisions import Decision
 from core.models.document_analysis import (
     DocumentExtraction,
@@ -44,17 +46,6 @@ from core.models.document_analysis import (
     TextProcessRun,
     TextProcessStatus,
     TextSpan,
-)
-from core.services.non_monetary_value_guard import (
-    DISCREPANCY_REASON_AFM,
-    DISCREPANCY_REASON_KAE,
-    build_afm_note,
-    build_kae_note,
-    collect_counterpart_afms,
-    collect_kae_codes,
-    extract_afm_amount_spans,
-    match_afm_amount,
-    match_kae_amount,
 )
 from core.services.amount_text_detection import (
     DetectedAmount,
@@ -65,9 +56,21 @@ from core.services.grouped_amount_detection import (
     GroupedAmount,
     verify_amounts_against_grouped,
 )
+from core.services.non_monetary_value_guard import (
+    DISCREPANCY_REASON_AFM,
+    DISCREPANCY_REASON_KAE,
+    build_afm_note,
+    build_kae_note,
+    build_self_counterpart_note,
+    collect_counterpart_afms,
+    collect_kae_codes,
+    collect_self_counterparts,
+    extract_afm_amount_spans,
+    match_afm_amount,
+    match_kae_amount,
+)
 from core.services.text_process_service import TextProcessService
 from core.services.text_processes.base import TextSpanData
-from loguru import logger
 
 PROCESS_SLUG = "amount"
 
@@ -232,15 +235,9 @@ class AmountVerificationService:
                     verified += 1
                     if result.get("has_discrepancy"):
                         discrepancies += 1
-                        if (
-                            result.get("discrepancy_reason")
-                            == DISCREPANCY_REASON_AFM
-                        ):
+                        if result.get("discrepancy_reason") == DISCREPANCY_REASON_AFM:
                             afm_as_amount_discrepancies += 1
-                        elif (
-                            result.get("discrepancy_reason")
-                            == DISCREPANCY_REASON_KAE
-                        ):
+                        elif result.get("discrepancy_reason") == DISCREPANCY_REASON_KAE:
                             kae_as_amount_discrepancies += 1
                 elif result["status"] == "skipped":
                     skipped += 1
@@ -320,6 +317,7 @@ class AmountVerificationService:
         # Ψ0Α74690Β9-52Ρ).
         counterpart_afms = collect_counterpart_afms(decision)
         counterpart_kaes = collect_kae_codes(decision)
+        self_counterparts = collect_self_counterparts(decision)
 
         # --- Step 3: Detect the amount in the text (regex or AI) ---
         # The AI path calls the LLM here and returns a single amount; the
@@ -364,13 +362,15 @@ class AmountVerificationService:
         # Persist run-level audit data + spans via the process service
         run.meta = {
             "raw_amount": str(raw_amount) if raw_amount is not None else None,
-            "calculated_amount": str(calculated_amount)
-            if calculated_amount is not None
-            else None,
+            "calculated_amount": (
+                str(calculated_amount) if calculated_amount is not None else None
+            ),
             "raw_response": ai_result.get("raw_response", ""),
-            "ai_verified_amount": str(ai_result.get("amount"))
-            if ai_result.get("amount") is not None
-            else None,
+            "ai_verified_amount": (
+                str(ai_result.get("amount"))
+                if ai_result.get("amount") is not None
+                else None
+            ),
         }
         run.input_tokens = ai_result.get("input_tokens")
         run.output_tokens = ai_result.get("output_tokens")
@@ -404,12 +404,22 @@ class AmountVerificationService:
             # the presence of counterpart values (not on the DB amount being
             # a hit) so the guard also fires when the DB amount is wrong in
             # some other way.
+            #
+            # Self-as-counterpart is decision-level, NOT an amount verdict:
+            # there the amount is believed and only the counterpart is
+            # unknown — it is recorded as an audit note and left to the
+            # detail API / a future counterpart-recovery pass.
+            self_counterpart_afm = None
+            self_counterpart_note = None
+            if self_counterparts:
+                self_counterpart_afm = sorted(self_counterparts)[0]
+                self_counterpart_note = build_self_counterpart_note(
+                    self_counterpart_afm
+                )
             counterpart_afm = None
             counterpart_kae = None
             if counterpart_afms or counterpart_kaes:
-                counterpart_afm = match_afm_amount(
-                    verified_amount, counterpart_afms
-                )
+                counterpart_afm = match_afm_amount(verified_amount, counterpart_afms)
                 counterpart_kae = (
                     None
                     if counterpart_afm is not None
@@ -419,32 +429,41 @@ class AmountVerificationService:
                     has_discrepancy = True
                     if counterpart_afm is not None:
                         discrepancy_reason = DISCREPANCY_REASON_AFM
-                        code_note = build_afm_note(
-                            counterpart_afm, verified_amount
-                        )
+                        code_note = build_afm_note(counterpart_afm, verified_amount)
                         detail = f"equals counterpart AFM {counterpart_afm}"
                     else:
                         discrepancy_reason = DISCREPANCY_REASON_KAE
-                        code_note = build_kae_note(
-                            counterpart_kae, verified_amount
-                        )
+                        code_note = build_kae_note(counterpart_kae, verified_amount)
                         detail = f"equals budget KAE {counterpart_kae}"
-                    discrepancy_note = (
-                        f"{code_note} | {discrepancy_note}"
-                        if discrepancy_note
-                        else code_note
-                    )
-                    logger.warning(
-                        f"Decision {decision.id} ({decision.ada}): "
-                        f"non-monetary value recorded as amount detected — "
-                        f"verified={verified_amount} {detail}"
-                    )
+            if discrepancy_reason:
+                discrepancy_note = (
+                    f"{code_note} | {discrepancy_note}"
+                    if discrepancy_note
+                    else code_note
+                )
+                logger.warning(
+                    f"Decision {decision.id} ({decision.ada}): "
+                    f"non-monetary value recorded as amount detected — "
+                    f"verified={verified_amount} {detail}"
+                )
+            # Append unconditionally: a decision can carry BOTH a
+            # self-counterpart signal and an AFM/KAE amount anomaly — the note
+            # must not be dropped just because a real discrepancy was found
+            # (the grouped path records it in raw_response the same way).
+            if self_counterpart_note:
+                discrepancy_note = (
+                    f"{discrepancy_note} | {self_counterpart_note}"
+                    if discrepancy_note
+                    else self_counterpart_note
+                )
 
             run.status = TextProcessStatus.COMPLETED
             run.error_message = None
             run.meta["has_discrepancy"] = has_discrepancy
             if discrepancy_reason:
                 run.meta["discrepancy_reason"] = discrepancy_reason
+            if self_counterpart_afm is not None:
+                run.meta["self_counterpart_afm"] = self_counterpart_afm
             if counterpart_afm is not None:
                 run.meta["counterpart_afm"] = counterpart_afm
             if counterpart_kae is not None:
@@ -474,11 +493,9 @@ class AmountVerificationService:
         # --- Step 6: Upsert the decision-level resolution (completed only) ---
         resolution_id = None
         if run.status == TextProcessStatus.COMPLETED:
-            chosen_span = (
-                TextSpan.objects.filter(
-                    run=run, value__amount=str(verified_amount)
-                ).first()
-            )
+            chosen_span = TextSpan.objects.filter(
+                run=run, value__amount=str(verified_amount)
+            ).first()
             resolution, _ = TextProcessResolution.objects.update_or_create(
                 decision=decision,
                 process=PROCESS_SLUG,
@@ -494,9 +511,7 @@ class AmountVerificationService:
 
         return {
             "status": (
-                "completed"
-                if run.status == TextProcessStatus.COMPLETED
-                else "failed"
+                "completed" if run.status == TextProcessStatus.COMPLETED else "failed"
             ),
             "run_id": run.id,
             "resolution_id": resolution_id,
@@ -528,9 +543,7 @@ class AmountVerificationService:
                 decision.refresh_from_db()
                 return getattr(decision, "text_extraction", None)
         except Exception as exc:
-            logger.warning(
-                f"Decision {decision.id}: text extraction failed: {exc}"
-            )
+            logger.warning(f"Decision {decision.id}: text extraction failed: {exc}")
 
         return extraction
 
@@ -654,9 +667,7 @@ class AmountVerificationService:
 
         # If cents detector found amounts, prefer its primary as it's more
         # reliable (no false positives from bare integers like protocol numbers)
-        if grouped_primary is not None and (
-            grouped_has_discrepancy or has_discrepancy
-        ):
+        if grouped_primary is not None and (grouped_has_discrepancy or has_discrepancy):
             verified_amount = grouped_primary
             has_discrepancy = True
             raw_response += (
@@ -666,10 +677,15 @@ class AmountVerificationService:
             )
             raw_response += "\n".join(
                 f"  Grouped vs DB {m.db_amount}: "
-                + ("FOUND" if m.found_exact else (
-                    f"CLONE {m.matched_text_amount} (×{m.clone_factor})"
-                    if m.clone_factor else "NOT FOUND"
-                ))
+                + (
+                    "FOUND"
+                    if m.found_exact
+                    else (
+                        f"CLONE {m.matched_text_amount} (×{m.clone_factor})"
+                        if m.clone_factor
+                        else "NOT FOUND"
+                    )
+                )
                 for m in grouped_result.matches
             )
 
@@ -779,14 +795,19 @@ class AmountVerificationService:
         # ── Non-monetary-value-as-amount guard ─────────────────────────────
         # Even when the cents detector confirms the value, an amount equal
         # to a counterpart AFM or a budget KAE is bogus and must be flagged.
+        # Self-as-counterpart is decision-level (amount believed, counterpart
+        # unknown) — recorded as a note, never as an amount discrepancy.
         counterpart_afms = collect_counterpart_afms(decision)
         counterpart_kaes = collect_kae_codes(decision)
+        self_counterparts = collect_self_counterparts(decision)
         discrepancy_reason = None
         counterpart_afm = None
         counterpart_kae = None
-        if verified_amount is not None and (
-            counterpart_afms or counterpart_kaes
-        ):
+        self_counterpart_afm = None
+        if self_counterparts:
+            self_counterpart_afm = sorted(self_counterparts)[0]
+            raw_response += "\n" + build_self_counterpart_note(self_counterpart_afm)
+        if verified_amount is not None and (counterpart_afms or counterpart_kaes):
             counterpart_afm = match_afm_amount(verified_amount, counterpart_afms)
             counterpart_kae = (
                 None
@@ -837,26 +858,32 @@ class AmountVerificationService:
 
         run.meta = {
             "raw_amount": str(raw_amount) if raw_amount is not None else None,
-            "calculated_amount": str(calculated_amount)
-            if calculated_amount is not None
-            else None,
+            "calculated_amount": (
+                str(calculated_amount) if calculated_amount is not None else None
+            ),
             "raw_response": raw_response,
             "has_discrepancy": has_discrepancy,
             "detector": "cents-based",
         }
         if discrepancy_reason:
             run.meta["discrepancy_reason"] = discrepancy_reason
+        if self_counterpart_afm is not None:
+            run.meta["self_counterpart_afm"] = self_counterpart_afm
         if counterpart_afm is not None:
             run.meta["counterpart_afm"] = counterpart_afm
         if counterpart_kae is not None:
             run.meta["counterpart_kae"] = counterpart_kae
         TextProcessService()._save_spans(run, spans)
 
-        discrepancy_note = self._build_discrepancy_note(
-            text_amount=verified_amount or Decimal("0"),
-            calculated_amount=calculated_amount,
-            raw_amount=raw_amount,
-        ) if has_discrepancy else None
+        discrepancy_note = (
+            self._build_discrepancy_note(
+                text_amount=verified_amount or Decimal("0"),
+                calculated_amount=calculated_amount,
+                raw_amount=raw_amount,
+            )
+            if has_discrepancy
+            else None
+        )
 
         if success:
             run.status = TextProcessStatus.COMPLETED
@@ -868,11 +895,9 @@ class AmountVerificationService:
         # Upsert resolution (only on success)
         resolution_id = None
         if run.status == TextProcessStatus.COMPLETED and verified_amount is not None:
-            chosen_span = (
-                TextSpan.objects.filter(
-                    run=run, value__amount=str(verified_amount)
-                ).first()
-            )
+            chosen_span = TextSpan.objects.filter(
+                run=run, value__amount=str(verified_amount)
+            ).first()
             resolution, _ = TextProcessResolution.objects.update_or_create(
                 decision=decision,
                 process=PROCESS_SLUG,
@@ -966,7 +991,14 @@ class AmountVerificationService:
             return None
 
         # Strip any currency symbols, whitespace, quotes
-        cleaned = raw.strip().strip('"').strip("'").replace("€", "").replace("EUR", "").replace("$", "")
+        cleaned = (
+            raw.strip()
+            .strip('"')
+            .strip("'")
+            .replace("€", "")
+            .replace("EUR", "")
+            .replace("$", "")
+        )
         cleaned = cleaned.strip()
 
         try:
@@ -982,7 +1014,10 @@ class AmountVerificationService:
             elif "," in cleaned and "." not in cleaned:
                 # Only commas: could be "30000,00" (decimal) or "30,000" (thousands)
                 # Heuristic: if comma followed by exactly 2 digits at end, it's decimal
-                if len(cleaned.split(",")[-1]) == 2 and cleaned.rfind(",") > len(cleaned) - 4:
+                if (
+                    len(cleaned.split(",")[-1]) == 2
+                    and cleaned.rfind(",") > len(cleaned) - 4
+                ):
                     cleaned = cleaned.replace(",", ".")
                 else:
                     cleaned = cleaned.replace(",", "")
@@ -1044,12 +1079,20 @@ class AmountVerificationService:
         if calculated_amount and calculated_amount > 0:
             ratio = text_amount / calculated_amount
             if 0.009 <= ratio <= 0.011:
-                parts.append("[WARN] Text amount is ~100× smaller — possible decimal shift")
+                parts.append(
+                    "[WARN] Text amount is ~100× smaller — possible decimal shift"
+                )
             elif 90 <= ratio <= 110 and ratio != 1:
-                parts.append("[WARN] Text amount is ~100× larger — possible decimal shift")
+                parts.append(
+                    "[WARN] Text amount is ~100× larger — possible decimal shift"
+                )
             elif 0.09 <= ratio <= 0.11:
-                parts.append("[WARN] Text amount is ~10× smaller — possible decimal shift")
+                parts.append(
+                    "[WARN] Text amount is ~10× smaller — possible decimal shift"
+                )
             elif 9 <= ratio <= 11 and ratio != 1:
-                parts.append("[WARN] Text amount is ~10× larger — possible decimal shift")
+                parts.append(
+                    "[WARN] Text amount is ~10× larger — possible decimal shift"
+                )
 
         return " | ".join(parts)

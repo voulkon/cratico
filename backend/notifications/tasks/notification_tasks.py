@@ -371,6 +371,24 @@ def create_notifications_for_matches(subscription, matching_decisions):
     return count
 
 
+def _decisions_already_batched(subscription, decisions) -> set[int]:
+    """
+    Return the IDs of *decisions* that already belong to ANY batch of
+    *subscription*.
+
+    Extracted so the race window it opens (read now, insert later) is explicit:
+    under concurrency this can legitimately report nothing while
+    ``NotificationBatchDecision.unique_subscription_decision`` still rejects
+    the insert — see ``create_batch_for_matches`` and
+    notifications/tests/unit/test_batch_dedup.py.
+    """
+    return set(
+        NotificationBatchDecision.objects.filter(
+            subscription=subscription, decision__in=decisions
+        ).values_list("decision_id", flat=True)
+    )
+
+
 def create_batch_for_matches(
     subscription, matching_decisions, check_window_start, check_window_end
 ):
@@ -379,6 +397,13 @@ def create_batch_for_matches(
 
     This is the preferred approach for manual checks (check_single_subscription),
     grouping multiple matches into a single batch to prevent notification spam.
+
+    Idempotent under concurrency: two overlapping checks of the same
+    subscription (e.g. two triggers in one post-import run) cannot both keep a
+    batch for the same decision.  The pre-check below is only an optimisation —
+    the authoritative guard is ``unique_subscription_decision`` on the
+    junction table, enforced when the rows are inserted (see the race guard
+    further down).
 
     Args:
         subscription: NotificationSubscription instance
@@ -400,9 +425,9 @@ def create_batch_for_matches(
         return {"batch_id": None, "decisions_added": 0}
 
     # Filter out decisions that already exist in any batch for this subscription
-    existing_decision_ids = NotificationBatchDecision.objects.filter(
-        subscription=subscription, decision__in=decisions_list
-    ).values_list("decision_id", flat=True)
+    existing_decision_ids = _decisions_already_batched(
+        subscription, decisions_list
+    )
 
     new_decisions = [d for d in decisions_list if d.id not in existing_decision_ids]
 
@@ -467,23 +492,21 @@ def create_batch_for_matches(
                 check_window_end=check_window_end,
                 defaults={
                     "user": subscription.user,
-                    "match_count": len(new_decisions),
+                    # Written authoritatively below, from the rows the batch
+                    # actually owns.
+                    "match_count": 0,
                     "aggregate_stats": aggregate_stats,
                 },
             )
 
-            if not created:
-                # Batch already exists - update match count and stats
-                batch.match_count += len(new_decisions)
-                batch.aggregate_stats = aggregate_stats
-                batch.save(update_fields=["match_count", "aggregate_stats"])
-                logger.info(
-                    f"Updated existing batch {batch.id} for subscription {subscription.id}"
-                )
-            else:
+            if created:
                 logger.info(
                     f"Created new batch {batch.id} for subscription {subscription.id}"
                 )
+
+            rows_in_batch_before = NotificationBatchDecision.objects.filter(
+                batch=batch
+            ).count()
 
             # Create batch decisions (only for new decisions)
             batch_decisions_to_create = []
@@ -502,36 +525,95 @@ def create_batch_for_matches(
                     )
                 )
 
-            # Bulk create - duplicates already filtered out, but use ignore_conflicts for safety
+            # Bulk create - duplicates already filtered out, but use
+            # ignore_conflicts for safety.  NOTE: with ignore_conflicts=True
+            # Django cannot report which rows were inserted, so the batch's own
+            # rows are counted right after.
             NotificationBatchDecision.objects.bulk_create(
                 batch_decisions_to_create, ignore_conflicts=True
             )
 
-            decisions_added = len(new_decisions)
+            decisions_added = NotificationBatchDecision.objects.filter(
+                batch=batch
+            ).count()
+
+            # ── Race guard ─────────────────────────────────────────────
+            # The pre-check above is a read-then-write, and the check window
+            # is now()-derived, so two overlapping checks of the same
+            # subscription both see "nothing batched yet" and both create a
+            # batch.  The loser's junction rows are then dropped by
+            # ``unique_subscription_decision`` — which is how the loss is
+            # detected here: a batch that this call *created* and that owns no
+            # decisions is a duplicate and must not survive (it used to show up
+            # in the UI as an extra notification with no content).
+            if created and decisions_added == 0:
+                batch_id = batch.id
+                owner_batch = (
+                    NotificationBatchDecision.objects.filter(
+                        subscription=subscription, decision__in=new_decisions
+                    )
+                    .select_related("batch")
+                    .first()
+                )
+                owner_batch_id = owner_batch.batch_id if owner_batch else None
+                batch.delete()
+                logger.warning(
+                    f"Discarded duplicate batch {batch_id} for subscription "
+                    f"{subscription.id}: all {len(new_decisions)} decision(s) "
+                    f"were already batched by a concurrent check "
+                    f"(kept batch {owner_batch_id})"
+                )
+                return {
+                    "batch_id": owner_batch_id,
+                    "decisions_added": 0,
+                    "batch_created": False,
+                    "all_duplicates": True,
+                    "batch_already_emailed": (
+                        owner_batch.batch.email_sent if owner_batch else True
+                    ),
+                }
+
+            # ``decisions_added`` is what THIS call added (callers sum it as
+            # "notifications created"); ``match_count`` is the batch's total and
+            # is authoritative — a count that outruns the junction rows is what
+            # showed a phantom "1 decision" empty batch in the UI.
+            decisions_added -= rows_in_batch_before
+            batch.match_count = NotificationBatchDecision.objects.filter(
+                batch=batch
+            ).count()
+            batch.aggregate_stats = aggregate_stats
+            batch.save(update_fields=["match_count", "aggregate_stats"])
 
             logger.info(
                 f"Batch {batch.id}: Added {decisions_added} decisions "
                 f"(total in batch: {batch.match_count})"
             )
 
-            # Trigger AI summarization if enabled on the subscription
+            # Trigger AI summarization if enabled on the subscription.
+            # on_commit: a summary dispatched inside this transaction can read
+            # the batch before its decisions are visible and give up with
+            # "No decisions in batch to summarize".
             if decisions_added > 0 and getattr(
                 subscription, "ai_summary_enabled", False
             ):
-                try:
-                    from notifications.tasks.ai_summary_tasks import (
-                        summarize_notification_batch,
-                    )
+                from notifications.tasks.ai_summary_tasks import (
+                    summarize_notification_batch,
+                )
 
-                    summarize_notification_batch.delay(batch_id=batch.id)
-                    logger.info(
-                        f"Triggered AI summarization for batch {batch.id} "
-                        f"(subscription {subscription.id})"
-                    )
-                except Exception as ai_err:
-                    logger.warning(
-                        f"Failed to trigger AI summarization for batch {batch.id}: {ai_err}"
-                    )
+                def _queue_summary(batch_id=batch.id):
+                    try:
+                        summarize_notification_batch.delay(batch_id=batch_id)
+                        logger.info(
+                            f"Triggered AI summarization for batch {batch_id} "
+                            f"(subscription {subscription.id})"
+                        )
+                    except Exception as ai_err:
+                        logger.warning(
+                            f"Failed to trigger AI summarization for batch "
+                            f"{batch_id}: {ai_err}"
+                        )
+
+                transaction.on_commit(_queue_summary)
 
             return {
                 "batch_id": batch.id,
