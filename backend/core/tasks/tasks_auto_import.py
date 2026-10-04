@@ -17,12 +17,18 @@ Auto Import Tasks - Dual Mode System
 from datetime import date, timedelta
 
 from celery import shared_task
+from core.constants.decision_import_constants import (
+    HOURLY_IMPORT_MIN_INTERVAL_MINUTES,
+    HOURLY_IMPORT_OVERLAP_MINUTES,
+)
 from core.models.decisions import Decision
 from core.models.import_jobs import ImportJob, ImportJobStatus, ImportJobType
+from core.models.sync_status import SyncStatus
 from core.services.coverage_service import BackfillCoverageService
 from core.services.feature_flag_service import feature_flags
 from core.services.import_job_queue import ImportJobQueue
 from django.db.models import Max
+from django.utils import timezone
 from loguru import logger
 
 
@@ -75,6 +81,66 @@ def auto_daily_import_task():
     except Exception as e:
         logger.error(f"Failed to queue daily import: {e}")
         return {"status": "error", "date": str(yesterday), "error": str(e)}
+
+
+@shared_task
+def auto_hourly_import_task():
+    """
+    Hourly fresh-data import (submission-timestamp windows, 24/7).
+
+    Enqueues a single HOURLY job for today.  The actual fetch window is
+    recomputed at execution time from the live watermark (T06); the
+    ``window_from_estimate`` in ``search_params`` is observability-only and
+    must never be consumed as a fetch window.
+
+    Only runs if AUTO_HOURLY_IMPORT_ENABLED is true.
+    """
+    if not feature_flags.is_enabled("AUTO_HOURLY_IMPORT_ENABLED"):
+        logger.info("AUTO_HOURLY_IMPORT_ENABLED is disabled, skipping hourly import")
+        return {"status": "skipped", "reason": "feature_flag_disabled"}
+
+    # Too-soon guard (manual double-triggers, beat flapping).
+    watermark = SyncStatus.get_last_hourly_sync()
+    if timezone.now() - watermark < timedelta(
+        minutes=HOURLY_IMPORT_MIN_INTERVAL_MINUTES
+    ):
+        logger.info(
+            f"Hourly import triggered too soon (watermark {watermark}), skipping"
+        )
+        return {"status": "skipped", "reason": "too_soon"}
+
+    logger.info("Starting auto hourly import for fresh data")
+
+    queue = ImportJobQueue()
+    today = timezone.localdate()  # Europe/Athens — never date.today()
+
+    try:
+        job = queue.enqueue_job(
+            target_date=today,
+            search_params={
+                "force": False,
+                "window_from_estimate": (
+                    watermark - timedelta(minutes=HOURLY_IMPORT_OVERLAP_MINUTES)
+                ).isoformat(),
+            },
+            created_by=None,
+            auto_dispatch=True,
+            skip_duplicates=True,
+            import_type=ImportJobType.HOURLY,
+        )
+
+        logger.info(f"Hourly import queued: Job #{job.id} for {today}")
+
+        return {
+            "status": "success",
+            "date": str(today),
+            "job_id": job.id,
+            "job_status": job.status,
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to queue hourly import: {e}")
+        return {"status": "error", "error": str(e)}
 
 
 @shared_task
