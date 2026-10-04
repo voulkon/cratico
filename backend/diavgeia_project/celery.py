@@ -183,6 +183,27 @@ def get_auto_import_time():
 auto_import_hour, auto_import_minute = get_auto_import_time()
 
 
+# Helper to get the minute-of-hour for the auto hourly import from environment
+def get_auto_hourly_import_minute():
+    """
+    Minute-of-hour for the auto hourly import beat entry.
+
+    Note: Cannot use feature_flags here because Django apps aren't loaded yet
+    at module import time (when the beat schedule is defined). The feature flag
+    AUTO_HOURLY_IMPORT_MINUTE has requires_restart=True for this reason.
+
+    Set via environment variable: AUTO_HOURLY_IMPORT_MINUTE="10"
+
+    Falls back to: 10
+    """
+    minute_str = os.environ.get("AUTO_HOURLY_IMPORT_MINUTE", "10")
+    try:
+        return int(minute_str)
+    except (ValueError, TypeError):
+        return 10
+
+
+auto_hourly_import_minute = get_auto_hourly_import_minute()
 
 
 app.conf.beat_schedule = {
@@ -258,6 +279,14 @@ app.conf.beat_schedule = {
     "auto-daily-import": {
         "task": "core.tasks.tasks_auto_import.auto_daily_import_task",
         "schedule": crontab(hour=auto_import_hour, minute=auto_import_minute),
+    },
+    # Auto Hourly Import (Fresh Data) — heartbeat fired every hour at a
+    # configurable minute (default :10).  The entry is unconditional; the task
+    # self-gates on AUTO_HOURLY_IMPORT_ENABLED (default off → harmless no-op),
+    # so enabling the feature does not require a beat restart.
+    "auto-hourly-import": {
+        "task": "core.tasks.tasks_auto_import.auto_hourly_import_task",
+        "schedule": crontab(minute=auto_hourly_import_minute),  # every hour at :MM
     },
     # Auto Company GEMI Import — virtuous-cycle recovery heartbeat (daily at 02:00)
     # The cycle is self-sustaining once started (chains itself via Celery link);
