@@ -248,6 +248,12 @@ const SuperSearch = ({
   const loadMoreResults = useCallback(async () => {
     if (!query.trim()) return;
 
+    // Exact-AFM short-circuit: the result set is a single AFM entity — there
+    // is nothing more to load in any category. Guards against the infinite-
+    // scroll observer racing the exact-match response (hasMoreResults resets
+    // to all-true on every keystroke).
+    if (currentResultsRef.current?.exact_afm_match) return;
+
     // Check if already loading (use ref to avoid adding to dependencies)
     if (isLoading) {
       console.log('Already loading, skipping');

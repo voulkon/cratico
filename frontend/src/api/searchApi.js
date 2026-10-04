@@ -329,6 +329,14 @@ export const searchCategories = async (query, categoryLimits = {}, signal = null
       });
     }
 
+    // Exact-AFM short-circuit: entities-fast matched a bare, checksum-valid
+    // ΑΦΜ directly on AFMEntity.afm — there are no other categories and no
+    // documents to fetch (mirrors the guard in streamSearch).
+    if (entityResponse.data.exact_afm_match) {
+      results.exact_afm_match = true;
+      return results;
+    }
+
     // Fetch documents if requested
     if (documents > 0) {
       const docResponse = await searchDocuments(query, documents, signal);
