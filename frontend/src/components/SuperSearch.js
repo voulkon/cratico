@@ -111,6 +111,34 @@ const SuperSearch = ({
 
         // Handle entity results (fast)
         onEntities: (entityData) => {
+          // Exact-AFM short-circuit: a bare 9-digit AFM was matched directly
+          // against AFMEntity.afm on the backend. Show only that AFM entity —
+          // no tabs, no documents, no more-results fetching.
+          if (entityData.exact_afm_match) {
+            setResults({
+              query: entityData.query,
+              results: { ...entityData.results },
+              total_count: entityData.total_count,
+              exact_afm_match: true
+            });
+
+            setHasMoreResults({
+              organizations: false,
+              signers: false,
+              units: false,
+              companies: false,
+              company_persons: false,
+              documents: false,
+              afm_entities: false
+            });
+
+            setSelectedCategory('afm_entities');
+            setShowResults(true);
+            setIsLoading(false);
+            setDocumentsLoading(false);
+            return;
+          }
+
           setResults(prevResults => {
             // Merge entity results with existing results
             const newResults = {
@@ -219,6 +247,12 @@ const SuperSearch = ({
   // Load more results for a specific category or all categories
   const loadMoreResults = useCallback(async () => {
     if (!query.trim()) return;
+
+    // Exact-AFM short-circuit: the result set is a single AFM entity — there
+    // is nothing more to load in any category. Guards against the infinite-
+    // scroll observer racing the exact-match response (hasMoreResults resets
+    // to all-true on every keystroke).
+    if (currentResultsRef.current?.exact_afm_match) return;
 
     // Check if already loading (use ref to avoid adding to dependencies)
     if (isLoading) {

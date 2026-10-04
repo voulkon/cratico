@@ -181,6 +181,16 @@ export const streamSearch = (query, options = {}) => {
 
       onEntities(entityResults);
 
+      // Exact-AFM short-circuit: the backend matched the query directly on the
+      // indexed AFMEntity.afm column, so there is nothing else to search —
+      // skip the slow document phase entirely.
+      if (entityResults.exact_afm_match) {
+        if (!signal?.aborted) {
+          onDone({ query, exact_afm_match: true });
+        }
+        return;
+      }
+
       // Phase 2: Slow document search (if requested)
       if (includeDocuments) {
         const documentResults = await searchDocuments(query, limit, signal);
@@ -317,6 +327,14 @@ export const searchCategories = async (query, categoryLimits = {}, signal = null
           results.total_count += results.results[categoryKey].length;
         }
       });
+    }
+
+    // Exact-AFM short-circuit: entities-fast matched a bare, checksum-valid
+    // ΑΦΜ directly on AFMEntity.afm — there are no other categories and no
+    // documents to fetch (mirrors the guard in streamSearch).
+    if (entityResponse.data.exact_afm_match) {
+      results.exact_afm_match = true;
+      return results;
     }
 
     // Fetch documents if requested

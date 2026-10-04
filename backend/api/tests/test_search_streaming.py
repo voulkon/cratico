@@ -116,6 +116,78 @@ class TestGetEntitiesFast(TestCase):
         mock_service.search_organizations.assert_called_once_with(self.test_query, 10)
 
 
+class TestGetEntitiesFastExactAfm(TestCase):
+    """Exact 9-digit ΑΦΜ queries short-circuit straight to AFMEntity.afm.
+
+    Two-stage gate: fast 9-digit regex, then the official ΑΦΜ checksum.  Only a
+    value passing BOTH is treated as an ΑΦΜ lookup.
+    """
+
+    # "090000045" passes the official ΑΦΜ checksum.
+    VALID_AFM = "090000045"
+
+    def test_valid_afm_short_circuits_to_single_afm_entity(self):
+        from conftest import AFMEntityFactory
+
+        entity = AFMEntityFactory(afm=self.VALID_AFM, name="ACME ΑΕ")
+
+        with patch("api.views.search.entity_search_utils.SearchService") as mock_svc:
+            results = get_entities_fast(
+                self.VALID_AFM,
+                entity_types=[
+                    "organization",
+                    "signer",
+                    "unit",
+                    "company",
+                    "company_person",
+                    "afmentity",
+                ],
+                limit=5,
+            )
+            # No text search service was ever instantiated/used.
+            mock_svc.return_value.search_organizations.assert_not_called()
+
+        self.assertTrue(results["exact_afm_match"])
+        self.assertEqual(results["total_count"], 1)
+        self.assertNotIn("organizations", results["results"])
+        self.assertNotIn("documents", results["results"])
+        self.assertEqual(len(results["results"]["afm_entities"]), 1)
+
+        item = results["results"]["afm_entities"][0]
+        self.assertEqual(item["type"], "afmentity")
+        self.assertEqual(item["details"]["afm"], self.VALID_AFM)
+        self.assertEqual(item["id"], entity.id)
+
+    def test_valid_afm_with_no_match_returns_empty_exact_result(self):
+        results = get_entities_fast(self.VALID_AFM, limit=5)
+
+        self.assertTrue(results["exact_afm_match"])
+        self.assertEqual(results["total_count"], 0)
+        self.assertEqual(results["results"], {})
+
+    @patch("api.views.search.entity_search_utils.SearchService")
+    def test_nine_digits_failing_checksum_falls_through(self, mock_search_service):
+        """A bare 9-digit number that fails the ΑΦΜ checksum does NOT short-circuit."""
+        mock_service = MagicMock()
+        mock_search_service.return_value = mock_service
+        mock_service.search_organizations.return_value = []
+
+        results = get_entities_fast("123456789", entity_types=["organization"], limit=5)
+
+        self.assertNotIn("exact_afm_match", results)
+        mock_service.search_organizations.assert_called_once()
+
+    @patch("api.views.search.entity_search_utils.SearchService")
+    def test_non_numeric_query_never_short_circuits(self, mock_search_service):
+        mock_service = MagicMock()
+        mock_search_service.return_value = mock_service
+        mock_service.search_organizations.return_value = []
+
+        results = get_entities_fast("ΔΗΜΟΣ", entity_types=["organization"], limit=5)
+
+        self.assertNotIn("exact_afm_match", results)
+
+
 class TestGetDocumentsSlow(TestCase):
     """Test the get_documents_slow function"""
 

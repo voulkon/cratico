@@ -130,7 +130,9 @@ class ClerkAuthentication(authentication.BaseAuthentication):
         auth_header = request.META.get("HTTP_AUTHORIZATION")
         logger.debug(f"Auth header present: {bool(auth_header)}")
         if not auth_header or not auth_header.startswith("Bearer "):
-            logger.warning("No Bearer token found, skipping Clerk auth")
+            # Anonymous requests are a supported flow (free read-only access),
+            # so this is expected on most calls — keep it out of WARNING.
+            logger.debug("No Bearer token found, skipping Clerk auth")
             return None  # No token provided, let other auth methods try
 
         token = auth_header.split(" ")[1]

@@ -1,6 +1,11 @@
 import re
 
+from core.models.entities import AFMEntity
+from core.services.entity_amount_extraction_service import (
+    EntityAmountExtractionService,
+)
 from core.services.search_service import SearchService
+from core.services.text_processes.afm import is_valid_afm as is_checksum_valid_afm
 from core.services.transliteration import TransliterationService
 from core.utils.search_trace import finish_search_trace, start_search_trace
 
@@ -203,6 +208,70 @@ def _merge_deduped_results(primary_results, fallback_results, id_getter, limit):
 # so we short-circuit with an empty result.
 MIN_ENTITY_QUERY_LENGTH = 3
 
+# Fast pre-filter validator — the SAME regex check the extraction pipeline uses
+# (``EntityAmountExtractionService._is_valid_afm``: exactly 9 digits).  It only
+# screens *shape*; the authoritative authenticity check is the official ΑΦΜ
+# checksum in ``core.services.text_processes.afm`` (see ``_exact_afm_query``).
+_AFM_VALIDATOR = EntityAmountExtractionService()
+
+
+def _exact_afm_query(query: str) -> str | None:
+    """
+    Return the exact AFM when ``query`` is a bare, checksum-valid ΑΦΜ.
+
+    Two-stage validation so the search box never treats an arbitrary 9-digit
+    number (protocol no., amount, ...) as a tax-number lookup:
+
+    1. Fast pre-filter — the SAME regex validator the extraction pipeline uses
+       (``EntityAmountExtractionService._is_valid_afm``): the query must be
+       exactly 9 digits, with no surrounding whitespace or punctuation.
+    2. Authoritative check — the official ΑΦΜ checksum
+       (``core.services.text_processes.afm.is_valid_afm``).
+
+    Only when BOTH pass do we treat the query as an ΑΦΜ lookup; otherwise it
+    falls through to normal text search.
+    """
+    if not _AFM_VALIDATOR._is_valid_afm(query):
+        return None
+    if not is_checksum_valid_afm(query):
+        return None
+    return query
+
+
+def _exact_afm_match_results(query: str) -> dict | None:
+    """
+    Short-circuit payload for a bare 9-digit AFM query.
+
+    When the query is a valid ΑΦΜ (per ``_exact_afm_query`` — 9 digits *and* a
+    passing checksum), go straight to the indexed ``AFMEntity.afm`` column
+    (``db_index=True`` + unique) instead of running a full multi-category text
+    search + (slow) document search.  Returns the standard search-result
+    envelope containing only the matched AFM entity (or an empty envelope when
+    no entity exists), or ``None`` when the query is not an exact ΑΦΜ.
+
+    The 9-digit + checksum gate also guarantees this can never shadow a
+    legitimate text search (a Greek word is never all ASCII digits, and a
+    random 9-digit number fails the checksum).
+    """
+    afm = _exact_afm_query(query)
+    if afm is None:
+        return None
+
+    results = {
+        "query": query,
+        "results": {},
+        "total_count": 0,
+        "type": "entities",
+        "exact_afm_match": True,
+    }
+
+    entity = AFMEntity.objects.filter(afm=afm).first()
+    if entity is not None:
+        results["results"]["afm_entities"] = [format_afmentity(entity, query)]
+        results["total_count"] = 1
+
+    return results
+
 
 def get_entities_fast(query, **kwargs):
     """
@@ -235,6 +304,18 @@ def get_entities_fast(query, **kwargs):
     limit = kwargs.get("limit", 5)
 
     results = {"query": query, "results": {}, "total_count": 0, "type": "entities"}
+
+    # Exact-AFM short-circuit: a bare, 9-digit, checksum-valid query is looked
+    # up directly on the indexed ``AFMEntity.afm`` column and returned on its
+    # own — no other categories, and (via the ``exact_afm_match`` flag) no
+    # document search.  Checked before the length guard, which it also
+    # satisfies.
+    exact = _exact_afm_match_results(query)
+    if exact is not None:
+        if trace is not None:
+            trace.add("exact_afm_match", afm=query)
+        finish_search_trace(trace)
+        return exact
 
     if not query or len(query.strip()) < MIN_ENTITY_QUERY_LENGTH:
         if trace is not None:
