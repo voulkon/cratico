@@ -14,18 +14,28 @@ This eliminates duplication across:
 - complete_partial_import.py
 """
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 import requests
 from core.constants.decision_import_constants import (
+    ADVANCED_QUERY_TEMPLATE,
     DIAVGEIA_OFFICIAL_COUNTS_URL,
     DiavgeiaSearchFields,
 )
 from core.fetchers.diavgeia_fetcher import DiavgeiaFetcher
 from diavgeia_api.models.decisions import Decision
 from diavgeia_api.models.search import SearchResponse
+from django.conf import settings
 from loguru import logger
+
+
+def _to_zone(dt: datetime, zone: ZoneInfo) -> datetime:
+    """Convert a datetime to ``zone``; naive datetimes are treated as UTC."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc).astimezone(zone)
+    return dt.astimezone(zone)
 
 
 class DecisionFetchReconcileService:
@@ -237,6 +247,239 @@ class DecisionFetchReconcileService:
         )
 
         return all_decisions, api_total_count
+
+    # ------------------------------------------------------------------
+    # Hourly-import window primitives (advanced search)
+    # ------------------------------------------------------------------
+    # NEVER route hourly windows through build_search_params /
+    # fetch_decisions_for_day: the HACK + date-only params live there, and
+    # the advanced endpoint rejects type filters (hence client-side below).
+
+    def build_window_query(self, from_dt: datetime, to_dt: datetime) -> str:
+        """
+        Render the advanced-search query for a submission-timestamp window.
+
+        Both endpoints are converted to the project timezone (Athens) and
+        rendered with second precision, producing the ``+03:00`` (EEST) or
+        ``+02:00`` (EET) offsets the advanced-search ``DT()`` parser honors.
+        Naive datetimes are treated as UTC.
+
+        The rendered string is byte-identical to the probe-verified format
+        the T00 characterization cassettes were recorded with — do not change.
+
+        Args:
+            from_dt: Window start
+            to_dt: Window end
+
+        Returns:
+            The ``q`` string: a submissionTimestamp window AND the
+            published-status literal.
+        """
+        athens = ZoneInfo(settings.TIME_ZONE)
+        from_ts = _to_zone(from_dt, athens).isoformat(timespec="seconds")
+        to_ts = _to_zone(to_dt, athens).isoformat(timespec="seconds")
+        return ADVANCED_QUERY_TEMPLATE.format(from_ts=from_ts, to_ts=to_ts)
+
+    def fetch_decisions_for_window(
+        self,
+        from_dt: datetime,
+        to_dt: datetime,
+        include_feature_flags: bool = True,
+    ) -> tuple[List[Decision], int, bool]:
+        """
+        Fetch ALL decisions submitted in a timestamp window (advanced search).
+
+        The core fetch primitive for hourly imports. Renders the window query
+        via ``build_window_query`` and paginates exactly like
+        ``fetch_decisions_for_day``: the first page's ``info.total`` sizes the
+        walk, and a short page (``actualSize < size``) or a None response
+        stops it.
+
+        The advanced-search endpoint rejects ``decisionTypeId``/``type``
+        filters (HTTP 400), so FILTER_DECISION_TYPES is applied CLIENT-SIDE,
+        after pagination.
+
+        Args:
+            from_dt: Window start
+            to_dt: Window end
+            include_feature_flags: Whether to apply the client-side
+                FILTER_DECISION_TYPES filter
+
+        Returns:
+            Tuple of (decisions, api_total_count, types_filtered):
+            - decisions: fetched Decision DTOs (after the client-side filter)
+            - api_total_count: the **UNFILTERED** API total from the first
+              page's ``info.total`` — it is NOT adjusted for the client-side
+              type filter, which is exactly why ``reconcile_window`` needs
+              the separate ``types_filtered`` rule
+            - types_filtered: True when the client-side type filter dropped
+              decisions
+        """
+        q = self.build_window_query(from_dt=from_dt, to_dt=to_dt)
+        size = DiavgeiaSearchFields.DEFAULT_PAGE_SIZE
+
+        all_decisions: List[Decision] = []
+        page = 0
+        total_pages = 1
+        api_total_count = 0
+
+        logger.info(
+            f"Fetching decisions for window {from_dt.isoformat()} → "
+            f"{to_dt.isoformat()} via advanced search (q={q!r})"
+        )
+
+        while page < total_pages:
+            response: Optional[SearchResponse] = self.fetcher.fetch_decisions_advanced(
+                q=q, page=page, size=size
+            )
+
+            if response and response.info:
+                # On first page, calculate total pages and log the API's
+                # parsed-query echo (proves the window the API actually saw).
+                if page == 0 and response.info.total > 0:
+                    api_total_count = response.info.total
+                    total_pages = (api_total_count + size - 1) // size
+                    logger.info(
+                        f"Advanced window: {api_total_count} decisions, "
+                        f"{total_pages} pages (q={q!r})"
+                    )
+                    if response.info.query:
+                        logger.info(
+                            f"Advanced window query echo: {response.info.query}"
+                        )
+
+                all_decisions.extend(response.decisions)
+                page += 1
+
+                # Check if we've reached the last page
+                if response.info.actualSize < size:
+                    logger.debug(
+                        f"Reached last page (actualSize {response.info.actualSize})"
+                    )
+                    break
+            else:
+                logger.warning(f"No response for page {page} of advanced window")
+                break
+
+        logger.success(
+            f"Fetched {len(all_decisions)} decisions for window "
+            f"{from_dt.isoformat()} → {to_dt.isoformat()} "
+            f"(API reported {api_total_count} total)"
+        )
+
+        # Client-side type filter — the advanced endpoint rejects type filters.
+        types_filtered = False
+        if include_feature_flags:
+            from core.services.feature_flag_service import feature_flags
+
+            filtered_types = feature_flags.get_value("FILTER_DECISION_TYPES")
+            if (
+                filtered_types
+                and isinstance(filtered_types, list)
+                and len(filtered_types) > 0
+            ):
+                kept = [d for d in all_decisions if d.decisionTypeId in filtered_types]
+                dropped = len(all_decisions) - len(kept)
+                types_filtered = True
+                logger.info(
+                    f"Client-side FILTER_DECISION_TYPES on window: "
+                    f"kept {len(kept)}, dropped {dropped} "
+                    f"(types: {filtered_types})"
+                )
+                all_decisions = kept
+
+        return all_decisions, api_total_count, types_filtered
+
+    def reconcile_window(
+        self,
+        window_from: datetime,
+        window_to: datetime,
+        our_count: int,
+        api_reported_total: Optional[int] = None,
+        types_filtered: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Reconcile a window fetch against the API's pagination metadata.
+
+        Official counts are per-DAY (the official endpoint only exposes daily
+        counts), so they are meaningless for intra-day windows:
+        ``official_count`` is always None here — reconciliation is
+        pagination-consistency only.
+
+        Rules:
+        - ``api_reported_total is None`` → ``window_match`` (nothing to
+          compare against; the fetch already reported what it could).
+        - Unfiltered: ``our_count == api_reported_total`` → ``window_match``,
+          anything else → ``window_pagination_mismatch``.
+        - Filtered (``types_filtered=True``): ``our_count <=
+          api_reported_total`` → ``window_match`` (client-side filtering
+          legitimately shrinks the count); ``>`` →
+          ``window_pagination_mismatch`` (impossible without a fetch bug).
+
+        Args:
+            window_from: Window start (as passed to the fetch)
+            window_to: Window end
+            our_count: Number of decisions actually fetched (post-filter)
+            api_reported_total: Unfiltered ``info.total`` from the fetch
+            types_filtered: Whether the client-side type filter was applied
+
+        Returns:
+            Dict mirroring the key style of ``reconcile_counts``:
+            {
+                "window_from": "2026-10-05T09:00:00+00:00",
+                "window_to": "2026-10-05T10:00:00+00:00",
+                "official_count": None,  # per-day endpoint — N/A intra-day
+                "api_reported_total": 42,
+                "our_count": 42,
+                "our_vs_api_diff": 0,
+                "types_filtered": False,
+                "status": "window_match" | "window_pagination_mismatch",
+            }
+        """
+        if api_reported_total is None:
+            our_vs_api_diff = None
+            status = "window_match"
+        elif types_filtered:
+            our_vs_api_diff = our_count - api_reported_total
+            status = (
+                "window_match"
+                if our_count <= api_reported_total
+                else "window_pagination_mismatch"
+            )
+        else:
+            our_vs_api_diff = our_count - api_reported_total
+            status = (
+                "window_match" if our_vs_api_diff == 0 else "window_pagination_mismatch"
+            )
+
+        result = {
+            "window_from": window_from.isoformat(timespec="seconds"),
+            "window_to": window_to.isoformat(timespec="seconds"),
+            "official_count": None,
+            "api_reported_total": api_reported_total,
+            "our_count": our_count,
+            "our_vs_api_diff": our_vs_api_diff,
+            "types_filtered": types_filtered,
+            "status": status,
+        }
+
+        if status == "window_match":
+            logger.info(
+                f"Window reconciliation OK "
+                f"[{result['window_from']} → {result['window_to']}]: "
+                f"Our={our_count}, API_reported={api_reported_total}, "
+                f"types_filtered={types_filtered} "
+                f"(official counts are per-day — N/A intra-day)"
+            )
+        else:
+            logger.warning(
+                f"Window pagination mismatch "
+                f"[{result['window_from']} → {result['window_to']}]: "
+                f"API reported {api_reported_total}, but fetched {our_count} "
+                f"(diff: {our_vs_api_diff}, types_filtered={types_filtered})"
+            )
+
+        return result
 
     def get_official_count_for_date(
         self, target_date: date, timeout: int = 30
