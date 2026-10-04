@@ -128,6 +128,32 @@ class DiavgeiaFetcher:
             logger.error(f"Exception during decision fetch for query {kwargs}: {e}")
             return None
 
+    def fetch_decisions_advanced(
+        self, q: str, page: int = 0, size: int = 500
+    ) -> SearchResponse | None:
+        """Fetch one page of Diavgeia *advanced search* results (raw `q` query).
+
+        Returns the full SearchResponse (even with an empty decisions list —
+        pagination callers need info.total/actualSize), or None on failure.
+        """
+        try:
+            logger.info(
+                f"Fetching advanced decisions (page={page}, size={size}) for query: {q}"
+            )
+            raw: SearchResponse | None = self._get_client().search_advanced(
+                q=q, page=page, size=size
+            )
+            if raw:
+                logger.debug(
+                    f"Fetched {raw.info.actualSize} advanced decisions (page {raw.info.page})"
+                )
+                return raw
+            logger.error(f"Failed advanced fetch for query: {q}. Received None response.")
+            return None
+        except Exception as e:
+            logger.error(f"Exception during advanced decision fetch for query {q}: {e}")
+            return None
+
     # ————————————————————————————————————————————
     # New methods for types
 
