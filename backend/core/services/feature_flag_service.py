@@ -199,6 +199,31 @@ class FeatureFlagService:
             "requires_restart": True,
             "value_type": "string",
         },
+        "AUTO_HOURLY_IMPORT_ENABLED": {
+            "name": "Auto Hourly Import (Fresh Data)",
+            "description": "Automatically imports decisions submitted since the last hourly run, 24/7, "
+            "at the minute set in AUTO_HOURLY_IMPORT_MINUTE. "
+            "Uses advanced-search submission-timestamp hour windows with a small overlap "
+            "so boundary decisions are never missed.",
+            "default": False,
+            "env_var": "AUTO_HOURLY_IMPORT_ENABLED",
+            "category": "data_ingestion",
+            "requires_restart": False,
+        },
+        "AUTO_HOURLY_IMPORT_MINUTE": {
+            "name": "Auto Hourly Import Minute",
+            "description": "Minute (0-59) when the hourly import task runs, every hour. "
+            'Default is "10". '
+            "Must be set via environment variable AUTO_HOURLY_IMPORT_MINUTE "
+            "(cannot use database value because Celery beat schedule is "
+            "defined before Django apps are loaded). "
+            "Requires worker/beat restart to take effect.",
+            "default": "10",
+            "env_var": "AUTO_HOURLY_IMPORT_MINUTE",
+            "category": "data_ingestion",
+            "requires_restart": True,
+            "value_type": "string",
+        },
         "AUTO_BACKFILL_ENABLED": {
             "name": "Auto Backfill (Continuous Autofarming)",
             "description": "Continuously import historical data by finding the next oldest missing day. "

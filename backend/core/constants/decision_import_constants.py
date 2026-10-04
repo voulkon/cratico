@@ -127,3 +127,14 @@ def get_coverage_date_field() -> str:
     if _resolve_use_submission_date():
         return "publish_date_day"
     return "issue_date_day"
+
+
+# ---------------------------------------------------------------------------
+# Hourly import (advanced-search submission-timestamp hour windows)
+# ---------------------------------------------------------------------------
+HOURLY_IMPORT_OVERLAP_MINUTES = 10
+HOURLY_IMPORT_MIN_INTERVAL_MINUTES = 5
+HOURLY_IMPORT_SYNC_TYPE = "decisions_hourly"
+ADVANCED_QUERY_TEMPLATE = (
+    'submissionTimestamp:[DT({from_ts}) TO DT({to_ts})] AND status:"Αναρτημένη"'
+)
