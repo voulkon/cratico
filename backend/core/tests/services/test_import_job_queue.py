@@ -16,7 +16,7 @@ from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
-from core.models.import_jobs import ImportJob, ImportJobStatus
+from core.models.import_jobs import ImportJob, ImportJobStatus, ImportJobType
 from core.services.import_job_queue import ImportJobQueue
 from django.utils import timezone
 from freezegun import freeze_time
@@ -404,6 +404,58 @@ class TestDispatchNextJob:
         assert search_params["unit"] == "222"
         assert search_params["signer"] == "333"
         assert search_params["force"] is True
+
+    def test_dispatch_routes_hourly_job_to_hourly_fetch_task(
+        self, queue, sample_date, clear_import_queue
+    ):
+        """A PENDING HOURLY job must dispatch the hourly fetch task, not daily."""
+        job = ImportJob.objects.create(
+            start_date=sample_date,
+            end_date=sample_date,
+            status=ImportJobStatus.PENDING,
+            import_type=ImportJobType.HOURLY,
+        )
+
+        with (
+            patch(
+                "core.tasks.tasks_decisions_import.fetch_hourly_decisions_to_redis"
+            ) as hourly_task,
+            patch(
+                "core.tasks.tasks_decisions_import.fetch_daily_decisions_distributed"
+            ) as daily_task,
+        ):
+            hourly_task.delay.return_value = MagicMock(id="hourly-task-id")
+
+            dispatched = queue.dispatch_next_job()
+
+        assert dispatched.id == job.id
+        hourly_task.delay.assert_called_once_with(job_id=job.id)
+        daily_task.delay.assert_not_called()
+
+        job.refresh_from_db()
+        assert job.status == ImportJobStatus.FETCHING
+        assert job.celery_task_id == "hourly-task-id"
+
+    def test_dispatch_routes_daily_job_unchanged(
+        self, queue, sample_date, mock_celery_task, clear_import_queue
+    ):
+        """Regression: a DAILY job still takes the daily distributed path."""
+        job = ImportJob.objects.create(
+            start_date=sample_date,
+            end_date=sample_date,
+            status=ImportJobStatus.PENDING,
+            import_type=ImportJobType.DAILY,
+        )
+
+        queue.dispatch_next_job()
+
+        call_kwargs = mock_celery_task.delay.call_args[1]
+        assert call_kwargs["target_date_str"] == sample_date.isoformat()
+        assert call_kwargs["job_id"] == job.id
+        assert call_kwargs["chunk_size"] == 10
+
+        job.refresh_from_db()
+        assert job.status == ImportJobStatus.FETCHING
 
 
 # ============================================================================

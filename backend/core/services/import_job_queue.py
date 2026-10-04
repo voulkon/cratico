@@ -34,6 +34,7 @@ from api.redis_keys import (
 from core.models.import_jobs import ImportJob, ImportJobStatus, ImportJobType
 from diavgeia_project.settings.constants import IMPORT_CHUNKS_REDIS_DB_NAME
 from django.conf import settings
+from django.utils import timezone
 from django_redis import get_redis_connection
 from loguru import logger
 
@@ -278,14 +279,23 @@ class ImportJobQueue:
         next_job.status = ImportJobStatus.FETCHING
         next_job.save(update_fields=["status"])
 
-        # Dispatch Celery task
-        async_result = fetch_daily_decisions_distributed.delay(
-            target_date_str=next_job.start_date.isoformat(),
-            chunk_size=10,
-            force=search_params.get("force", False),
-            job_id=next_job.id,
-            search_params=search_params,
-        )
+        # HOURLY jobs recompute their window from the watermark at execution
+        # time (T06), so they take no target_date_str/search_params.
+        if next_job.import_type == ImportJobType.HOURLY:
+            from core.tasks.tasks_decisions_import import (
+                fetch_hourly_decisions_to_redis,
+            )
+
+            async_result = fetch_hourly_decisions_to_redis.delay(job_id=next_job.id)
+        else:
+            # Dispatch Celery task
+            async_result = fetch_daily_decisions_distributed.delay(
+                target_date_str=next_job.start_date.isoformat(),
+                chunk_size=10,
+                force=search_params.get("force", False),
+                job_id=next_job.id,
+                search_params=search_params,
+            )
 
         # Update job with task ID
         next_job.celery_task_id = async_result.id
@@ -356,7 +366,7 @@ class ImportJobQueue:
         try:
             job = ImportJob.objects.only(
                 "id", "organization_id", "unit_id", "signer_id",
-                "start_date", "import_type",
+                "start_date", "import_type", "search_params", "created_at",
             ).get(id=job_id)
         except ImportJob.DoesNotExist:
             logger.warning(
@@ -374,32 +384,61 @@ class ImportJobQueue:
             )
             return
 
-        # Only fire for DAILY imports, not backfill
-        if job.import_type != ImportJobType.DAILY:
+        # DAILY and HOURLY global imports each fire their own orchestrator;
+        # anything else (BACKFILL, entity-filtered) is skipped.
+        if job.import_type == ImportJobType.DAILY:
+            # Use start_date as the reference date for analytics windows
+            from core.tasks.tasks_post_import import post_daily_import_orchestrator
+
+            reference_date = job.start_date.isoformat()
+
+            logger.info(
+                f"ImportJobQueue: Global daily import #{job_id} completed, "
+                f"triggering post-import orchestrator (countdown=60s, "
+                f"ref={reference_date})"
+            )
+
+            post_daily_import_orchestrator.apply_async(
+                kwargs={
+                    "job_id": job_id,
+                    "reference_date_str": reference_date,
+                },
+                countdown=60,  # Let pipeline tasks finish
+            )
+        elif job.import_type == ImportJobType.HOURLY:
+            from core.tasks.tasks_post_import import post_hourly_import_orchestrator
+
+            # The import-time window rides along: verification consults it
+            # instead of the reference calendar day.  Fall back to created_at
+            # when fetch_started_at is missing (pre-T06 hourly jobs).
+            imported_since = (
+                (job.search_params or {}).get("fetch_started_at")
+                or job.created_at.isoformat()
+            )
+
+            logger.info(
+                f"ImportJobQueue: Global hourly import #{job_id} completed, "
+                f"triggering post-import orchestrator (countdown=300s)"
+            )
+
+            post_hourly_import_orchestrator.apply_async(
+                kwargs={
+                    "job_id": job_id,
+                    "reference_date_str": timezone.localdate().isoformat(),
+                    "imported_since_str": imported_since,
+                    "imported_until_str": timezone.now().isoformat(),
+                },
+                # 5 min: per-decision pipeline tasks (entity extraction →
+                # entity_relationships) must finish before subscription checks
+                # read them.
+                countdown=300,
+            )
+        else:
             logger.debug(
                 f"ImportJobQueue: Job #{job_id} is import_type={job.import_type}, "
-                f"skipping post-import orchestrator (only fires for daily imports)"
+                f"skipping post-import orchestrator (only fires for daily/hourly)"
             )
             return
-
-        # Use start_date as the reference date for analytics windows
-        from core.tasks.tasks_post_import import post_daily_import_orchestrator
-
-        reference_date = job.start_date.isoformat()
-
-        logger.info(
-            f"ImportJobQueue: Global daily import #{job_id} completed, "
-            f"triggering post-import orchestrator (countdown=60s, "
-            f"ref={reference_date})"
-        )
-
-        post_daily_import_orchestrator.apply_async(
-            kwargs={
-                "job_id": job_id,
-                "reference_date_str": reference_date,
-            },
-            countdown=60,  # Let pipeline tasks finish
-        )
 
     def get_queue_status(self) -> Dict[str, Any]:
         """
