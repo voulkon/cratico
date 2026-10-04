@@ -295,6 +295,222 @@ def fetch_daily_decisions_to_redis(
         raise self.retry(countdown=60 * (2**self.request.retries), exc=e)
 
 
+@shared_task(bind=True, max_retries=3)
+def fetch_hourly_decisions_to_redis(self, job_id: int):
+    """
+    Phase 1 (hourly): Fetch decisions submitted in a rolling timestamp window
+    and store them in Redis for distributed processing.
+
+    Unlike the daily task, the window is recomputed **at execution time** from
+    the live hourly watermark — enqueue-time estimates are never trusted. The
+    window always spans ``watermark − HOURLY_IMPORT_OVERLAP_MINUTES → now``.
+
+    Hourly jobs are always queue-created, so ``job_id`` is required and no
+    fallback job is ever created.
+
+    The watermark is advanced ONLY after the fetched decisions are durable in
+    Redis and their storage tasks have been dispatched. Zero-decision windows
+    are a first-class success (nights/weekends hit them constantly).
+
+    Args:
+        job_id: ImportJob ID created by the queue (required)
+
+    Returns:
+        Dict with job_id, window bounds, Redis chunk metadata
+    """
+    from core.constants.decision_import_constants import HOURLY_IMPORT_OVERLAP_MINUTES
+    from core.models.sync_status import SyncStatus
+
+    chunk_size = 10
+    window_from: Optional[str] = None
+    window_to: Optional[str] = None
+
+    try:
+        # 1. job_id is required — hourly jobs are always queue-created.
+        try:
+            import_job = ImportJob.objects.get(id=job_id)
+        except ImportJob.DoesNotExist:
+            logger.error(
+                f"Task {self.request.id}: ImportJob {job_id} not found — "
+                f"hourly jobs must be queue-created"
+            )
+            return {
+                "status": "error",
+                "reason": "job_not_found",
+                "job_id": job_id,
+                "task_id": self.request.id,
+            }
+
+        # 2. Record the verification window start (consumed by the post-import
+        #    trigger in T08) and 3. recompute the window at execution time.
+        fetch_started_at = timezone.now().isoformat()
+        to_dt = timezone.now()
+        from_dt = SyncStatus.get_last_hourly_sync() - timedelta(
+            minutes=HOURLY_IMPORT_OVERLAP_MINUTES
+        )
+        window_from = from_dt.isoformat()
+        window_to = to_dt.isoformat()
+
+        import_job.status = ImportJobStatus.FETCHING
+        import_job.celery_task_id = self.request.id
+        import_job.search_params = {
+            **(import_job.search_params or {}),
+            "fetch_started_at": fetch_started_at,
+            "window_from": window_from,
+            "window_to": window_to,
+        }
+        import_job.save(update_fields=["status", "celery_task_id", "search_params"])
+
+        logger.info(
+            f"Task {self.request.id}: Hourly window recomputed at execution: "
+            f"{window_from} → {window_to} (job {import_job.id})"
+        )
+
+        # 4. Fetch + reconcile the window via the centralized service.
+        from core.services.decision_fetch_reconcile_service import (
+            DecisionFetchReconcileService,
+        )
+
+        fetch_service = DecisionFetchReconcileService()
+        decisions, api_total, types_filtered = fetch_service.fetch_decisions_for_window(
+            from_dt, to_dt
+        )
+        reconciliation = fetch_service.reconcile_window(
+            from_dt, to_dt, len(decisions), api_total, types_filtered
+        )
+        logger.info(f"Task {self.request.id}: Window reconciliation: {reconciliation}")
+
+        # 5. Zero decisions — a first-class success (nights/weekends).
+        if len(decisions) == 0:
+            import_job.status = ImportJobStatus.COMPLETED
+            import_job.completed_at = timezone.now()
+            import_job.save(update_fields=["status", "completed_at"])
+
+            SyncStatus.update_hourly_sync(to_dt, 0)
+
+            try:
+                from core.services.import_job_queue import ImportJobQueue
+
+                ImportJobQueue().on_job_completed(import_job.id)
+            except Exception as e:
+                logger.warning(
+                    f"Task {self.request.id}: Failed to notify queue of "
+                    f"zero-decision hourly job completion: {e}"
+                )
+
+            logger.info(
+                f"Task {self.request.id}: No decisions in hourly window "
+                f"{window_from} → {window_to}, marking job {import_job.id} completed"
+            )
+            return {
+                "status": "success",
+                "job_id": import_job.id,
+                "decisions_count": 0,
+                "chunks_created": 0,
+                "window_from": window_from,
+                "window_to": window_to,
+                "message": "No decisions found in this window",
+                "task_id": self.request.id,
+            }
+
+        # 6. Non-zero — chunk to Redis identically to the daily pipeline.
+        redis_cache = RedisDecisionCache()
+
+        storage_tasks = []
+        total_chunks = (len(decisions) + chunk_size - 1) // chunk_size
+
+        for i in range(0, len(decisions), chunk_size):
+            chunk_decisions = decisions[i : i + chunk_size]
+            chunk_index = i // chunk_size
+            chunk_id = f"{import_job.id}_chunk_{chunk_index}"
+
+            metadata = {
+                "job_id": import_job.id,
+                "chunk_index": chunk_index,
+                "total_chunks": total_chunks,
+                "parent_task": self.request.id,
+                "search_params": import_job.search_params,
+            }
+
+            redis_cache.store_chunk(
+                chunk_id=chunk_id, decisions=chunk_decisions, metadata=metadata
+            )
+
+            delay_seconds = random.uniform(0.1, 2.0)
+
+            storage_task = store_decisions_from_redis.apply_async(
+                args=[chunk_id, import_job.id],
+                kwargs={"delay_seconds": delay_seconds},
+            )
+            storage_tasks.append(storage_task.id)
+
+            logger.debug(
+                f"Task {self.request.id}: Dispatched storage task "
+                f"{storage_task.id} for chunk {chunk_index}/{total_chunks}"
+            )
+
+        import_job.total_decisions = len(decisions)
+        import_job.total_chunks = total_chunks
+        import_job.chunk_task_ids = storage_tasks
+        import_job.status = ImportJobStatus.PROCESSING
+        import_job.save(
+            update_fields=[
+                "total_decisions",
+                "total_chunks",
+                "chunk_task_ids",
+                "status",
+            ]
+        )
+
+        # 7. Advance the watermark only now: decisions are durable in Redis and
+        #    their storage tasks are dispatched. Chunk-level failures are handled
+        #    by the existing retry/ImportFailure machinery (same as daily).
+        SyncStatus.update_hourly_sync(to_dt, len(decisions))
+
+        logger.success(
+            f"Task {self.request.id}: Split {len(decisions)} hourly decisions into "
+            f"{total_chunks} chunks, dispatched {len(storage_tasks)} storage tasks"
+        )
+
+        return {
+            "status": "success",
+            "job_id": import_job.id,
+            "decisions_count": len(decisions),
+            "chunks_created": total_chunks,
+            "window_from": window_from,
+            "window_to": window_to,
+            "storage_tasks": storage_tasks,
+            "task_id": self.request.id,
+        }
+
+    except Exception as e:
+        logger.error(f"Task {self.request.id}: Hourly fetch failed: {str(e)}")
+
+        # Update job status if it exists — do NOT advance the watermark.
+        try:
+            import_job = ImportJob.objects.get(id=job_id)
+            import_job.status = ImportJobStatus.FAILED
+            import_job.error_details = str(e)
+            import_job.save(update_fields=["status", "error_details"])
+
+            ImportFailure.objects.create(
+                import_job=import_job,
+                task_id=self.request.id,
+                failure_type=ImportFailure.FailureType.FETCH,
+                error_message=str(e),
+                error_traceback=traceback.format_exc(),
+                data_snapshot={
+                    "window_from": window_from,
+                    "window_to": window_to,
+                },
+            )
+        except ImportJob.DoesNotExist:
+            pass
+
+        # Celery retry with exponential backoff — watermark intentionally untouched.
+        raise self.retry(countdown=60 * (2**self.request.retries), exc=e)
+
+
 @shared_task(bind=True, max_retries=5)
 def store_decisions_from_redis(
     self,
