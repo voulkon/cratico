@@ -961,13 +961,16 @@ def verify_correct_decision_batch(self, decision_ids: list[int]) -> dict:
     from django.db import close_old_connections
 
     from core.models.decisions import Decision
-    from core.services.amount_correction_service import AmountCorrectionService
     from core.services.amount_verification_service import AmountVerificationService
+    from core.services.data_quality import resolve_detectors, run_detectors, summarize
 
     close_old_connections()
 
     verify_service = AmountVerificationService()
-    correction_service = AmountCorrectionService()
+    # The registry owns which detectors run here — this task does not name an
+    # algorithm.  Post-import Phase 2 is the decimal-shift correction; the
+    # non-monetary sweep is Phase 3 (its own flag).
+    detectors = resolve_detectors("decimal_shift")
 
     summary = {
         "verified": 0,
@@ -976,6 +979,7 @@ def verify_correct_decision_batch(self, decision_ids: list[int]) -> dict:
         "consistent": 0,
         "no_text": 0,
         "skipped": 0,
+        "flagged": 0,
         "errors": 0,
     }
 
@@ -991,9 +995,16 @@ def verify_correct_decision_batch(self, decision_ids: list[int]) -> dict:
                 if verify_result.get("has_discrepancy"):
                     summary["discrepancies"] += 1
 
-            # Phase 2: correction (cents-based, mutates verified_amount).
-            correct_result = correction_service.correct_decision(
-                decision, dry_run=False, read_if_missing=True
+            # Phase 2: correction — mutates ``verified_amount`` through the
+            # detector selected by the registry (Phase 2 = decimal-shift;
+            # the non-monetary sweep is Phase 3, behind its own flag).
+            correct_result = summarize(
+                run_detectors(
+                    decision,
+                    detectors,
+                    dry_run=False,
+                    read_if_missing=True,
+                )
             )
             status = correct_result["status"]
             if status in ("corrected", "would_correct"):
@@ -1002,6 +1013,8 @@ def verify_correct_decision_batch(self, decision_ids: list[int]) -> dict:
                 summary["consistent"] += 1
             elif status == "no_text_amounts_found":
                 summary["no_text"] += 1
+            elif status == "flagged" or status.endswith("_as_amount"):
+                summary["flagged"] += 1
             else:
                 summary["skipped"] += 1
         except Exception as exc:
@@ -1092,6 +1105,7 @@ def finalize_amount_verification(
         "consistent": 0,
         "no_text": 0,
         "skipped": 0,
+        "flagged": 0,
         "errors": 0,
     }
     for s in batch_summaries or []:
@@ -1111,7 +1125,7 @@ def finalize_amount_verification(
     # keep serving pre-correction figures.  These prefixes cover the views
     # that read amounts via the facet layer (explore_orgs / da_top_pairs are
     # NOT matched by the "top_" prefix).
-    if totals["corrected"] or totals["discrepancies"]:
+    if totals["corrected"] or totals["discrepancies"] or totals.get("flagged"):
         try:
             from core.services.response_cache_service import response_cache
 
@@ -1131,15 +1145,27 @@ def finalize_amount_verification(
                 "stale analytics caches may persist until the next import"
             )
 
-    # ── Discovery (non-monetary values recorded as amounts) ───────────
-    # DB-only, read-only sweep — see _discover_non_monetary_values.
+    # ── Discovery / treatment (non-monetary values recorded as amounts) ──
+    # DB-only sweep (no document read).  Reporting is always on; writing the
+    # invalid-amount marker is opt-in behind
+    # POST_IMPORT_AMOUNT_ANOMALY_TREATMENT_ENABLED, because it drops the row
+    # out of every monetary aggregation.  See _discover_non_monetary_values.
     try:
+        anomaly_treatment = feature_flags.is_enabled(
+            "POST_IMPORT_AMOUNT_ANOMALY_TREATMENT_ENABLED"
+        )
         discovery_result = _discover_non_monetary_values(
             imported_since=imported_since,
             imported_until=imported_until,
+            apply=anomaly_treatment,
         )
+        if anomaly_treatment and discovery_result.get("applied_fields"):
+            totals["flagged"] = totals.get("flagged", 0) + discovery_result[
+                "applied_fields"
+            ]
     except Exception as exc:
-        # Observability-only sweep — its failure must not skip the tail.
+        # This sweep must not skip the tail: a failure here is reported, not
+        # fatal (the tail is what keeps rankings/caches/notifications fresh).
         logger.exception("Non-monetary-value discovery failed")
         discovery_result = {"status": "error", "error": str(exc)}
 
@@ -1165,21 +1191,32 @@ def finalize_amount_verification(
 def _discover_non_monetary_values(
     imported_since=None,
     imported_until=None,
+    apply: bool = False,
 ) -> dict:
     """
-    Log (and count) decisions imported in the window whose recorded amount is
-    actually a non-monetary value (AFM/KAE).
+    Find decisions imported in the window whose recorded amount is actually a
+    non-monetary value (AFM/KAE), and (optionally) flag them.
 
-    Read-only: it never mutates ``verified_amount`` — the guard already
-    refuses to write such values there.  The purpose is observability so
-    operators know a case needs the real amount looked up manually.
+    Reporting is always safe: the sweep reads only the database, never a
+    document, and it never writes ``verified_amount`` — the guard refuses to
+    write such a value there, because the real amount is unknown.
+
+    ``apply=True`` additionally writes the **invalid-amount marker**
+    (``invalid_amount_reason`` / ``_value`` / ``_flagged_at``) so the decision
+    leaves every monetary aggregation and enters the feedback pool.  That is
+    the treatment half of the guard; it is opt-in because it is a write.
+    Callers must gate it on
+    ``POST_IMPORT_AMOUNT_ANOMALY_TREATMENT_ENABLED``.
+
+    The detector (``data_quality.NonMonetaryValueDetector``) owns the
+    detection *and* the write, so this sweep cannot drift from the CLI/admin
+    path that runs the same detector.
     """
     from core.models.decisions import Decision
-    from core.services.non_monetary_value_guard import (
-        KIND_AFM,
-        KIND_KAE,
-        collect_non_monetary_values,
-    )
+    from core.services.data_quality import NonMonetaryValueDetector
+    from core.services.non_monetary_value_guard import KIND_AFM, KIND_KAE
+
+    detector = NonMonetaryValueDetector()
 
     decisions = (
         Decision.objects.filter(
@@ -1195,36 +1232,50 @@ def _discover_non_monetary_values(
 
     afm_count = 0
     kae_count = 0
+    applied_decisions = 0
+    applied_fields = 0
     flagged: list[dict] = []
 
     for decision in decisions.iterator(chunk_size=500):
-        anomalies = collect_non_monetary_values(decision)
-        if not anomalies:
+        outcome = detector.scan(decision)
+        if not outcome.detected:
             continue
-        for anomaly in anomalies:
-            if anomaly.kind == KIND_AFM:
+
+        if apply:
+            # ``apply`` re-detects (the detector is DB-only and idempotent);
+            # going through it keeps a single write path.
+            written = detector.apply(decision, outcome)
+            if written:
+                applied_decisions += 1
+                applied_fields += written
+
+        for finding in outcome.findings:
+            if finding.kind == KIND_AFM:
                 afm_count += 1
-            elif anomaly.kind == KIND_KAE:
+            elif finding.kind == KIND_KAE:
                 kae_count += 1
             flagged.append(
                 {
                     "ada": decision.ada,
-                    "kind": anomaly.kind,
-                    "source_field": anomaly.source_field,
-                    "amount": str(anomaly.amount),
-                    "matched_value": anomaly.matched_value,
+                    "kind": finding.kind,
+                    "source_field": finding.source_field,
+                    "amount": finding.recorded,
+                    "matched_value": finding.payload.get("matched_value", ""),
                 }
             )
             logger.warning(
                 f"Non-monetary-value-as-amount: decision {decision.id} "
-                f"({decision.ada}) {anomaly.source_field}="
-                f"{anomaly.amount} equals {anomaly.kind} {anomaly.matched_value}"
+                f"({decision.ada}) {finding.source_field}={finding.recorded} "
+                f"equals {finding.kind} {finding.payload.get('matched_value', '')}"
+                f"{' [flagged]' if apply else ' [report only]'}"
             )
 
     result = {
         "afm_anomalies": afm_count,
         "kae_anomalies": kae_count,
         "total_anomalies": afm_count + kae_count,
+        "applied_decisions": applied_decisions,
+        "applied_fields": applied_fields,
         "sample": flagged[:50],
     }
     logger.info(f"Non-monetary-value discovery: {result}")

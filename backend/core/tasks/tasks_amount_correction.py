@@ -1,26 +1,67 @@
 """
-Celery tasks for amount correction.
+Celery tasks for amount correction and amount-related data-quality detection.
 
 Single point of work:
-  - ``correct_single_decision`` — one decision through the shared
-    ``AmountCorrectionService.correct_decision()`` path (get extraction, fetch
-    if missing, detect, correct).  Used by the frontend (single), the admin
-    (single or via batch fan-out), and indirectly by the batch task.
+  - ``correct_single_decision`` — one decision through every detector selected
+    by ``mode`` (see ``core.services.data_quality``).  Used by the frontend
+    (single), the admin (single or via batch fan-out), and the batch task.
 
   - ``run_amount_correction_job`` — batch: resolves the candidate pool for a
-    persisted ``AmountCorrectionJob``, fans out one task per decision, and
-    tracks progress on the job row.
+    persisted ``AmountCorrectionJob`` **via the detectors' candidate queries**,
+    fans out one task per decision, and tracks progress on the job row.
 
   - ``daily_amount_correction`` — scheduled entry (beat) that creates a job
     with applying corrections enabled and runs it.
+
+Detector selection
+------------------
+``AmountCorrectionJob.mode`` selects which detectors run:
+``decimal_shift`` (default — the historical cents-based ×100/÷100 correction),
+``non_monetary`` (DB-only AFM/KAE guard), or ``both``.  Adding a new detector
+requires no change to this module: the mode→detector mapping and the candidate
+queries both live in the registry.
 """
 
 from datetime import date
-from decimal import Decimal
 from typing import Any
 
 from celery import shared_task
 from loguru import logger
+
+
+def _resolve_candidate_ids(job) -> list[int]:
+    """
+    Union of the candidate ids of every detector selected by ``job.mode``.
+
+    Each detector owns its own candidate query (see
+    ``BaseDetector.candidate_ids``), so the batch job never duplicates a
+    filter.  Order is preserved (the detector with the highest-value ordering
+    first) and de-duplicated, then truncated to ``job.limit``.
+    """
+    from core.services.data_quality import resolve_detectors
+
+    detectors = resolve_detectors(job.mode)
+    ids: list[int] = []
+    seen: set[int] = set()
+    for detector in detectors:
+        for decision_id in detector.candidate_ids(
+            min_amount=job.threshold,
+            max_amount=job.max_amount,
+            imported_since=job.imported_since,
+            issue_start=job.start_date,
+            issue_end=job.end_date,
+            limit=job.limit,
+        ):
+            if decision_id not in seen:
+                seen.add(decision_id)
+                ids.append(decision_id)
+    if job.limit:
+        ids = ids[: job.limit]
+    logger.info(
+        f"AmountCorrectionJob {job.job_id}: mode={job.mode} "
+        f"detectors={[d.slug for d in detectors]} → {len(ids)} candidate(s)"
+    )
+    return ids
 
 
 @shared_task(bind=True, max_retries=2, default_retry_delay=30,
@@ -31,15 +72,16 @@ def correct_single_decision(
     dry_run: bool = False,
     read_if_missing: bool = True,
     job_result_id: int | None = None,
+    mode: str = "decimal_shift",
 ) -> dict[str, Any]:
     """
-    Run the shared per-decision correction path on a worker.
+    Run every detector selected by ``mode`` on a worker.
 
     If ``job_result_id`` is given, update that ``AmountCorrectionJobResult``
     row and bump the parent job's progress counters (batch fan-out mode).
     """
     from core.models.decisions import Decision
-    from core.services.amount_correction_service import AmountCorrectionService
+    from core.services.data_quality import resolve_detectors, run_detectors, summarize
 
     try:
         decision = Decision.objects.get(id=decision_id)
@@ -47,12 +89,22 @@ def correct_single_decision(
         logger.error(f"correct_single_decision: decision {decision_id} not found")
         return {"status": "error", "reason": "decision_not_found"}
 
-    svc = AmountCorrectionService()
     try:
-        result = svc.correct_decision(
-            decision, dry_run=dry_run, read_if_missing=read_if_missing
+        detectors = resolve_detectors(mode)
+    except ValueError as exc:
+        logger.error(f"correct_single_decision: {exc}")
+        return {"status": "error", "reason": str(exc)}
+
+    try:
+        runs = run_detectors(
+            decision,
+            detectors,
+            dry_run=dry_run,
+            read_if_missing=read_if_missing,
         )
     except Exception as exc:
+        # ``run_detectors`` already isolates per-detector failures; reaching
+        # here means something systemic (e.g. the decision cannot be loaded).
         logger.error(
             f"correct_single_decision {decision_id} failed: {exc}", exc_info=True
         )
@@ -60,16 +112,14 @@ def correct_single_decision(
             _record_result(job_result_id, status="error", reason=str(exc)[:255])
         raise self.retry(exc=exc)
 
-    if job_result_id:
-        _record_result(
-            job_result_id,
-            status=result["status"],
-            reason=result.get("reason", "")[:255],
-            group_correction=result.get("group_correction", False),
-            corrections=result.get("corrections", []),
-        )
+    summary = summarize(runs)
+    summary["decision_id"] = decision.id
+    summary["ada"] = decision.ada
 
-    return result
+    if job_result_id:
+        _record_result(job_result_id, **summary)
+
+    return summary
 
 
 def _record_result(
@@ -79,6 +129,8 @@ def _record_result(
     reason: str = "",
     group_correction: bool = False,
     corrections: list | None = None,
+    flagged: list | None = None,
+    **_ignored: Any,
 ) -> None:
     """Persist a per-decision result and advance the parent job counters."""
     from django.db.models import F
@@ -99,7 +151,16 @@ def _record_result(
     res.reason = reason
     res.group_correction = group_correction
     res.corrections = corrections or []
-    res.save(update_fields=["status", "reason", "group_correction", "corrections"])
+    res.flagged = flagged or []
+    res.save(
+        update_fields=[
+            "status",
+            "reason",
+            "group_correction",
+            "corrections",
+            "flagged",
+        ]
+    )
 
     # Advance counters atomically
     counter = {
@@ -107,6 +168,9 @@ def _record_result(
         "would_correct": "corrected",
         "consistent": "consistent",
         "no_text_amounts_found": "no_text",
+        "afm_as_amount": "flagged",
+        "kae_as_amount": "flagged",
+        "non_monetary_value_as_amount": "flagged",
         "error": "errors",
     }.get(status, "skipped")
 
@@ -123,17 +187,13 @@ def run_amount_correction_job(self, job_id: str) -> dict[str, Any]:
 
     Creates a placeholder ``AmountCorrectionJobResult`` (status=pending) per
     candidate so progress is visible immediately, then enqueues one
-    ``correct_single_decision`` task each.
+    ``correct_single_decision`` task each (carrying the job's ``mode``).
     """
-    from django.db.models import Exists, OuterRef
-
     from core.models.amount_correction_job import (
         AmountCorrectionJob,
         AmountCorrectionJobResult,
         CorrectionJobStatus,
     )
-    from core.models.decisions import Decision
-    from core.models.entities import DecisionAmountField
 
     try:
         job = AmountCorrectionJob.objects.get(job_id=job_id)
@@ -144,61 +204,35 @@ def run_amount_correction_job(self, job_id: str) -> dict[str, Any]:
     job.mark_started(celery_task_id=self.request.id)
 
     try:
-        from core.services.decision_facets import amount_sum_excluding_kae
+        decision_ids = _resolve_candidate_ids(job)
 
-        # Rows flagged as non-monetary values (AFM/KAE) can never be corrected
-        # automatically — their real amount is unknown — so exclude them to
-        # avoid re-selecting and re-flagging the same decisions on every run.
-        has_uncorrected = Exists(
-            DecisionAmountField.objects.filter(
-                decision=OuterRef("pk"),
-                amount__gt=0,
-                verified_amount__isnull=True,
-                invalid_amount_reason__isnull=True,
-            )
-        )
-        candidates = (
-            Decision.objects
-            .annotate(calc_total=amount_sum_excluding_kae())
-            .filter(calc_total__gte=job.threshold)
-            .filter(has_uncorrected)
-        )
-        if job.start_date:
-            candidates = candidates.filter(issue_date_day__gte=job.start_date)
-        if job.end_date:
-            candidates = candidates.filter(issue_date_day__lte=job.end_date)
-        if job.imported_since is not None:
-            candidates = candidates.filter(created_at__gte=job.imported_since)
-        candidates = candidates.order_by("-calc_total")
-        if job.limit:
-            candidates = candidates[: job.limit]
-
-        decisions = list(candidates.only("id"))
-        job.total_candidates = len(decisions)
+        job.total_candidates = len(decision_ids)
         job.save(update_fields=["total_candidates", "updated_at"])
 
-        if not decisions:
+        if not decision_ids:
             job.mark_completed()
             return {"status": "completed", "total": 0}
 
         # Placeholder results, then fan out
-        for d in decisions:
+        for decision_id in decision_ids:
             res = AmountCorrectionJobResult.objects.create(
-                job=job, decision_id=d.id, status="pending"
+                job=job, decision_id=decision_id, status="pending"
             )
             correct_single_decision.delay(
-                decision_id=d.id,
+                decision_id=decision_id,
                 dry_run=job.dry_run,
                 read_if_missing=job.read_if_missing,
                 job_result_id=res.id,
+                mode=job.mode,
             )
 
         job.status = CorrectionJobStatus.RUNNING
         job.save(update_fields=["status", "updated_at"])
         logger.info(
-            f"AmountCorrectionJob {job_id}: fanned out {len(decisions)} decisions"
+            f"AmountCorrectionJob {job_id}: fanned out "
+            f"{len(decision_ids)} decisions (mode={job.mode})"
         )
-        return {"status": "running", "total": len(decisions)}
+        return {"status": "running", "total": len(decision_ids), "mode": job.mode}
 
     except Exception as exc:
         logger.exception(f"run_amount_correction_job {job_id} failed: {exc}")
@@ -228,8 +262,10 @@ def finalize_amount_correction_job(job_id: str) -> dict[str, Any]:
 
     if job.processed_count >= job.total_candidates:
         job.mark_completed()
-        # Invalidate analytics caches if anything was actually corrected
-        if job.corrected and not job.dry_run:
+        # Invalidate analytics caches if anything was corrected OR flagged
+        # (a flagged row drops out of every monetary aggregation, so cached
+        # totals computed before the sweep are stale either way).
+        if (job.corrected or job.flagged) and not job.dry_run:
             from core.services.response_cache_service import response_cache
             response_cache.invalidate_prefix("top_")
         return {"status": "completed"}
@@ -246,17 +282,26 @@ def daily_amount_correction() -> dict[str, Any]:
     Scoped to decisions imported in the last 2 days (created_at) so the
     daily job covers yesterday's + today's imports without re-scanning the
     entire historical backlog.
+
+    NOTE: this duplicates post-import Phase 2
+    (``tasks_post_import.verify_high_value_amounts``) — enabling both makes
+    every decision be corrected twice, and the second pass re-downloads the
+    PDF.  Keep exactly one of them enabled.
     """
     from datetime import timedelta
 
     from django.utils import timezone as dj_timezone
 
-    from core.models.amount_correction_job import AmountCorrectionJob
+    from core.models.amount_correction_job import (
+        AmountCorrectionJob,
+        CorrectionJobMode,
+    )
     from core.services.amount_correction_service import (
         DEFAULT_CORRECTION_THRESHOLD,
     )
 
     job = AmountCorrectionJob.objects.create(
+        mode=CorrectionJobMode.DECIMAL_SHIFT,
         threshold=DEFAULT_CORRECTION_THRESHOLD,
         dry_run=False,          # apply corrections
         read_if_missing=True,

@@ -293,6 +293,20 @@ class FeatureFlagService:
             "category": "data_quality",
             "requires_restart": False,
         },
+        "POST_IMPORT_AMOUNT_ANOMALY_TREATMENT_ENABLED": {
+            "name": "Post-Import Anomaly Treatment",
+            "description": "After a global daily import, WRITE the invalid-amount "
+            "marker for decisions whose recorded amount is really a non-monetary "
+            "value (counterpart AFM / KAE code). Off = report only. Writing the "
+            "marker excludes the row from every monetary aggregation and sends "
+            "the decision to the feedback pool for manual follow-up — the real "
+            "amount is never guessed. Database-only (no document read). Requires "
+            "POST_IMPORT_AMOUNT_VERIFICATION_ENABLED.",
+            "default": False,
+            "env_var": "POST_IMPORT_AMOUNT_ANOMALY_TREATMENT_ENABLED",
+            "category": "data_quality",
+            "requires_restart": False,
+        },
         # ── User-Triggered GEMI Fetch ─────────────────────────────────
         "GEMI_FETCH_REQUEST_PUBLIC_ACCESS": {
             "name": "GEMI Fetch Request — Public Access",
@@ -339,6 +353,36 @@ class FeatureFlagService:
             "category": "search",
             "requires_restart": False,
             "value_type": "integer",
+        },
+        "DOCUMENT_SEARCH_ENABLED": {
+            "name": "Document Search Enabled",
+            "description": "Master switch for document *content* search serving "
+            "(the /api/search/documents/ endpoint and the documents leg of "
+            "super search). When disabled, document search returns empty "
+            "results and the frontend hides the documents category — an "
+            "explicit entities-only posture. Deliberately separate from "
+            "INDEX_THE_POSTGRES / INDEX_THE_OPENSEARCH (indexing ≠ serving). "
+            "Delivered to the frontend via /api/system/config/auth/. "
+            "See postmortem 2026-10-03-document-search-worker-timeout, fix #8.",
+            "default": True,
+            "env_var": "DOCUMENT_SEARCH_ENABLED",
+            "category": "search",
+            "requires_restart": False,
+        },
+        "DOCUMENT_SEARCH_ILIKE_FALLBACK": {
+            "name": "Document Search ILIKE Fallback",
+            "description": "Allow PostgreSQL document search to degrade to an "
+            "UNINDEXED raw_text ILIKE '%...%' sequential scan when FTS returns "
+            "no results (or fails). WARNING: on large document tables this scan "
+            "can run for minutes and caused the 2026-10-03 gunicorn WORKER "
+            "TIMEOUTs. Safety invariant: document search may never silently "
+            "degrade to an unindexed scan — keep off until a pg_trgm GIN index "
+            "exists on core_documentextraction.raw_text. "
+            "See postmortem 2026-10-03-document-search-worker-timeout, fix #1.",
+            "default": False,
+            "env_var": "DOCUMENT_SEARCH_ILIKE_FALLBACK",
+            "category": "search",
+            "requires_restart": False,
         },
         # ── Anonymous API rate limiting ────────────────────────────────
         # Daily per-IP quota for anonymous (unauthenticated) API requests,

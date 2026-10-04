@@ -85,12 +85,30 @@ export const searchEntitiesFast = async (query, limit = 5, signal = null) => {
 };
 
 /**
+ * Minimum query length for document search. Mirrors the server-side guard
+ * (SearchService.MIN_FTS_QUERY_LENGTH = 3): shorter queries produce no FTS
+ * lexemes and previously triggered unbounded fallback scans on the backend
+ * (docs/postmortems/2026-10-03-document-search-worker-timeout.md).
+ */
+const MIN_DOCUMENT_QUERY_LENGTH = 3;
+
+/**
  * Search documents only
  * @param {string} query - Search query
  * @param {number} limit - Maximum number of results
  * @returns {Promise<Object>} Document search results
  */
 export const searchDocuments = async (query, limit = 5, signal = null) => {
+  if (!query || query.trim().length < MIN_DOCUMENT_QUERY_LENGTH) {
+    return {
+      query,
+      results: [],
+      count: 0,
+      source: 'none',
+      highlights: {}
+    };
+  }
+
   const params = new URLSearchParams({
     q: query,
     limit: limit

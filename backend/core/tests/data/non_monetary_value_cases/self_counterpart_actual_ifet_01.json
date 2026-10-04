@@ -1,0 +1,47 @@
+{
+    "protocolNumber": "6577",
+    "subject": "Λήψη Απόφασης για αποστολή πρόσκλησης στην εταιρεία με την επωνυμία «AG MEDIA ΜΟΝΟΠΡΟΣΩΠΗ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ» και το διακριτικό τίτλο «AG MEDIA» για την συμμετοχή και επικοινωνιακή προβολή της ΙΦΕΤ Μ.Α.Ε. στην ημερίδα Health Access Greece υπό την αιγίδα του Υπουργείου Υγείας.",
+    "issueDate": 1790640000000,
+    "organizationId": "99221541",
+    "signerIds": [
+        "100084109"
+    ],
+    "unitIds": [
+        "94331"
+    ],
+    "decisionTypeId": "Δ.1",
+    "thematicCategoryIds": [
+        "10007"
+    ],
+    "extraFieldValues": {
+        "person": [
+            {
+                "afm": "090064864",
+                "name": "ΙΝΣΤΙΤΟΥΤΟ ΦΑΡΜΑΚΕΥΤΙΚΗΣ ΕΡΕΥΝΑΣ ΚΑΙ ΤΕΧΝΟΛΟΓΙΑΣ ΜΟΝΟΠΡΟΣΩΠΗ ΑΝΩΝΥΜΗ ΕΤΑΙΡΕΙΑ",
+                "enterName": false,
+                "afmType": "EL"
+            }
+        ],
+        "awardAmount": {
+            "amount": 22000.0,
+            "currency": "EUR"
+        },
+        "assignmentType": "Υπηρεσίες",
+        "cpv": null,
+        "textRelatedADA": null,
+        "relatedDecisions": [],
+        "documentType": "ΠΡΑΞΗ"
+    },
+    "privateData": false,
+    "ada": "6Ζ9Ν469ΗΣΥ-Μ6Χ",
+    "publishTimestamp": 1790680686860,
+    "submissionTimestamp": 1790680686860,
+    "versionId": "dd8b097b-b1fb-446f-9232-e2be483765fa",
+    "status": "PUBLISHED",
+    "url": "https://diavgeia.gov.gr/luminapi/api/decisions/6Ζ9Ν469ΗΣΥ-Μ6Χ",
+    "documentUrl": "https://diavgeia.gov.gr/doc/6Ζ9Ν469ΗΣΥ-Μ6Χ",
+    "documentChecksum": null,
+    "attachments": [],
+    "warnings": null,
+    "correctedVersionId": null
+}

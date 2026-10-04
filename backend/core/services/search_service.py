@@ -1,5 +1,7 @@
 import json
+import re
 import time
+import uuid
 from typing import Any, Dict, List, Optional
 
 from core.constants.search_service import SearchMethod
@@ -26,6 +28,13 @@ from loguru import logger
 # Module-level flag so the "document search disabled" warning is logged
 # only once per process instead of on every search request.
 _warned_document_search_disabled = False
+_warned_document_search_flag_disabled = False
+
+# Strips every character that is not a Unicode letter or digit (also removes
+# underscores). This neutralizes all raw-tsquery metacharacters
+# (: & | ! ( ) ' " * < > \ -) in one pass, so user input can never inject
+# tsquery syntax (postmortem 2026-10-03: 'δε::' → 'syntax error in tsquery').
+_TSQUERY_METACHAR_PATTERN = re.compile(r"[\W_]+", re.UNICODE)
 
 
 class SearchService:
@@ -157,13 +166,26 @@ class SearchService:
         Build a prefix-matching FTS query so partial inputs like 'ΠΕΙΡΑ' match
         lexemes like 'πειραιωσ' stored in the tsvector.
 
-        Each whitespace-separated word is lowercased and suffixed with ':*'
-        (PostgreSQL's prefix operator), then joined with '&'.
+        Each whitespace-separated word is lowercased, stripped of tsquery
+        metacharacters (``: & | ! ( ) ' " * < >`` and all punctuation — a
+        stray ':' used to survive into the query as ``δε::*`` and raise a
+        Postgres syntax error), and suffixed with ':*' (PostgreSQL's prefix
+        operator), then joined with '&'.
         Example: 'ΠΕΙΡΑ ΤΡΑΠ' → 'πειρα:* & τραπ:*'
+
+        If every word sanitizes away (metacharacter-only input like '!!!'),
+        returns an empty never-matching tsquery (plainto_tsquery of '') so the
+        caller degrades to "no FTS results" instead of a syntax error.
         """
         words = query.strip().lower().split()
-        raw = " & ".join(f"{w}:*" for w in words if w)
-        return SearchQuery(raw, search_type="raw", config=config)
+        sanitized = []
+        for w in words:
+            cleaned = _TSQUERY_METACHAR_PATTERN.sub("", w)
+            if cleaned:
+                sanitized.append(f"{cleaned}:*")
+        if not sanitized:
+            return SearchQuery("", search_type="plain", config=config)
+        return SearchQuery(" & ".join(sanitized), search_type="raw", config=config)
 
     @staticmethod
     def _is_query_too_short_for_fts(query: str) -> bool:
@@ -449,6 +471,36 @@ class SearchService:
         if not query:
             return {"results": [], "count": 0, "source": "none", "highlights": {}}
 
+        # Posture gate: DOCUMENT_SEARCH_ENABLED turns document *content* search
+        # off entirely (entities-only stance), independent of the indexing
+        # flags. Returns the empty stub so callers/frontend get a well-formed
+        # empty response (postmortem 2026-10-03, fix #8).
+        global _warned_document_search_flag_disabled
+        if not feature_flags.is_enabled("DOCUMENT_SEARCH_ENABLED"):
+            if not _warned_document_search_flag_disabled:
+                _warned_document_search_flag_disabled = True
+                logger.warning(
+                    "Document search disabled by DOCUMENT_SEARCH_ENABLED flag. "
+                    "Only entity search is available."
+                )
+            return {"results": [], "count": 0, "source": "none", "highlights": {}}
+
+        # Server-side min-length guard. PostgreSQL's Greek stemmer produces no
+        # lexemes for 1-2 character tokens, so short queries match nothing via
+        # FTS and previously slid into the unbounded ILIKE fallback — the
+        # modal trigger of the 2026-10-03 worker timeouts (any single common
+        # Greek letter). Mirrors the entity-search guard (fix #3).
+        if self._is_query_too_short_for_fts(query):
+            logger.info(f"document_search skipped: query too short query={query!r}")
+            return {"results": [], "count": 0, "source": "none", "highlights": {}}
+
+        # Correlates entry/fallback/completion log lines for one search request
+        # (postmortem 2026-10-03, fix #7: hung requests used to be anonymous).
+        search_id = uuid.uuid4().hex[:8]
+        logger.info(
+            f"document_search start search_id={search_id} query={query!r} limit={limit}"
+        )
+
         # Document search must validate the full (document) prerequisite scope.
         # Entity search methods below use the lighter 'entity' scope via
         # _get_validated_search_method's default.
@@ -471,9 +523,12 @@ class SearchService:
                     )
                 return {"results": [], "count": 0, "source": "none", "highlights": {}}
 
-            logger.info("OpenSearch disabled, falling back to PostgreSQL search")
+            logger.info(
+                f"OpenSearch disabled, falling back to PostgreSQL search "
+                f"search_id={search_id} query={query!r}"
+            )
             return self._search_documents_postgresql(
-                query, provider, status, is_scanned, limit
+                query, provider, status, is_scanned, limit, search_id=search_id
             )
 
         # Try OpenSearch first
@@ -522,9 +577,11 @@ class SearchService:
 
         # Fallback to PostgreSQL search only if enabled
         if use_postgres_search:
-            logger.info("Falling back to PostgreSQL search")
+            logger.info(
+                f"Falling back to PostgreSQL search search_id={search_id} query={query!r}"
+            )
             return self._search_documents_postgresql(
-                query, provider, status, is_scanned, limit
+                query, provider, status, is_scanned, limit, search_id=search_id
             )
         else:
             logger.warning(
@@ -677,11 +734,26 @@ class SearchService:
         status: Optional[str] = None,
         is_scanned: Optional[bool] = None,
         limit: int = 100,
+        search_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Fallback PostgreSQL search (original implementation)
-        Only called when INDEX_THE_POSTGRES is enabled
+        PostgreSQL document search (FTS tier).
+
+        Only called when INDEX_THE_POSTGRES is enabled.
+
+        Safety invariants (postmortem 2026-10-03):
+        - The unindexed ``raw_text ILIKE '%...%'`` fallback is a full
+          sequential scan over a 17 GB table — it may never run silently. It
+          is gated behind DOCUMENT_SEARCH_ILIKE_FALLBACK (default off).
+        - FTS is executed exactly once: no ``.exists()``/``.count()``
+          re-executions (the ``count()`` re-scan historically produced
+          600-1050 s responses on broad Greek prefix hits).
+        - Every degradation path logs query= + search_id so hung requests are
+          never anonymous.
         """
+        if search_id is None:
+            search_id = uuid.uuid4().hex[:8]
+
         # Safety check: ensure PostgreSQL search is enabled
         if not feature_flags.is_enabled("INDEX_THE_POSTGRES"):
             logger.error(
@@ -708,50 +780,78 @@ class SearchService:
         if is_scanned is not None:
             qs = qs.filter(is_scanned_document=is_scanned)
 
-        # Try PostgreSQL full-text search first
+        # PostgreSQL full-text search. Input is sanitized by
+        # _build_prefix_search_query, so tsquery metacharacters can no longer
+        # raise a syntax error that silently routed into the ILIKE fallback.
+        results = []
         try:
             search_query = self._build_prefix_search_query(query)
+            # Single execution: the sliced query is evaluated exactly once.
+            # Do NOT call .exists()/.count() here — both re-run the full FTS
+            # scan (same regression fixed earlier in the 6 entity _search_*_fts
+            # methods).
             vector_results = (
                 qs.filter(search_vector=search_query)
                 .annotate(rank=SearchRank("search_vector", search_query))
                 .order_by("-rank")
             )
-
-            # If vector search returns results, use them
-            if vector_results.exists():
-                results = [
-                    {
-                        "extraction": ext,
-                        "search_score": float(ext.rank),
-                        "highlights": {},
-                    }
-                    for ext in vector_results[:limit]
-                ]
-                count = vector_results.count()
-            else:
-                # Fallback to direct text search
-                fallback_results = qs.filter(raw_text__icontains=query)[:limit]
-                results = [
-                    {"extraction": ext, "search_score": 1.0, "highlights": {}}
-                    for ext in fallback_results
-                ]
-                count = fallback_results.count()
-        except Exception:
-            # If any error occurs, fall back to direct text search
-            fallback_results = qs.filter(raw_text__icontains=query)[:limit]
             results = [
-                {"extraction": ext, "search_score": 1.0, "highlights": {}}
-                for ext in fallback_results
+                {
+                    "extraction": ext,
+                    "search_score": float(ext.rank),
+                    "highlights": {},
+                }
+                for ext in vector_results[:limit]
             ]
-            count = fallback_results.count()
+        except Exception as e:
+            # Do not silently degrade to an unindexed scan — log and treat as
+            # an FTS miss (the fallback decision below remains explicit).
+            logger.error(
+                f"document_search FTS failed search_id={search_id} "
+                f"query={query!r}: {e}"
+            )
 
-        logger.info(
-            f"PostgreSQL fallback returned {len(results)} results for query: {query}"
+        if results:
+            logger.info(
+                f"document_search FTS hit search_id={search_id} "
+                f"query={query!r} count={len(results)}"
+            )
+            return {
+                "results": results,
+                "count": len(results),
+                "has_more": len(results) >= limit,
+                "source": "postgresql",
+                "highlights": {},
+            }
+
+        # FTS miss or failure. The ILIKE fallback is an unbounded sequential
+        # scan on raw_text (plain TextField, no trigram index) — a degraded
+        # tier decision that must be explicit, logged, bounded, and off by
+        # default (postmortem 2026-10-03, fix #1).
+        if not feature_flags.is_enabled("DOCUMENT_SEARCH_ILIKE_FALLBACK"):
+            logger.warning(
+                f"document_search FTS returned no results; ILIKE fallback is "
+                f"disabled search_id={search_id} query={query!r}"
+            )
+            return {"results": [], "count": 0, "source": "none", "highlights": {}}
+
+        logger.warning(
+            f"document_search ILIKE fallback starting (UNINDEXED sequential scan) "
+            f"search_id={search_id} query={query!r}"
         )
-
+        fallback_results = list(qs.filter(raw_text__icontains=query)[:limit])
+        results = [
+            {"extraction": ext, "search_score": 1.0, "highlights": {}}
+            for ext in fallback_results
+        ]
+        logger.warning(
+            f"document_search ILIKE fallback finished search_id={search_id} "
+            f"query={query!r} count={len(results)}"
+        )
         return {
             "results": results,
-            "count": count,
+            "count": len(results),
+            "has_more": len(results) >= limit,
             "source": "postgresql",
             "highlights": {},
         }
