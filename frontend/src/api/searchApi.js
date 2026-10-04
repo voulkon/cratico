@@ -181,6 +181,16 @@ export const streamSearch = (query, options = {}) => {
 
       onEntities(entityResults);
 
+      // Exact-AFM short-circuit: the backend matched the query directly on the
+      // indexed AFMEntity.afm column, so there is nothing else to search —
+      // skip the slow document phase entirely.
+      if (entityResults.exact_afm_match) {
+        if (!signal?.aborted) {
+          onDone({ query, exact_afm_match: true });
+        }
+        return;
+      }
+
       // Phase 2: Slow document search (if requested)
       if (includeDocuments) {
         const documentResults = await searchDocuments(query, limit, signal);
