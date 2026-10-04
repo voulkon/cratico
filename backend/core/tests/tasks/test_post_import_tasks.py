@@ -12,8 +12,8 @@ Feature flags are overridden via patch so no env-var changes are needed.
 """
 
 from collections import Counter
-from datetime import date
-from unittest.mock import MagicMock, patch
+from datetime import date, timedelta
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -167,6 +167,113 @@ class TestPostDailyImportOrchestrator:
                 f"in a single post-import run"
             )
         assert len(dispatched) == 5
+
+
+class TestTailChainShape:
+    """T07c: the tail has a daily shape (4 tasks) and an hourly shape
+    (warm today + notifications only)."""
+
+    @staticmethod
+    def _task_name(sig):
+        return (getattr(sig, "task", "") or "").rsplit(".", 1)[-1]
+
+    def test_hourly_tail_chain_composition(self):
+        from core.tasks.tasks_post_import import _post_verification_tail_chain
+
+        with patch("core.tasks.tasks_post_import.chain") as mock_chain:
+            _post_verification_tail_chain("2026-05-29", tail_kind="hourly")
+
+        signatures = mock_chain.call_args.args
+        assert [self._task_name(s) for s in signatures] == [
+            "warm_today_window",
+            "trigger_check_all_subscriptions",
+        ]
+        assert signatures[0].kwargs["reference_date_str"] == "2026-05-29"
+        assert signatures[1].kwargs["reference_date_str"] == "2026-05-29"
+
+    def test_daily_tail_chain_unchanged(self):
+        """Default tail_kind keeps the original 4-task chain in order."""
+        from core.tasks.tasks_post_import import _post_verification_tail_chain
+
+        with patch("core.tasks.tasks_post_import.chain") as mock_chain:
+            _post_verification_tail_chain("2026-05-29")
+
+        signatures = mock_chain.call_args.args
+        assert [self._task_name(s) for s in signatures] == [
+            "compute_entity_rankings",
+            "invalidate_browse_cache",
+            "warm_analytics_cache",
+            "trigger_check_all_subscriptions",
+        ]
+
+
+class TestPostHourlyImportOrchestrator:
+    """T07c: the hourly orchestrator queues ONLY verification, carrying the
+    import-time window and tail_kind='hourly'."""
+
+    def test_flag_disabled_skips(self):
+        import core.tasks.tasks_post_import as tasks_post_import
+        from core.tasks.tasks_post_import import (
+            post_hourly_import_orchestrator,
+        )
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                return_value=False,
+            ),
+            patch.object(
+                tasks_post_import.verify_high_value_amounts, "si"
+            ) as mock_si,
+        ):
+            result = post_hourly_import_orchestrator(
+                job_id=1,
+                reference_date_str="2026-05-29",
+                imported_since_str="2026-05-29T09:00:00+00:00",
+                imported_until_str="2026-05-29T10:00:00+00:00",
+            )
+
+        assert result == {"status": "skipped", "reason": "feature_flag_disabled"}
+        mock_si.assert_not_called()
+
+    def test_dispatches_verification_with_window_and_hourly_tail(self):
+        import core.tasks.tasks_post_import as tasks_post_import
+        from core.tasks.tasks_post_import import (
+            post_hourly_import_orchestrator,
+        )
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                side_effect=_flag_enabled("POST_IMPORT_ORCHESTRATOR_ENABLED"),
+            ),
+            patch.object(
+                tasks_post_import.verify_high_value_amounts, "si"
+            ) as mock_si,
+            patch("core.tasks.tasks_post_import.chain") as mock_chain,
+        ):
+            mock_si.return_value.apply_async.return_value = MagicMock(
+                id="verify-hourly-id"
+            )
+
+            result = post_hourly_import_orchestrator(
+                job_id=7,
+                reference_date_str="2026-05-29",
+                imported_since_str="2026-05-29T09:00:00+00:00",
+                imported_until_str="2026-05-29T10:00:00+00:00",
+            )
+
+        assert result["status"] == "dispatched"
+        assert result["job_id"] == 7
+        assert result["chain_task_id"] == "verify-hourly-id"
+        mock_si.assert_called_once_with(
+            reference_date_str="2026-05-29",
+            imported_since_str="2026-05-29T09:00:00+00:00",
+            imported_until_str="2026-05-29T10:00:00+00:00",
+            tail_kind="hourly",
+        )
+        # The orchestrator never queues a tail task itself.
+        mock_chain.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -337,6 +444,196 @@ class TestWarmAnalyticsCache:
             result = warm_analytics_cache()
 
         assert result["reference_date"] == "2026-05-30"
+
+    def test_warm_analytics_cache_uses_warm_window_helper(self):
+        """The per-window body is factored into _warm_window; the task still
+        iterates the same 4 calendar windows with the same (start, end)."""
+        import core.tasks.tasks_post_import as tasks_post_import
+        from core.tasks.tasks_post_import import (
+            _calendar_windows,
+            warm_analytics_cache,
+        )
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                side_effect=_flag_enabled("ANALYTICS_WARMUP_ENABLED"),
+            ),
+            patch.object(
+                tasks_post_import,
+                "_warm_window",
+                return_value={"keys_warmed": 7, "errors": []},
+            ) as mock_warm,
+        ):
+            result = warm_analytics_cache(reference_date_str="2026-05-29")
+
+        assert mock_warm.call_args_list == [
+            call(label, start, end)
+            for label, start, end in _calendar_windows(date(2026, 5, 29))
+        ]
+        assert result["windows_warmed"] == 4
+        assert result["keys_warmed"] == 28
+        assert result["errors"] == []
+
+
+class TestWarmTodayWindow:
+    """T07b: the hourly warm covers exactly the (today, today) window."""
+
+    WARM_FN_TARGETS = (
+        "core.services.analytics_precalc_service.warm_explore_orgs_window",
+        "core.services.analytics_precalc_service.warm_da_top_pairs_window",
+        "core.services.analytics_precalc_service.warm_top_payments_window",
+        "core.services.analytics_precalc_service."
+        "warm_top_direct_assignments_window",
+        "core.services.analytics_precalc_service.warm_top_by_amount_window",
+        "core.services.analytics_precalc_service."
+        "warm_top_banded_da_receivers_window",
+        "core.services.analytics_precalc_service."
+        "warm_top_banded_da_givers_window",
+    )
+
+    EXPECTED_KWARGS = (
+        {"max_limit": 200, "page_size": 6},
+        {"max_limit": 50, "page_size": 6},
+        {"max_limit": 100, "page_size": 5},
+        {"max_limit": 100, "page_size": 5},
+        {"max_limit": 100, "page_size": 5},
+        {"max_limit": 100, "page_size": 5},
+        {"max_limit": 100, "page_size": 5},
+    )
+
+    def _patch_warm_fns(self, stack):
+        return [
+            stack.enter_context(patch(target))
+            for target in self.WARM_FN_TARGETS
+        ]
+
+    def test_warm_today_window_single_today_window(self):
+        from contextlib import ExitStack
+
+        from django.utils import timezone
+
+        from core.tasks.tasks_post_import import warm_today_window
+
+        today = timezone.localdate()
+
+        with ExitStack() as stack:
+            stack.enter_context(
+                patch(
+                    "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                    side_effect=_flag_enabled("ANALYTICS_WARMUP_ENABLED"),
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "core.services.response_cache_service."
+                    "ResponseCacheService.set_warmup_status"
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "core.services.response_cache_service."
+                    "ResponseCacheService.clear_warmup_status"
+                )
+            )
+            warm_mocks = self._patch_warm_fns(stack)
+
+            result = warm_today_window(reference_date_str="2026-05-01")
+
+        assert result["status"] == "completed"
+        assert result["windows_warmed"] == 1
+        assert result["keys_warmed"] == 7
+        assert result["reference_date"] == today.isoformat()
+        assert result["errors"] == []
+
+        for mock_warm, expected in zip(warm_mocks, self.EXPECTED_KWARGS):
+            mock_warm.assert_called_once_with(
+                start_date_str=today.isoformat(),
+                end_date_str=today.isoformat(),
+                end_date=today,
+                **expected,
+            )
+
+    def test_warm_today_window_sentinel_lifecycle(self):
+        """One failing view clears its sentinel; the other six are marked
+        ready and the task reports the error without raising."""
+        from contextlib import ExitStack
+
+        from core.tasks.tasks_post_import import warm_today_window
+
+        with ExitStack() as stack:
+            stack.enter_context(
+                patch(
+                    "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                    side_effect=_flag_enabled("ANALYTICS_WARMUP_ENABLED"),
+                )
+            )
+            mock_set = stack.enter_context(
+                patch(
+                    "core.services.response_cache_service."
+                    "ResponseCacheService.set_warmup_status"
+                )
+            )
+            mock_clear = stack.enter_context(
+                patch(
+                    "core.services.response_cache_service."
+                    "ResponseCacheService.clear_warmup_status"
+                )
+            )
+            warm_mocks = self._patch_warm_fns(stack)
+            warm_mocks[0].side_effect = Exception("db connection lost")
+
+            result = warm_today_window()
+
+        assert result["status"] == "completed"
+        assert result["keys_warmed"] == 6
+        assert len(result["errors"]) == 1
+        assert result["errors"][0]["view"] == "explore_orgs"
+
+        assert mock_clear.call_count == 1
+        statuses = [c.args[1] for c in mock_set.call_args_list]
+        assert statuses.count("in_progress") == 7
+        assert statuses.count("ready") == 6
+
+    def test_warm_today_window_flag_disabled(self):
+        from core.tasks.tasks_post_import import warm_today_window
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                return_value=False,
+            ),
+            patch("core.tasks.tasks_post_import._warm_window") as mock_warm,
+        ):
+            result = warm_today_window(reference_date_str="2026-05-29")
+
+        assert result == {"status": "skipped", "reason": "feature_flag_disabled"}
+        mock_warm.assert_not_called()
+
+    def test_warm_today_window_ignores_reference_date_mismatch(self):
+        from django.utils import timezone
+
+        import core.tasks.tasks_post_import as tasks_post_import
+        from core.tasks.tasks_post_import import warm_today_window
+
+        today = timezone.localdate()
+        yesterday = today - timedelta(days=1)
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                side_effect=_flag_enabled("ANALYTICS_WARMUP_ENABLED"),
+            ),
+            patch.object(
+                tasks_post_import,
+                "_warm_window",
+                return_value={"keys_warmed": 7, "errors": []},
+            ) as mock_warm,
+        ):
+            result = warm_today_window(reference_date_str=yesterday.isoformat())
+
+        mock_warm.assert_called_once_with("daily", today, today)
+        assert result["reference_date"] == today.isoformat()
 
 
 # ---------------------------------------------------------------------------
@@ -712,6 +1009,192 @@ class TestVerifyHighValueAmountsDiscoveryWiring:
         assert dispatched == self._tail_task_names()
 
 
+class TestVerifyWindowThreading:
+    """T07a: an explicit import-time window overrides the reference calendar day
+    while the default (no window strings) stays byte-for-byte unchanged."""
+
+    @staticmethod
+    def _run_verify(**kwargs):
+        from core.tasks.tasks_post_import import verify_high_value_amounts
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                side_effect=_flag_enabled(
+                    "POST_IMPORT_AMOUNT_VERIFICATION_ENABLED"
+                ),
+            ),
+            patch(
+                "core.services.amount_verification_service."
+                "AmountVerificationService.get_high_value_candidates",
+                return_value=[],
+            ) as mock_candidates,
+            patch(
+                "core.tasks.tasks_post_import.finalize_amount_verification"
+            ),
+        ):
+            verify_high_value_amounts(**kwargs)
+
+        return mock_candidates
+
+    def test_verify_window_strings_override_day_scope(self):
+        from datetime import datetime
+
+        mock_candidates = self._run_verify(
+            reference_date_str="2026-05-29",
+            imported_since_str="2026-05-29T09:00:00+00:00",
+            imported_until_str="2026-05-29T10:00:00+00:00",
+        )
+
+        kwargs = mock_candidates.call_args.kwargs
+        assert kwargs["imported_since"] == datetime.fromisoformat(
+            "2026-05-29T09:00:00+00:00"
+        )
+        assert kwargs["imported_until"] == datetime.fromisoformat(
+            "2026-05-29T10:00:00+00:00"
+        )
+        # The reference date no longer forces [00:00, +1 day).
+        assert kwargs["imported_since"].hour == 9
+        assert kwargs["imported_until"].hour == 10
+
+    def test_verify_naive_window_strings_made_aware(self):
+        from django.utils import timezone as dj_timezone
+
+        mock_candidates = self._run_verify(
+            reference_date_str="2026-05-29",
+            imported_since_str="2026-05-29T09:00:00",
+            imported_until_str="2026-05-29T10:00:00",
+        )
+
+        kwargs = mock_candidates.call_args.kwargs
+        assert dj_timezone.is_aware(kwargs["imported_since"])
+        assert dj_timezone.is_aware(kwargs["imported_until"])
+        assert kwargs["imported_since"].hour == 9
+        assert kwargs["imported_until"].hour == 10
+
+    def test_verify_default_day_scope_unchanged(self):
+        mock_candidates = self._run_verify(reference_date_str="2026-05-29")
+
+        kwargs = mock_candidates.call_args.kwargs
+        assert kwargs["imported_since"].date() == date(2026, 5, 29)
+        assert kwargs["imported_since"].hour == 0
+        assert kwargs["imported_until"].date() == date(2026, 5, 30)
+        assert kwargs["imported_until"].hour == 0
+
+    def test_finalize_receives_threaded_window(self):
+        from datetime import datetime
+
+        from core.tasks.tasks_post_import import finalize_amount_verification
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import._discover_non_monetary_values",
+                return_value={
+                    "afm_anomalies": 0,
+                    "kae_anomalies": 0,
+                    "total_anomalies": 0,
+                    "sample": [],
+                },
+            ) as mock_discovery,
+            patch(
+                "core.tasks.tasks_post_import._dispatch_post_verification_tail",
+                return_value="tail-id",
+            ) as mock_dispatch,
+        ):
+            finalize_amount_verification.run(
+                [],
+                reference_date_str="2026-05-29",
+                imported_since_str="2026-05-29T09:00:00+00:00",
+                imported_until_str="2026-05-29T10:00:00+00:00",
+            )
+
+        discovery_kwargs = mock_discovery.call_args.kwargs
+        assert discovery_kwargs["imported_since"] == datetime.fromisoformat(
+            "2026-05-29T09:00:00+00:00"
+        )
+        assert discovery_kwargs["imported_until"] == datetime.fromisoformat(
+            "2026-05-29T10:00:00+00:00"
+        )
+        dispatch_kwargs = mock_dispatch.call_args.kwargs
+        assert (
+            dispatch_kwargs["imported_since_str"]
+            == "2026-05-29T09:00:00+00:00"
+        )
+        assert (
+            dispatch_kwargs["imported_until_str"]
+            == "2026-05-29T10:00:00+00:00"
+        )
+
+    def test_finalize_default_day_scope_unchanged(self):
+        from core.tasks.tasks_post_import import finalize_amount_verification
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import._discover_non_monetary_values",
+                return_value={
+                    "afm_anomalies": 0,
+                    "kae_anomalies": 0,
+                    "total_anomalies": 0,
+                    "sample": [],
+                },
+            ) as mock_discovery,
+            patch(
+                "core.tasks.tasks_post_import._dispatch_post_verification_tail",
+                return_value="tail-id",
+            ),
+        ):
+            finalize_amount_verification.run(
+                [], reference_date_str="2026-05-29"
+            )
+
+        kwargs = mock_discovery.call_args.kwargs
+        assert kwargs["imported_since"].date() == date(2026, 5, 29)
+        assert kwargs["imported_since"].hour == 0
+        assert kwargs["imported_until"].date() == date(2026, 5, 30)
+        assert kwargs["imported_until"].hour == 0
+
+    def test_chord_body_and_errback_carry_window(self):
+        from core.tasks.tasks_post_import import verify_high_value_amounts
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                side_effect=_flag_enabled(
+                    "POST_IMPORT_AMOUNT_VERIFICATION_ENABLED"
+                ),
+            ),
+            patch(
+                "core.services.amount_verification_service."
+                "AmountVerificationService.get_high_value_candidates",
+                return_value=[MagicMock(id=1)],
+            ),
+            patch("core.tasks.tasks_post_import.chord") as mock_chord_cls,
+        ):
+            mock_chord_instance = MagicMock()
+            mock_chord_instance.return_value = MagicMock(id="chord-id")
+            mock_chord_cls.return_value = mock_chord_instance
+
+            verify_high_value_amounts(
+                reference_date_str="2026-05-29",
+                imported_since_str="2026-05-29T09:00:00+00:00",
+                imported_until_str="2026-05-29T10:00:00+00:00",
+            )
+
+        (body,) = mock_chord_instance.call_args.args
+        assert body.kwargs["imported_since_str"] == "2026-05-29T09:00:00+00:00"
+        assert body.kwargs["imported_until_str"] == "2026-05-29T10:00:00+00:00"
+        errbacks = body.options.get("link_error") or []
+        assert len(errbacks) == 1
+        assert (
+            errbacks[0].kwargs["imported_since_str"]
+            == "2026-05-29T09:00:00+00:00"
+        )
+        assert (
+            errbacks[0].kwargs["imported_until_str"]
+            == "2026-05-29T10:00:00+00:00"
+        )
+
+
 class TestAmountVerificationChordErrorTail:
     """The chord errback dispatches the tail when the chord fails hard."""
 
@@ -775,6 +1258,52 @@ class TestAmountVerificationChordErrorTail:
         assert result["status"] == "error"
         assert "broker still down" in result["error"]
 
+    def test_errback_forwards_import_window(self):
+        """T07a: the errback carries the import-time window to the tail
+        dispatch, exactly as the chord body does."""
+        from core.tasks.tasks_post_import import (
+            amount_verification_chord_error_tail,
+        )
+
+        with patch(
+            "core.tasks.tasks_post_import._dispatch_post_verification_tail",
+            return_value="tail-id",
+        ) as mock_dispatch:
+            result = amount_verification_chord_error_tail.run(
+                MagicMock(id="body-request"),
+                RuntimeError("child lost"),
+                "traceback",
+                reference_date_str="2026-05-29",
+                imported_since_str="2026-05-29T09:00:00+00:00",
+                imported_until_str="2026-05-29T10:00:00+00:00",
+            )
+
+        assert result["status"] == "tail_dispatched"
+        kwargs = mock_dispatch.call_args.kwargs
+        assert kwargs["imported_since_str"] == "2026-05-29T09:00:00+00:00"
+        assert kwargs["imported_until_str"] == "2026-05-29T10:00:00+00:00"
+
+    def test_errback_forwards_tail_kind(self):
+        """T07c: a failed hourly chord errback dispatches the hourly tail."""
+        from core.tasks.tasks_post_import import (
+            amount_verification_chord_error_tail,
+        )
+
+        with patch(
+            "core.tasks.tasks_post_import._dispatch_post_verification_tail",
+            return_value="tail-id",
+        ) as mock_dispatch:
+            result = amount_verification_chord_error_tail.run(
+                MagicMock(id="body-request"),
+                RuntimeError("child lost"),
+                "traceback",
+                reference_date_str="2026-05-29",
+                tail_kind="hourly",
+            )
+
+        assert result["status"] == "tail_dispatched"
+        assert mock_dispatch.call_args.kwargs["tail_kind"] == "hourly"
+
 
 class TestFinalizeAmountVerification:
     """The chord body aggregates child results, invalidates caches, runs
@@ -815,6 +1344,31 @@ class TestFinalizeAmountVerification:
         kwargs = mock_discovery.call_args.kwargs
         assert kwargs["imported_since"].date() == date(2026, 5, 29)
         assert kwargs["imported_until"].date() == date(2026, 5, 30)
+
+    def test_tail_kind_threaded_to_finalize_dispatch(self):
+        """T07c: the chord body forwards tail_kind to the tail dispatch."""
+        from core.tasks.tasks_post_import import finalize_amount_verification
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import._discover_non_monetary_values",
+                return_value={
+                    "afm_anomalies": 0,
+                    "kae_anomalies": 0,
+                    "total_anomalies": 0,
+                    "sample": [],
+                },
+            ),
+            patch(
+                "core.tasks.tasks_post_import._dispatch_post_verification_tail",
+                return_value="tail-id",
+            ) as mock_dispatch,
+        ):
+            finalize_amount_verification.run(
+                [], reference_date_str="2026-05-29", tail_kind="hourly"
+            )
+
+        assert mock_dispatch.call_args.kwargs["tail_kind"] == "hourly"
 
     def test_continuation_chain_contains_four_tasks_in_order(self):
         """After the chord, the remaining post-import tasks must run in the

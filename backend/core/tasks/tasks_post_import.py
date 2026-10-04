@@ -60,13 +60,14 @@ Views warmed (all DashboardGrid sections):
   top_direct_assignments     → TopDirectAssignmentsSection
 """
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 import calendar
 import functools
 import time
 
 from celery import chain, chord, shared_task
 from core.services.feature_flag_service import feature_flags
+from django.utils import timezone
 from loguru import logger
 
 
@@ -220,6 +221,46 @@ def _calendar_windows(ref: date) -> list[tuple[str, date, date]]:
     ]
 
 
+def _parse_import_window(
+    reference_date_str: str | None,
+    imported_since_str: str | None,
+    imported_until_str: str | None,
+) -> tuple[date, datetime, datetime]:
+    """
+    Resolve the import-time window the verification / discovery path runs on.
+
+    When both ISO strings are given they win: this is the import-time window
+    (``fetch_started_at`` → completion) and is **never** derived from
+    submission time.  When absent, fall back to the reference calendar day
+    ``[ref 00:00, ref+1 00:00)`` so the daily behaviour is byte-for-byte
+    unchanged.
+
+    Aware ISO datetimes are the norm (``timezone.now().isoformat()``); naive
+    input is made aware defensively so ORM comparisons do not crash under
+    ``USE_TZ=True``.
+    """
+    ref = (
+        date.fromisoformat(reference_date_str)
+        if reference_date_str
+        else date.today()
+    )
+
+    if imported_since_str and imported_until_str:
+        imported_since = datetime.fromisoformat(imported_since_str)
+        imported_until = datetime.fromisoformat(imported_until_str)
+        if timezone.is_naive(imported_since):
+            imported_since = timezone.make_aware(imported_since)
+        if timezone.is_naive(imported_until):
+            imported_until = timezone.make_aware(imported_until)
+        return ref, imported_since, imported_until
+
+    imported_since = timezone.make_aware(
+        datetime.combine(ref, datetime.min.time())
+    )
+    imported_until = imported_since + timedelta(days=1)
+    return ref, imported_since, imported_until
+
+
 def _build_warmup_sentinel_keys(
     view_name: str,
     start_str: str,
@@ -296,7 +337,9 @@ def _build_warmup_sentinel_keys(
 # ---------------------------------------------------------------------------
 
 
-def _post_verification_tail_chain(reference_date_str: str | None = None):
+def _post_verification_tail_chain(
+    reference_date_str: str | None = None, tail_kind: str = "daily"
+):
     """
     Build the chain of everything that runs AFTER amount verification.
 
@@ -304,7 +347,20 @@ def _post_verification_tail_chain(reference_date_str: str | None = None):
     ONE place below — so no tail task can be queued twice (see the module
     docstring: a duplicated ``trigger_check_all_subscriptions`` is what created
     the duplicate notification batches on 2026-09-15).
+
+    Two shapes:
+      * ``"daily"`` — the full 4-task chain below.
+      * ``"hourly"`` — warm today's window + notifications only.  Rankings are
+        a stub; browse invalidation and weekly/monthly/yearly warming are
+        pointless intra-day (those frontend windows end at yesterday).
     """
+    if tail_kind == "hourly":
+        return chain(
+            warm_today_window.si(reference_date_str=reference_date_str),
+            trigger_check_all_subscriptions.si(
+                reference_date_str=reference_date_str
+            ),
+        )
     return chain(
         # Track 2: Compute entity rankings (DB snapshots) from corrected amounts
         compute_entity_rankings.si(reference_date_str=reference_date_str),
@@ -319,7 +375,12 @@ def _post_verification_tail_chain(reference_date_str: str | None = None):
 
 
 def _dispatch_post_verification_tail(
-    reference_date_str: str | None = None, *, reason: str
+    reference_date_str: str | None = None,
+    imported_since_str: str | None = None,
+    imported_until_str: str | None = None,
+    tail_kind: str = "daily",
+    *,
+    reason: str,
 ) -> str | None:
     """
     Dispatch the post-verification tail exactly once and return its task id.
@@ -331,8 +392,16 @@ def _dispatch_post_verification_tail(
 
     Args:
         reason: Short label for the log line (why the tail runs now).
+        tail_kind: ``"daily"`` (full chain) or ``"hourly"`` (warm today +
+            notifications).
+
+    The import-time window strings travel with every dispatch site so the
+    hourly tail (T07c) can consume them; the chains built here do not take
+    them, so the chain calls are unchanged.
     """
-    result = _post_verification_tail_chain(reference_date_str).apply_async()
+    result = _post_verification_tail_chain(
+        reference_date_str, tail_kind=tail_kind
+    ).apply_async()
     logger.info(
         f"Post-import tail dispatched (chain task id: {result.id}, reason: {reason})"
     )
@@ -396,6 +465,67 @@ def post_daily_import_orchestrator(job_id: int, reference_date_str: str):
     }
 
 
+@shared_task
+@log_task_run
+def post_hourly_import_orchestrator(
+    job_id: int,
+    reference_date_str: str,
+    imported_since_str: str,
+    imported_until_str: str,
+):
+    """
+    Orchestrate the post-hourly-import work.
+
+    Called from ImportJobQueue.on_job_completed() when the completed job is a
+    global HOURLY import.  Hourly imports carry an explicit import-time window
+    (``fetch_started_at`` → completion), which verification uses instead of the
+    reference calendar day.
+
+    Like the daily orchestrator, this queues ONLY ``verify_high_value_amounts``
+    — verification owns the tail and dispatches it exactly once (2026-09-15
+    incident).  The hourly run uses ``tail_kind="hourly"``: warm today's window
+    + notifications only (rankings are a stub; browse invalidation and
+    weekly/monthly/yearly warming are pointless intra-day).
+
+    Args:
+        job_id: The completed ImportJob's ID (for logging).
+        reference_date_str: ISO-format date string for the "as-of" date.
+        imported_since_str: Aware-ISO start of the import window
+            (``fetch_started_at``).
+        imported_until_str: Aware-ISO end of the import window.
+    """
+    if not feature_flags.is_enabled("POST_IMPORT_ORCHESTRATOR_ENABLED"):
+        logger.info("POST_IMPORT_ORCHESTRATOR_ENABLED is disabled, skipping")
+        return {"status": "skipped", "reason": "feature_flag_disabled"}
+
+    logger.info(
+        f"Post-import hourly orchestrator starting for job #{job_id} "
+        f"(reference date: {reference_date_str}, window: "
+        f"{imported_since_str} → {imported_until_str})"
+    )
+
+    # Verification is the ONLY thing queued here — it owns the tail and
+    # dispatches it exactly once.  Queuing tail tasks here as well would make
+    # them run twice per import (2026-09-15 duplicate NotificationBatch).
+    result = verify_high_value_amounts.si(
+        reference_date_str=reference_date_str,
+        imported_since_str=imported_since_str,
+        imported_until_str=imported_until_str,
+        tail_kind="hourly",
+    ).apply_async()
+    logger.info(
+        f"Post-import hourly chain dispatched (verification task id: "
+        f"{result.id}) for job #{job_id}"
+    )
+
+    return {
+        "status": "dispatched",
+        "job_id": job_id,
+        "chain_task_id": str(result.id),
+        "reference_date": reference_date_str,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Track 2 — Persistent Entity Rankings (DB snapshots)
 # ---------------------------------------------------------------------------
@@ -446,6 +576,96 @@ def compute_entity_rankings(reference_date_str: str | None = None):
 # Track 1 — Redis Cache Warming (view-level, ephemeral)
 # ---------------------------------------------------------------------------
 
+# The 7 (view, warm_fn, kwargs) entries warmed for a window.  page_size MUST
+# match what the frontend actually sends: the cache key embeds limit/page_size,
+# so a mismatch means the warmed key never matches the real request →
+# defer_on_miss → 202 polling loop on the first request after every import.
+def _warm_window(label: str, start: date, end: date) -> dict:
+    """
+    Warm the 7 registered views for one window.
+
+    Shared by ``warm_analytics_cache`` (4 calendar windows) and
+    ``warm_today_window`` (the single intra-day window).  Sentinel-key lifecycle
+    is identical to the historical inline loop: ``in_progress`` before the warm,
+    ``ready`` on success, cleared on failure, with per-view errors collected.
+
+    Returns ``{"keys_warmed": n, "errors": [...]}``.
+    """
+    from core.services.analytics_precalc_service import (
+        warm_da_top_pairs_window,
+        warm_explore_orgs_window,
+        warm_top_banded_da_givers_window,
+        warm_top_banded_da_receivers_window,
+        warm_top_by_amount_window,
+        warm_top_direct_assignments_window,
+        warm_top_payments_window,
+    )
+    from core.services.response_cache_service import response_cache
+
+    start_str = start.isoformat()
+    end_str = end.isoformat()
+
+    warmed = 0
+    errors: list[dict] = []
+
+    # ── page_size values MUST match what the frontend actually sends, ─
+    #    because the cache key includes limit/page_size.  A mismatch
+    #    means the warmed key never matches the request → defer_on_miss
+    #    → 202 polling loop on the first request after every import.
+    #
+    #    Frontend reference:
+    #      explore_orgs  → OrganizationsSection  PAGE_SIZE=6
+    #      da_top_pairs  → HomePage             limit={6}
+    #      unified       → DecisionsSection      PAGE_SIZE=5 (view=decisions,
+    #                       statistics, decision_types, date_range)
+    #
+    #    Removed (frontend no longer calls these directly):
+    #      explore_decisions  → frontend uses unified?view=decisions (not cached)
+    #      da_top_entities    → frontend uses /entities/{afm}/top-organizations/
+    #      da_top_orgs        → same as above
+    #      explore_decision_types → frontend uses unified?view=decision_types
+    #      explore_statistics    → frontend uses unified?view=statistics
+    for view_name, warm_fn, kwargs in [
+        ("explore_orgs", warm_explore_orgs_window, {"max_limit": 200, "page_size": 6}),
+        ("da_top_pairs", warm_da_top_pairs_window, {"max_limit": 50, "page_size": 6}),
+        ("top_payments", warm_top_payments_window, {"max_limit": 100, "page_size": 5}),
+        ("top_direct_assignments", warm_top_direct_assignments_window, {"max_limit": 100, "page_size": 5}),
+        ("top_by_amount", warm_top_by_amount_window, {"max_limit": 100, "page_size": 5}),
+        ("top_banded_da_receivers", warm_top_banded_da_receivers_window, {"max_limit": 100, "page_size": 5}),
+        ("top_banded_da_givers", warm_top_banded_da_givers_window, {"max_limit": 100, "page_size": 5}),
+    ]:
+        # ── Build sentinel warmup keys so L2 (defer_on_miss) can
+        #     detect that L3 is already working on this view ──────
+        sentinel_keys = _build_warmup_sentinel_keys(
+            view_name, start_str, end_str, kwargs
+        )
+        for key in sentinel_keys:
+            response_cache.set_warmup_status(key, "in_progress")
+
+        try:
+            warm_fn(
+                start_date_str=start_str,
+                end_date_str=end_str,
+                end_date=end,
+                **kwargs,
+            )
+            for key in sentinel_keys:
+                response_cache.set_warmup_status(key, "ready")
+            warmed += 1
+        except Exception as exc:
+            for key in sentinel_keys:
+                response_cache.clear_warmup_status(key)
+            logger.warning(
+                f"[warm_analytics_cache] Failed to warm {view_name} "
+                f"for window {label} ({start_str} → {end_str}): {exc}"
+            )
+            errors.append(
+                {"window": label, "view": view_name, "error": str(exc)}
+            )
+
+    return {"keys_warmed": warmed, "errors": errors}
+
+
 @shared_task
 @log_task_run(swallow_errors=True)
 def warm_analytics_cache(reference_date_str: str | None = None):
@@ -481,16 +701,6 @@ def warm_analytics_cache(reference_date_str: str | None = None):
         logger.debug("ANALYTICS_WARMUP_ENABLED is disabled, skipping cache warmup")
         return {"status": "skipped", "reason": "feature_flag_disabled"}
 
-    from core.services.analytics_precalc_service import (
-        warm_da_top_pairs_window,
-        warm_explore_orgs_window,
-        warm_top_banded_da_givers_window,
-        warm_top_banded_da_receivers_window,
-        warm_top_by_amount_window,
-        warm_top_direct_assignments_window,
-        warm_top_payments_window,
-    )
-
     ref = (
         date.fromisoformat(reference_date_str)
         if reference_date_str
@@ -501,69 +711,13 @@ def warm_analytics_cache(reference_date_str: str | None = None):
 
     logger.info(f"Warming analytics cache for {len(windows)} windows (ref={ref})")
 
-    from core.services.response_cache_service import response_cache
-
     warmed = 0
     errors = []
 
     for label, start, end in windows:
-        start_str = start.isoformat()
-        end_str = end.isoformat()
-
-        # ── page_size values MUST match what the frontend actually sends, ─
-        #    because the cache key includes limit/page_size.  A mismatch
-        #    means the warmed key never matches the request → defer_on_miss
-        #    → 202 polling loop on the first request after every import.
-        #
-        #    Frontend reference:
-        #      explore_orgs  → OrganizationsSection  PAGE_SIZE=6
-        #      da_top_pairs  → HomePage             limit={6}
-        #      unified       → DecisionsSection      PAGE_SIZE=5 (view=decisions,
-        #                       statistics, decision_types, date_range)
-        #
-        #    Removed (frontend no longer calls these directly):
-        #      explore_decisions  → frontend uses unified?view=decisions (not cached)
-        #      da_top_entities    → frontend uses /entities/{afm}/top-organizations/
-        #      da_top_orgs        → same as above
-        #      explore_decision_types → frontend uses unified?view=decision_types
-        #      explore_statistics    → frontend uses unified?view=statistics
-        for view_name, warm_fn, kwargs in [
-            ("explore_orgs", warm_explore_orgs_window, {"max_limit": 200, "page_size": 6}),
-            ("da_top_pairs", warm_da_top_pairs_window, {"max_limit": 50, "page_size": 6}),
-            ("top_payments", warm_top_payments_window, {"max_limit": 100, "page_size": 5}),
-            ("top_direct_assignments", warm_top_direct_assignments_window, {"max_limit": 100, "page_size": 5}),
-            ("top_by_amount", warm_top_by_amount_window, {"max_limit": 100, "page_size": 5}),
-            ("top_banded_da_receivers", warm_top_banded_da_receivers_window, {"max_limit": 100, "page_size": 5}),
-            ("top_banded_da_givers", warm_top_banded_da_givers_window, {"max_limit": 100, "page_size": 5}),
-        ]:
-            # ── Build sentinel warmup keys so L2 (defer_on_miss) can
-            #     detect that L3 is already working on this view ──────
-            sentinel_keys = _build_warmup_sentinel_keys(
-                view_name, start_str, end_str, kwargs
-            )
-            for key in sentinel_keys:
-                response_cache.set_warmup_status(key, "in_progress")
-
-            try:
-                warm_fn(
-                    start_date_str=start_str,
-                    end_date_str=end_str,
-                    end_date=end,
-                    **kwargs,
-                )
-                for key in sentinel_keys:
-                    response_cache.set_warmup_status(key, "ready")
-                warmed += 1
-            except Exception as exc:
-                for key in sentinel_keys:
-                    response_cache.clear_warmup_status(key)
-                logger.warning(
-                    f"[warm_analytics_cache] Failed to warm {view_name} "
-                    f"for window {label} ({start_str} → {end_str}): {exc}"
-                )
-                errors.append(
-                    {"window": label, "view": view_name, "error": str(exc)}
-                )
+        outcome = _warm_window(label, start, end)
+        warmed += outcome["keys_warmed"]
+        errors.extend(outcome["errors"])
 
     logger.info(
         f"Analytics cache warming complete: {warmed} keys warmed, "
@@ -576,6 +730,46 @@ def warm_analytics_cache(reference_date_str: str | None = None):
         "windows_warmed": len(windows),
         "keys_warmed": warmed,
         "errors": errors,
+    }
+
+
+@shared_task
+@log_task_run(swallow_errors=True)
+def warm_today_window(reference_date_str: str | None = None):
+    """
+    Warm ONLY the ``(today, today)`` window — the hourly post-import warm.
+
+    Intra-day freshness is needed only by the frontend's "today" preset: the
+    week/month/year presets all end at yesterday, so re-warming them hourly is
+    pointless.  ``reference_date_str`` is accepted for chain-signature
+    compatibility but deliberately ignored — today is the point (the hourly
+    window is the local date of the run).
+
+    Args:
+        reference_date_str: Ignored; present so the tail chain can pass it
+            uniformly to every task.
+    """
+    if not feature_flags.is_enabled("ANALYTICS_WARMUP_ENABLED"):
+        logger.debug("ANALYTICS_WARMUP_ENABLED is disabled, skipping cache warmup")
+        return {"status": "skipped", "reason": "feature_flag_disabled"}
+
+    ref = timezone.localdate()
+
+    logger.info(f"Warming today's analytics cache window (ref={ref})")
+
+    outcome = _warm_window("daily", ref, ref)
+
+    logger.info(
+        f"Today-window cache warming complete: {outcome['keys_warmed']} keys "
+        f"warmed, {len(outcome['errors'])} errors (ref={ref})"
+    )
+
+    return {
+        "status": "completed",
+        "reference_date": str(ref),
+        "windows_warmed": 1,
+        "keys_warmed": outcome["keys_warmed"],
+        "errors": outcome["errors"],
     }
 
 
@@ -762,7 +956,12 @@ VERIFY_CANDIDATE_LIMIT = 500
 
 @shared_task
 @log_task_run(swallow_errors=True)
-def verify_high_value_amounts(reference_date_str: str | None = None):
+def verify_high_value_amounts(
+    reference_date_str: str | None = None,
+    imported_since_str: str | None = None,
+    imported_until_str: str | None = None,
+    tail_kind: str = "daily",
+):
     """
     Verify AND correct monetary amounts for decisions exceeding the
     high-value threshold by reading the actual document text.
@@ -794,6 +993,15 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
             run never fans out over the entire historical backlog.  Pass a
             past date to backfill a specific import day.  If omitted,
             defaults to today.
+        imported_since_str: Optional aware-ISO start of the **import-time**
+            window (the hourly path passes ``fetch_started_at``).  Together
+            with ``imported_until_str`` it overrides the reference calendar
+            day for candidate selection; never derived from submission time.
+        imported_until_str: Optional aware-ISO end (exclusive) of the
+            import-time window.
+        tail_kind: Tail shape to dispatch once verification finishes —
+            ``"daily"`` (full rankings/invalidate/warm/notifications chain) or
+            ``"hourly"`` (warm today's window + notifications).
 
     Returns:
         Dict with dispatch summary (candidate count, batch count).
@@ -807,7 +1015,11 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
         # queue it, so rankings / cache warming / notifications would silently
         # stop running if we returned here.
         tail_task_id = _dispatch_post_verification_tail(
-            reference_date_str, reason="amount_verification_disabled"
+            reference_date_str,
+            imported_since_str=imported_since_str,
+            imported_until_str=imported_until_str,
+            tail_kind=tail_kind,
+            reason="amount_verification_disabled",
         )
         return {
             "status": "skipped",
@@ -815,29 +1027,19 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
             "tail_task_id": tail_task_id,
         }
 
-    from datetime import datetime, timedelta
-
-    from django.utils import timezone as dj_timezone
-
     from core.services.amount_verification_service import AmountVerificationService
 
-    ref = (
-        date.fromisoformat(reference_date_str)
-        if reference_date_str
-        else date.today()
+    # Scope to decisions IMPORTED in the window — not issue_date, so old
+    # decisions (e.g. 2021) that were only imported today are included, while
+    # the historical backlog is never re-scanned.  With no explicit window the
+    # reference calendar day is used, preserving daily behaviour byte-for-byte.
+    ref, imported_since, imported_until = _parse_import_window(
+        reference_date_str, imported_since_str, imported_until_str
     )
-
-    # Scope to decisions IMPORTED on the reference day — not issue_date, so
-    # old decisions (e.g. 2021) that were only imported today are included,
-    # while the historical backlog is never re-scanned.
-    imported_since = dj_timezone.make_aware(
-        datetime.combine(ref, datetime.min.time())
-    )
-    imported_until = imported_since + timedelta(days=1)
 
     logger.info(
         f"Starting amount verification + correction batch "
-        f"(decisions imported on {ref})"
+        f"(decisions imported {imported_since} → {imported_until})"
     )
 
     # Resolve the candidate pool ONCE (the heavy aggregate query — now
@@ -860,7 +1062,11 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
             "post-import tail anyway"
         )
         _dispatch_post_verification_tail(
-            reference_date_str, reason="amount_verification_error"
+            reference_date_str,
+            imported_since_str=imported_since_str,
+            imported_until_str=imported_until_str,
+            tail_kind=tail_kind,
+            reason="amount_verification_error",
         )
         raise
 
@@ -874,7 +1080,11 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
         # Nothing to do — run the finalize path inline (no chord needed) so
         # the rest of the post-import chain still executes.
         finalize_amount_verification.run(
-            [], reference_date_str=reference_date_str
+            [],
+            reference_date_str=reference_date_str,
+            imported_since_str=imported_since_str,
+            imported_until_str=imported_until_str,
+            tail_kind=tail_kind,
         )
         return {
             "status": "completed",
@@ -897,7 +1107,12 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
     # NOTE: the body MUST be a mutable signature (.s) — a chord passes the
     # header results as the body's first positional argument, and .si would
     # silently discard them (batch_summaries would arrive empty).
-    body = finalize_amount_verification.s(reference_date_str=reference_date_str)
+    body = finalize_amount_verification.s(
+        reference_date_str=reference_date_str,
+        imported_since_str=imported_since_str,
+        imported_until_str=imported_until_str,
+        tail_kind=tail_kind,
+    )
     # If a header child fails permanently (killed past max_retries, broker
     # loss), Celery marks the chord failed and the body NEVER runs — without
     # this errback, rankings / cache warming / notifications would silently
@@ -905,7 +1120,10 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
     # dispatching the tail is safe.
     body.link_error(
         amount_verification_chord_error_tail.s(
-            reference_date_str=reference_date_str
+            reference_date_str=reference_date_str,
+            imported_since_str=imported_since_str,
+            imported_until_str=imported_until_str,
+            tail_kind=tail_kind,
         )
     )
     try:
@@ -920,7 +1138,11 @@ def verify_high_value_amounts(reference_date_str: str | None = None):
             "post-import tail anyway"
         )
         _dispatch_post_verification_tail(
-            reference_date_str, reason="amount_verification_dispatch_error"
+            reference_date_str,
+            imported_since_str=imported_since_str,
+            imported_until_str=imported_until_str,
+            tail_kind=tail_kind,
+            reason="amount_verification_dispatch_error",
         )
         raise
 
@@ -1035,7 +1257,13 @@ def verify_correct_decision_batch(self, decision_ids: list[int]) -> dict:
 @shared_task
 @log_task_run(swallow_errors=True)
 def amount_verification_chord_error_tail(
-    request, exc, tb, reference_date_str: str | None = None
+    request,
+    exc,
+    tb,
+    reference_date_str: str | None = None,
+    imported_since_str: str | None = None,
+    imported_until_str: str | None = None,
+    tail_kind: str = "daily",
 ):
     """
     Celery errback for the verification chord body.
@@ -1047,16 +1275,20 @@ def amount_verification_chord_error_tail(
     silently skip that import.
 
     Celery invokes errbacks as ``(request, exc, traceback)``; the reference
-    date arrives as a partial kwarg bound when the chord is built.  Running
-    the tail here is safe: the amounts the dead child never corrected simply
-    stay uncorrected until the next import.
+    date, import-time window and tail shape arrive as partial kwargs bound when
+    the chord is built.  Running the tail here is safe: the amounts the dead
+    child never corrected simply stay uncorrected until the next import.
     """
     logger.error(
         f"Amount verification chord FAILED ({exc!r}) — dispatching the "
         f"post-import tail anyway"
     )
     tail_task_id = _dispatch_post_verification_tail(
-        reference_date_str, reason="amount_verification_chord_error"
+        reference_date_str,
+        imported_since_str=imported_since_str,
+        imported_until_str=imported_until_str,
+        tail_kind=tail_kind,
+        reason="amount_verification_chord_error",
     )
     return {
         "status": "tail_dispatched",
@@ -1071,6 +1303,9 @@ def amount_verification_chord_error_tail(
 def finalize_amount_verification(
     batch_summaries: list[dict],
     reference_date_str: str | None = None,
+    imported_since_str: str | None = None,
+    imported_until_str: str | None = None,
+    tail_kind: str = "daily",
 ):
     """
     Chord body: aggregate child results, invalidate caches, run discovery,
@@ -1082,20 +1317,18 @@ def finalize_amount_verification(
     orchestrator queued only ``verify_high_value_amounts`` — so the ordering
     guarantee (amounts corrected BEFORE anything reads them) still holds,
     without any tail task ever being queued twice.
+
+    The import-time window strings (``imported_since_str``/``imported_until_str``)
+    are threaded from ``verify_high_value_amounts`` so the discovery sweep runs
+    on the same window the candidates were selected from; with neither string
+    the reference calendar day is used.  ``tail_kind`` selects the tail shape
+    (``"daily"`` or ``"hourly"``) and does not affect the discovery sweep.
     """
-    from datetime import datetime, timedelta
-
-    from django.utils import timezone as dj_timezone
-
-    ref = (
-        date.fromisoformat(reference_date_str)
-        if reference_date_str
-        else date.today()
+    # Same window resolution as the parent, so candidate selection and the
+    # discovery sweep cannot drift apart.
+    ref, imported_since, imported_until = _parse_import_window(
+        reference_date_str, imported_since_str, imported_until_str
     )
-    imported_since = dj_timezone.make_aware(
-        datetime.combine(ref, datetime.min.time())
-    )
-    imported_until = imported_since + timedelta(days=1)
 
     # ── Aggregate child summaries ─────────────────────────────────────
     totals = {
@@ -1176,7 +1409,11 @@ def finalize_amount_verification(
     # above is individually wrapped so a failure there cannot keep this
     # dispatch from running.
     continuation_task_id = _dispatch_post_verification_tail(
-        reference_date_str, reason="amount_verification_complete"
+        reference_date_str,
+        imported_since_str=imported_since_str,
+        imported_until_str=imported_until_str,
+        tail_kind=tail_kind,
+        reason="amount_verification_complete",
     )
 
     return {
