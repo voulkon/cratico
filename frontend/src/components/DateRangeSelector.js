@@ -153,6 +153,7 @@ const DateRangeSelector = ({ className = '' }) => {
   };
 
   const periods = [
+    { value: 'today', label: t('dateRange.today') || 'Today' },
     { value: 'yesterday', label: t('dateRange.yesterday') || 'Yesterday' },
     { value: 'week', label: t('dateRange.week') || 'Week' },
     { value: 'month', label: t('dateRange.month') || 'Month' },

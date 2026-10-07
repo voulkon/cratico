@@ -16,11 +16,15 @@ export const useDateRange = () => {
   return context;
 };
 
+// Periods the selector/context accepts.  'today' is enabled so first views
+// of today's data hit the window the backend warms hourly (T07b/T14).
+export const validPeriods = ['today', 'yesterday', 'week', 'month', 'year', 'custom'];
+
 // Helper function to calculate date ranges
-const calculateDateRange = (period) => {
-  // Base is YESTERDAY — no intraday imports yet, so the most recent
-  // complete data is always the previous day.  All windows (week, month,
-  // year) end at yesterday.  The 'today' case explicitly moves forward.
+export const calculateDateRange = (period) => {
+  // Base is YESTERDAY.  Week/month/year windows end at yesterday because
+  // their backend cache windows are only re-warmed daily; the 'today' case
+  // moves both bounds forward so it matches the window warmed hourly.
   const end = new Date();
   end.setDate(end.getDate() - 1);
   end.setHours(23, 59, 59, 999);
@@ -29,7 +33,7 @@ const calculateDateRange = (period) => {
 
   switch (period) {
     case 'today':
-      // Override: move both to today (for future intraday imports)
+      // Intraday window: move both bounds forward to today.
       start.setDate(start.getDate() + 1);
       end.setDate(end.getDate() + 1);
       break;
@@ -63,8 +67,6 @@ export const DateRangeProvider = ({ children, defaultPeriod = 'week' }) => {
 
   // Read initial period from URL (?period=today) falling back to defaultPeriod
   const urlPeriod = searchParams.get('period');
-  // const validPeriods = ['yesterday', 'today', 'week', 'month', 'year', 'custom'];
-  const validPeriods = ['yesterday', 'week', 'month', 'year', 'custom'];
   const initialPeriod =
     urlPeriod && validPeriods.includes(urlPeriod) ? urlPeriod : defaultPeriod;
 
