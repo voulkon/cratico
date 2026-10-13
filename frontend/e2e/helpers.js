@@ -1,3 +1,5 @@
+import { randomInt } from 'node:crypto';
+
 /**
  * Shared helpers for the auth E2E specs.
  *
@@ -43,8 +45,40 @@ export function anonApiGet(request, ip, path) {
 
 export const API_URL = process.env.E2E_API_URL || process.env.E2E_BASE_URL || 'http://localhost';
 
+const PASSWORD_POOLS = [
+  'abcdefghijklmnopqrstuvwxyz',
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+  '0123456789',
+  '!@#$%^&*',
+];
+
+/**
+ * Return a random password with lower, upper, digit and symbol characters.
+ * Comfortably longer than the backend's MIN_PASSWORD_LENGTH and mixed across
+ * character classes, so it passes the strength checks on any stack. Each call
+ * returns a fresh value; callers that must reuse the exact password (register
+ * then log in) should share one result, as TEST_PASSWORD does.
+ */
+export function strongPassword(length = 16) {
+  const size = Math.max(length, 12);
+  const alphabet = PASSWORD_POOLS.join('');
+  for (;;) {
+    const candidate = Array.from(
+      { length: size },
+      () => alphabet[randomInt(alphabet.length)],
+    ).join('');
+    if (
+      PASSWORD_POOLS.every((pool) =>
+        [...candidate].some((char) => pool.includes(char)),
+      )
+    ) {
+      return candidate;
+    }
+  }
+}
+
 export const TEST_EMAIL = process.env.E2E_EMAIL || `e2e-${Date.now()}@example.com`;
-export const TEST_PASSWORD = process.env.E2E_PASSWORD || 'E2e-Sup3r-Secret!';
+export const TEST_PASSWORD = process.env.E2E_PASSWORD || strongPassword();
 
 /** Register a user via the API. Idempotent-ish: 400 on duplicate is fine. */
 export async function registerUser(request, email = TEST_EMAIL, password = TEST_PASSWORD) {
