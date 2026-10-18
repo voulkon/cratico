@@ -112,6 +112,50 @@ def build_decision_card_context(decision_ids):
     }
 
 
+def build_one_liners_by_decision(decision_ids):
+    """
+    Bulk-fetch the default per-decision one-liner (the latest-COMPLETED
+    ``DecisionOneLiner`` attempt, mirroring ``default_for_decision``) for a
+    list of decision IDs, keyed by decision id.  ONE query — list endpoints
+    render the one-liner under the card title with no N+1.
+
+    Decisions without a completed attempt are simply absent (the frontend
+    renders nothing).
+    """
+    from core.models.decision_one_liner import DecisionOneLiner, OneLinerStatus
+
+    decision_ids = list(decision_ids)
+    if not decision_ids:
+        return {}
+
+    rows = (
+        DecisionOneLiner.objects.filter(
+            decision_id__in=decision_ids,
+            status=OneLinerStatus.COMPLETED,
+            one_liner__isnull=False,
+        )
+        .exclude(one_liner__exact="")
+        .select_related("config", "extraction")
+        .order_by("decision_id", "-completed_at", "-attempt", "-id")
+    )
+
+    one_liners_by_decision: dict = {}
+    for row in rows:
+        if row.decision_id in one_liners_by_decision:
+            continue  # first row per decision = latest completed
+        one_liners_by_decision[row.decision_id] = {
+            "one_liner": row.one_liner,
+            "model": row.config.model,
+            "prompt_kind": row.config.prompt_kind,
+            "extraction_provider": (
+                row.extraction.extraction_provider if row.extraction else None
+            ),
+            "attempt": row.attempt,
+            "completed_at": row.completed_at,
+        }
+    return one_liners_by_decision
+
+
 # ---------------------------------------------------------------------------
 # paginate_decisions  (view=decisions)
 # ---------------------------------------------------------------------------
@@ -166,6 +210,11 @@ def paginate_decisions(
     decision_ids = [d.id for d in page_obj]
     relationships_by_decision = build_entity_relationships_by_decision(decision_ids)
 
+    # ── Batch-fetch per-decision one-liners (eliminates N+1) ───────
+    # One bounded query per page; rendered at the top level of each item
+    # dict so DecisionCard shows it without an extra fetch.
+    one_liners_by_decision = build_one_liners_by_decision(decision_ids)
+
     # ── Batch-fetch decisions whose amount is not money ────────────
     # Their recorded amount is a counterpart AFM (ΑΦΜ) or a budget KAE,
     # excluded from every aggregation by the facet layer.  One bounded query
@@ -205,6 +254,9 @@ def paginate_decisions(
                 "uid": decision.organization.uid,
                 "label": decision.organization.label,
             }
+        decision_data["one_liner"] = (
+            one_liners_by_decision.get(decision.id, {}) or {}
+        ).get("one_liner")
         results.append(decision_data)
 
     result = {

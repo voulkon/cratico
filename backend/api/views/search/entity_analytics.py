@@ -525,6 +525,11 @@ def entity_decisions_api_dev(request, entity_type, entity_id):
                 "total_amount": float(rel.total_amount) if rel.total_amount else 0,
             })
 
+        # ── Batch-fetch per-decision one-liners (eliminates N+1) ───────────
+        from core.services.decision_projections import build_one_liners_by_decision
+
+        one_liners_by_decision = build_one_liners_by_decision(decision_ids)
+
         # Serialize results with entity data embedded
         results = []
         for decision in page_obj:
@@ -537,6 +542,9 @@ def entity_decisions_api_dev(request, entity_type, entity_id):
                     "uid": decision.organization.uid,
                     "label": decision.organization.label,
                 }
+            decision_data["one_liner"] = (
+                one_liners_by_decision.get(decision.id, {}) or {}
+            ).get("one_liner")
             results.append(decision_data)
 
         response_data = {
