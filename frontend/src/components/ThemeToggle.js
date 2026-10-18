@@ -1,8 +1,16 @@
 import React from 'react';
+import { Sun, Moon, Monitor } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+
+const THEME_ICONS = {
+  light: Sun,
+  dark: Moon,
+  system: Monitor
+};
 
 const ThemeToggle = () => {
   const { theme, toggleTheme } = useTheme();
+  const Icon = THEME_ICONS[theme] || Sun;
 
   return (
     <button
@@ -18,11 +26,13 @@ const ThemeToggle = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        transition: 'all 0.3s ease'
+        transition: 'all 0.3s ease',
+        color: 'var(--text-color)'
       }}
-      aria-label="Toggle dark mode"
+      aria-label={`Theme: ${theme}. Click to change`}
+      title={`Theme: ${theme}. Click to cycle light → dark → system`}
     >
-      {theme === 'light' ? '🌙' : '☀️'}
+      <Icon size={16} />
     </button>
   );
 };

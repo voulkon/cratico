@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { SunMoon, Palette, Check } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import './ThemeSwitcher.css';
 
@@ -10,6 +11,7 @@ const ThemeSwitcher = ({ compact = false }) => {
     palettes,
     changeTheme,
     changePalette,
+    isDark,
     currentThemeName,
     currentPaletteName
   } = useTheme();
@@ -33,14 +35,14 @@ const ThemeSwitcher = ({ compact = false }) => {
 
   const getCurrentThemeIcon = () => {
     const currentTheme = themes.find(t => t.id === theme);
-    return currentTheme ? currentTheme.icon : '🎨';
+    const Icon = currentTheme ? currentTheme.icon : Palette;
+    return <Icon size={14} />;
   };
 
   const getCurrentPaletteColor = () => {
     const currentPalette = palettes.find(p => p.id === palette);
     if (!currentPalette) return '#4299E1';
-    const isDarkTheme = theme === 'dark' || theme === 'solarized-dark';
-    return isDarkTheme ? currentPalette.darkColor : currentPalette.color;
+    return isDark ? currentPalette.darkColor : currentPalette.color;
   };
 
   if (compact) {
@@ -65,7 +67,7 @@ const ThemeSwitcher = ({ compact = false }) => {
           <div className="theme-dropdown">
             <div className="theme-section">
               <h4>
-                <span className="section-icon">🌓</span>
+                <SunMoon size={14} className="section-icon" />
                 Mode
               </h4>
               <div className="theme-buttons">
@@ -79,7 +81,7 @@ const ThemeSwitcher = ({ compact = false }) => {
                     className={`theme-button ${theme === t.id ? 'active' : ''}`}
                     title={`Switch to ${t.name} mode`}
                   >
-                    <span className="theme-icon">{t.icon}</span>
+                    <span className="theme-icon"><t.icon size={14} /></span>
                     <span className="theme-name">{t.name}</span>
                   </button>
                 ))}
@@ -88,7 +90,7 @@ const ThemeSwitcher = ({ compact = false }) => {
 
             <div className="theme-section">
               <h4>
-                <span className="section-icon">🎨</span>
+                <Palette size={14} className="section-icon" />
                 Colors
               </h4>
               <div className="palette-grid">
@@ -103,10 +105,10 @@ const ThemeSwitcher = ({ compact = false }) => {
                     className={`palette-button ${palette === p.id ? 'active' : ''}`}
                     title={`${p.name} color palette`}
                     style={{
-                      backgroundColor: (theme === 'dark' || theme === 'solarized-dark') ? p.darkColor : p.color
+                      backgroundColor: isDark ? p.darkColor : p.color
                     }}
                   >
-                    {palette === p.id && <span className="check-mark">✓</span>}
+                    {palette === p.id && <span className="check-mark"><Check size={10} /></span>}
                     <span className="palette-tooltip">{p.name}</span>
                   </button>
                 ))}
@@ -127,7 +129,7 @@ const ThemeSwitcher = ({ compact = false }) => {
   return (
     <div className="theme-switcher">
       <div className="theme-switcher-header">
-        <h3 className="theme-switcher-title">🎨 Customize Appearance</h3>
+          <h3 className="theme-switcher-title"><Palette size={16} className="section-icon" /> Customize Appearance</h3>
         <div className="current-theme-info">
           Current: <strong>{currentThemeName} {currentPaletteName}</strong>
         </div>
@@ -143,7 +145,7 @@ const ThemeSwitcher = ({ compact = false }) => {
                 onClick={() => changeTheme(t.id)}
                 className={`theme-button ${theme === t.id ? 'active' : ''}`}
               >
-                <span className="theme-icon">{t.icon}</span>
+                <span className="theme-icon"><t.icon size={14} /></span>
                 <span className="theme-name">{t.name}</span>
               </button>
             ))}
@@ -158,15 +160,15 @@ const ThemeSwitcher = ({ compact = false }) => {
                 key={p.id}
                 onClick={() => changePalette(p.id)}
                 className={`palette-button ${palette === p.id ? 'active' : ''}`}
-                title={`${p.name} - ${(theme === 'dark' || theme === 'solarized-dark') ? 'Dark' : 'Light'} Mode`}
+                title={`${p.name} - ${isDark ? 'Dark' : 'Light'} Mode`}
               >
                 <div
                   className="palette-color-preview"
                   style={{
-                    backgroundColor: (theme === 'dark' || theme === 'solarized-dark') ? p.darkColor : p.color
+                    backgroundColor: isDark ? p.darkColor : p.color
                   }}
                 >
-                  {palette === p.id && <span className="check-mark">✓</span>}
+                  {palette === p.id && <span className="check-mark"><Check size={10} /></span>}
                 </div>
                 <span className="palette-name">{p.name}</span>
               </button>

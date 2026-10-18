@@ -353,12 +353,42 @@
 }
 
 /* Theme Slider Track */
+.theme-system-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  width: 100%;
+  background: none;
+  border: none;
+  padding: var(--spacing-sm) 0 0;
+  color: var(--muted-text);
+  font-size: var(--font-sm);
+  cursor: pointer;
+  text-align: center;
+  transition: color 0.2s ease;
+}
+
+.theme-system-toggle:hover {
+  color: var(--text-color);
+}
+
+.theme-system-toggle.active {
+  color: var(--palette-primary);
+  font-weight: var(--font-medium);
+}
+
 .theme-slider-track {
   display: flex;
   align-items: center;
   gap: 8px;
   cursor: pointer;
   user-select: none;
+}
+
+/* Dimmed while system mode drives the theme */
+.theme-slider-track.auto {
+  opacity: 0.55;
 }
 
 .theme-slider-icon-left,
