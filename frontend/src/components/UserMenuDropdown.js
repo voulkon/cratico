@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { Moon, Sun, LogOut, LogIn, Sparkles } from 'lucide-react';
+import { Moon, Sun, LogOut, LogIn, Sparkles, Check, Monitor } from 'lucide-react';
 // Static import is safe: <SignOutButton> is only RENDERED when a Clerk
 // session exists (isClerkAuth), which implies ClerkProvider is mounted in
 // index.js. Sign-in goes through the unified DjangoLoginForm modal instead,
@@ -17,13 +17,22 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
   const { t, language, switchLanguage, availableLanguages } = useTranslation();
   const {
     theme,
+    resolvedTheme,
     palette,
     themes,
     palettes,
     changeTheme,
-    changePalette
+    changePalette,
+    isDark
   } = useTheme();
   const { user, isSignedIn, isClerkAuth, signOut } = useAuth();
+
+  // The slider is a lightness spectrum (light → solarized-light →
+  // solarized-dark → dark). "System" is not on that spectrum, so it gets its
+  // own toggle; while system mode is active the thumb rests at the RESOLVED
+  // theme's position and the rail is dimmed. Interacting with the slider
+  // implicitly exits system mode (changeTheme with a concrete id).
+  const spectrumThemes = themes.filter(t => t.id !== 'system');
 
   const handleLanguageChange = (langCode) => {
     switchLanguage(langCode);
@@ -35,17 +44,17 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
 
   const themeTrackRef = useRef(null);
 
-  const themeIndex = themes.findIndex(t => t.id === theme);
+  const themeIndex = spectrumThemes.findIndex(t => t.id === resolvedTheme);
 
   const handleThemeTrackClick = useCallback((e) => {
     if (!themeTrackRef.current) return;
     const rect = themeTrackRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const ratio = x / rect.width;
-    const index = Math.round(ratio * (themes.length - 1));
-    const clampedIndex = Math.max(0, Math.min(themes.length - 1, index));
-    changeTheme(themes[clampedIndex].id);
-  }, [themes, changeTheme]);
+    const index = Math.round(ratio * (spectrumThemes.length - 1));
+    const clampedIndex = Math.max(0, Math.min(spectrumThemes.length - 1, index));
+    changeTheme(spectrumThemes[clampedIndex].id);
+  }, [spectrumThemes, changeTheme]);
 
   const handleThemeThumbDrag = useCallback((e) => {
     e.preventDefault();
@@ -56,9 +65,9 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
       const clientX = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
       const x = clientX - rect.left;
       const ratio = x / rect.width;
-      const index = Math.round(ratio * (themes.length - 1));
-      const clampedIndex = Math.max(0, Math.min(themes.length - 1, index));
-      changeTheme(themes[clampedIndex].id);
+      const index = Math.round(ratio * (spectrumThemes.length - 1));
+      const clampedIndex = Math.max(0, Math.min(spectrumThemes.length - 1, index));
+      changeTheme(spectrumThemes[clampedIndex].id);
     };
 
     const onUp = () => {
@@ -72,7 +81,7 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
     document.addEventListener('mouseup', onUp);
     document.addEventListener('touchmove', onMove);
     document.addEventListener('touchend', onUp);
-  }, [themes, changeTheme]);
+  }, [spectrumThemes, changeTheme]);
 
   return (
     <div className="user-menu-dropdown">
@@ -113,31 +122,41 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
 
       <div className="menu-divider"></div>
 
-      {/* Theme Mode Section - Draggable slider with sun/moon */}
+      {/* Theme Mode Section - draggable lightness slider + System toggle */}
       <div className="menu-section">
         <div
-          className="theme-slider-track"
+          className={`theme-slider-track ${theme === 'system' ? 'auto' : ''}`}
           ref={themeTrackRef}
           onClick={handleThemeTrackClick}
         >
           <Sun size={14} className="theme-slider-icon-left" />
           <div className="theme-slider-rail">
-            {themes.map((t, i) => (
+            {spectrumThemes.map((t, i) => (
               <div
                 key={t.id}
                 className={`theme-slider-stop ${i === themeIndex ? 'active' : ''}`}
-                style={{ left: `${(i / (themes.length - 1)) * 100}%` }}
+                style={{ left: `${(i / (spectrumThemes.length - 1)) * 100}%` }}
+                title={t.name}
               />
             ))}
             <div
               className="theme-slider-thumb"
-              style={{ left: `${(themeIndex / (themes.length - 1)) * 100}%` }}
+              style={{ left: `${(themeIndex / (spectrumThemes.length - 1)) * 100}%` }}
               onMouseDown={handleThemeThumbDrag}
               onTouchStart={handleThemeThumbDrag}
             />
           </div>
           <Moon size={14} className="theme-slider-icon-right" />
         </div>
+        <button
+          type="button"
+          className={`theme-system-toggle ${theme === 'system' ? 'active' : ''}`}
+          onClick={() => changeTheme(theme === 'system' ? resolvedTheme : 'system')}
+          title={t('common.systemTheme')}
+        >
+          <Monitor size={14} />
+          <span>{t('common.systemTheme')}</span>
+        </button>
       </div>
 
       <div className="menu-divider"></div>
@@ -152,10 +171,10 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
               onClick={() => handlePaletteChange(paletteOption.id)}
               title={paletteOption.name}
               style={{
-                backgroundColor: (theme === 'dark' || theme === 'solarized-dark') ? paletteOption.darkColor : paletteOption.color
+                backgroundColor: isDark ? paletteOption.darkColor : paletteOption.color
               }}
             >
-              {paletteOption.id === palette && <span className="palette-check">✓</span>}
+              {paletteOption.id === palette && <span className="palette-check"><Check size={10} /></span>}
             </button>
           ))}
         </div>

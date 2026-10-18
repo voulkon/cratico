@@ -69,6 +69,19 @@
   border-radius: var(--radius-sm);
 }
 
+/* ---------- AI one-liner (front and center under the title) ---------- */
+.decision-one-liner {
+  margin: calc(-1 * var(--spacing-xs)) 0 var(--spacing-md);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-sm);
+  line-height: 1.45;
+  color: var(--text-color);
+  background-color: var(--palette-bg-subtle);
+  border-left: 3px solid var(--palette-primary);
+  border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
+}
+
 /* ---------- Header info: date + type (centered) ---------- */
 .decision-header-info {
   display: flex;

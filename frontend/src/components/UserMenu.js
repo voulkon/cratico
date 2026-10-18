@@ -9,14 +9,13 @@ import './UserMenu.css';
 
 const UserMenu = ({ isOpen, onToggle }) => {
   const [showLoginForm, setShowLoginForm] = useState(false);
-  const { palette, palettes, theme } = useTheme();
+  const { palette, palettes, isDark } = useTheme();
   const { user, isSignedIn, isClerkAuth } = useAuth();
 
   const getCurrentPaletteColor = () => {
     const currentPalette = palettes.find(p => p.id === palette);
     if (!currentPalette) return '#4299E1';
-    const isDarkTheme = theme === 'dark' || theme === 'solarized-dark';
-    return isDarkTheme ? currentPalette.darkColor : currentPalette.color;
+    return isDark ? currentPalette.darkColor : currentPalette.color;
   };
 
   const handleToggleMenu = () => {

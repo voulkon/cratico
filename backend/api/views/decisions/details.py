@@ -75,6 +75,40 @@ def decision_detail(request, decision_ref):
         except DecisionAIAnalysis.DoesNotExist:
             ai_analyses_data = []
 
+        # One-liner attempts history (all lineages, newest first) + the
+        # display default (latest COMPLETED across lineages)
+        from core.models.decision_one_liner import DecisionOneLiner
+
+        def _serialize_one_liner(row):
+            return {
+                "id": row.id,
+                "attempt": row.attempt,
+                "status": row.status,
+                "one_liner": row.one_liner,
+                "model": row.config.model,
+                "prompt_kind": row.config.prompt_kind,
+                "extraction_provider": (
+                    row.extraction.extraction_provider if row.extraction else None
+                ),
+                "extraction_id": row.extraction_id,
+                "cost_usd": str(row.cost_usd) if row.cost_usd else None,
+                "input_tokens": row.input_tokens,
+                "output_tokens": row.output_tokens,
+                "error_message": row.error_message,
+                "completed_at": row.completed_at,
+            }
+
+        one_liner_rows = (
+            DecisionOneLiner.objects.filter(decision=decision)
+            .select_related("config", "extraction")
+            .order_by("-created_at", "-id")
+        )
+        one_liners_data = [_serialize_one_liner(row) for row in one_liner_rows]
+        default_row = DecisionOneLiner.default_for_decision(decision.id)
+        default_one_liner = (
+            _serialize_one_liner(default_row) if default_row else None
+        )
+
         # Serialize decision data
         # ── Single pass over DecisionAmountField ────────────────────────
         # The per-decision amount-field set is tiny (a handful of rows), so
@@ -150,6 +184,8 @@ def decision_detail(request, decision_ref):
             ),
             "has_document_content": has_document_content,
             "ai_analyses": ai_analyses_data,
+            "one_liners": one_liners_data,
+            "default_one_liner": default_one_liner,
             "warnings": decision.warnings,
             "has_private_data": decision.has_private_data,
             "organization": (

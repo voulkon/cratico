@@ -129,6 +129,7 @@
     "signIn": "Sign In",
     "signOut": "Sign Out",
     "themeMode": "Theme Mode",
+    "systemTheme": "System",
     "colorPalette": "Color Palette",
     "goBack": "Go Back",
     "noAmount" : "No Amount",
@@ -239,7 +240,8 @@
     "hideModelPicker": "Use Default",
     "defaultModel": "Default",
     "expand": "Expand",
-    "collapse": "Collapse"
+    "collapse": "Collapse",
+    "oneLiner": "AI Summary"
   },
   "personPage": {
     "errorTitle": "Error Loading Person",

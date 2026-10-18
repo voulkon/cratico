@@ -10,14 +10,21 @@ Config:
     max_tokens: optional per-step override — falls back to DEFAULT_MAX_TOKENS
     map_over_items: true (default) — if true, run once per decision;
                     if false, run once on the joined text
+    cache_one_liners: false (default) — map mode only: read/write the shared
+                    per-decision one-liner cache (``DecisionOneLiner``).
+                    Requires ``ExtractStep`` provenance metadata.
+    prompt_kind: "batch_one_liner" (default with cache) — lineage slug stored
+                    on the ``OneLinerConfig`` row
 """
 
 from decimal import Decimal
 
 from core.ai_services.factory import get_provider
+from core.ai_services.summary_prompts import BATCH_ONE_LINER_PROMPT_KIND
 from core.models.pipeline import PipelineStepRun, RunStatus
 from core.services.cost_ledger_service import CostLedgerService
 from core.services.pipeline_engine import PipelineContext
+from django.utils import timezone
 from loguru import logger
 
 # Code-level default for max_tokens.  Only persist an override in step config
@@ -67,14 +74,67 @@ class AICallStep:
         total_cost = Decimal("0")
         rendered_prompts: list[str] = []  # collect for input_preview
 
+        # One-liner cache setup — map mode only; single mode ignores the flag.
+        cache_mode = bool(config.get("cache_one_liners")) and map_over_items
+        ol_config = None
+        ol_stats = None
+        item_extractions = {}
+        decisions_by_item = {}
+        if cache_mode and context.per_item_outputs:
+            ol_config = self._one_liner_config(
+                config, prompt_template, system_prompt,
+                provider_name, model_name, temperature, max_tokens,
+            )
+            item_extractions = context.metadata.get("item_extractions") or {}
+            decisions_by_item = {
+                str(d.pk): d for d in context.decisions if not isinstance(d, dict)
+            }
+            ol_stats = context.metadata.setdefault(
+                "one_liner_cache", {"hits": 0, "misses": 0}
+            )
+            # Explicit regeneration: bypass the hit lookup and always mint a
+            # fresh attempt under the *current* circumstances.
+            force_attempt = bool(context.metadata.get("one_liner_force"))
+        else:
+            force_attempt = False
+
         if map_over_items and context.per_item_outputs:
             # Map mode: one call per item
             results = {}
             for item_id, text in context.per_item_outputs.items():
+                decision = decisions_by_item.get(item_id) if ol_config else None
+                extraction_id = item_extractions.get(item_id) if ol_config else None
+
+                # Cache hit: reuse the stored one-liner at zero cost.
+                if ol_config is not None and not force_attempt:
+                    cached = self._one_liner_cache_get(
+                        decision, ol_config, extraction_id
+                    )
+                    if cached is not None:
+                        results[item_id] = cached.one_liner
+                        ol_stats["hits"] += 1
+                        continue
+
                 rendered_prompt = self._render_prompt(
                     prompt_template, text, context, step
                 )
                 rendered_prompts.append(rendered_prompt)
+
+                # Claim/adopt the attempt row BEFORE invoking so failures are
+                # recorded on it (and concurrent workers never share one).
+                # Dict/non-numeric item ids are not cacheable — they bypass
+                # the cache (and its counters) exactly as today.
+                cacheable = ol_config is not None and decision is not None
+                row = (
+                    self._one_liner_claim(
+                        item_id, decision, ol_config, extraction_id, context
+                    )
+                    if cacheable
+                    else None
+                )
+                if cacheable:
+                    ol_stats["misses"] += 1
+
                 result = provider.invoke(
                     text=rendered_prompt,
                     prompt=system_prompt,
@@ -87,10 +147,14 @@ class AICallStep:
                 # an empty summary silently poisons the downstream merge step.
                 if not result.get("success") or not (result.get("text") or "").strip():
                     error = result.get("error") or "empty response text"
+                    if row is not None:
+                        self._one_liner_mark_failed(row, error)
                     logger.error(f"AICallStep failed for item {item_id}: {error}")
                     raise RuntimeError(f"AI call failed for item {item_id}: {error}")
 
                 results[item_id] = result.get("text", "")
+                if row is not None:
+                    self._one_liner_store(row, result, run)
                 total_input += result["input_tokens"]
                 total_output += result["output_tokens"]
                 total_cost += result.get("actual_cost_usd", Decimal("0"))
@@ -135,6 +199,107 @@ class AICallStep:
             f"AICallStep: provider={provider_name} model={model_name} "
             f"in={total_input} out={total_output} cost=${total_cost:.6f}"
         )
+
+    # ------------------------------------------------------------------
+    # One-liner cache helpers (map mode + ``cache_one_liners`` flag only)
+    # ------------------------------------------------------------------
+    def _one_liner_config(
+        self, config, prompt_template, system_prompt,
+        provider_name, model_name, temperature, max_tokens,
+    ):
+        """Resolve (and get-or-create) the ``OneLinerConfig`` row for this
+        step's *resolved* generation circumstances."""
+        from core.models.one_liner_config import OneLinerConfig
+
+        return OneLinerConfig.get_or_create_for(
+            prompt_kind=config.get("prompt_kind") or BATCH_ONE_LINER_PROMPT_KIND,
+            system_prompt=system_prompt,
+            prompt_template=prompt_template,
+            provider=provider_name,
+            model=model_name,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+    def _one_liner_cache_get(self, decision, ol_config, extraction_id):
+        """Return the max-attempt COMPLETED row of this lineage, or ``None``."""
+        if decision is None:
+            return None
+        from core.models.decision_one_liner import DecisionOneLiner
+
+        return DecisionOneLiner.latest_completed(
+            decision=decision, config=ol_config, extraction_id=extraction_id
+        )
+
+    def _one_liner_claim(self, item_id, decision, ol_config, extraction_id, context):
+        """Adopt → claim → mint an attempt row for a cache miss.
+
+        - Adoption (``context.metadata["adopt_one_liner_rows"]``): internal
+          Celery retries overwrite the same row in place — retry noise must
+          not mint attempts.
+        - Claim: atomically flip a leftover PENDING row of this lineage to
+          RUNNING (e.g. created by the explicit one-liner endpoint).
+        - Mint: our own new attempt — a worker that loses the claim never
+          blocks; at worst one duplicate provider call.
+        Returns ``None`` when the item cannot be cached (dict/non-numeric
+        item ids bypass the cache exactly as today)."""
+        if decision is None:
+            return None
+        from core.models.decision_one_liner import (
+            DecisionOneLiner,
+            OneLinerStatus,
+        )
+
+        adopted_id = (context.metadata.get("adopt_one_liner_rows") or {}).get(
+            item_id
+        )
+        if adopted_id:
+            row = DecisionOneLiner.objects.filter(
+                pk=adopted_id, decision=decision, config=ol_config
+            ).first()
+            if row is not None and row.status in (
+                OneLinerStatus.PENDING,
+                OneLinerStatus.RUNNING,
+            ):
+                row.status = OneLinerStatus.RUNNING
+                row.save(update_fields=["status", "updated_at"])
+                return row
+
+        row = DecisionOneLiner.claim_pending(
+            decision=decision, config=ol_config, extraction_id=extraction_id
+        )
+        if row is not None:
+            return row
+
+        return DecisionOneLiner.new_attempt(
+            decision=decision,
+            config=ol_config,
+            extraction_id=extraction_id,
+            status=OneLinerStatus.RUNNING,
+        )
+
+    def _one_liner_store(self, row, result, run):
+        """Persist a successful generation on the attempt row."""
+        from core.models.decision_one_liner import OneLinerStatus
+
+        row.one_liner = result.get("text", "")
+        row.status = OneLinerStatus.COMPLETED
+        row.input_tokens = result.get("input_tokens")
+        row.output_tokens = result.get("output_tokens")
+        row.cost_usd = result.get("actual_cost_usd")
+        row.latency_ms = result.get("latency_ms")
+        row.billed_to = run.billed_to
+        row.pipeline_run = run
+        row.completed_at = timezone.now()
+        row.save()
+
+    def _one_liner_mark_failed(self, row, error):
+        """Record the failure on the attempt row, then let the step fail."""
+        from core.models.decision_one_liner import OneLinerStatus
+
+        row.status = OneLinerStatus.FAILED
+        row.error_message = (error or "")[:500]
+        row.save(update_fields=["status", "error_message", "updated_at"])
 
     # ------------------------------------------------------------------
     # Helpers

@@ -10,6 +10,8 @@ Run explicitly (api/tests is not in pytest.ini testpaths):
     cd backend && pytest api/tests/test_django_auth_views.py -v
 """
 
+import secrets
+import string
 import uuid
 
 import pytest
@@ -20,6 +22,32 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
+
+
+def generate_strong_password(length=16):
+    """Return a random password with lower, upper, digit and symbol characters.
+
+    It is comfortably longer than ``MIN_PASSWORD_LENGTH`` and mixes character
+    classes, so it passes the strength checks regardless of deployment. Each
+    call returns a fresh value; callers that must reuse the exact same password
+    (e.g. register then log in) should share one result.
+    """
+    pools = (
+        string.ascii_lowercase,
+        string.ascii_uppercase,
+        string.digits,
+        "!@#$%^&*",
+    )
+    alphabet = "".join(pools)
+    while True:
+        candidate = "".join(secrets.choice(alphabet) for _ in range(max(length, 12)))
+        if all(any(char in pool for char in candidate) for pool in pools):
+            return candidate
+
+
+# One generated password shared across the module so register/login pairs and
+# pre-seeded users all agree on the same value.
+STRONG_PASSWORD = generate_strong_password()
 
 REGISTER_URL = "/api/auth/register/"
 LOGIN_URL = "/api/auth/login/"
@@ -60,7 +88,7 @@ class TestRegister:
         response = _post(
             api_client,
             REGISTER_URL,
-            {"email": "newuser@example.com", "password": "Str0ngPassw0rd!"},
+            {"email": "newuser@example.com", "password": STRONG_PASSWORD},
         )
         assert response.status_code == 201
         payload = response.json()
@@ -77,7 +105,7 @@ class TestRegister:
             REGISTER_URL,
             {
                 "email": "named@example.com",
-                "password": "Str0ngPassw0rd!",
+                "password": STRONG_PASSWORD,
                 "username": "named",
             },
         )
@@ -89,7 +117,7 @@ class TestRegister:
         response = _post(
             api_client,
             REGISTER_URL,
-            {"email": "verifyme@example.com", "password": "Str0ngPassw0rd!"},
+            {"email": "verifyme@example.com", "password": STRONG_PASSWORD},
         )
         assert response.status_code == 201
         payload = response.json()
@@ -110,12 +138,12 @@ class TestRegister:
         _post(
             api_client,
             REGISTER_URL,
-            {"email": "dup@example.com", "password": "Str0ngPassw0rd!"},
+            {"email": "dup@example.com", "password": STRONG_PASSWORD},
         )
         response = _post(
             api_client,
             REGISTER_URL,
-            {"email": "dup@example.com", "password": "Str0ngPassw0rd!"},
+            {"email": "dup@example.com", "password": STRONG_PASSWORD},
         )
         assert response.status_code == 400
         assert "already exists" in response.json()["error"]
@@ -129,7 +157,7 @@ class TestRegister:
             response = _post(
                 api_client,
                 REGISTER_URL,
-                {"email": "mailer@example.com", "password": "Str0ngPassw0rd!"},
+                {"email": "mailer@example.com", "password": STRONG_PASSWORD},
             )
         assert response.status_code == 201
         assert response.json()["email_sent"] is True
@@ -144,7 +172,7 @@ class TestRegister:
             response = _post(
                 api_client,
                 REGISTER_URL,
-                {"email": "mailerfail@example.com", "password": "Str0ngPassw0rd!"},
+                {"email": "mailerfail@example.com", "password": STRONG_PASSWORD},
             )
         assert response.status_code == 201
         assert response.json()["email_sent"] is False
@@ -157,13 +185,13 @@ class TestRegister:
 
 @pytest.mark.django_db
 class TestLogin:
-    def _register(self, api_client, email, password="Str0ngPassw0rd!"):
+    def _register(self, api_client, email, password=STRONG_PASSWORD):
         return _post(api_client, REGISTER_URL, {"email": email, "password": password})
 
     def test_login_success_returns_token(self, api_client):
         self._register(api_client, "login@example.com")
         response = _post(
-            api_client, LOGIN_URL, {"email": "login@example.com", "password": "Str0ngPassw0rd!"}
+            api_client, LOGIN_URL, {"email": "login@example.com", "password": STRONG_PASSWORD}
         )
         assert response.status_code == 200
         assert response.json()["token"]
@@ -190,7 +218,7 @@ class TestLogin:
         user = User.objects.create(
             username="unverified",
             email="unverified@example.com",
-            password="Str0ngPassw0rd!",
+            password=STRONG_PASSWORD,
             is_active=False,
             email_verified=False,
             email_verification_token=uuid.uuid4(),
@@ -201,7 +229,7 @@ class TestLogin:
             response = _post(
                 api_client,
                 LOGIN_URL,
-                {"email": "unverified@example.com", "password": "Str0ngPassw0rd!"},
+                {"email": "unverified@example.com", "password": STRONG_PASSWORD},
             )
         assert response.status_code == 403
         assert response.json()["verification_required"] is True
@@ -213,7 +241,7 @@ class TestLogin:
         user = User.objects.create(
             username="disabled",
             email="disabled@example.com",
-            password="Str0ngPassw0rd!",
+            password=STRONG_PASSWORD,
             is_active=False,
             email_verified=False,
             email_verification_token=None,
@@ -225,7 +253,7 @@ class TestLogin:
             response = _post(
                 api_client,
                 LOGIN_URL,
-                {"email": "disabled@example.com", "password": "Str0ngPassw0rd!"},
+                {"email": "disabled@example.com", "password": STRONG_PASSWORD},
             )
         assert response.status_code == 403
         assert "disabled" in response.json()["error"]
@@ -385,11 +413,11 @@ class TestPasswordReset:
         response = _post(
             api_client,
             RESET_PASSWORD_URL,
-            {"token": str(user.password_reset_token), "new_password": "NewStr0ngPass!"},
+            {"token": str(user.password_reset_token), "new_password": STRONG_PASSWORD},
         )
         assert response.status_code == 200
         user.refresh_from_db()
-        assert user.check_password("NewStr0ngPass!")
+        assert user.check_password(STRONG_PASSWORD)
         assert user.password_reset_token is None
 
     def test_reset_password_missing_fields_400(self, api_client):
@@ -410,7 +438,7 @@ class TestPasswordReset:
         response = _post(
             api_client,
             RESET_PASSWORD_URL,
-            {"token": str(uuid.uuid4()), "new_password": "NewStr0ngPass!"},
+            {"token": str(uuid.uuid4()), "new_password": STRONG_PASSWORD},
         )
         assert response.status_code == 400
 
@@ -423,7 +451,7 @@ class TestPasswordReset:
         response = _post(
             api_client,
             RESET_PASSWORD_URL,
-            {"token": str(user.password_reset_token), "new_password": "NewStr0ngPass!"},
+            {"token": str(user.password_reset_token), "new_password": STRONG_PASSWORD},
         )
         assert response.status_code == 400
         assert "expired" in response.json()["error"]

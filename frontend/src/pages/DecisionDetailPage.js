@@ -4,7 +4,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import apiClient from '../api/client';
 import { getAIModels } from '../api/aiApi';
-import ModelDropdown from '../components/ModelDropdown';
+import AIAnalysesCard from '../components/AIAnalysesCard';
+import OneLinerAttemptsCard from '../components/OneLinerAttemptsCard';
 import AnnotatedText from '../components/AnnotatedText';
 import TopBarSlot from '../components/TopBarSlot';
 import { useTranslation } from '../contexts/TranslationContext';
@@ -143,7 +144,13 @@ const DecisionDetailPage = () => {
     fetchDecisionData();
   }, [fetchDecisionData]);
 
-  const { aiAnalyses, requestExtraction, requestAISummary, requestAmountVerification } = useDecisionAI(decision, fetchDecisionData);
+  const { aiAnalyses, requestExtraction, requestAISummary, requestAmountVerification, requestOneLiner } = useDecisionAI(decision, fetchDecisionData);
+
+  // One-liner attempts history (all attempts, newest first)
+  const oneLinerAttempts = useMemo(
+    () => decision?.one_liners || [],
+    [decision]
+  );
 
   const {
     viewMode, setViewMode,
@@ -158,12 +165,7 @@ const DecisionDetailPage = () => {
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState('');
   const [aiRequesting, setAiRequesting] = useState(false);
-  // Track which AI summaries are expanded
-  const [expandedSummaries, setExpandedSummaries] = useState({});
-
-  const toggleSummary = (key) => {
-    setExpandedSummaries(prev => ({ ...prev, [key]: !prev[key] }));
-  };
+  const [oneLinerRequesting, setOneLinerRequesting] = useState(false);
 
   // Fetch available models for the dropdown
   useEffect(() => {
@@ -172,9 +174,10 @@ const DecisionDetailPage = () => {
     }).catch(() => {});
   }, []);
 
-  // AI summary polling while any analysis is RUNNING
+  // AI summary / one-liner polling while anything is RUNNING
   useEffect(() => {
-    const hasRunning = aiAnalyses.some(a => a.status === 'RUNNING');
+    const hasRunning = aiAnalyses.some(a => a.status === 'RUNNING')
+      || oneLinerAttempts.some(a => a.status === 'RUNNING' || a.status === 'PENDING');
     if (hasRunning) {
       if (aiPollRef.current) clearInterval(aiPollRef.current);
       aiPollRef.current = setInterval(fetchDecisionData, 4000);
@@ -187,7 +190,7 @@ const DecisionDetailPage = () => {
     return () => {
       if (aiPollRef.current) clearInterval(aiPollRef.current);
     };
-  }, [aiAnalyses, fetchDecisionData]);
+  }, [aiAnalyses, oneLinerAttempts, fetchDecisionData]);
 
   const handleRequestContent = async () => {
     try {
@@ -212,6 +215,19 @@ const DecisionDetailPage = () => {
       alert(typeof err === 'string' ? err : t('decisionDetail.aiSummaryFailed'));
     } finally {
       setAiRequesting(false);
+    }
+  };
+
+  const handleRequestOneLiner = async (force = false) => {
+    try {
+      setOneLinerRequesting(true);
+      await requestOneLiner(force);
+      // Refresh immediately to pick up the new RUNNING attempt
+      fetchDecisionData();
+    } catch (err) {
+      alert(typeof err === 'string' ? err : t('decisionDetail.oneLinerFailed', 'Η δημιουργία σύνοψης απέτυχε'));
+    } finally {
+      setOneLinerRequesting(false);
     }
   };
 
@@ -376,114 +392,6 @@ const DecisionDetailPage = () => {
           </span>
         </div>
       </div>
-
-      {/* AI Analyses card is rendered below the document content card */}
-      {false && (
-      <CollapsibleCard
-        title={
-          <span className="ai-analysis-title">
-            <SparklesIcon size={16} /> {t('decisionDetail.aiAnalysis')}
-            {aiAnalyses.filter(a => a.status === 'COMPLETED').length > 0 && (
-              <span className="ai-analysis-count">
-                {' '}({aiAnalyses.filter(a => a.status === 'COMPLETED').length})
-              </span>
-            )}
-          </span>
-        }
-        subtitle={
-          aiAnalyses.some(a => a.status === 'RUNNING') ? (
-            <span className="ai-analysis-subtitle">{t('decisionDetail.aiSummaryRunning')}</span>
-          ) : null
-        }
-        badge={
-          aiAnalyses.some(a => a.status === 'RUNNING') ? (
-            <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-          ) : null
-        }
-        defaultOpen={aiAnalyses.filter(a => a.status === 'COMPLETED').length > 0}
-        className="ai-analysis-collapsible"
-      >
-        {/* Model picker + single summarize button — always visible */}
-        <div className="ai-analysis-request-row">
-          <div className="ai-model-picker-row">
-            <ModelDropdown
-              models={models}
-              value={selectedModel}
-              onChange={setSelectedModel}
-              placeholder={t('aiSettings.usePipelineDefault')}
-              t={t}
-            />
-          </div>
-          <button
-            className="document-link ai-summary-retry"
-            onClick={() => handleRequestAISummary(selectedModel || null)}
-            disabled={aiRequesting}
-          >
-            {aiRequesting ? <LoaderIcon className="spinner" size={14} /> : <SparklesIcon size={14} />}
-            {' '}{t('decisionDetail.requestAISummary')}
-          </button>
-        </div>
-
-        {/* Running analyses */}
-        {aiAnalyses.filter(a => a.status === 'RUNNING').map((a, i) => (
-          <div key={`running-${i}`} className="ai-summary-item ai-summary-item--running">
-            <div className="ai-summary-item-header">
-              <span className="ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
-              <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
-            </div>
-            <p className="ai-summary-item-status">{t('decisionDetail.aiSummaryRunning')}</p>
-          </div>
-        ))}
-
-        {/* Completed analyses — click header to expand/collapse */}
-        {aiAnalyses.filter(a => a.status === 'COMPLETED').map((a, i) => {
-          const key = a.id || i;
-          const expanded = expandedSummaries[key];
-          return (
-            <div key={key} className="ai-summary-item">
-              <div
-                className="ai-summary-item-header ai-summary-item-header--clickable"
-                onClick={() => toggleSummary(key)}
-                title={expanded ? t('decisionCard.collapse') : t('decisionCard.expand')}
-              >
-                <span className="ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
-                <span className="ai-summary-item-cost">
-                  {a.cost_usd && `$${a.cost_usd}`}
-                  {a.completed_at && ` · ${formatDate(a.completed_at)}`}
-                  <span className="ai-summary-chevron">{expanded ? '▴' : '▾'}</span>
-                </span>
-              </div>
-              {expanded && (
-                <div className="ai-summary-text">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {a.summary}
-                  </ReactMarkdown>
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {/* Failed analyses — show error, no retry (pick model again from dropdown to retry) */}
-        {aiAnalyses.filter(a => a.status === 'FAILED').map((a, i) => (
-          <div key={`failed-${i}`} className="ai-summary-item ai-summary-item--failed">
-            <div className="ai-summary-item-header">
-              <span className="ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
-              <AlertIcon size={14} />
-            </div>
-            <p className="ai-summary-item-error">{a.error_message || t('decisionDetail.aiSummaryFailed')}</p>
-          </div>
-        ))}
-
-        {/* No summaries yet */}
-        {aiAnalyses.length === 0 && (
-          <div className="ai-summary-placeholder">
-            <SparklesIcon size={28} />
-            <p>{t('decisionDetail.aiAnalysisDescription')}</p>
-          </div>
-        )}
-      </CollapsibleCard>
-      )}
 
       {/* Hero amount */}
       {invalidAmountOnly ? (
@@ -817,110 +725,22 @@ const DecisionDetailPage = () => {
       {/* ── AI Analyses (multi-model, collapsible, with polling) —
           rendered directly below the document content so the summary
           follows the raw text ──── */}
-      <CollapsibleCard
-        title={
-          <span className="ai-analysis-title">
-            <SparklesIcon size={16} /> {t('decisionDetail.aiAnalysis')}
-            {aiAnalyses.filter(a => a.status === 'COMPLETED').length > 0 && (
-              <span className="ai-analysis-count">
-                {' '}({aiAnalyses.filter(a => a.status === 'COMPLETED').length})
-              </span>
-            )}
-          </span>
-        }
-        subtitle={
-          aiAnalyses.some(a => a.status === 'RUNNING') ? (
-            <span className="ai-analysis-subtitle">{t('decisionDetail.aiSummaryRunning')}</span>
-          ) : null
-        }
-        badge={
-          aiAnalyses.some(a => a.status === 'RUNNING') ? (
-            <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />
-          ) : null
-        }
-        defaultOpen={aiAnalyses.filter(a => a.status === 'COMPLETED').length > 0}
-        className="ai-analysis-collapsible"
-      >
-        {/* Model picker + single summarize button — always visible */}
-        <div className="ai-analysis-request-row">
-          <div className="ai-model-picker-row">
-            <ModelDropdown
-              models={models}
-              value={selectedModel}
-              onChange={setSelectedModel}
-              placeholder={t('aiSettings.usePipelineDefault')}
-              t={t}
-            />
-          </div>
-          <button
-            className="document-link ai-summary-retry"
-            onClick={() => handleRequestAISummary(selectedModel || null)}
-            disabled={aiRequesting}
-          >
-            {aiRequesting ? <LoaderIcon className="spinner" size={14} /> : <SparklesIcon size={14} />}
-            {' '}{t('decisionDetail.requestAISummary')}
-          </button>
-        </div>
+      <AIAnalysesCard
+        analyses={aiAnalyses}
+        models={models}
+        selectedModel={selectedModel}
+        onSelectModel={setSelectedModel}
+        onRequestSummary={handleRequestAISummary}
+        requesting={aiRequesting}
+      />
 
-        {/* Running analyses */}
-        {aiAnalyses.filter(a => a.status === 'RUNNING').map((a, i) => (
-          <div key={`running-${i}`} className="ai-summary-item ai-summary-item--running">
-            <div className="ai-summary-item-header">
-              <span className="ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
-              <div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
-            </div>
-            <p className="ai-summary-item-status">{t('decisionDetail.aiSummaryRunning')}</p>
-          </div>
-        ))}
-
-        {/* Completed analyses — click header to expand/collapse */}
-        {aiAnalyses.filter(a => a.status === 'COMPLETED').map((a, i) => {
-          const key = a.id || i;
-          const expanded = expandedSummaries[key];
-          return (
-            <div key={key} className="ai-summary-item">
-              <div
-                className="ai-summary-item-header ai-summary-item-header--clickable"
-                onClick={() => toggleSummary(key)}
-                title={expanded ? t('decisionCard.collapse') : t('decisionCard.expand')}
-              >
-                <span className="ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
-                <span className="ai-summary-item-cost">
-                  {a.cost_usd && `$${a.cost_usd}`}
-                  {a.completed_at && ` · ${formatDate(a.completed_at)}`}
-                  <span className="ai-summary-chevron">{expanded ? '▴' : '▾'}</span>
-                </span>
-              </div>
-              {expanded && (
-                <div className="ai-summary-text">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {a.summary}
-                  </ReactMarkdown>
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {/* Failed analyses — show error, no retry (pick model again from dropdown to retry) */}
-        {aiAnalyses.filter(a => a.status === 'FAILED').map((a, i) => (
-          <div key={`failed-${i}`} className="ai-summary-item ai-summary-item--failed">
-            <div className="ai-summary-item-header">
-              <span className="ai-model-badge">{a.model_used || t('decisionCard.defaultModel')}</span>
-              <AlertIcon size={14} />
-            </div>
-            <p className="ai-summary-item-error">{a.error_message || t('decisionDetail.aiSummaryFailed')}</p>
-          </div>
-        ))}
-
-        {/* No summaries yet */}
-        {aiAnalyses.length === 0 && (
-          <div className="ai-summary-placeholder">
-            <SparklesIcon size={28} />
-            <p>{t('decisionDetail.aiAnalysisDescription')}</p>
-          </div>
-        )}
-      </CollapsibleCard>
+      {/* ── One-liner attempts (cache history) ───────────────────── */}
+      <OneLinerAttemptsCard
+        attempts={oneLinerAttempts}
+        defaultOneLinerId={decision.default_one_liner?.id}
+        onRegenerate={() => handleRequestOneLiner(true)}
+        requesting={oneLinerRequesting}
+      />
 
       {/* Organizational Context — stat cards (Organization / Signers / Units) */}
       <div className="section-block">

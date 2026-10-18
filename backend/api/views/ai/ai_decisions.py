@@ -3,6 +3,8 @@ Decision AI API endpoints — user-triggered extraction and AI analysis.
 
 - POST /api/ai/decisions/<ref>/extract/       — request text extraction
 - POST /api/ai/decisions/<ref>/summarize/     — request AI summary
+- POST /api/ai/decisions/<ref>/one-liner/     — request (or regenerate) the
+  per-decision one-liner
 - GET  /api/ai/decisions/<ref>/analysis/     — get analysis status + result
 
 ``<ref>`` is either the integer PK or the ΑΔΑ (ADA).
@@ -15,6 +17,7 @@ from rest_framework.response import Response
 
 from api.utils.decision_refs import resolve_decision
 from core.models.decision_ai_analysis import AnalysisStatus, DecisionAIAnalysis
+from core.models.decision_one_liner import DecisionOneLiner
 from core.models.decisions import Decision
 from core.models.document_analysis import DocumentExtraction, ProcessingStatus
 
@@ -140,6 +143,61 @@ def request_summary(request, decision_ref: str):
 
     http_status = status.HTTP_202_ACCEPTED if result["status"] == "enqueued" else status.HTTP_200_OK
     return Response(result, status=http_status)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def request_one_liner(request, decision_ref: str):
+    """
+    Request the per-decision one-liner (shared cache).
+
+    ``decision_ref`` is either the integer PK or the ΑΔΑ (ADA).
+    Idempotent: without ``force``, a completed one-liner is returned
+    immediately (``already_completed`` shape, mirroring ``request_summary``).
+    Pass ``{"force": true}`` to always mint a new attempt
+    (``attempt = max + 1``) under the *current* circumstances.
+
+    Dispatches ``generate_decision_one_liner`` (which ensures the extraction
+    exists first, mirroring ``process_decision_ai``); billing goes to the
+    requesting user.
+    """
+    try:
+        decision = resolve_decision(decision_ref)
+    except Decision.DoesNotExist:
+        return Response({"error": "Decision not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    force = bool(request.data.get("force", False))
+
+    if not force:
+        default = DecisionOneLiner.default_for_decision(decision.id)
+        if default is not None:
+            return Response({
+                "decision_id": decision.id,
+                "status": "already_completed",
+                "one_liner": default.one_liner,
+                "attempt": default.attempt,
+                "model": default.config.model,
+                "prompt_kind": default.config.prompt_kind,
+                "cost_usd": str(default.cost_usd or 0),
+                "completed_at": default.completed_at,
+            })
+
+    from core.tasks.tasks_decision_ai import generate_decision_one_liner
+
+    generate_decision_one_liner.delay(
+        decision_id=decision.id,
+        user_id=request.user.id,
+        force=force,
+    )
+
+    return Response(
+        {
+            "decision_id": decision.id,
+            "status": "dispatched",
+            "force": force,
+        },
+        status=status.HTTP_202_ACCEPTED,
+    )
 
 
 @api_view(["POST"])

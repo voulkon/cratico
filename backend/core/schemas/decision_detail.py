@@ -65,6 +65,24 @@ class AIAnalysisInfo(BaseModel):
     error_message: Optional[str] = None
 
 
+class OneLinerAttemptInfo(BaseModel):
+    """One stored one-liner generation attempt (attempts history)."""
+
+    id: int
+    attempt: int
+    status: Optional[str] = None
+    one_liner: Optional[str] = None
+    model: Optional[str] = None
+    prompt_kind: Optional[str] = None
+    extraction_provider: Optional[str] = None
+    extraction_id: Optional[int] = None
+    cost_usd: Optional[str] = None
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
+    error_message: Optional[str] = None
+    completed_at: Optional[datetime] = None
+
+
 # ── Top-level response ─────────────────────────────────────────
 
 
@@ -89,6 +107,9 @@ class DecisionDetailResponse(BaseModel):
     diavgeia_doc_url: Optional[str] = None
     has_document_content: bool = False
     ai_analyses: list[AIAnalysisInfo] = []
+    # Per-decision one-liner attempts (newest first) + the display default
+    one_liners: list[OneLinerAttemptInfo] = []
+    default_one_liner: Optional[OneLinerAttemptInfo] = None
     warnings: Optional[list] = None
     has_private_data: bool = False
     organization: Optional[OrganizationInfo] = None

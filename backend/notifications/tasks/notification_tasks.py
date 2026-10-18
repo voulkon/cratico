@@ -75,6 +75,33 @@ def check_single_subscription(
                 subscription, matching_decisions, check_window_start, check_window_end
             )
 
+            # Dispatch AI summary explicitly when new decisions were added.
+            # Batch creation no longer owns summary dispatch (the scheduled
+            # path chains summaries into the email chord instead); this
+            # preserves summaries for the manual "check now" path.  The
+            # immediate email below stays as-is — it does not wait for the
+            # summary.
+            if batch_result.get("decisions_added", 0) > 0 and getattr(
+                subscription, "ai_summary_enabled", False
+            ):
+                try:
+                    from notifications.tasks.ai_summary_tasks import (
+                        summarize_notification_batch,
+                    )
+
+                    summarize_notification_batch.delay(
+                        batch_id=batch_result["batch_id"]
+                    )
+                    logger.info(
+                        f"Triggered AI summarization for batch "
+                        f"{batch_result['batch_id']} (subscription {subscription_id})"
+                    )
+                except Exception as ai_err:
+                    logger.warning(
+                        f"Failed to trigger AI summarization for batch "
+                        f"{batch_result.get('batch_id')}: {ai_err}"
+                    )
+
             # Send email notification if requested and batch has decisions
             # Also send if all decisions are duplicates but the existing batch hasn't been emailed
             email_sent = False
@@ -589,31 +616,11 @@ def create_batch_for_matches(
                 f"(total in batch: {batch.match_count})"
             )
 
-            # Trigger AI summarization if enabled on the subscription.
-            # on_commit: a summary dispatched inside this transaction can read
-            # the batch before its decisions are visible and give up with
-            # "No decisions in batch to summarize".
-            if decisions_added > 0 and getattr(
-                subscription, "ai_summary_enabled", False
-            ):
-                from notifications.tasks.ai_summary_tasks import (
-                    summarize_notification_batch,
-                )
-
-                def _queue_summary(batch_id=batch.id):
-                    try:
-                        summarize_notification_batch.delay(batch_id=batch_id)
-                        logger.info(
-                            f"Triggered AI summarization for batch {batch_id} "
-                            f"(subscription {subscription.id})"
-                        )
-                    except Exception as ai_err:
-                        logger.warning(
-                            f"Failed to trigger AI summarization for batch "
-                            f"{batch_id}: {ai_err}"
-                        )
-
-                transaction.on_commit(_queue_summary)
+            # NOTE: AI summary dispatch deliberately does NOT live here.
+            # Summaries must finish BEFORE the consolidated email (so it can
+            # include the per-decision one-liners), so the scheduled path
+            # chains them via ``dispatch_summaries_then_email`` and the manual
+            # path (``check_single_subscription``) dispatches explicitly.
 
             return {
                 "batch_id": batch.id,
@@ -676,10 +683,12 @@ def check_all_active_subscriptions(lookback_days: int = 1):
 
     Groups subscriptions by user and dispatches one per-user chord:
         check_user_subscriptions(user_id, [sub_ids], lookback_days)
-          → send_consolidated_email_for_user(user_id)
+          → dispatch_summaries_then_email(user_id)
 
     Each user's chord fires independently — user A's email doesn't wait for
-    user B's checks to finish.
+    user B's checks to finish.  The callback runs the user's AI batch
+    summaries FIRST and only then sends the consolidated email, so the email
+    can include the per-decision one-liners.
 
     Only checks subscriptions with check_frequency='daily' or 'weekly' that
     are due for a check.  Manual-only subscriptions are skipped.
@@ -762,7 +771,7 @@ def check_all_active_subscriptions(lookback_days: int = 1):
                 subscription_ids=subscription_ids,
                 lookback_days=lookback_days,
             )
-        )(send_consolidated_email_for_user.s(user_id=user_id))
+        )(dispatch_summaries_then_email.s(user_id=user_id))
 
     return {
         "status": "dispatched",
@@ -791,7 +800,9 @@ def check_user_subscriptions(user_id, subscription_ids, lookback_days=1):
         lookback_days: How many days back to check
 
     Returns:
-        dict with user_id, batches_created, total_decisions, errors
+        dict with user_id, batches_created, total_decisions, errors,
+        batch_ids (all touched batches) and new_batch_ids (batches that
+        received new decisions and need a summary before the email)
     """
     check_window_end = timezone.now()
     check_window_start = check_window_end - timedelta(days=lookback_days)
@@ -817,6 +828,7 @@ def check_user_subscriptions(user_id, subscription_ids, lookback_days=1):
     total_decisions = 0
     errors = 0
     batch_ids = []
+    new_batch_ids = []
 
     for criteria_hash, group_subs in criteria_groups.items():
         try:
@@ -854,6 +866,11 @@ def check_user_subscriptions(user_id, subscription_ids, lookback_days=1):
                     batches_created += 1
                     total_decisions += batch_result.get("decisions_added", 0)
                     batch_ids.append(batch_result["batch_id"])
+                    # Batches that actually got new decisions need a summary
+                    # run before the email (batches reached via the
+                    # all-duplicates path don't).
+                    if batch_result.get("decisions_added", 0) > 0:
+                        new_batch_ids.append(batch_result["batch_id"])
 
                 # Update last_checked
                 sub.last_checked = timezone.now()
@@ -885,16 +902,104 @@ def check_user_subscriptions(user_id, subscription_ids, lookback_days=1):
         "total_decisions": total_decisions,
         "errors": errors,
         "batch_ids": batch_ids,
+        "new_batch_ids": new_batch_ids,
     }
 
 
 @shared_task
-def send_consolidated_email_for_user(*args, user_id=None):
+def dispatch_summaries_then_email(*args, user_id=None):
+    """
+    Chord callback after ``check_user_subscriptions``: run the user's AI
+    batch summaries first, then send the consolidated email.
+
+    Replaces ``send_consolidated_email_for_user`` as the chord callback of
+    ``check_all_active_subscriptions``.  Previously the email fired
+    immediately while summaries ran async via ``transaction.on_commit`` —
+    so the email could never include the AI one-liners.  Now:
+
+    - Batches that received new decisions (``new_batch_ids`` from the header
+      result) each get a ``summarize_notification_batch`` task inside an
+      inner chord whose callback sends the email — AI-disabled or empty
+      batches just take the fast SKIPPED path.
+    - With no new batches, the email is sent directly with the header
+      result.
+
+    Args:
+        *args: Results from the chord header task (check_user_subscriptions).
+        user_id: The user ID (passed via .s(user_id=...)).
+
+    Returns:
+        dict with user_id, summaries_dispatched and the email outcome (or
+        ``email_deferred: True`` when the inner chord owns the email).
+    """
+    from celery import group
+
+    from notifications.tasks.ai_summary_tasks import summarize_notification_batch
+
+    if user_id is None:
+        logger.error("dispatch_summaries_then_email called without user_id")
+        return {
+            "user_id": None,
+            "summaries_dispatched": 0,
+            "success": False,
+        }
+
+    # Unwrap the chord header result the same way the email task does.
+    header_result = None
+    if args:
+        candidate = args[0]
+        if isinstance(candidate, (list, tuple)) and len(candidate) == 1:
+            candidate = candidate[0]
+        if isinstance(candidate, dict) and "batch_ids" in candidate:
+            header_result = candidate
+
+    new_batch_ids = (
+        (header_result or {}).get("new_batch_ids") or []
+        if header_result is not None
+        else []
+    )
+
+    if not new_batch_ids:
+        logger.info(
+            f"User {user_id}: no new batches needing summaries, "
+            f"sending email directly"
+        )
+        return send_consolidated_email_for_user(*args, user_id=user_id)
+
+    logger.info(
+        f"User {user_id}: dispatching {len(new_batch_ids)} batch summary "
+        f"task(s); email follows once summaries finish"
+    )
+
+    chord(
+        group(
+            summarize_notification_batch.s(batch_id)
+            for batch_id in new_batch_ids
+        )
+    )(
+        # The inner chord body receives the summary results; forward the
+        # original header result so the email still covers exactly the
+        # batches created in this run.
+        send_consolidated_email_for_user.s(
+            user_id=user_id, header_result=header_result
+        )
+    )
+
+    return {
+        "user_id": user_id,
+        "summaries_dispatched": len(new_batch_ids),
+        "email_deferred": True,
+    }
+
+
+@shared_task
+def send_consolidated_email_for_user(*args, user_id=None, header_result=None):
     """
     Send a single consolidated email to a user summarizing their new batches
     from the current check run only.
 
     Called as the callback of a per-user chord after check_user_subscriptions
+    (or, via ``dispatch_summaries_then_email``, after the batch summaries)
     completes.  Only emails the batches created by the just-finished header
     task — not any stale un-emailed batches from previous runs.
 
@@ -902,6 +1007,9 @@ def send_consolidated_email_for_user(*args, user_id=None):
         *args: Results from the chord header task (check_user_subscriptions).
                Expected to contain a dict with 'batch_ids' (list of ints).
         user_id: The user ID to send the email to (passed via .s(user_id=...)).
+        header_result: Optional explicit header result override.  Used when
+               this task is the body of the summaries chord — its *args hold
+               the summary results, not the subscription-check result.
 
     Returns:
         dict with user_id, batches_emailed, success
@@ -920,13 +1028,20 @@ def send_consolidated_email_for_user(*args, user_id=None):
     # even when the header is a single task — so unwrap one level when the
     # first element is a list.  Fall back to the old behaviour (all
     # un-emailed) only when no usable result is present at all.
-    header_result = None
-    if args:
-        candidate = args[0]
-        if isinstance(candidate, (list, tuple)) and len(candidate) == 1:
-            candidate = candidate[0]
-        if isinstance(candidate, dict) and "batch_ids" in candidate:
-            header_result = candidate
+    if (
+        isinstance(header_result, dict)
+        and "batch_ids" in header_result
+    ):
+        # Explicit override (summaries-chord path)
+        pass
+    else:
+        header_result = None
+        if args:
+            candidate = args[0]
+            if isinstance(candidate, (list, tuple)) and len(candidate) == 1:
+                candidate = candidate[0]
+            if isinstance(candidate, dict) and "batch_ids" in candidate:
+                header_result = candidate
 
     batch_ids_from_run = (
         header_result["batch_ids"] if header_result is not None else None
@@ -1016,6 +1131,11 @@ def send_consolidated_email_for_user(*args, user_id=None):
                     else None
                 ),
                 "decision_count": batch.match_count,
+                # Per-decision one-liners for the email bullets (empty when
+                # AI is disabled or the summary failed — templates fall back
+                # to the plain list rendering).
+                "ai_summary_status": batch.ai_summary_status,
+                "ai_summary_items": batch.ai_summary_items or [],
             }
         )
 
