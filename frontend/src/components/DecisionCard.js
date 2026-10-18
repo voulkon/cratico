@@ -235,6 +235,13 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
         {decision.subject}
       </button>
 
+      {/* AI one-liner (rides the list payload — no extra fetch) */}
+      {decision.one_liner && (
+        <div className="decision-one-liner" title={t('decisionCard.oneLiner', 'Σύνοψη AI')}>
+          {decision.one_liner}
+        </div>
+      )}
+
       {/* Date and Decision Type Display */}
       <div className="decision-header-info">
         <div className="decision-date-prominent" title={t('decisionCard.issueDate')}>

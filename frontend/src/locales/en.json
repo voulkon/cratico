@@ -239,7 +239,8 @@
     "hideModelPicker": "Use Default",
     "defaultModel": "Default",
     "expand": "Expand",
-    "collapse": "Collapse"
+    "collapse": "Collapse",
+    "oneLiner": "AI Summary"
   },
   "personPage": {
     "errorTitle": "Error Loading Person",

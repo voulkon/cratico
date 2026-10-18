@@ -58,10 +58,30 @@ export function useDecisionAI(decision, onRefresh) {
     }
   }, [id]);
 
+  // Request (or regenerate with force=true) the per-decision one-liner.
+  // Idempotent: without force the backend returns already_completed and we
+  // refresh so the caller re-reads the cached value.
+  const requestOneLiner = useCallback(async (force = false) => {
+    if (!id) return;
+    try {
+      const response = await apiClient.post(
+        `/ai/decisions/${id}/one-liner/`,
+        force ? { force: true } : {}
+      );
+      if (response.data.status === 'already_completed') {
+        onRefresh?.();
+      }
+      return response.data;
+    } catch (err) {
+      throw err.response?.data?.error || err;
+    }
+  }, [id, onRefresh]);
+
   return {
     aiAnalyses,
     requestExtraction,
     requestAISummary,
     requestAmountVerification,
+    requestOneLiner,
   };
 }
