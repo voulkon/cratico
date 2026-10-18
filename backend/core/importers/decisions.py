@@ -1,10 +1,12 @@
 import decimal
 from typing import Any, Dict, Iterable, List, Tuple
 
+from core.constants.act_types import ACT_TYPE_DEFAULTS
 from core.constants.decision_import_constants import PICKLE_DIR
 from core.fetchers.diavgeia_fetcher import DiavgeiaFetcher
 from core.importers.base import BaseImporter
 from core.importers.signer import SignerImporter
+from core.importers.types import ActTypeImporter, ExtraFieldImporter
 from core.importers.unit import UnitImporter
 from core.models import Organization, Signer, Unit
 from core.models.decisions import Attachment, Decision, DecisionAmountKAE
@@ -12,7 +14,7 @@ from core.models.entities import DecisionAmountField, DecisionEntityRelationship
 from core.models.types import ActType
 from core.services.entity_extraction_service import EntityExtractionService
 from diavgeia_api.models.decisions import Decision as DecisionDTO
-from django.core.exceptions import FieldDoesNotExist, ObjectDoesNotExist
+from django.core.exceptions import FieldDoesNotExist
 from django.db import transaction
 from django.utils import timezone
 from loguru import logger
@@ -76,6 +78,7 @@ class DecisionImporter(BaseImporter):
     def __init__(self, import_job=None):
         # Initialize the organization cache as an instance attribute
         self.org_cache = {}
+        self.act_type_cache = {}
         # Initialize entity extraction service
         self.entity_extraction_service = EntityExtractionService()
         self.import_job = import_job
@@ -572,6 +575,39 @@ class DecisionImporter(BaseImporter):
 
         return fetched_uids
 
+    def _ensure_act_type(self, uid: str) -> str | None:
+        """Return the act type uid, creating it from defaults or the API if missing."""
+        if uid in self.act_type_cache:
+            return uid if self.act_type_cache[uid] else None
+
+        try:
+            if ActType.objects.filter(uid=uid).exists():
+                self.act_type_cache[uid] = True
+                return uid
+
+            defaults = ACT_TYPE_DEFAULTS.get(uid)
+            if defaults:
+                ActType.objects.get_or_create(uid=uid, defaults=defaults)
+                self.act_type_cache[uid] = True
+                logger.info(
+                    f"Created act type '{uid}' on the fly from built-in defaults: "
+                    f"{defaults['label']}"
+                )
+                return uid
+
+            details = DiavgeiaFetcher().fetch_type_details(uid)
+            if details:
+                ActTypeImporter().import_details(details)
+                ExtraFieldImporter().import_for_type(details)
+                self.act_type_cache[uid] = True
+                logger.info(f"Created act type '{uid}' on the fly from Diavgeia API.")
+                return uid
+        except Exception as e:
+            logger.error(f"Failed to create missing act type '{uid}': {e}")
+
+        self.act_type_cache[uid] = False
+        return None
+
     def _get_related_pks(
         self, dto: DecisionDTO
     ) -> Tuple[str | None, List[str], List[str], str | None]:
@@ -656,15 +692,12 @@ class DecisionImporter(BaseImporter):
 
         # Act Type (decision type)
         if dto.decisionTypeId:
-            try:
-                act_type = ActType.objects.only("uid").get(uid=dto.decisionTypeId)
-                decision_type_uid = act_type.uid
-            except ObjectDoesNotExist:
+            decision_type_uid = self._ensure_act_type(dto.decisionTypeId)
+            if decision_type_uid is None:
                 logger.warning(
-                    f"ActType with uid '{dto.decisionTypeId}' not found for Decision ADA '{dto.ada}'. "
-                    f"Decision will be saved with null decision type."
+                    f"ActType with uid '{dto.decisionTypeId}' not found and could not be created "
+                    f"for Decision ADA '{dto.ada}'. Decision will be saved with null decision type."
                 )
-                # Don't raise - allow null decision type
         else:
             logger.warning(f"Decision {dto.ada} has no decisionTypeId")
 
@@ -794,6 +827,7 @@ class DecisionImporter(BaseImporter):
         """
         # Reset org_cache for each batch to prevent extremely large caches across batches
         self.org_cache = {}
+        self.act_type_cache = {}
         external_defaults = defaults or {}
 
         created_count = 0
