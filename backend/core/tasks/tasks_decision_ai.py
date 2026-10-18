@@ -13,6 +13,7 @@ Two separate, composable tasks:
 Both are idempotent: re-requesting an already-completed step is a no-op.
 """
 
+from core.ai_services.summary_prompts import DECISION_ESSENCE_SYSTEM_PROMPT
 from loguru import logger
 
 from celery import shared_task
@@ -375,12 +376,7 @@ def _get_or_create_simple_summary_pipeline():
                 "provider": "OPENROUTER",
                 "model": "qwen/qwen3.7-flash",
                 "map_over_items": False,
-                "system_prompt": (
-                    "You are a legal analyst specializing in Greek government decisions (Διαύγεια). "
-                    "Summarize the decision concisely in the same language as the original text. "
-                    "Include: (1) who issued it, (2) what was decided, (3) key financial amounts if any, "
-                    "(4) the legal basis referenced. Keep the summary to 3-5 short paragraphs."
-                ),
+                "system_prompt": DECISION_ESSENCE_SYSTEM_PROMPT,
                 "prompt_template": "Summarize this decision:\n{{ text }}",
                 "temperature": 0.3,
                 # max_tokens intentionally omitted: only persist a step config

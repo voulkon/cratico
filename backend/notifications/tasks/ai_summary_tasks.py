@@ -10,6 +10,10 @@ from loguru import logger
 
 from celery import shared_task
 
+from core.ai_services.summary_prompts import (
+    BATCH_MAP_SYSTEM_PROMPT,
+    BATCH_MERGE_SYSTEM_PROMPT,
+)
 from core.tasks.tasks_decision_ai import _extract_pipeline_output
 from notifications.models import NotificationBatch
 
@@ -157,7 +161,7 @@ def _get_or_create_default_pipeline():
             config={
                 "provider": "OPENROUTER",
                 "map_over_items": True,
-                "system_prompt": "You are a legal analyst. Summarize the key points of this government decision concisely.",
+                "system_prompt": BATCH_MAP_SYSTEM_PROMPT,
                 "prompt_template": "Summarize this decision:\n{{ text }}",
                 "temperature": 0.3,
                 # max_tokens intentionally omitted: only persist a step config
@@ -174,7 +178,7 @@ def _get_or_create_default_pipeline():
             config={
                 "strategy": "summarize_each_then_merge",
                 "provider": "OPENROUTER",
-                "system_prompt": "You are a legal analyst. Synthesize the provided decision summaries into a single coherent overview.",
+                "system_prompt": BATCH_MERGE_SYSTEM_PROMPT,
                 "merge_prompt_template": "Synthesize a single summary of these decision summaries:\n{{ text }}",
                 "temperature": 0.3,
                 # max_tokens intentionally omitted — see AI_CALL step above.
