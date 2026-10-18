@@ -5,10 +5,10 @@ Triggered after a batch is created (if the subscription has AI summary enabled)
 or manually via the API ``summarize`` action.
 """
 
-from django.utils import timezone
 from loguru import logger
 
 from celery import shared_task
+from celery.exceptions import MaxRetriesExceededError, Retry
 
 from core.ai_services.summary_prompts import (
     BATCH_MAP_SYSTEM_PROMPT,
@@ -27,7 +27,12 @@ def summarize_notification_batch(self, batch_id):
 
     Reads the subscription's configured pipeline (or the default), builds a
     ``PipelineContext`` from the batch's decisions, and stores the result on
-    ``NotificationBatch.ai_summary``.
+    ``NotificationBatch.ai_summary``.  For map-mode pipelines the
+    per-decision one-liners are also stored on ``ai_summary_items``.
+
+    Chord-safe: when retries are exhausted the task marks the batch FAILED
+    and *returns* an error dict instead of re-raising — a failing summary
+    task must never break the email chord that waits on it.
     """
     try:
         batch = NotificationBatch.objects.select_related(
@@ -52,7 +57,6 @@ def summarize_notification_batch(self, batch_id):
     batch.save(update_fields=["ai_summary_status"])
 
     try:
-        from core.models.pipeline import PipelineDefinition
         from core.services.pipeline_engine import PipelineContext, PipelineEngine
 
         # Resolve pipeline definition
@@ -78,6 +82,27 @@ def summarize_notification_batch(self, batch_id):
             batch=batch,
             user=subscription.user,
         )
+
+        # Adopt one-liner rows minted by the previous (failed) try so internal
+        # Celery retries overwrite the same rows in place instead of minting
+        # new attempts (retry noise must not inflate the attempts history).
+        if batch.ai_summary_run_id:
+            from core.models.decision_one_liner import (
+                DecisionOneLiner,
+                OneLinerStatus,
+            )
+
+            context.metadata["adopt_one_liner_rows"] = {
+                str(row.decision_id): row.id
+                for row in DecisionOneLiner.objects.filter(
+                    pipeline_run_id=batch.ai_summary_run_id,
+                    status__in=(
+                        OneLinerStatus.PENDING,
+                        OneLinerStatus.RUNNING,
+                    ),
+                )
+            }
+
         engine = PipelineEngine()
         run = engine.run(
             pipeline_def,
@@ -88,23 +113,48 @@ def summarize_notification_batch(self, batch_id):
 
         final_output = _extract_pipeline_output(context, run)
 
+        # Per-decision one-liners from the map step (map-mode pipelines only)
+        # feed the email bullets; merged ai_summary feeds AISummaryCard.
+        if run.status == "COMPLETED":
+            ai_summary_items = _collect_summary_items(
+                decisions, context, pipeline_def
+            )
+        else:
+            # A failed run may leave raw extract texts in per_item_outputs —
+            # never surface those as one-liners.
+            ai_summary_items = None
+
         batch.ai_summary = final_output
+        batch.ai_summary_items = ai_summary_items
         batch.ai_summary_status = run.status
         batch.ai_summary_run = run
         batch.ai_summary_completed_at = run.completed_at
         if run.status == "FAILED":
             batch.ai_summary_error = run.error_message
-        batch.save()
+        batch.save(
+            update_fields=[
+                "ai_summary",
+                "ai_summary_items",
+                "ai_summary_status",
+                "ai_summary_run",
+                "ai_summary_completed_at",
+                "ai_summary_error",
+            ]
+        )
 
         logger.info(
             f"Batch {batch_id}: AI summary {run.status} "
-            f"(cost: ${run.total_cost_usd}, tokens: {run.total_input_tokens}+{run.total_output_tokens})"
+            f"(cost: ${run.total_cost_usd}, tokens: {run.total_input_tokens}+{run.total_output_tokens}, "
+            f"items: {len(ai_summary_items) if ai_summary_items else 0})"
         )
         return {
             "batch_id": batch_id,
             "status": run.status,
             "pipeline_run_id": run.id,
             "cost_usd": str(run.total_cost_usd),
+            # Cache observability: {hits, misses} when the pipeline's
+            # AI_CALL step runs with ``cache_one_liners`` (absent otherwise).
+            "one_liner_cache": context.metadata.get("one_liner_cache"),
         }
 
     except Exception as exc:
@@ -116,8 +166,61 @@ def summarize_notification_batch(self, batch_id):
         batch.ai_summary_error = str(exc)
         batch.save(update_fields=["ai_summary_status", "ai_summary_error"])
 
-        # Retry with backoff
-        raise self.retry(exc=exc, countdown=60)
+        # Retry with backoff — but never re-raise past the retries: this task
+        # runs inside an email chord, so a hard failure would abort the chord
+        # and the user would get no email at all.
+        try:
+            raise self.retry(exc=exc, countdown=60)
+        except Retry:
+            # Celery signalled a retry — propagate so the worker re-runs us.
+            raise
+        except MaxRetriesExceededError:
+            logger.error(
+                f"Batch {batch_id}: AI summary retries exhausted, "
+                f"giving up (email will be sent without AI bullets)"
+            )
+            return {
+                "batch_id": batch_id,
+                "status": "FAILED",
+                "error": str(exc),
+                "retries_exhausted": True,
+            }
+
+
+def _collect_summary_items(decisions, context, pipeline_def):
+    """
+    Build per-decision one-liner items from a *map-mode* pipeline run.
+
+    After a successful map step, ``context.per_item_outputs`` is keyed by
+    ``str(decision.pk)``.  For single-mode pipelines the same dict still
+    holds raw extracted texts, so items are only built when the pipeline
+    actually has an active AI_CALL step in map mode.  Decisions without an
+    entry (e.g. skipped by the map step) are simply left out.
+    """
+    is_map_mode = pipeline_def.steps.filter(
+        step_type="AI_CALL", is_active=True, config__map_over_items=True
+    ).exists()
+    if not is_map_mode:
+        return None
+
+    per_item = context.per_item_outputs
+    if not isinstance(per_item, dict) or not per_item:
+        return None
+
+    items = []
+    for decision in decisions:
+        one_liner = per_item.get(str(decision.pk))
+        if not one_liner:
+            continue
+        items.append(
+            {
+                "decision_id": decision.pk,
+                "ada": decision.ada,
+                "subject": decision.subject,
+                "one_liner": one_liner,
+            }
+        )
+    return items or None
 
 
 def _get_or_create_default_pipeline():

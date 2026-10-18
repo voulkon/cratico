@@ -94,6 +94,16 @@ class NotificationBatch(models.Model):
         null=True, blank=True, verbose_name=_("AI summary"),
         help_text=_("AI-generated summary of the decisions in this batch"),
     )
+    ai_summary_items = models.JSONField(
+        default=list,
+        null=True,
+        blank=True,
+        verbose_name=_("AI summary items"),
+        help_text=_(
+            "Per-decision one-liners from the map step: "
+            "[{decision_id, ada, subject, one_liner}]"
+        ),
+    )
     ai_summary_status = models.CharField(
         max_length=20,
         default="PENDING",
