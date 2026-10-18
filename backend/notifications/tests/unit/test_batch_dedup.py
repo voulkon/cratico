@@ -189,10 +189,15 @@ def test_sequential_recheck_keeps_a_single_batch(subscription, decision):
     assert second["all_duplicates"] is True
 
 
-def test_ai_summary_is_queued_only_after_commit(subscription, decision):
-    """A summary task dispatched inside the open transaction can read the
-    batch before its decisions are committed → "No decisions in batch to
-    summarize"."""
+def test_ai_summary_is_not_dispatched_by_batch_creation(subscription, decision):
+    """Batch creation no longer owns summary dispatch.
+
+    Summaries must finish BEFORE the consolidated email (so it can include
+    the per-decision one-liners), so the scheduled path chains them via
+    ``dispatch_summaries_then_email`` and the manual "check now" path
+    dispatches explicitly.  ``create_batch_for_matches`` must not queue
+    anything — not even via ``transaction.on_commit``.
+    """
     start = timezone.now()
 
     subscription.ai_summary_enabled = True
@@ -210,10 +215,6 @@ def test_ai_summary_is_queued_only_after_commit(subscription, decision):
 
         assert result["decisions_added"] == 1
 
-        # Nothing may be queued while the transaction is still open.
+        # No summary task queued here, and no on_commit hook registered.
         delay.assert_not_called()
-        on_commit.assert_called_once()
-
-        # …and the callback registered for the commit dispatches it.
-        on_commit.call_args.args[0]()
-        delay.assert_called_once_with(batch_id=result["batch_id"])
+        on_commit.assert_not_called()

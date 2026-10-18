@@ -316,6 +316,431 @@ class TestSummarizeNotificationBatch:
             assert called_pipeline.name == "custom_summary_v1"
 
 
+class TestSummaryItemsPopulation:
+    """``ai_summary_items`` — per-decision one-liners from the map step."""
+
+    def _run_task(self, batch, decision, context, run):
+        """Run ``summarize_notification_batch`` with the given context/run."""
+        from notifications.tasks.ai_summary_tasks import summarize_notification_batch
+
+        with patch(
+            "core.services.pipeline_engine.PipelineContext",
+            return_value=context,
+        ), patch(
+            "core.services.pipeline_engine.PipelineEngine"
+        ) as mock_engine_cls:
+            mock_engine = Mock()
+            mock_engine_cls.return_value = mock_engine
+            mock_engine.run.return_value = run
+            result = summarize_notification_batch(batch_id=batch.id)
+            # The pipeline definition passed to the engine
+            pipeline_def = mock_engine.run.call_args[0][0]
+        return result, pipeline_def
+
+    def test_populates_items_map_mode(self, user, notification_subscription, decision):
+        """A COMPLETED map-mode run stores one-liners keyed by decision."""
+        from conftest import NotificationBatchDecisionFactory, NotificationBatchFactory
+        from core.models.pipeline import RunStatus
+        from core.services.pipeline_engine import PipelineContext
+        from core.tests.services.conftest import PipelineRunFactory
+        from notifications.tasks.ai_summary_tasks import (
+            _get_or_create_default_pipeline,
+        )
+
+        notification_subscription.ai_summary_enabled = True
+        notification_subscription.save()
+
+        batch = NotificationBatchFactory(
+            user=user,
+            subscription=notification_subscription,
+            match_count=1,
+        )
+        NotificationBatchDecisionFactory(batch=batch, decision=decision)
+
+        # The default batch pipeline has an active AI_CALL map step
+        _get_or_create_default_pipeline()
+
+        context = PipelineContext(
+            decisions=[decision], batch=batch, user=user
+        )
+        context.per_item_outputs = {
+            str(decision.pk): "Εγκρίθηκε δαπάνη 1.000 ευρώ για τον ανάδοχο Χ."
+        }
+        context.steps_output = {3: "Merged overview."}
+
+        run = PipelineRunFactory(
+            status=RunStatus.COMPLETED,
+            completed_at=timezone.now(),
+        )
+
+        result, _ = self._run_task(batch, decision, context, run)
+
+        batch.refresh_from_db()
+        assert batch.ai_summary == "Merged overview."
+        assert batch.ai_summary_items == [
+            {
+                "decision_id": decision.pk,
+                "ada": decision.ada,
+                "subject": decision.subject,
+                "one_liner": "Εγκρίθηκε δαπάνη 1.000 ευρώ για τον ανάδοχο Χ.",
+            }
+        ]
+        assert result["status"] == "COMPLETED"
+
+    def test_no_items_for_single_mode_pipeline(
+        self, user, notification_subscription, decision
+    ):
+        """
+        A pipeline without an active map-mode AI_CALL step must NOT produce
+        items — its ``per_item_outputs`` holds raw extracted texts, not
+        one-liners.
+        """
+        from conftest import NotificationBatchDecisionFactory, NotificationBatchFactory
+        from core.models.pipeline import PipelineDefinition, RunStatus
+        from core.services.pipeline_engine import PipelineContext
+        from core.tests.services.conftest import PipelineRunFactory
+
+        notification_subscription.ai_summary_enabled = True
+        single_mode_pipeline = PipelineDefinition.objects.create(
+            name="single_mode_summary",
+            version=1,
+            is_active=True,
+            trigger_type="notification_batch_summary",
+        )
+        notification_subscription.ai_summary_pipeline = single_mode_pipeline
+        notification_subscription.save()
+
+        batch = NotificationBatchFactory(
+            user=user,
+            subscription=notification_subscription,
+            match_count=1,
+        )
+        NotificationBatchDecisionFactory(batch=batch, decision=decision)
+
+        context = PipelineContext(
+            decisions=[decision], batch=batch, user=user
+        )
+        # Simulate extract-only outputs (raw texts keyed by pk)
+        context.per_item_outputs = {str(decision.pk): "FULL RAW TEXT..."}
+        context.steps_output = {2: "Single-mode summary."}
+
+        run = PipelineRunFactory(
+            status=RunStatus.COMPLETED,
+            completed_at=timezone.now(),
+        )
+
+        self._run_task(batch, decision, context, run)
+
+        batch.refresh_from_db()
+        assert batch.ai_summary == "Single-mode summary."
+        assert batch.ai_summary_items is None
+
+    def test_items_cleared_on_failed_run(
+        self, user, notification_subscription, decision
+    ):
+        """
+        A FAILED run must never surface items: per_item_outputs still holds
+        raw extract texts at that point.
+        """
+        from conftest import NotificationBatchDecisionFactory, NotificationBatchFactory
+        from core.models.pipeline import RunStatus
+        from core.services.pipeline_engine import PipelineContext
+        from core.tests.services.conftest import PipelineRunFactory
+        from notifications.tasks.ai_summary_tasks import (
+            _get_or_create_default_pipeline,
+        )
+
+        notification_subscription.ai_summary_enabled = True
+        notification_subscription.save()
+
+        batch = NotificationBatchFactory(
+            user=user,
+            subscription=notification_subscription,
+            match_count=1,
+        )
+        NotificationBatchDecisionFactory(batch=batch, decision=decision)
+
+        _get_or_create_default_pipeline()
+
+        context = PipelineContext(
+            decisions=[decision], batch=batch, user=user
+        )
+        # Extract ran fine; the AI map step blew up afterwards
+        context.per_item_outputs = {str(decision.pk): "FULL RAW TEXT..."}
+        context.steps_output = {}
+
+        run = PipelineRunFactory(
+            status=RunStatus.FAILED,
+            error_message="AI call failed",
+        )
+
+        self._run_task(batch, decision, context, run)
+
+        batch.refresh_from_db()
+        assert batch.ai_summary_status == "FAILED"
+        assert batch.ai_summary is None
+        assert batch.ai_summary_items is None
+
+    def test_items_skip_decisions_missing_from_map_output(
+        self, user, notification_subscription, decision
+    ):
+        """Decisions absent from per_item_outputs are simply left out."""
+        from conftest import NotificationBatchDecisionFactory, NotificationBatchFactory
+        from core.models.pipeline import RunStatus
+        from core.services.pipeline_engine import PipelineContext
+        from core.tests.services.conftest import PipelineRunFactory
+        from notifications.tasks.ai_summary_tasks import (
+            _get_or_create_default_pipeline,
+        )
+
+        notification_subscription.ai_summary_enabled = True
+        notification_subscription.save()
+
+        batch = NotificationBatchFactory(
+            user=user,
+            subscription=notification_subscription,
+            match_count=2,
+        )
+        NotificationBatchDecisionFactory(batch=batch, decision=decision)
+        other_decision = NotificationBatchDecisionFactory(batch=batch).decision
+
+        _get_or_create_default_pipeline()
+
+        context = PipelineContext(
+            decisions=[decision, other_decision], batch=batch, user=user
+        )
+        # Only the first decision made it through the map step
+        context.per_item_outputs = {
+            str(decision.pk): "One-liner for first."
+        }
+        context.steps_output = {3: "Merged."}
+
+        run = PipelineRunFactory(
+            status=RunStatus.COMPLETED,
+            completed_at=timezone.now(),
+        )
+
+        self._run_task(batch, decision, context, run)
+
+        batch.refresh_from_db()
+        assert len(batch.ai_summary_items) == 1
+        assert batch.ai_summary_items[0]["decision_id"] == decision.pk
+
+    def test_surfaces_one_liner_cache_metadata(
+        self, user, notification_subscription, decision
+    ):
+        """All-cache-hit runs still populate items and report hit/miss counts."""
+        from conftest import NotificationBatchDecisionFactory, NotificationBatchFactory
+        from core.models.pipeline import RunStatus
+        from core.services.pipeline_engine import PipelineContext
+        from core.tests.services.conftest import PipelineRunFactory
+        from notifications.tasks.ai_summary_tasks import (
+            _get_or_create_default_pipeline,
+        )
+
+        notification_subscription.ai_summary_enabled = True
+        notification_subscription.save()
+
+        batch = NotificationBatchFactory(
+            user=user,
+            subscription=notification_subscription,
+            match_count=1,
+        )
+        NotificationBatchDecisionFactory(batch=batch, decision=decision)
+
+        _get_or_create_default_pipeline()
+
+        context = PipelineContext(
+            decisions=[decision], batch=batch, user=user
+        )
+        # Every item was a cache hit inside AICallStep
+        context.per_item_outputs = {
+            str(decision.pk): "Cached one-liner."
+        }
+        context.steps_output = {3: "Merged."}
+        context.metadata["one_liner_cache"] = {"hits": 1, "misses": 0}
+
+        run = PipelineRunFactory(
+            status=RunStatus.COMPLETED,
+            completed_at=timezone.now(),
+        )
+
+        result, _ = self._run_task(batch, decision, context, run)
+
+        assert result["status"] == "COMPLETED"
+        assert result["one_liner_cache"] == {"hits": 1, "misses": 0}
+        batch.refresh_from_db()
+        assert batch.ai_summary_items == [
+            {
+                "decision_id": decision.pk,
+                "ada": decision.ada,
+                "subject": decision.subject,
+                "one_liner": "Cached one-liner.",
+            }
+        ]
+
+    def test_seeds_retry_adoption_rows(
+        self, user, notification_subscription, decision
+    ):
+        """Internal retries adopt rows minted by the previous (failed) try so
+        they are overwritten in place instead of minting new attempts."""
+        from conftest import NotificationBatchDecisionFactory, NotificationBatchFactory
+        from core.models.decision_one_liner import (
+            DecisionOneLiner,
+            OneLinerStatus,
+        )
+        from core.models.one_liner_config import OneLinerConfig
+        from core.models.pipeline import RunStatus
+        from core.services.pipeline_engine import PipelineContext
+        from core.tests.services.conftest import PipelineRunFactory
+        from notifications.tasks.ai_summary_tasks import (
+            _get_or_create_default_pipeline,
+        )
+
+        notification_subscription.ai_summary_enabled = True
+        notification_subscription.save()
+
+        batch = NotificationBatchFactory(
+            user=user,
+            subscription=notification_subscription,
+            match_count=1,
+        )
+        NotificationBatchDecisionFactory(batch=batch, decision=decision)
+
+        _get_or_create_default_pipeline()
+
+        # The previous try's failed run minted a RUNNING attempt row
+        prev_run = PipelineRunFactory(status=RunStatus.FAILED)
+        ol_config = OneLinerConfig.get_or_create_for(
+            prompt_kind="batch_one_liner",
+            system_prompt="s",
+            prompt_template="t",
+            provider="OPENROUTER",
+            model="test/model",
+            temperature=0.3,
+            max_tokens=None,
+        )
+        minted = DecisionOneLiner.objects.create(
+            decision=decision,
+            config=ol_config,
+            attempt=1,
+            status=OneLinerStatus.RUNNING,
+            pipeline_run=prev_run,
+        )
+        batch.ai_summary_run = prev_run
+        batch.save(update_fields=["ai_summary_run"])
+
+        context = PipelineContext(
+            decisions=[decision], batch=batch, user=user
+        )
+        context.per_item_outputs = {str(decision.pk): "Retry one-liner."}
+        context.steps_output = {3: "Merged."}
+
+        run = PipelineRunFactory(
+            status=RunStatus.COMPLETED,
+            completed_at=timezone.now(),
+        )
+
+        self._run_task(batch, decision, context, run)
+
+        assert context.metadata["adopt_one_liner_rows"] == {
+            str(decision.pk): minted.id
+        }
+
+
+class TestRetriesExhausted:
+    """Chord-safety: exhausted retries must not break the email chord."""
+
+    def test_returns_error_dict_instead_of_raising(
+        self, user, notification_subscription, decision
+    ):
+        """
+        When Celery reports retries exhausted (MaxRetriesExceededError from
+        ``self.retry``), the task marks the batch FAILED and RETURNS an
+        error dict instead of re-raising.
+        """
+        from celery.exceptions import MaxRetriesExceededError
+
+        from conftest import NotificationBatchDecisionFactory, NotificationBatchFactory
+        from notifications.tasks.ai_summary_tasks import summarize_notification_batch
+
+        notification_subscription.ai_summary_enabled = True
+        notification_subscription.save()
+
+        batch = NotificationBatchFactory(
+            user=user,
+            subscription=notification_subscription,
+            match_count=1,
+        )
+        NotificationBatchDecisionFactory(batch=batch, decision=decision)
+
+        real_task = summarize_notification_batch._get_current_object()
+
+        with patch.object(
+            real_task,
+            "retry",
+            side_effect=MaxRetriesExceededError("retries exhausted"),
+        ), patch(
+            "core.services.pipeline_engine.PipelineEngine"
+        ) as mock_engine_cls:
+            mock_engine = Mock()
+            mock_engine_cls.return_value = mock_engine
+            mock_engine.run.side_effect = RuntimeError("API quota exceeded")
+
+            result = summarize_notification_batch(batch_id=batch.id)
+
+        assert result == {
+            "batch_id": batch.id,
+            "status": "FAILED",
+            "error": "API quota exceeded",
+            "retries_exhausted": True,
+        }
+        batch.refresh_from_db()
+        assert batch.ai_summary_status == "FAILED"
+        assert "API quota exceeded" in batch.ai_summary_error
+
+    def test_retry_signal_still_propagates_while_retries_remain(
+        self, user, notification_subscription, decision
+    ):
+        """
+        While retries remain, ``self.retry`` raising celery's ``Retry``
+        must propagate (the worker re-runs the task).
+        """
+        from celery.exceptions import Retry as CeleryRetry
+
+        from conftest import NotificationBatchDecisionFactory, NotificationBatchFactory
+        from notifications.tasks.ai_summary_tasks import summarize_notification_batch
+
+        notification_subscription.ai_summary_enabled = True
+        notification_subscription.save()
+
+        batch = NotificationBatchFactory(
+            user=user,
+            subscription=notification_subscription,
+            match_count=1,
+        )
+        NotificationBatchDecisionFactory(batch=batch, decision=decision)
+
+        real_task = summarize_notification_batch._get_current_object()
+
+        with patch.object(
+            real_task,
+            "retry",
+            side_effect=CeleryRetry("retry requested"),
+        ), patch(
+            "core.services.pipeline_engine.PipelineEngine"
+        ) as mock_engine_cls:
+            mock_engine = Mock()
+            mock_engine_cls.return_value = mock_engine
+            mock_engine.run.side_effect = RuntimeError("transient")
+
+            with pytest.raises(CeleryRetry):
+                summarize_notification_batch(batch_id=batch.id)
+
+        batch.refresh_from_db()
+        assert batch.ai_summary_status == "FAILED"
+
+
 class TestDefaultPipelineCreation:
     """Tests for ``_get_or_create_default_pipeline``."""
 

@@ -9,7 +9,8 @@ individual per-user notification checks.  These tests confirm:
   - Inactive and non-automatic subscriptions are ignored
   - Subscriptions are grouped by user into per-user chords
   - Each user's chord fires independently (one chord call per user)
-  - The chord callback is send_consolidated_email_for_user
+  - The chord callback is dispatch_summaries_then_email (summaries run
+    before the consolidated email so it can include the one-liner bullets)
 
 No Celery broker is needed — chord() is mocked.
 """
@@ -243,8 +244,8 @@ class TestCheckAllActiveSubscriptionsMixed:
         header_sig = mock_chord.call_args[0][0]
         assert header_sig.kwargs["lookback_days"] == 3
 
-    def test_chord_callback_is_consolidated_email_for_user(self, mock_chord):
-        """Verify the chord callback is send_consolidated_email_for_user."""
+    def test_chord_callback_is_dispatch_summaries_then_email(self, mock_chord):
+        """Verify the chord callback is dispatch_summaries_then_email."""
         from conftest import NotificationSubscriptionFactory
         sub = NotificationSubscriptionFactory(check_frequency="daily")
 
