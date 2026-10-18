@@ -373,6 +373,126 @@ class TestPasswordResetEmailService:
 
 
 # =========================================================================
+# Consolidated email — AI one-liner bullets
+# =========================================================================
+
+
+def _consolidated_batch(batches):
+    """Call the consolidated email service with the given batch data."""
+    from core.email_service import NotificationEmailService
+
+    total = sum(b.get("decision_count", 0) for b in batches)
+    result = NotificationEmailService.send_consolidated_batch_summary(
+        user_email=TEST_EMAIL,
+        username=TEST_USERNAME,
+        batches=batches,
+        total_decisions=total,
+        language="en",
+    )
+    assert result is True
+    sent = mail.outbox[-1]
+    return _get_html_alternative(sent)
+
+
+@pytest.mark.django_db
+class TestConsolidatedEmailSummaryBullets:
+    """AI one-liner bullets + decision links in the consolidated email."""
+
+    def test_renders_bullets_with_decision_links_when_items_present(self):
+        batches = [
+            {
+                "id": 5,
+                "subscription_name": "My Sub",
+                "organization_name": None,
+                "entity_name": None,
+                "decision_count": 2,
+                "ai_summary_status": "COMPLETED",
+                "ai_summary_items": [
+                    {
+                        "decision_id": 101,
+                        "ada": "ΑΒΓΔΕ-ΖΗΘ",
+                        "subject": "Approval of works",
+                        "one_liner": "Εγκρίθηκε δαπάνη 1.000 ευρώ.",
+                    },
+                    {
+                        "decision_id": 102,
+                        "ada": "ΑΒΓΔΕ-ΖΙΚ",
+                        "subject": "",
+                        "one_liner": "Ανακήρυξη αναδόχου.",
+                    },
+                ],
+            }
+        ]
+
+        html = _consolidated_batch(batches)
+
+        # One bullet per item, linked to the decision page
+        assert html.count("/decision/101") == 1
+        assert html.count("/decision/102") == 1
+        # Link text: subject, falling back to ada when the subject is empty
+        assert "Approval of works" in html
+        assert "ΑΒΓΔΕ-ΖΙΚ" in html
+        # The one-liner is rendered next to the link
+        assert "Εγκρίθηκε δαπάνη 1.000 ευρώ." in html
+        assert "Ανακήρυξη αναδόχου." in html
+
+    def test_falls_back_to_plain_rendering_without_items(self):
+        """AI disabled/failed → no bullets, classic batch block only."""
+        batches = [
+            {
+                "id": 5,
+                "subscription_name": "My Sub",
+                "organization_name": None,
+                "entity_name": None,
+                "decision_count": 1,
+                "ai_summary_status": "SKIPPED",
+                "ai_summary_items": [],
+            }
+        ]
+
+        html = _consolidated_batch(batches)
+
+        assert "/decision/" not in html
+        assert "/batch/5" in html
+        assert "View Matches" in html
+
+    def test_greek_template_renders_bullets(self):
+        batches = [
+            {
+                "id": 9,
+                "subscription_name": "Η συνδρομή μου",
+                "organization_name": None,
+                "entity_name": None,
+                "decision_count": 1,
+                "ai_summary_status": "COMPLETED",
+                "ai_summary_items": [
+                    {
+                        "decision_id": 7,
+                        "ada": "ΑΒΓΔΕ-ΩΚΦ",
+                        "subject": "Ανάθεση έργου",
+                        "one_liner": "Υπογράφηκε σύμβαση.",
+                    }
+                ],
+            }
+        ]
+
+        from core.email_service import NotificationEmailService
+
+        result = NotificationEmailService.send_consolidated_batch_summary(
+            user_email=TEST_EMAIL,
+            username=TEST_USERNAME,
+            batches=batches,
+            total_decisions=1,
+            language="el",
+        )
+
+        assert result is True
+        html = _get_html_alternative(mail.outbox[-1])
+        assert "/decision/7" in html
+        assert "Υπογράφηκε σύμβαση." in html
+
+
+# =========================================================================
 # helpers
 # =========================================================================
 

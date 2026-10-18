@@ -889,7 +889,93 @@ def check_user_subscriptions(user_id, subscription_ids, lookback_days=1):
 
 
 @shared_task
-def send_consolidated_email_for_user(*args, user_id=None):
+def dispatch_summaries_then_email(*args, user_id=None):
+    """
+    Chord callback after ``check_user_subscriptions``: run the user's AI
+    batch summaries first, then send the consolidated email.
+
+    Replaces ``send_consolidated_email_for_user`` as the chord callback of
+    ``check_all_active_subscriptions``.  Previously the email fired
+    immediately while summaries ran async via ``transaction.on_commit`` —
+    so the email could never include the AI one-liners.  Now:
+
+    - Batches that received new decisions (``new_batch_ids`` from the header
+      result) each get a ``summarize_notification_batch`` task inside an
+      inner chord whose callback sends the email — AI-disabled or empty
+      batches just take the fast SKIPPED path.
+    - With no new batches, the email is sent directly with the header
+      result.
+
+    Args:
+        *args: Results from the chord header task (check_user_subscriptions).
+        user_id: The user ID (passed via .s(user_id=...)).
+
+    Returns:
+        dict with user_id, summaries_dispatched and the email outcome (or
+        ``email_deferred: True`` when the inner chord owns the email).
+    """
+    from celery import group
+
+    from notifications.tasks.ai_summary_tasks import summarize_notification_batch
+
+    if user_id is None:
+        logger.error("dispatch_summaries_then_email called without user_id")
+        return {
+            "user_id": None,
+            "summaries_dispatched": 0,
+            "success": False,
+        }
+
+    # Unwrap the chord header result the same way the email task does.
+    header_result = None
+    if args:
+        candidate = args[0]
+        if isinstance(candidate, (list, tuple)) and len(candidate) == 1:
+            candidate = candidate[0]
+        if isinstance(candidate, dict) and "batch_ids" in candidate:
+            header_result = candidate
+
+    new_batch_ids = (
+        (header_result or {}).get("new_batch_ids") or []
+        if header_result is not None
+        else []
+    )
+
+    if not new_batch_ids:
+        logger.info(
+            f"User {user_id}: no new batches needing summaries, "
+            f"sending email directly"
+        )
+        return send_consolidated_email_for_user(*args, user_id=user_id)
+
+    logger.info(
+        f"User {user_id}: dispatching {len(new_batch_ids)} batch summary "
+        f"task(s); email follows once summaries finish"
+    )
+
+    chord(
+        group(
+            summarize_notification_batch.s(batch_id)
+            for batch_id in new_batch_ids
+        )
+    )(
+        # The inner chord body receives the summary results; forward the
+        # original header result so the email still covers exactly the
+        # batches created in this run.
+        send_consolidated_email_for_user.s(
+            user_id=user_id, header_result=header_result
+        )
+    )
+
+    return {
+        "user_id": user_id,
+        "summaries_dispatched": len(new_batch_ids),
+        "email_deferred": True,
+    }
+
+
+@shared_task
+def send_consolidated_email_for_user(*args, user_id=None, header_result=None):
     """
     Send a single consolidated email to a user summarizing their new batches
     from the current check run only.
@@ -920,13 +1006,20 @@ def send_consolidated_email_for_user(*args, user_id=None):
     # even when the header is a single task — so unwrap one level when the
     # first element is a list.  Fall back to the old behaviour (all
     # un-emailed) only when no usable result is present at all.
-    header_result = None
-    if args:
-        candidate = args[0]
-        if isinstance(candidate, (list, tuple)) and len(candidate) == 1:
-            candidate = candidate[0]
-        if isinstance(candidate, dict) and "batch_ids" in candidate:
-            header_result = candidate
+    if (
+        isinstance(header_result, dict)
+        and "batch_ids" in header_result
+    ):
+        # Explicit override (summaries-chord path)
+        pass
+    else:
+        header_result = None
+        if args:
+            candidate = args[0]
+            if isinstance(candidate, (list, tuple)) and len(candidate) == 1:
+                candidate = candidate[0]
+            if isinstance(candidate, dict) and "batch_ids" in candidate:
+                header_result = candidate
 
     batch_ids_from_run = (
         header_result["batch_ids"] if header_result is not None else None
