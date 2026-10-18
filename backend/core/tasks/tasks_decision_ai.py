@@ -335,6 +335,88 @@ def process_decision_ai(self, decision_id: int, user_id: int, provider: str = No
         raise self.retry(exc=exc, countdown=60)
 
 
+@shared_task(bind=True, max_retries=2)
+def generate_decision_one_liner(self, decision_id: int, user_id: int, force: bool = False):
+    """
+    Generate (or regenerate) the per-decision one-liner via the shared cache.
+
+    Reuses the default batch pipeline (``notification_batch_summary_v1``) on a
+    single decision so the cache-aware AICallStep map path fills/reads
+    ``DecisionOneLiner`` — identical circumstances are never billed twice.
+    ``force=True`` mints a fresh attempt (``attempt = max + 1``) under the
+    *current* circumstances; the previous attempts stay as history.
+
+    Billing goes to the requesting user (context.user).  Extraction is
+    ensured first, mirroring ``process_decision_ai``.
+
+    Returns:
+        dict with decision_id, status, one_liner, one_liner_id, pipeline_run_id
+    """
+    from core.models.decisions import Decision
+    from core.models.pipeline import RunStatus
+    from core.services.pipeline_engine import PipelineContext, PipelineEngine
+
+    decision = (
+        Decision.objects.select_related("text_extraction")
+        .filter(id=decision_id)
+        .first()
+    )
+    if decision is None:
+        logger.error(f"generate_decision_one_liner: decision {decision_id} not found")
+        return {"decision_id": decision_id, "status": "not_found"}
+
+    user = _resolve_user(user_id)
+
+    # Ensure text is extracted first (idempotent; mirrors process_decision_ai)
+    if _needs_text_extraction(decision):
+        logger.info(
+            f"Decision {decision_id}: text not extracted, triggering extraction first"
+        )
+        extract_result = extract_decision_text(decision_id)
+        if extract_result.get("status") not in ("extracted", "already_extracted"):
+            error_msg = extract_result.get("error", "Could not extract text")
+            return {
+                "decision_id": decision_id,
+                "status": "extraction_failed",
+                "error": error_msg,
+            }
+        decision.refresh_from_db()
+
+    from notifications.tasks.ai_summary_tasks import _get_or_create_default_pipeline
+
+    pipeline_def = _get_or_create_default_pipeline()
+
+    context = PipelineContext(
+        decisions=[decision],
+        user=user,
+    )
+    context.metadata["one_liner_force"] = bool(force)
+
+    engine = PipelineEngine()
+    run = engine.run(
+        pipeline_def,
+        context,
+        trigger="decision_one_liner",
+        trigger_ref=f"decision:{decision_id}",
+    )
+
+    one_liner = context.per_item_outputs.get(str(decision_id))
+    completed = run.status == RunStatus.COMPLETED
+    logger.info(
+        f"Decision {decision_id}: one-liner {run.status} "
+        f"(cost: ${run.total_cost_usd}, "
+        f"cache: {context.metadata.get('one_liner_cache')})"
+    )
+    return {
+        "decision_id": decision_id,
+        "status": "completed" if completed else "failed",
+        "error": run.error_message if not completed else None,
+        "one_liner": one_liner if completed else None,
+        "cost_usd": str(run.total_cost_usd),
+        "pipeline_run_id": run.id,
+    }
+
+
 def _get_or_create_simple_summary_pipeline():
     """
     Get or create the simple single-decision AI summary pipeline.

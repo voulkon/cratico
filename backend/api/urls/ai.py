@@ -11,6 +11,7 @@ from api.views.ai.ai_decisions import (
     get_analysis,
     request_amount_verification,
     request_extraction,
+    request_one_liner,
     request_summary,
 )
 from api.views.ai.ai_interactions import (
@@ -53,6 +54,7 @@ urlpatterns = [
     # ``decision_ref`` is either the integer PK or the ΑΔΑ.
     path("decisions/<str:decision_ref>/extract/", request_extraction, name="ai_decision_extract"),
     path("decisions/<str:decision_ref>/summarize/", request_summary, name="ai_decision_summarize"),
+    path("decisions/<str:decision_ref>/one-liner/", request_one_liner, name="ai_decision_one_liner"),
     path("decisions/<str:decision_ref>/verify-amount/", request_amount_verification, name="ai_decision_verify_amount"),
     path("decisions/<str:decision_ref>/analysis/", get_analysis, name="ai_decision_analysis"),
 ]
