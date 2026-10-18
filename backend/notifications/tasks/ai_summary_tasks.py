@@ -13,6 +13,8 @@ from celery import shared_task
 from core.ai_services.summary_prompts import (
     BATCH_MAP_SYSTEM_PROMPT,
     BATCH_MERGE_SYSTEM_PROMPT,
+    BATCH_ONE_LINER_PROMPT_KIND,
+    CACHE_ONE_LINERS_FLAG,
 )
 from core.tasks.tasks_decision_ai import _extract_pipeline_output
 from notifications.models import NotificationBatch
@@ -161,6 +163,11 @@ def _get_or_create_default_pipeline():
             config={
                 "provider": "OPENROUTER",
                 "map_over_items": True,
+                # Shared per-decision one-liner cache (DecisionOneLiner):
+                # identical (decision × extraction × generation-circumstances)
+                # pairs reuse the stored one-liner at zero cost.
+                CACHE_ONE_LINERS_FLAG: True,
+                "prompt_kind": BATCH_ONE_LINER_PROMPT_KIND,
                 "system_prompt": BATCH_MAP_SYSTEM_PROMPT,
                 "prompt_template": "Summarize this decision:\n{{ text }}",
                 "temperature": 0.3,

@@ -781,6 +781,371 @@ class TestAICallStep:
 
 
 # ============================================================================
+# AICallStep — one-liner cache (``cache_one_liners`` map mode)
+# ============================================================================
+
+
+class TestAICallStepOneLinerCache:
+    """Cache-aware map mode: hits cost nothing, misses fill the cache."""
+
+    def _cache_step(self, pipeline_def):
+        from .conftest import PipelineStepFactory
+
+        return PipelineStepFactory(
+            pipeline=pipeline_def, order=2, step_type=StepType.AI_CALL,
+            name="Summarize (cached)",
+            config={
+                "provider": "OPENROUTER",
+                "model": "test/model",
+                "system_prompt": "Be brief.",
+                "prompt_template": "Summarize: {{ text }}",
+                "map_over_items": True,
+                "cache_one_liners": True,
+                "prompt_kind": "batch_one_liner",
+            },
+        )
+
+    def _cache_ol_config(self):
+        """The ``OneLinerConfig`` row the cached step resolves to (matching
+        system_prompt + the code-level ``max_tokens`` default)."""
+        from core.models.one_liner_config import OneLinerConfig
+        from core.services.pipeline_steps.ai_call import DEFAULT_MAX_TOKENS
+
+        return OneLinerConfig.get_or_create_for(
+            prompt_kind="batch_one_liner",
+            system_prompt="Be brief.",
+            prompt_template="Summarize: {{ text }}",
+            provider="OPENROUTER",
+            model="test/model",
+            temperature=0.3,
+            max_tokens=DEFAULT_MAX_TOKENS,
+        )
+
+    def _cache_context(self, decision, extraction, extra=None):
+        context = _make_context(decisions=[decision],
+                                per_item_outputs={str(decision.pk): "Full text."})
+        context.metadata["item_extractions"] = {str(decision.pk): extraction.id}
+        context.metadata.update(extra or {})
+        return context
+
+    def _success(self, text):
+        return {
+            "success": True,
+            "text": text,
+            "input_tokens": 50,
+            "output_tokens": 20,
+            "actual_cost_usd": Decimal("0.0001"),
+            "latency_ms": 150,
+            "provider": "OPENROUTER",
+            "model": "test/model",
+        }
+
+    @pytest.mark.django_db
+    def test_hit_reuses_stored_one_liner(self, decision_type):
+        """A COMPLETED lineage row short-circuits the provider — zero cost."""
+        from conftest import DecisionFactory, DocumentExtractionFactory
+        from core.models.decision_one_liner import (
+            DecisionOneLiner,
+            OneLinerStatus,
+        )
+        from core.services.pipeline_steps.ai_call import AICallStep
+
+        decision = DecisionFactory(ada="ADA_HIT", decision_type=decision_type)
+        extraction = DocumentExtractionFactory(
+            decision=decision, raw_text="Full document text.",
+        )
+        ol_config = self._cache_ol_config()
+        DecisionOneLiner.objects.create(
+            decision=decision,
+            extraction=extraction,
+            config=ol_config,
+            attempt=1,
+            status=OneLinerStatus.COMPLETED,
+            one_liner="Cached one-liner.",
+        )
+
+        pipeline_def = PipelineDefinitionFactory()
+        step = self._cache_step(pipeline_def)
+        context = self._cache_context(decision, extraction)
+        run = _make_run(pipeline_def)
+        step_run = _make_step_run(run, step)
+
+        with patch(
+            "core.services.pipeline_steps.ai_call.get_provider"
+        ) as mock_get_provider:
+            mock_provider = MagicMock()
+            mock_get_provider.return_value = mock_provider
+
+            AICallStep().execute(step, step_run, context, run)
+
+        mock_provider.invoke.assert_not_called()
+        assert context.per_item_outputs[str(decision.pk)] == "Cached one-liner."
+        assert context.metadata["one_liner_cache"] == {"hits": 1, "misses": 0}
+        step_run.refresh_from_db()
+        assert step_run.input_tokens == 0
+        assert step_run.cost_usd == Decimal("0")
+
+    @pytest.mark.django_db
+    def test_miss_generates_and_stores_attempt(self, decision_type):
+        """A cache miss invokes the provider once and persists the attempt."""
+        from conftest import DecisionFactory, DocumentExtractionFactory
+        from core.models.decision_one_liner import (
+            DecisionOneLiner,
+            OneLinerStatus,
+        )
+        from core.services.pipeline_steps.ai_call import AICallStep
+
+        decision = DecisionFactory(ada="ADA_MISS", decision_type=decision_type)
+        extraction = DocumentExtractionFactory(
+            decision=decision, raw_text="Full document text.",
+        )
+
+        pipeline_def = PipelineDefinitionFactory()
+        step = self._cache_step(pipeline_def)
+        context = self._cache_context(decision, extraction)
+        run = _make_run(pipeline_def)
+        step_run = _make_step_run(run, step)
+
+        with patch(
+            "core.services.pipeline_steps.ai_call.get_provider"
+        ) as mock_get_provider:
+            mock_provider = MagicMock()
+            mock_provider.invoke.return_value = self._success("Fresh one-liner.")
+            mock_get_provider.return_value = mock_provider
+
+            AICallStep().execute(step, step_run, context, run)
+
+        mock_provider.invoke.assert_called_once()
+        row = DecisionOneLiner.objects.get(decision=decision)
+        assert row.status == OneLinerStatus.COMPLETED
+        assert row.one_liner == "Fresh one-liner."
+        assert row.attempt == 1
+        assert row.input_tokens == 50
+        assert row.output_tokens == 20
+        assert row.cost_usd == Decimal("0.0001")
+        assert row.pipeline_run_id == run.id
+        assert row.completed_at is not None
+        assert context.metadata["one_liner_cache"] == {"hits": 0, "misses": 1}
+
+    @pytest.mark.django_db
+    def test_failure_marks_row_failed_and_raises(self, decision_type):
+        """A failed provider call marks the attempt FAILED, then raises."""
+        from conftest import DecisionFactory, DocumentExtractionFactory
+        from core.models.decision_one_liner import (
+            DecisionOneLiner,
+            OneLinerStatus,
+        )
+        from core.services.pipeline_steps.ai_call import AICallStep
+
+        decision = DecisionFactory(ada="ADA_FAIL", decision_type=decision_type)
+        extraction = DocumentExtractionFactory(
+            decision=decision, raw_text="Full document text.",
+        )
+
+        pipeline_def = PipelineDefinitionFactory()
+        step = self._cache_step(pipeline_def)
+        context = self._cache_context(decision, extraction)
+        run = _make_run(pipeline_def)
+        step_run = _make_step_run(run, step)
+
+        with patch(
+            "core.services.pipeline_steps.ai_call.get_provider"
+        ) as mock_get_provider:
+            mock_provider = MagicMock()
+            mock_provider.invoke.return_value = {
+                "success": False,
+                "error": "API quota exceeded",
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "actual_cost_usd": Decimal("0"),
+            }
+            mock_get_provider.return_value = mock_provider
+
+            with pytest.raises(RuntimeError, match="item "):
+                AICallStep().execute(step, step_run, context, run)
+
+        row = DecisionOneLiner.objects.get(decision=decision)
+        assert row.status == OneLinerStatus.FAILED
+        assert "API quota exceeded" in row.error_message
+
+    @pytest.mark.django_db
+    def test_force_bypasses_hit_and_mints_new_attempt(self, decision_type):
+        """``one_liner_force`` metadata ignores the stored hit and always
+        generates a fresh attempt under the current circumstances."""
+        from conftest import DecisionFactory, DocumentExtractionFactory
+        from core.models.decision_one_liner import (
+            DecisionOneLiner,
+            OneLinerStatus,
+        )
+        from core.services.pipeline_steps.ai_call import AICallStep
+
+        decision = DecisionFactory(ada="ADA_FORCE", decision_type=decision_type)
+        extraction = DocumentExtractionFactory(
+            decision=decision, raw_text="Full document text.",
+        )
+        ol_config = self._cache_ol_config()
+        DecisionOneLiner.objects.create(
+            decision=decision,
+            extraction=extraction,
+            config=ol_config,
+            attempt=1,
+            status=OneLinerStatus.COMPLETED,
+            one_liner="Old one-liner.",
+        )
+
+        pipeline_def = PipelineDefinitionFactory()
+        step = self._cache_step(pipeline_def)
+        context = self._cache_context(
+            decision, extraction, extra={"one_liner_force": True}
+        )
+        run = _make_run(pipeline_def)
+        step_run = _make_step_run(run, step)
+
+        with patch(
+            "core.services.pipeline_steps.ai_call.get_provider"
+        ) as mock_get_provider:
+            mock_provider = MagicMock()
+            mock_provider.invoke.return_value = self._success("New one-liner.")
+            mock_get_provider.return_value = mock_provider
+
+            AICallStep().execute(step, step_run, context, run)
+
+        mock_provider.invoke.assert_called_once()
+        rows = list(DecisionOneLiner.objects.filter(decision=decision))
+        assert len(rows) == 2
+        new_row = max(rows, key=lambda r: r.attempt)
+        assert new_row.attempt == 2
+        assert new_row.one_liner == "New one-liner."
+        assert new_row.status == OneLinerStatus.COMPLETED
+        # The old attempt is kept as history
+        assert context.per_item_outputs[str(decision.pk)] == "New one-liner."
+
+    @pytest.mark.django_db
+    def test_dict_decisions_bypass_cache(self, decision_type):
+        """Non-numeric/dict item ids are never cached (counters untouched)."""
+        from core.models.decision_one_liner import DecisionOneLiner
+        from core.services.pipeline_steps.ai_call import AICallStep
+
+        pipeline_def = PipelineDefinitionFactory()
+        step = self._cache_step(pipeline_def)
+        context = _make_context(
+            decisions=[{"id": "ADA_DICT", "raw_text": "Dict text."}],
+            per_item_outputs={"ADA_DICT": "Dict text."},
+        )
+        run = _make_run(pipeline_def)
+        step_run = _make_step_run(run, step)
+
+        with patch(
+            "core.services.pipeline_steps.ai_call.get_provider"
+        ) as mock_get_provider:
+            mock_provider = MagicMock()
+            mock_provider.invoke.return_value = self._success("Dict summary.")
+            mock_get_provider.return_value = mock_provider
+
+            AICallStep().execute(step, step_run, context, run)
+
+        mock_provider.invoke.assert_called_once()
+        assert not DecisionOneLiner.objects.exists()
+        assert context.metadata["one_liner_cache"] == {"hits": 0, "misses": 0}
+
+    @pytest.mark.django_db
+    def test_retry_adopts_minted_row_in_place(self, decision_type):
+        """Adoption metadata maps the item to the row minted by a previous
+        (failed) try — internal retries overwrite it, not mint attempts."""
+        from conftest import DecisionFactory, DocumentExtractionFactory
+        from core.models.decision_one_liner import (
+            DecisionOneLiner,
+            OneLinerStatus,
+        )
+        from core.services.pipeline_steps.ai_call import AICallStep
+
+        decision = DecisionFactory(ada="ADA_ADOPT", decision_type=decision_type)
+        extraction = DocumentExtractionFactory(
+            decision=decision, raw_text="Full document text.",
+        )
+        ol_config = self._cache_ol_config()
+
+        pipeline_def = PipelineDefinitionFactory()
+        step = self._cache_step(pipeline_def)
+        run = _make_run(pipeline_def)
+        step_run = _make_step_run(run, step)
+
+        # Row minted by the previous try of the same task (left RUNNING)
+        leftover = DecisionOneLiner.objects.create(
+            decision=decision,
+            extraction=extraction,
+            config=ol_config,
+            attempt=1,
+            status=OneLinerStatus.RUNNING,
+        )
+
+        context = self._cache_context(
+            decision, extraction,
+            extra={"adopt_one_liner_rows": {str(decision.pk): leftover.id}},
+        )
+
+        with patch(
+            "core.services.pipeline_steps.ai_call.get_provider"
+        ) as mock_get_provider:
+            mock_provider = MagicMock()
+            mock_provider.invoke.return_value = self._success("Retry one-liner.")
+            mock_get_provider.return_value = mock_provider
+
+            AICallStep().execute(step, step_run, context, run)
+
+        rows = list(DecisionOneLiner.objects.filter(decision=decision))
+        assert len(rows) == 1  # no new attempt minted
+        rows[0].refresh_from_db()
+        assert rows[0].one_liner == "Retry one-liner."
+        assert rows[0].status == OneLinerStatus.COMPLETED
+
+    @pytest.mark.django_db
+    def test_single_mode_ignores_cache_flag(self, decision_type):
+        """The flag is map-mode only — single-mode steps stay uncached."""
+        from conftest import DecisionFactory, DocumentExtractionFactory
+        from core.models.decision_one_liner import DecisionOneLiner
+        from core.services.pipeline_steps.ai_call import AICallStep
+
+        decision = DecisionFactory(ada="ADA_SINGLE", decision_type=decision_type)
+        extraction = DocumentExtractionFactory(
+            decision=decision, raw_text="Full document text.",
+        )
+
+        pipeline_def = PipelineDefinitionFactory()
+        step = PipelineStepFactory(
+            pipeline=pipeline_def, order=2, step_type=StepType.AI_CALL,
+            name="Summarize all",
+            config={
+                "provider": "OPENROUTER",
+                "model": "test/model",
+                "map_over_items": False,
+                "cache_one_liners": True,
+            },
+        )
+        context = _make_context(
+            decisions=[decision],
+            per_item_outputs={str(decision.pk): "Full text."},
+            steps_output={1: "Joined text"},
+        )
+        context.metadata["item_extractions"] = {str(decision.pk): extraction.id}
+        run = _make_run(pipeline_def)
+        step_run = _make_step_run(run, step)
+
+        with patch(
+            "core.services.pipeline_steps.ai_call.get_provider"
+        ) as mock_get_provider:
+            mock_provider = MagicMock()
+            mock_provider.invoke.return_value = self._success("Single summary.")
+            mock_get_provider.return_value = mock_provider
+
+            AICallStep().execute(step, step_run, context, run)
+
+        assert context.steps_output[2] == "Single summary."
+        assert not DecisionOneLiner.objects.exists()
+        assert "one_liner_cache" not in context.metadata
+
+
+# ============================================================================
 # AggregateStep
 # ============================================================================
 
