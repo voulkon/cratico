@@ -149,6 +149,93 @@ class TestExtractStep:
         assert context.per_item_outputs[str(decision.id)] == "Extracted PDF text."
 
     @pytest.mark.django_db
+    def test_records_extraction_provenance(self, decision_type):
+        """Model decisions record the extraction id used per item."""
+        from conftest import DecisionFactory, DocumentExtractionFactory
+        from core.services.pipeline_steps.extract import ExtractStep
+
+        decision = DecisionFactory(ada="ADA_PROV", decision_type=decision_type)
+        extraction = DocumentExtractionFactory(
+            decision=decision, raw_text="Provenance text.",
+        )
+
+        pipeline_def = PipelineDefinitionFactory()
+        step = PipelineStepFactory(
+            pipeline=pipeline_def, order=0, step_type=StepType.EXTRACT,
+            name="Extract",
+        )
+        context = _make_context(decisions=[decision])
+        run = _make_run(pipeline_def)
+        step_run = _make_step_run(run, step)
+
+        ExtractStep().execute(step, step_run, context, run)
+
+        assert context.metadata["item_extractions"] == {
+            str(decision.id): extraction.id
+        }
+
+    @pytest.mark.django_db
+    def test_provenance_skips_dict_decisions(self, decision_type):
+        """Dict decisions are skipped in the provenance map."""
+        from conftest import DecisionFactory, DocumentExtractionFactory
+        from core.services.pipeline_steps.extract import ExtractStep
+
+        decision = DecisionFactory(ada="ADA_MIX", decision_type=decision_type)
+        extraction = DocumentExtractionFactory(
+            decision=decision, raw_text="Model text.",
+        )
+
+        pipeline_def = PipelineDefinitionFactory()
+        step = PipelineStepFactory(
+            pipeline=pipeline_def, order=0, step_type=StepType.EXTRACT,
+            name="Extract",
+        )
+        context = _make_context(decisions=[
+            decision,
+            {"id": "ADA_DICT", "raw_text": "Dict text."},
+        ])
+        run = _make_run(pipeline_def)
+        step_run = _make_step_run(run, step)
+
+        ExtractStep().execute(step, step_run, context, run)
+
+        assert context.metadata["item_extractions"] == {
+            str(decision.id): extraction.id
+        }
+        assert context.per_item_outputs["ADA_DICT"] == "Dict text."
+
+    @pytest.mark.django_db
+    def test_on_demand_provenance(self, decision_type):
+        """On-demand extraction records the fresh extraction row id."""
+        from conftest import DecisionFactory
+        from core.services.pipeline_steps.extract import ExtractStep
+
+        decision = DecisionFactory(ada="ADA_ONDEMAND", decision_type=decision_type)
+
+        pipeline_def = PipelineDefinitionFactory()
+        step = PipelineStepFactory(
+            pipeline=pipeline_def, order=0, step_type=StepType.EXTRACT,
+            name="Extract",
+        )
+        context = _make_context(decisions=[decision])
+        run = _make_run(pipeline_def)
+        step_run = _make_step_run(run, step)
+
+        # Simulate the on-demand flow resolving a real extraction row
+        from conftest import DocumentExtractionFactory
+
+        def _fake_on_demand(d):
+            row = DocumentExtractionFactory(decision=d, raw_text="Fresh text.")
+            return "Fresh text.", row
+
+        with patch.object(ExtractStep, "_extract_on_demand", side_effect=_fake_on_demand):
+            ExtractStep().execute(step, step_run, context, run)
+
+        assert context.per_item_outputs[str(decision.id)] == "Fresh text."
+        row_id = context.metadata["item_extractions"][str(decision.id)]
+        assert row_id is not None
+
+    @pytest.mark.django_db
     def test_falls_back_to_subject(self, decision_type):
         """Decision with no extractable text falls back to a marked ``subject``.
 
@@ -172,13 +259,15 @@ class TestExtractStep:
         run = _make_run(pipeline_def)
         step_run = _make_step_run(run, step)
 
-        with patch.object(ExtractStep, "_extract_on_demand", return_value=""):
+        with patch.object(ExtractStep, "_extract_on_demand", return_value=("", None)):
             ExtractStep().execute(step, step_run, context, run)
 
         assert (
             context.per_item_outputs[str(decision.id)]
             == "[EXTRACTION_UNAVAILABLE] Subject only text."
         )
+        # Subject fallback is marked with provenance None
+        assert context.metadata["item_extractions"][str(decision.id)] is None
 
 
 # ============================================================================
