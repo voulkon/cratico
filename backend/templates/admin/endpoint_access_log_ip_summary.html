@@ -1,7 +1,7 @@
 {% extends "admin/base_site.html" %}
 {% load static %}
 
-{% block title %}IP Address Summary{% endblock %}
+{% block title %}Visitors by IP{% endblock %}
 
 {% block extrastyle %}
 {{ block.super }}
@@ -15,7 +15,7 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 20px;
+        margin-bottom: 16px;
     }
 
     .ip-summary-header h1 {
@@ -23,9 +23,62 @@
         font-size: 22px;
     }
 
-    .ip-summary-header .toolbar {
+    .notice {
+        background: #fff3cd;
+        color: #856404;
+        border: 1px solid #ffeeba;
+        border-radius: 4px;
+        padding: 8px 12px;
+        font-size: 12px;
+        margin-bottom: 16px;
+    }
+
+    .kpis {
         display: flex;
-        gap: 10px;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .kpi {
+        background: var(--body-bg);
+        border: 1px solid var(--border-color, #ccc);
+        border-radius: 4px;
+        padding: 10px 16px;
+        min-width: 150px;
+    }
+
+    .kpi-value {
+        font-size: 20px;
+        font-weight: 700;
+    }
+
+    .kpi-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        color: var(--body-quiet-color);
+    }
+
+    .filter-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .filter-bar label {
+        font-size: 12px;
+        color: var(--body-quiet-color);
+    }
+
+    .presets a {
+        margin-right: 10px;
+        font-size: 12px;
+    }
+
+    .section-title {
+        font-size: 14px;
+        margin: 20px 0 8px;
     }
 
     .ip-summary-table {
@@ -45,6 +98,10 @@
         color: var(--body-quiet-color);
         border-bottom: 2px solid var(--border-color, #ccc);
         white-space: nowrap;
+    }
+
+    .ip-summary-table th a {
+        color: inherit;
     }
 
     .ip-summary-table td {
@@ -77,22 +134,14 @@
         line-height: 1.4;
     }
 
-    .badge-banned {
+    .badge-banned,
+    .badge-attacker {
         background: #dc3545;
         color: #fff;
     }
 
-    .badge-flagged {
-        background: #ffc107;
-        color: #333;
-    }
-
-    .badge-clean {
-        background: #e9ecef;
-        color: #666;
-    }
-
-    .badge-scan {
+    .badge-flagged,
+    .badge-suspicious {
         background: #fd7e14;
         color: #fff;
     }
@@ -102,24 +151,9 @@
         color: #fff;
     }
 
-    .badge-attacker {
-        background: #dc3545;
-        color: #fff;
-    }
-
-    .badge-suspicious {
-        background: #fd7e14;
-        color: #fff;
-    }
-
     .badge-normal {
         background: #d4edda;
         color: #155724;
-    }
-
-    .stat-number {
-        font-weight: 600;
-        font-size: 14px;
     }
 
     .stat-muted {
@@ -140,123 +174,18 @@
         color: #fd7e14;
     }
 
-    .status-codes {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4px;
-        max-width: 250px;
-    }
-
-    .status-code-chip {
-        display: inline-block;
-        padding: 1px 6px;
-        border-radius: 3px;
-        font-size: 11px;
-        font-family: monospace;
-        background: var(--darkened-bg);
-    }
-
-    .status-code-chip.error {
-        background: #f8d7da;
-        color: #721c24;
-    }
-
-    .status-code-chip.warn {
-        background: #fff3cd;
-        color: #856404;
-    }
-
-    .status-code-chip.success {
-        background: #d4edda;
-        color: #155724;
-    }
-
     .empty-state {
         text-align: center;
-        padding: 60px 20px;
+        padding: 40px 20px;
         color: var(--body-quiet-color);
     }
 
-    .empty-state p {
-        font-size: 14px;
-    }
-
-    .back-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-    }
-
-    /* Sample requests */
-    .sample-requests {
-        max-width: 450px;
-    }
-
-    .sample-req {
+    .pager {
         display: flex;
-        align-items: flex-start;
-        gap: 6px;
-        padding: 3px 0;
-        font-size: 11px;
-        border-bottom: 1px solid var(--hairline-color, #f0f0f0);
-        line-height: 1.4;
-    }
-
-    .sample-req:last-child {
-        border-bottom: none;
-    }
-
-    .req-method {
-        font-family: monospace;
-        font-weight: 700;
-        font-size: 10px;
-        color: var(--body-quiet-color);
-        min-width: 28px;
-        text-transform: uppercase;
-        flex-shrink: 0;
-    }
-
-    .req-url {
-        font-family: monospace;
-        font-size: 11px;
-        word-break: break-all;
-        flex: 1;
-        color: var(--body-fg);
-    }
-
-    .req-url a {
-        color: var(--link-fg);
-        text-decoration: none;
-    }
-
-    .req-url a:hover {
-        text-decoration: underline;
-    }
-
-    .req-status {
-        font-family: monospace;
-        font-size: 10px;
-        font-weight: 600;
-        min-width: 24px;
-        text-align: center;
-        flex-shrink: 0;
-        padding: 0 3px;
-        border-radius: 3px;
-    }
-
-    .req-status.error {
-        background: #f8d7da;
-        color: #721c24;
-    }
-
-    .req-status.warn {
-        background: #fff3cd;
-        color: #856404;
-    }
-
-    .req-status.success {
-        background: #d4edda;
-        color: #155724;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 12px;
+        font-size: 13px;
     }
 </style>
 {% endblock %}
@@ -264,42 +193,101 @@
 {% block content %}
 <div class="ip-summary-container">
     <div class="ip-summary-header">
-        <h1>🔍 IP Address Summary</h1>
-        <div class="toolbar">
-            <a href="{% url 'admin:api_endpointaccesslog_changelist' %}" class="button back-link">
-                ← Back to Request Log
-            </a>
-        </div>
+        <h1>Visitors by IP</h1>
+        <a href="{% url 'admin:api_endpointaccesslog_changelist' %}" class="button">← Back to Request Log</a>
     </div>
 
-    {% if ip_stats %}
+    {% if not forensic_logging %}
+    <div class="notice">
+        Forensic logging is OFF: only requests from flagged IPs are recorded, so these numbers cover flagged traffic only.
+    </div>
+    {% endif %}
+
+    <div class="kpis">
+        <div class="kpi"><div class="kpi-value">{{ totals.unique_ips }}</div><div class="kpi-label">Unique IPs</div></div>
+        <div class="kpi"><div class="kpi-value">{{ totals.requests }}</div><div class="kpi-label">Requests</div></div>
+        <div class="kpi"><div class="kpi-value">{{ totals.logged_in_users }}</div><div class="kpi-label">Logged-in users</div></div>
+    </div>
+
+    <form method="get" class="filter-bar">
+        <label>From <input type="date" name="start" value="{{ range_query.start }}"></label>
+        <label>To <input type="date" name="end" value="{{ range_query.end }}"></label>
+        <input type="hidden" name="sort" value="{{ sort }}">
+        <input type="hidden" name="dir" value="{{ direction }}">
+        <button type="submit" class="button default">Apply</button>
+        <span class="presets">
+            {% for preset in presets %}<a href="{{ preset.url }}">{{ preset.label }}</a>{% endfor %}
+        </span>
+    </form>
+
+    {% if daily %}
+    <div class="section-title">Unique visitors per day</div>
+    <table class="ip-summary-table" style="width: auto; min-width: 360px;">
+        <thead>
+            <tr><th>Day</th><th>Unique IPs</th><th>Requests</th></tr>
+        </thead>
+        <tbody>
+            {% for day in daily %}
+            <tr>
+                <td>{{ day.day|date:"D d M Y" }}</td>
+                <td class="stat-highlight">{{ day.unique_ips }}</td>
+                <td>{{ day.requests }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <div class="section-title">Visitors</div>
+    {% if visitors %}
     <table class="ip-summary-table">
         <thead>
             <tr>
-                <th>IP Address</th>
+                {% for col in sort_columns %}
+                <th><a href="{{ col.url }}">{{ col.label }}{% if col.arrow %} {{ col.arrow }}{% endif %}</a></th>
+                {% endfor %}
                 <th>Classification</th>
-                <th>Requests</th>
-                <th>404 Rate</th>
-                <th>Err Rate</th>
-                <th>Unique<br>Endpoints</th>
-                <th>Suspicious<br>Hits</th>
-                <th>First Seen</th>
-                <th>Last Seen</th>
-                <th>Sample Requests (recent)</th>
             </tr>
         </thead>
         <tbody>
-            {% for stat in ip_stats %}
+            {% for stat in visitors %}
             <tr>
                 <td class="ip-cell">
-                    <a href="{% url 'admin:api_endpointaccesslog_changelist' %}?ip_address={{ stat.ip_address|urlencode }}"
-                       title="Full IP: {{ stat.ip_address }}">
-                        {{ stat.ip_display }}
-                    </a>
+                    <a href="{{ stat.detail_url }}" title="Full IP: {{ stat.ip_address }}">{{ stat.ip_display }}</a>
                     {% if stat.is_ipv6 %}
-                    <br><small class="stat-muted" style="font-size:9px;" title="IPv6 /64 prefix">/64: {{ stat.ip_address|slice:":19" }}</small>
+                    <br><small class="stat-muted" title="IPv6 /64 prefix">/64: {{ stat.ip_address|slice:":19" }}</small>
                     {% endif %}
                 </td>
+                <td><a href="{{ stat.requests_url }}">{{ stat.request_count }}</a></td>
+                <td>{{ stat.unique_endpoints }}</td>
+                <td>
+                    {% if stat.error_rate >= 50 %}
+                        <span class="stat-highlight danger">{{ stat.error_rate }}%</span>
+                    {% elif stat.error_rate >= 25 %}
+                        <span class="stat-highlight warning">{{ stat.error_rate }}%</span>
+                    {% else %}
+                        {{ stat.error_rate }}%
+                    {% endif %}
+                </td>
+                <td>
+                    {% if stat.notfound_rate >= 70 %}
+                        <span class="stat-highlight danger">{{ stat.notfound_rate }}%</span>
+                    {% elif stat.notfound_rate >= 40 %}
+                        <span class="stat-highlight warning">{{ stat.notfound_rate }}%</span>
+                    {% else %}
+                        {{ stat.notfound_rate }}%
+                    {% endif %}
+                </td>
+                <td>
+                    {% if stat.suspicious_hits > 0 %}
+                        <span class="stat-highlight danger">{{ stat.suspicious_hits }}</span>
+                        <br><small class="stat-muted">{{ stat.suspicious_endpoints }} uniq</small>
+                    {% else %}
+                        0
+                    {% endif %}
+                </td>
+                <td class="stat-muted">{{ stat.first_seen|date:"m-d H:i" }}</td>
+                <td class="stat-muted">{{ stat.last_seen|date:"m-d H:i" }}</td>
                 <td>
                     {% if stat.ban_status == "banned" %}
                         <span class="badge badge-banned">BANNED</span>
@@ -315,63 +303,25 @@
                         <span class="badge badge-normal">normal</span>
                     {% endif %}
                 </td>
-                <td class="stat-number">{{ stat.request_count }}</td>
-                <td>
-                    {% if stat.notfound_rate >= 70 %}
-                        <span class="stat-highlight danger">{{ stat.notfound_rate }}%</span>
-                    {% elif stat.notfound_rate >= 40 %}
-                        <span class="stat-highlight warning">{{ stat.notfound_rate }}%</span>
-                    {% else %}
-                        {{ stat.notfound_rate }}%
-                    {% endif %}
-                </td>
-                <td>
-                    {% if stat.error_rate >= 50 %}
-                        <span class="stat-highlight danger">{{ stat.error_rate }}%</span>
-                    {% elif stat.error_rate >= 25 %}
-                        <span class="stat-highlight warning">{{ stat.error_rate }}%</span>
-                    {% else %}
-                        {{ stat.error_rate }}%
-                    {% endif %}
-                </td>
-                <td>{{ stat.unique_endpoints }}</td>
-                <td>
-                    {% if stat.suspicious_hits > 0 %}
-                        <span class="stat-highlight danger">{{ stat.suspicious_hits }}</span>
-                        <br><small class="stat-muted">{{ stat.suspicious_endpoints }} uniq</small>
-                    {% else %}
-                        0
-                    {% endif %}
-                </td>
-                <td class="stat-muted">{{ stat.first_seen|date:"m-d H:i" }}</td>
-                <td class="stat-muted">{{ stat.last_seen|date:"m-d H:i" }}</td>
-                <td>
-                    <div class="sample-requests">
-                        {% for req in stat.sample_requests %}
-                            <div class="sample-req" title="{{ req.timestamp }}">
-                                <span class="req-method">{{ req.method }}</span>
-                                <code class="req-url">
-                                    <a href="{% url 'admin:api_endpointaccesslog_changelist' %}?endpoint={{ req.endpoint|urlencode }}&ip_address={{ stat.ip_address|urlencode }}">
-                                        {{ req.endpoint }}{% if req.query_string %}?{{ req.query_string }}{% endif %}
-                                    </a>
-                                </code>
-                                <span class="req-status
-                                    {% if req.status_code >= 400 %}error
-                                    {% elif req.status_code >= 300 %}warn
-                                    {% else %}success
-                                    {% endif %}
-                                ">{{ req.status_code }}</span>
-                            </div>
-                        {% endfor %}
-                    </div>
-                </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+
+    {% if page.has_other_pages %}
+    <div class="pager">
+        <span>
+            {% if page.has_previous %}<a href="?{{ page_query }}&page={{ page.previous_page_number }}">← Previous</a>{% endif %}
+        </span>
+        <span>Page {{ page.number }} of {{ page.paginator.num_pages }} ({{ page.paginator.count }} visitors)</span>
+        <span>
+            {% if page.has_next %}<a href="?{{ page_query }}&page={{ page.next_page_number }}">Next →</a>{% endif %}
+        </span>
+    </div>
+    {% endif %}
     {% else %}
     <div class="empty-state">
-        <p>No access logs recorded yet.</p>
+        <p>No visitors in this range.</p>
     </div>
     {% endif %}
 </div>

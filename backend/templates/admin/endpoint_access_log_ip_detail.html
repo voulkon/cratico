@@ -1,0 +1,115 @@
+{% extends "admin/endpoint_access_log_ip_summary.html" %}
+
+{% block title %}Visitor {{ ip }}{% endblock %}
+    
+{% block content %}
+<div class="ip-summary-container">
+    <div class="ip-summary-header">
+        <h1>Visitor {{ ip }}</h1>
+        <a href="{{ back_url }}" class="button">← Back to Visitors</a>
+    </div>
+
+    {% if not forensic_logging %}
+    <div class="notice">
+        Forensic logging is OFF: only requests from flagged IPs are recorded, so this visitor's activity may be incomplete.
+    </div>
+    {% endif %}
+
+    <div class="kpis">
+        <div class="kpi"><div class="kpi-value">{{ totals.requests }}</div><div class="kpi-label">Requests</div></div>
+        <div class="kpi"><div class="kpi-value">{{ sessions|length }}</div><div class="kpi-label">Sessions</div></div>
+        <div class="kpi"><div class="kpi-value">{{ totals.endpoints }}</div><div class="kpi-label">Unique endpoints</div></div>
+        <div class="kpi"><div class="kpi-value">{{ totals.errors }}</div><div class="kpi-label">Errors</div></div>
+    </div>
+
+    <form method="get" class="filter-bar">
+        <input type="hidden" name="ip" value="{{ ip }}">
+        <label>From <input type="date" name="start" value="{{ range_query.start }}"></label>
+        <label>To <input type="date" name="end" value="{{ range_query.end }}"></label>
+        <button type="submit" class="button default">Apply</button>
+        <span class="presets">
+            {% for preset in presets %}<a href="{{ preset.url }}">{{ preset.label }}</a>{% endfor %}
+        </span>
+    </form>
+
+    {% if truncated %}
+    <div class="notice">
+        Only the first {{ row_cap }} requests in this range are shown. Narrow the date range to see the rest.
+    </div>
+    {% endif %}
+
+    {% if daily %}
+    <div class="section-title">Per day</div>
+    <table class="ip-summary-table">
+        <thead>
+            <tr>
+                <th>Day</th>
+                <th>Requests</th>
+                <th>Endpoints</th>
+                <th>Errors</th>
+                <th>Suspicious</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for day in daily %}
+            <tr>
+                <td><a href="{{ day.requests_url }}">{{ day.day|date:"D d M Y" }}</a></td>
+                <td>{{ day.requests }}</td>
+                <td>{{ day.unique_endpoints }}</td>
+                <td>{{ day.error_count }}</td>
+                <td>
+                    {% if day.suspicious_hits > 0 %}
+                        <span class="stat-highlight danger">{{ day.suspicious_hits }}</span>
+                    {% else %}
+                        0
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <div class="section-title">Sessions (split after 30 min of inactivity)</div>
+    {% if sessions %}
+    <table class="ip-summary-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>Duration</th>
+                <th>Requests</th>
+                <th>Endpoints</th>
+                <th>Errors</th>
+                <th>Suspicious</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for session in sessions %}
+            <tr>
+                <td>{{ session.number }}</td>
+                <td><a href="{{ session.requests_url }}">{{ session.start|date:"D d M H:i:s" }}</a></td>
+                <td class="stat-muted">{{ session.end|date:"D d M H:i:s" }}</td>
+                <td>{{ session.duration_min }} min</td>
+                <td>{{ session.requests }}</td>
+                <td>{{ session.endpoints }}</td>
+                <td>{{ session.errors }}</td>
+                <td>
+                    {% if session.suspicious > 0 %}
+                        <span class="stat-highlight danger">{{ session.suspicious }}</span>
+                    {% else %}
+                        0
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <p>No requests from this IP in the selected range.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
