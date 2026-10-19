@@ -12,6 +12,45 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+  <!-- Apply the stored theme before first paint (avoids a fallback flash).
+       Keep the id lists and resolution logic in sync with
+       src/contexts/ThemeContext.js. -->
+  <script>
+    (function () {
+      try {
+        var THEME_IDS = ['system', 'light', 'solarized-light', 'solarized-dark', 'dark'];
+        var CONCRETE_THEME_IDS = ['light', 'solarized-light', 'solarized-dark', 'dark'];
+        var PALETTE_IDS = ['orange', 'blue', 'purple', 'green', 'red', 'pink'];
+        var DARK_COUNTERPART = { light: 'dark', 'solarized-light': 'solarized-dark' };
+        var LIGHT_COUNTERPART = { dark: 'light', 'solarized-dark': 'solarized-light' };
+
+        var stored = localStorage.getItem('theme');
+        var theme = stored === 'auto' ? 'system' : stored;
+        if (THEME_IDS.indexOf(theme) === -1) {
+          if (stored) localStorage.removeItem('theme');
+          theme = 'light';
+        } else if (stored !== theme) {
+          localStorage.setItem('theme', theme);
+        }
+
+        if (theme === 'system') {
+          var base = localStorage.getItem('system-theme-base') || 'light';
+          if (CONCRETE_THEME_IDS.indexOf(base) === -1) base = 'light';
+          var prefersDark = window.matchMedia &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches;
+          theme = prefersDark
+            ? (DARK_COUNTERPART[base] || base)
+            : (LIGHT_COUNTERPART[base] || base);
+        }
+
+        var palette = localStorage.getItem('palette') || 'orange';
+        if (PALETTE_IDS.indexOf(palette) === -1) palette = 'orange';
+
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.setAttribute('data-palette', palette);
+      } catch (e) {}
+    })();
+  </script>
   <!-- Apply saved font scale before first paint to avoid flash -->
   <script>
     (function () {
