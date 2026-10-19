@@ -126,8 +126,11 @@ For each `DecisionAmountField` of the decision:
 
 1. the value appears **verbatim** in the text → already correct, nothing to do;
 2. otherwise a **×100 / ÷100 clone** appears → mis-typed, this is a correction;
-3. otherwise → the value is simply not found (a different problem; the
-   verification step records it, this detector abstains).
+3. otherwise → the value is **not corroborated by the document**. The run
+   flags the row as `amount_not_in_text` (no guessed value, so it leaves every
+   monetary aggregation) instead of trusting it. The real amount is left for
+   human review (or a future AI resolver that can choose among the document's
+   detected amounts).
 
 ### Worked example — single field
 
@@ -225,9 +228,10 @@ A structurally different case: the decision's **counterpart AFM equals the
 issuing organization's own VAT number**. Here the amount itself may be
 perfectly well-formed (e.g. €22,000) — what is broken is the *relationship*:
 the intended counterpart is unknown. So this variant is **decision-level, not
-an amount problem**: the amounts stay trusted (they count in every total), and
-the counterpart issue is surfaced separately — recovering the real counterpart
-is future work.
+an amount problem**: whether the amount is trusted is decided independently by
+the amount pipeline (it is trusted when the document confirms it). The
+counterpart issue is surfaced separately — recovering the real counterpart is
+future work.
 
 | ADA | org | org VAT (DB) | counterpart AFM on the decision | verdict |
 |---|---|---|---|---|
@@ -254,7 +258,9 @@ not money", which is false here). Instead:
 
 - the decision detail API returns `has_self_counterpart` +
   `self_counterpart_afm` (the **full** counterpart AFM, e.g. `090009802`), and
-  the detail page shows the amount normally with a counterpart warning;
+  the detail page shows the counterpart warning; the amount is shown normally
+  **only if** the amount pipeline independently confirms or corrects it
+  (otherwise the `amount_not_in_text` state wins and the value is not trusted);
 - amount verification records a `[SELF-AS-COUNTERPART]` audit note
   (`TextProcessRun.meta["self_counterpart_afm"]`) without a discrepancy —
   the amount is confirmed as usual when the text matches;
@@ -597,8 +603,9 @@ amounts until their TTL expires.
 | `services/test_non_monetary_value_guard.py` | guard primitives (synthetic) |
 | `services/test_amount_verification_service.py` | `data/amount_text_patterns/*.json` regex cases |
 | `services/test_grouped_amount_detection.py` | cents parsing and clone factors |
+| `services/test_amount_not_in_text.py` | real ADA `ΨΘΚΧ46ΝΚΟΤ-6ΤΞ`: recorded €997,379,264 absent from the text (€25,000) → flagged `amount_not_in_text`, never guessed; self-counterpart remains an independent signal |
 | `management/test_fix_amount_anomalies.py`, `management/test_flag_anomalies_admin.py` | CLI/admin contract: dry-run by default, exactly three marker columns, idempotent, `--clear` reverses, never touches `verified_amount` |
-| `frontend/e2e/bad-amounts.spec.js` + `api/e2e_fixtures/bad_amounts.py` | **E2E**: the four display semantics on the decision detail page (corrected + badge, AFM invalid, KAE invalid, self-counterpart warning with the amount kept) — see §5 |
+| `frontend/e2e/bad-amounts.spec.js` + `api/e2e_fixtures/bad_amounts.py` | **E2E**: the five display semantics on the decision detail page (corrected + badge, AFM invalid, KAE invalid, self-counterpart warning with the amount confirmed, amount-absent invalid + counterpart warning) — see §5 |
 
 ### Adding a ground-truth case (the highest-value test you can write)
 

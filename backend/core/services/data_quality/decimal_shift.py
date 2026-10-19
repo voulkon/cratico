@@ -16,6 +16,12 @@ so the import payload stays auditable) — see ``AmountCorrectionService``.
 There is also a *group* variant: when no individual field matches but the SUM
 has a ×100 / ÷100 clone, every field was uniformly mistyped, so each is
 re-scaled proportionally and the last field absorbs the rounding remainder.
+
+When the text contains cents-bearing amounts but a recorded value is neither
+present verbatim nor a ×100/÷100 clone, the detector **flags** that row as
+``amount_not_in_text``: the value may be monetary, but it is not corroborated
+by the document, so it must not be trusted as recorded.  No guessed value is
+ever written.
 """
 
 from __future__ import annotations
@@ -27,12 +33,16 @@ from django.db.models import Exists, OuterRef
 from core.services.data_quality.base import (
     STATUS_CONSISTENT,
     STATUS_DETECTED,
+    TARGET_AMOUNT,
     BaseDetector,
     Outcome,
 )
 
 #: ``correct_decision`` statuses this detector owns.
 _REPAIR_STATUSES = ("corrected", "would_correct")
+
+#: Status owned by the "recorded value is absent from the document" verdict.
+_AMOUNT_NOT_IN_TEXT = "amount_not_in_text"
 
 #: Statuses owned by the non-monetary detector — do not double-report them.
 _FOREIGN_STATUSES = ("afm_as_amount", "kae_as_amount", "non_monetary_value_as_amount")
@@ -46,7 +56,8 @@ class DecimalShiftDetector(BaseDetector):
     name = "Decimal separator shift"
     description = (
         "A recorded amount is ×100 or ÷100 of the amount written in the "
-        "document — a dropped/added decimal separator (30.000,00 → 3.000.000)."
+        "document — a dropped/added decimal separator (30.000,00 → 3.000.000). "
+        "A value that is not in the text at all is flagged as unconfirmed."
     )
     note_marker = "[DECIMAL-SHIFT]"
 
@@ -143,6 +154,9 @@ class DecimalShiftDetector(BaseDetector):
         """
         Write ``verified_amount`` for every planned correction.
 
+        Recorded values that are absent from the text are flagged as
+        ``amount_not_in_text`` by the same service call (no guessed value).
+
         Delegated to ``AmountCorrectionService.correct_decision`` so there is
         exactly one write path (the service re-derives the same corrections;
         the second pass is cheap because ``scan`` already persisted the text
@@ -191,7 +205,16 @@ class DecimalShiftDetector(BaseDetector):
                 )
                 for c in result.get("corrections", [])
             ]
+            findings.extend(self._unconfirmed_findings(result))
             return Outcome(slug=self.slug, status=STATUS_DETECTED, findings=findings)
+
+        if status == _AMOUNT_NOT_IN_TEXT:
+            return Outcome(
+                slug=self.slug,
+                status=STATUS_DETECTED,
+                findings=self._unconfirmed_findings(result),
+                meta={"text_amounts": result.get("text_amounts", [])},
+            )
 
         if status in _FOREIGN_STATUSES:
             # The non-monetary detector owns this verdict.
@@ -207,3 +230,19 @@ class DecimalShiftDetector(BaseDetector):
             return self.skip("no_correctable_fields")
 
         return self.skip(result.get("reason") or status or "unknown")
+
+    def _unconfirmed_findings(self, result: dict) -> list:
+        """Findings for recorded amounts that do not appear in the text."""
+        return [
+            self.finding(
+                kind="amount_not_in_text",
+                reason=_AMOUNT_NOT_IN_TEXT,
+                target=TARGET_AMOUNT,
+                field_id=u["field_id"],
+                source_field=u.get("source_field", ""),
+                recorded=str(u.get("db_amount", "")),
+                suggested="",  # the real amount is unknown — never guess
+                note="recorded amount is not present in the document text",
+            )
+            for u in result.get("unconfirmed", [])
+        ]

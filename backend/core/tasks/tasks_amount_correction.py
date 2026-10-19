@@ -171,6 +171,7 @@ def _record_result(
         "afm_as_amount": "flagged",
         "kae_as_amount": "flagged",
         "non_monetary_value_as_amount": "flagged",
+        "amount_not_in_text": "flagged",
         "error": "errors",
     }.get(status, "skipped")
 
