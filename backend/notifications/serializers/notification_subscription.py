@@ -429,6 +429,9 @@ class NotificationSubscriptionListSerializer(serializers.ModelSerializer):
 
     def get_notification_count(self, obj):
         """Get the count of notifications for this subscription."""
+        annotated_count = getattr(obj, "notification_count", None)
+        if annotated_count is not None:
+            return annotated_count
         return obj.notifications.count()
 
     class Meta:

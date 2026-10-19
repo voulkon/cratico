@@ -35,7 +35,13 @@ import './SubscriptionCard.css';
  * SubscriptionCard - Individual subscription display card
  * Shows subscription details with actions
  */
-export default function SubscriptionCard({ subscription, onRefresh, cardClass = '' }) {
+export default function SubscriptionCard({
+    subscription,
+    onRefresh,
+    onSubscriptionUpdated,
+    onSubscriptionDeleted,
+    cardClass = ''
+}) {
     const navigate = useNavigate();
     const { t } = useTranslation();
     const [isActionLoading, setIsActionLoading] = useState(false);
@@ -155,10 +161,9 @@ export default function SubscriptionCard({ subscription, onRefresh, cardClass = 
 
         setIsActionLoading(true);
         try {
-            await updateSubscription(subscription.id, {
-                alias: aliasValue || null
-            });
-            await onRefresh();
+            const patch = { alias: aliasValue || null };
+            await updateSubscription(subscription.id, patch);
+            onSubscriptionUpdated?.(subscription.id, patch);
             setIsEditingAlias(false);
         } catch (error) {
             console.error('Failed to update alias:', error);
@@ -178,10 +183,9 @@ export default function SubscriptionCard({ subscription, onRefresh, cardClass = 
     const handleTogglePause = async () => {
         setIsActionLoading(true);
         try {
-            await updateSubscription(subscription.id, {
-                is_active: !subscription.is_active
-            });
-            await onRefresh();
+            const patch = { is_active: !subscription.is_active };
+            await updateSubscription(subscription.id, patch);
+            onSubscriptionUpdated?.(subscription.id, patch);
         } catch (error) {
             console.error('Failed to toggle subscription:', error);
             alert(t('notifications.failedToUpdateSubscription'));
@@ -194,10 +198,9 @@ export default function SubscriptionCard({ subscription, onRefresh, cardClass = 
     const handleToggleEmail = async () => {
         setIsActionLoading(true);
         try {
-            await updateSubscription(subscription.id, {
-                also_send_email: !subscription.also_send_email
-            });
-            await onRefresh();
+            const patch = { also_send_email: !subscription.also_send_email };
+            await updateSubscription(subscription.id, patch);
+            onSubscriptionUpdated?.(subscription.id, patch);
         } catch (error) {
             console.error('Failed to toggle email:', error);
             alert(t('notifications.failedToUpdateSubscription'));
@@ -210,10 +213,9 @@ export default function SubscriptionCard({ subscription, onRefresh, cardClass = 
     const handleToggleAISummary = async () => {
         setIsActionLoading(true);
         try {
-            await updateSubscription(subscription.id, {
-                ai_summary_enabled: !subscription.ai_summary_enabled
-            });
-            await onRefresh();
+            const patch = { ai_summary_enabled: !subscription.ai_summary_enabled };
+            await updateSubscription(subscription.id, patch);
+            onSubscriptionUpdated?.(subscription.id, patch);
         } catch (error) {
             console.error('Failed to toggle AI summary:', error);
             alert(t('notifications.failedToUpdateSubscription'));
@@ -231,7 +233,7 @@ export default function SubscriptionCard({ subscription, onRefresh, cardClass = 
         setIsActionLoading(true);
         try {
             await deleteSubscription(subscription.id);
-            await onRefresh();
+            onSubscriptionDeleted?.(subscription.id);
         } catch (error) {
             console.error('Failed to delete subscription:', error);
             alert(t('notifications.failedToDeleteSubscription'));
