@@ -680,3 +680,23 @@ class TestPathProbeStrikes:
             client.get("/api/.env")
 
         mock_strike.assert_not_called()
+
+
+class TestBannedRequestsNotPersisted:
+    def test_banned_ip_request_is_not_persisted(self):
+        client = Client(REMOTE_ADDR="10.0.0.230")
+
+        with (
+            patch(
+                f"{FF_PATH}.is_enabled",
+                side_effect=_flags_enabled(
+                    "SECURITY_MONITORING_ENABLED", "SECURITY_FORENSIC_LOGGING_ENABLED"
+                ),
+            ),
+            patch(f"{SEC_SVC}.is_banned", return_value=True),
+            patch(TASK_PATH) as mock_task,
+        ):
+            response = client.get(API_PATH)
+
+        assert response.status_code == 403
+        mock_task.assert_not_called()
