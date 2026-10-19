@@ -153,6 +153,9 @@ class TestGroupCorrection:
         for f in fields:
             assert f.verified_amount is not None
             assert f.amount_verified_at is not None
+            # A successful group correction supersedes the "not in text"
+            # verdict computed field-by-field before the re-scale.
+            assert f.invalid_amount_reason is None
 
         # The corrected total should match the text amount
         corrected_total = sum(f.verified_amount for f in fields)
