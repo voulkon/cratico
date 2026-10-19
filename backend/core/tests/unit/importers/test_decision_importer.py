@@ -373,3 +373,29 @@ class TestDecisionImporterIntegration(TransactionTestCase):
     def test_ada_centralization(self):
         """Test that the ADA value is properly centralized."""
         assert self.TEST_ADA == "9ΥΘΧΩ9Γ-1Μ6"
+
+
+@pytest.mark.fast
+@pytest.mark.django_db
+def test_import_creates_missing_act_type_on_the_fly(
+    test_organization, test_signers, test_units
+):
+    from core.models.types import ActType
+
+    ActType.objects.filter(uid="Β.1.3").delete()
+    dto = create_decision_dto(
+        ada="ONTHEFLYACTTYPE",
+        org_id=test_organization.uid,
+        signer_ids=[s.uid for s in test_signers],
+        unit_ids=[u.uid for u in test_units],
+        extra_attributes={"decisionTypeId": "Β.1.3"},
+    )
+
+    importer = DecisionImporter()
+    created = importer.import_many([dto])
+
+    assert created == 1
+    act_type = ActType.objects.get(uid="Β.1.3")
+    assert act_type.label == "ΑΝΑΛΗΨΗ ΥΠΟΧΡΕΩΣΗΣ"
+    assert act_type.allowed_in_decisions is True
+    assert Decision.objects.get(ada="ONTHEFLYACTTYPE").decision_type_id == "Β.1.3"

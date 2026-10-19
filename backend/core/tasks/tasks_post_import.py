@@ -1235,6 +1235,8 @@ def verify_correct_decision_batch(self, decision_ids: list[int]) -> dict:
                 summary["consistent"] += 1
             elif status == "no_text_amounts_found":
                 summary["no_text"] += 1
+            elif status == "amount_not_in_text":
+                summary["flagged"] += 1
             elif status == "flagged" or status.endswith("_as_amount"):
                 summary["flagged"] += 1
             else:

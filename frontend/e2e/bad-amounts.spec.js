@@ -10,6 +10,8 @@
  *   i=1 AFM as amount        → invalid hero (not money, real value unknown)
  *   i=2 KAE as amount        → invalid hero (not money, real value unknown)
  *   i=3 self-as-counterpart  → amount stays shown + counterpart warning
+ *   i=4 amount absent        → invalid hero (not in text, value not trusted)
+ *                              + counterpart warning (both signals independent)
  *
  * Amount assertions are locale-tolerant (Greek 30.000,00 / English 30,000.00)
  * because the page formats with the browser locale.
@@ -45,7 +47,7 @@ function decisionAda(index) {
 const euro = (...groups) =>
   new RegExp(`€\\s*${groups.join('[.,\\u00A0 ]?')}[.,]00`);
 
-const ADAS = [0, 1, 2, 3].map(decisionAda);
+const ADAS = [0, 1, 2, 3, 4].map(decisionAda);
 
 test.describe('bad-amount display semantics', () => {
   test.beforeEach(async ({ page, request }) => {
@@ -118,5 +120,27 @@ test.describe('bad-amount display semantics', () => {
     const note = page.locator('.self-counterpart-note');
     await expect(note).toBeVisible();
     await expect(note).toContainText('090064864');
+  });
+
+  test('amount absent from the document is not presented as trusted money', async ({
+    page,
+  }) => {
+    await page.goto(`/decision/${ADAS[4]}`);
+
+    // The recorded €997,379,264 is not in the text (which says €25,000), so it
+    // is not trusted and no monetary hero value is presented.
+    const hero = page.locator('.amount-hero-invalid');
+    await expect(hero).toBeVisible();
+    await expect(hero.locator('.amount-invalid-recorded')).toContainText(
+      euro('997', '379', '264')
+    );
+    await expect(
+      page.locator('.amount-hero-value:not(.amount-invalid)')
+    ).toHaveCount(0);
+
+    // The counterpart issue is independent and still surfaced.
+    const note = page.locator('.self-counterpart-note');
+    await expect(note).toBeVisible();
+    await expect(note).toContainText('090283815');
   });
 });

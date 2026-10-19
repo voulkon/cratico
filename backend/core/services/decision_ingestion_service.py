@@ -5,7 +5,7 @@ from core.constants.decision_import_constants import DiavgeiaSearchFields
 from core.fetchers.diavgeia_fetcher import DiavgeiaFetcher
 from core.importers.decisions import DecisionImporter
 from core.models.import_jobs import ImportJob, ImportJobStatus
-from core.models.types import ActType
+from core.models.types import ActType, ExtraField
 from core.services.seed_service import SeedService
 from diavgeia_api.models.decisions import Decision
 from diavgeia_api.models.search import SearchResponse
@@ -54,10 +54,9 @@ class DecisionIngestionService:
         Returns:
             Dictionary with status information
         """
-        if not ActType.objects.exists() or force:
-            # Types don't exist or force flag is set - need to seed them
+        if not ActType.objects.exists() or not ExtraField.objects.exists() or force:
             logger.info(
-                "Act types don't exist or force flag set. Seeding types before importing decisions..."
+                "Act types are missing or incomplete. Seeding types before importing decisions..."
             )
 
             # Create a temporary seed service

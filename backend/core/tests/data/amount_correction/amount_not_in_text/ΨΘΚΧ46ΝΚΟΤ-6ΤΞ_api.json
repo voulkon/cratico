@@ -1,0 +1,52 @@
+{
+    "protocolNumber": "410839",
+    "subject": "Επιχορήγηση του φορέα ΘΕΑΤΡΟ ΠΡΟΒΑ ΠΟΛΙΤΙΣΤΙΚΗ ΑΣΤΙΚΗ ΜΗ ΚΕΡΔΟΣΚΟΠΙΚΗ ΕΤΑΙΡΕΙΑ",
+    "issueDate": 1791244800000,
+    "organizationId": "100081912",
+    "signerIds": [
+        "100091801"
+    ],
+    "unitIds": [
+        "100073163"
+    ],
+    "decisionTypeId": "Β.4",
+    "thematicCategoryIds": [
+        "10027"
+    ],
+    "extraFieldValues": {
+        "donationType": "Επιχορήγηση",
+        "amountWithVAT": {
+            "amount": 9.97379264E8,
+            "currency": "EUR"
+        },
+        "kae": "2310802897",
+        "donationGiver": {
+            "afm": "090283815",
+            "enterName": false,
+            "afmType": "EL",
+            "name": "ΥΠΟΥΡΓΕΙΟ ΠΟΛΙΤΙΣΜΟΥ"
+        },
+        "donationReceiver": [
+            {
+                "afm": "997379286",
+                "enterName": false,
+                "afmType": "EL",
+                "name": "ΘΕΑΤΡΟ ΠΡΟΒΑ ΠΟΛΙΤΙΣΤΙΚΗ  ΑΣΤΙΚΗ ΜΗ ΚΕΡΔΟΣΚΟΠΙΚΗ ΕΤΑΙΡΕΙΑ"
+            }
+        ],
+        "relatedDecisions": [],
+        "documentType": "ΠΡΑΞΗ"
+    },
+    "privateData": false,
+    "ada": "ΨΘΚΧ46ΝΚΟΤ-6ΤΞ",
+    "publishTimestamp": 1791276792876,
+    "submissionTimestamp": 1791276792876,
+    "versionId": "56e9468a-db1f-4975-90e6-9498a7c57ce8",
+    "status": "PUBLISHED",
+    "url": "https://diavgeia.gov.gr/luminapi/api/decisions/ΨΘΚΧ46ΝΚΟΤ-6ΤΞ",
+    "documentUrl": "https://diavgeia.gov.gr/doc/ΨΘΚΧ46ΝΚΟΤ-6ΤΞ",
+    "documentChecksum": null,
+    "attachments": [],
+    "warnings": null,
+    "correctedVersionId": null
+}

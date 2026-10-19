@@ -20,7 +20,7 @@ from core.models.organizations import (
     SignerUnit,
     Unit,
 )
-from core.models.types import ActType
+from core.models.types import ActType, ExtraField
 from django.db import transaction
 from django.db.models import QuerySet
 from loguru import logger
@@ -595,7 +595,7 @@ class SeedService:
         Args:
             force: If True, update existing types
         """
-        if not force and ActType.objects.exists():
+        if not force and ActType.objects.exists() and ExtraField.objects.exists():
             logger.info("Act types already exist. Skipping import.")
             return self.unforced_response
 

@@ -16,10 +16,15 @@ first (download + extract) before attempting correction — pass
 ``read_if_missing=False`` to skip that and only process already-extracted
 decisions.
 
+When the text has cents-bearing amounts but the recorded amount is neither
+present verbatim nor a ×100/÷100 clone, the field is flagged as
+``amount_not_in_text``.  This is the "do not take it on trust" rule: the value
+is excluded from monetary totals, and no replacement value is invented.
+
 All downstream consumers use ``effective_amount_sum()`` (which sums
-``COALESCE(verified_amount, amount)``) so corrected values automatically
-override the erroneous metadata amounts everywhere — no model bloat
-needed.
+``COALESCE(verified_amount, amount)`` and excludes invalid-amount rows) so
+corrected values automatically override the erroneous metadata amounts
+everywhere — no model bloat needed.
 
 Usage:
     svc = AmountCorrectionService()
@@ -68,6 +73,16 @@ DEFAULT_CORRECTION_THRESHOLD = Decimal("100000")
 # of the DB amount — the classic comma-shift typo.
 CLONE_FACTOR_100 = Decimal("100")
 CLONE_FACTOR_001 = Decimal("0.01")
+
+#: Reason recorded when a recorded amount is not found verbatim in the
+#: document text and is not a ×100/÷100 clone of a text amount either.
+#:
+#: The value is *unconfirmed*, not necessarily non-monetary: the document may
+#: show a different amount (e.g. `997,379,264` recorded while the text says
+#: `25.000,00`).  We never write a guess into ``verified_amount``; the row is
+#: marked invalid so it leaves monetary aggregations until a human (or a
+#: future AI resolver) establishes the real amount.
+DISCREPANCY_REASON_AMOUNT_NOT_IN_TEXT = "amount_not_in_text"
 
 
 class AmountCorrectionService:
@@ -174,6 +189,8 @@ class AmountCorrectionService:
         corrections: list[dict] = []
         flagged: list[dict] = []
         fields_to_update: list[DecisionAmountField] = []
+        unconfirmed: list[dict] = []
+        unconfirmed_fields: list[DecisionAmountField] = []
 
         for i, match in enumerate(grouped_result.matches):
             field = fields[i]
@@ -212,6 +229,19 @@ class AmountCorrectionService:
                     field.verified_amount = corrected_value
                     field.amount_verified_at = timezone.now()
                     fields_to_update.append(field)
+            else:
+                # The recorded value is not in the document at all, and it is
+                # not a ×100/÷100 typo either.  We cannot repair it, and we
+                # must not take it on trust: flag it as unconfirmed instead.
+                unconfirmed.append(
+                    {
+                        "field_id": field.id,
+                        "source_field": field.source_field_name,
+                        "db_amount": str(field.amount),
+                        "reason": DISCREPANCY_REASON_AMOUNT_NOT_IN_TEXT,
+                    }
+                )
+                unconfirmed_fields.append(field)
 
         # ── Group correction: total-level re-scaling ──────────────────
         # When NO individual amount matched but the SUM has a ×100/÷100
@@ -280,9 +310,38 @@ class AmountCorrectionService:
                             field.amount_verified_at = now
                             fields_to_update.append(field)
 
+        # A successful *group* correction repairs every field, so any earlier
+        # "unconfirmed" verdict is superseded.  Individual corrections do NOT:
+        # a mixed decision (one repaired field + one unconfirmed field) keeps
+        # the unconfirmed row flagged.
+        if any(c.get("group_correction") for c in corrections):
+            unconfirmed = []
+            unconfirmed_fields = []
+
+        # Persist the unconfirmed marker before choosing the result status, so
+        # a mixed decision (one repaired field + one unconfirmed field) still
+        # excludes only the unconfirmed row from monetary totals.
+        if unconfirmed_fields and not dry_run:
+            self._flag_amount_not_in_text(unconfirmed_fields)
+
         if not corrections:
             if anomaly_by_field:
-                return self._non_monetary_result(anomaly_by_field, db_amounts)
+                result = self._non_monetary_result(anomaly_by_field, db_amounts)
+                result["unconfirmed"] = unconfirmed
+                return result
+            if unconfirmed:
+                return {
+                    "status": DISCREPANCY_REASON_AMOUNT_NOT_IN_TEXT,
+                    "decision_id": decision.id,
+                    "ada": decision.ada,
+                    "db_amounts": [str(a) for a in db_amounts],
+                    "text_amounts": [
+                        str(g.amount) for g in grouped_result.grouped_amounts
+                    ],
+                    "unconfirmed": unconfirmed,
+                    "flagged": flagged,
+                    "corrections": [],
+                }
             if grouped_result.all_found:
                 return {
                     "status": "consistent",
@@ -316,6 +375,7 @@ class AmountCorrectionService:
             "fields_corrected": len(corrections),
             "group_correction": any(c.get("group_correction") for c in corrections),
             "flagged": flagged,
+            "unconfirmed": unconfirmed,
             "corrections": corrections,
         }
 
@@ -443,6 +503,37 @@ class AmountCorrectionService:
         return to_flag
 
     @staticmethod
+    def _flag_amount_not_in_text(
+        fields: list[DecisionAmountField],
+        *,
+        dry_run: bool = False,
+    ) -> list[DecisionAmountField]:
+        """
+        Mark amount fields whose recorded value is absent from the document.
+
+        Unlike the non-monetary guard, the value may well be monetary — we
+        simply could not corroborate it.  The treatment is still the same: no
+        guessed ``verified_amount``, and the invalid-amount marker takes the
+        row out of monetary totals until it is resolved.
+        """
+        if dry_run or not fields:
+            return []
+        now = timezone.now()
+        for field in fields:
+            field.invalid_amount_reason = DISCREPANCY_REASON_AMOUNT_NOT_IN_TEXT
+            field.invalid_amount_value = None
+            field.invalid_amount_flagged_at = now
+        DecisionAmountField.objects.bulk_update(
+            fields,
+            [
+                "invalid_amount_reason",
+                "invalid_amount_value",
+                "invalid_amount_flagged_at",
+            ],
+        )
+        return fields
+
+    @staticmethod
     def _non_monetary_result(
         anomaly_by_field: dict,
         db_amounts: list,
@@ -524,8 +615,9 @@ class AmountCorrectionService:
         Find all decisions whose computed total exceeds *threshold* and
         run cents-based correction on each.
 
-        Skips decisions where ALL amount fields already have
-        ``verified_amount`` set (fully corrected).
+        Skips decisions with no correction-eligible amount fields left — every
+        row is already corrected (``verified_amount``) or flagged as unusable
+        (``invalid_amount_reason``).
 
         Args:
             threshold: Minimum DB-computed total.
@@ -556,6 +648,7 @@ class AmountCorrectionService:
                 decision=OuterRef("pk"),
                 amount__gt=0,
                 verified_amount__isnull=True,
+                invalid_amount_reason__isnull=True,
             )
         )
 
@@ -611,6 +704,7 @@ class AmountCorrectionService:
         afm_as_amount = 0
         kae_as_amount = 0
         non_monetary_value_as_amount = 0
+        amount_not_in_text = 0
         skipped = 0
         no_text = 0
         errors = 0
@@ -630,6 +724,8 @@ class AmountCorrectionService:
                     kae_as_amount += 1
                 elif status == DISCREPANCY_REASON_NON_MONETARY:
                     non_monetary_value_as_amount += 1
+                elif status == DISCREPANCY_REASON_AMOUNT_NOT_IN_TEXT:
+                    amount_not_in_text += 1
                 elif status == "consistent":
                     consistent += 1
                 elif status == "no_text_amounts_found":
@@ -645,6 +741,7 @@ class AmountCorrectionService:
                         "frontend_url": self.frontend_url(decision),
                         "corrections": result.get("corrections", []),
                         "flagged": result.get("flagged", []),
+                        "unconfirmed": result.get("unconfirmed", []),
                         "group_correction": result.get("group_correction", False),
                         "reason": result.get("reason", ""),
                     }
@@ -675,6 +772,7 @@ class AmountCorrectionService:
             "afm_as_amount": afm_as_amount,
             "kae_as_amount": kae_as_amount,
             "non_monetary_value_as_amount": non_monetary_value_as_amount,
+            "amount_not_in_text": amount_not_in_text,
             "no_text": no_text,
             "skipped": skipped,
             "errors": errors,
@@ -690,6 +788,7 @@ class AmountCorrectionService:
             f"{corrected} corrected, {afm_as_amount} afm_as_amount, "
             f"{kae_as_amount} kae_as_amount, "
             f"{non_monetary_value_as_amount} non_monetary_value_as_amount, "
+            f"{amount_not_in_text} amount_not_in_text, "
             f"{consistent} consistent, {no_text} no_text, {skipped} skipped, "
             f"{errors} errors (dry_run={dry_run})"
         )

@@ -188,18 +188,22 @@ class DecisionAmountField(models.Model):
     )
 
     # ------------------------------------------------------------------
-    # Non-monetary-value guard — amount known to be invalid
+    # Amount validity guard — the recorded value cannot be used as money
     # ------------------------------------------------------------------
     # Some rows hold a value that actually belongs to a DIFFERENT, non-monetary
     # numeric field of the same Diavgeia response — a counterpart VAT number
     # (ΑΦΜ) or a budget classification code (ΚΑΕ) — e.g. sponsor AFM
     # 099370337 recorded as amount 9.9370337E7 (€99,370,337).
     #
+    # A second reason is ``amount_not_in_text``: the recorded value is not
+    # present in the document at all (and is not a ×100/÷100 clone of a text
+    # amount).  It may be monetary, but it is unconfirmed.
+    #
     # Unlike ``verified_amount`` (where we KNOW the correct value), here we
-    # know only that this amount is NOT money and the real value is unknown.
-    # So we never write a monetary value; we only mark the row invalid so it
-    # is excluded from every monetary aggregation (see
-    # ``core.services.decision_facets``) and surfaced for review/feedback.
+    # know only that this amount must not be trusted as recorded.  So we never
+    # write a monetary value; we only mark the row invalid so it is excluded
+    # from every monetary aggregation (see ``core.services.decision_facets``)
+    # and surfaced for review/feedback.
     invalid_amount_reason = models.CharField(
         max_length=32,
         null=True,
