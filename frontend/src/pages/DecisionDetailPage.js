@@ -336,6 +336,35 @@ const DecisionDetailPage = () => {
 
   const heroAmount = getHeroAmount(decision);
   const invalidAmountOnly = showInvalidAmountHero(decision);
+  const invalidReason = decision.invalid_amount_reason;
+  const selfCounterpartNote = decision.has_self_counterpart ? (
+    <p className="amount-invalid-explanation self-counterpart-note">
+      {t('decisionDetail.selfCounterpartNote', {
+        value: decision.self_counterpart_afm || '—',
+      })}
+    </p>
+  ) : null;
+  const formattedRecordedAmount = formatAmount(
+    decision.recorded_amount ?? decision.amount
+  );
+  const invalidExplanation =
+    invalidReason === 'afm_as_amount'
+      ? t('decisionDetail.amountInvalidAfm', {
+          value: decision.invalid_amount_value || '—',
+        })
+      : invalidReason === 'kae_as_amount'
+        ? t('decisionDetail.amountInvalidKae', {
+            value: decision.invalid_amount_value || '—',
+          })
+        : t('decisionDetail.amountNotInText');
+  const invalidRecorded =
+    invalidReason === 'amount_not_in_text'
+      ? t('decisionDetail.amountUnconfirmedRecorded', {
+          recorded: formattedRecordedAmount,
+        })
+      : t('decisionDetail.amountInvalidRecorded', {
+          recorded: formattedRecordedAmount,
+        });
 
   return (
     <div className="decision-detail-page">
@@ -395,29 +424,25 @@ const DecisionDetailPage = () => {
 
       {/* Hero amount */}
       {invalidAmountOnly ? (
-        /* The recorded amount is not money at all — it is a counterpart VAT
-           number (ΑΦΜ) or a budget code (ΚΑΕ) mis-recorded in the amount
-           field.  We cannot recover the real amount, so show an explicit
-           warning instead of a bogus 9-figure number.  A corrected amount,
-           when present, takes precedence (see below). */
+        /* The recorded amount cannot be trusted: it is a counterpart VAT
+           number (ΑΦΜ) / budget code (ΚΑΕ) mis-recorded in the amount field,
+           or it does not appear in the document at all.  We cannot recover
+           the real amount, so show an explicit warning instead of a bogus
+           9-figure number.  A corrected amount, when present, takes
+           precedence (see below). */
         <div className="amount-hero amount-hero-invalid">
           <div className="amount-hero-value amount-invalid">
-            {t('decisionDetail.amountInvalidTitle')}
+            {invalidReason === 'amount_not_in_text'
+              ? t('decisionDetail.amountUnconfirmedTitle')
+              : t('decisionDetail.amountInvalidTitle')}
           </div>
           <p className="amount-invalid-explanation">
-            {decision.invalid_amount_reason === 'afm_as_amount'
-              ? t('decisionDetail.amountInvalidAfm', {
-                  value: decision.invalid_amount_value || '—',
-                })
-              : t('decisionDetail.amountInvalidKae', {
-                  value: decision.invalid_amount_value || '—',
-                })}
+            {invalidExplanation}
           </p>
           <p className="amount-invalid-recorded">
-            {t('decisionDetail.amountInvalidRecorded', {
-              recorded: formatAmount(decision.recorded_amount ?? decision.amount),
-            })}
+            {invalidRecorded}
           </p>
+          {selfCounterpartNote}
         </div>
       ) : heroAmount.value != null && (
         <div className="amount-hero">
@@ -464,16 +489,10 @@ const DecisionDetailPage = () => {
             </p>
           )}
 
-          {/* Self-as-counterpart: the amount itself is believed — what is
-              broken is the relationship (the counterpart is the issuing org
-              itself).  Warn about the counterpart, keep the amount shown. */}
-          {decision.has_self_counterpart && (
-            <p className="amount-invalid-explanation self-counterpart-note">
-              {t('decisionDetail.selfCounterpartNote', {
-                value: decision.self_counterpart_afm || '—',
-              })}
-            </p>
-          )}
+          {/* Self-as-counterpart: the counterpart is the issuing org itself.
+              Warn about the relationship without asserting anything about the
+              amount — whether the amount is trusted is a separate verdict. */}
+          {selfCounterpartNote}
 
           {/* Verify-amount knob */}
           <div className="verify-amount-row">
