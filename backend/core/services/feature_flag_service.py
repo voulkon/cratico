@@ -310,7 +310,7 @@ class FeatureFlagService:
         "POST_IMPORT_AMOUNT_VERIFICATION_ENABLED": {
             "name": "Post-Import Amount Verification",
             "description": "After a global daily import, verify monetary amounts in "
-            "high-value decisions (≥€1M) by reading the document text (regex-first, "
+            "high-value decisions (≥€100k) by reading the document text (regex-first, "
             "optional AI). Catches data-entry errors like misplaced decimal "
             "separators. Requires POST_IMPORT_ORCHESTRATOR_ENABLED.",
             "default": True,

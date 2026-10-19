@@ -101,7 +101,15 @@ Document text:
 
 # ── Threshold ───────────────────────────────────────────────────────────────
 # Decisions whose calculated total exceeds this amount (in EUR) are verified.
-DEFAULT_HIGH_VALUE_THRESHOLD = Decimal("1000000.00")  # €1,000,000
+#
+# Must stay aligned with ``amount_correction_service.DEFAULT_CORRECTION_THRESHOLD``
+# (and the detectors' ``default_min_amount``): the post-import fan-out uses this
+# service's candidate query to decide which decisions reach
+# ``verify_correct_decision_batch`` — the only caller of the correction
+# detectors.  A higher value here silently skips decisions the detector is
+# supposed to repair (real case: €986,500 recorded as €9,865.00 was never
+# fanned out while this was €1M).
+DEFAULT_HIGH_VALUE_THRESHOLD = Decimal("100000.00")  # €100,000
 
 
 class AmountVerificationService:
