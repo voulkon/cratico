@@ -72,6 +72,7 @@ class NotificationSubscriptionViewSet(viewsets.ModelViewSet):
             .select_related(
                 "organization", "entity", "relationship_org", "relationship_entity"
             )
+            .annotate(notification_count=Count("notifications"))
             .order_by("-created_at")
         )
 

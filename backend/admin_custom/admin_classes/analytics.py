@@ -1,4 +1,6 @@
+import ipaddress
 import json
+from datetime import date, datetime, time, timedelta
 
 from core.models.decision_health import HealthStatus
 from core.models.import_jobs import ImportJob, ImportJobStatus
@@ -9,8 +11,21 @@ from core.tasks import (
     retry_failed_decisions_for_import_job,
 )
 from django.contrib import admin, messages
-from django.db.models import Count, Q
-from django.http import HttpResponse, JsonResponse
+from django.core.paginator import Paginator
+from django.db.models import (
+    BooleanField,
+    Case,
+    Count,
+    ExpressionWrapper,
+    FloatField,
+    Max,
+    Min,
+    Q,
+    Value,
+    When,
+)
+from django.db.models.functions import Cast, TruncDate
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.urls import path, reverse
 from django.utils import timezone
@@ -174,6 +189,11 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
                 name="endpointaccesslog_ip_summary",
             ),
             path(
+                "ip-detail/",
+                self.admin_site.admin_view(self.ip_detail_view),
+                name="endpointaccesslog_ip_detail",
+            ),
+            path(
                 "endpoint-summary/",
                 self.admin_site.admin_view(self.endpoint_summary_view),
                 name="endpointaccesslog_endpoint_summary",
@@ -183,123 +203,365 @@ class EndpointAccessLogAdmin(admin.ModelAdmin):
 
     # ── IP Summary View ───────────────────────────────────────────────
 
-    def ip_summary_view(self, request):
-        """Show IP-level summary: one row per unique IP with attack classification."""
-        from django.db.models import Count, Max, Min
+    SESSION_GAP = timedelta(minutes=30)
+    VISITORS_PER_PAGE = 50
+    DETAIL_ROW_CAP = 20000
+    VISITOR_SORTS = {
+        "ip": "ip_address",
+        "requests": "request_count",
+        "endpoints": "unique_endpoints",
+        "errors": "error_ratio",
+        "notfound": "notfound_ratio",
+        "suspicious": "suspicious_hits",
+        "first_seen": "first_seen",
+        "last_seen": "last_seen",
+    }
+    VISITOR_COLUMNS = (
+        ("ip", "IP Address"),
+        ("requests", "Requests"),
+        ("endpoints", "Endpoints"),
+        ("errors", "Err %"),
+        ("notfound", "404 %"),
+        ("suspicious", "Suspicious"),
+        ("first_seen", "First Seen"),
+        ("last_seen", "Last Seen"),
+    )
 
-        ip_stats = (
-            self.model.objects.values("ip_address")
+    @classmethod
+    def _suspicious_q(cls):
+        q = Q()
+        for pat in cls._SUSPICIOUS_ENDPOINT_PATTERNS:
+            q |= Q(endpoint__icontains=pat)
+        return q & ~Q(endpoint__startswith=cls._ADMIN_API_PREFIX)
+
+    @staticmethod
+    def _parse_day(value):
+        try:
+            return date.fromisoformat(value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _range_query(start, end):
+        return {
+            "start": start.isoformat() if start else "",
+            "end": end.isoformat() if end else "",
+        }
+
+    def _latest_day(self):
+        today = timezone.localdate()
+        latest = self.model.objects.aggregate(latest=Max("timestamp"))["latest"]
+        if latest is None:
+            return today
+        return min(timezone.localtime(latest).date(), today)
+
+    def _date_range(self, request, latest):
+        """Inclusive (start, end) dates; a missing side means unbounded."""
+        if "start" not in request.GET and "end" not in request.GET:
+            return latest, latest
+        return (
+            self._parse_day(request.GET.get("start")),
+            self._parse_day(request.GET.get("end")),
+        )
+
+    @staticmethod
+    def _bounds(start, end):
+        """Aware [lo, hi) datetimes covering an inclusive date range."""
+        tz = timezone.get_current_timezone()
+        lo = None
+        hi = None
+        if start:
+            lo = timezone.make_aware(datetime.combine(start, time.min), tz)
+        if end:
+            hi = timezone.make_aware(
+                datetime.combine(end + timedelta(days=1), time.min), tz
+            )
+        return lo, hi
+
+    def _scope(self, qs, start, end):
+        lo, hi = self._bounds(start, end)
+        if lo:
+            qs = qs.filter(timestamp__gte=lo)
+        if hi:
+            qs = qs.filter(timestamp__lt=hi)
+        return qs
+
+    def _range_presets(self, base_url, latest, extra=None):
+        options = (
+            ("Latest day", latest, latest),
+            ("Last 7 days", latest - timedelta(days=6), latest),
+            ("Last 30 days", latest - timedelta(days=29), latest),
+            ("All time", None, None),
+        )
+        return [
+            {
+                "label": label,
+                "url": f"{base_url}?"
+                + urlencode({**(extra or {}), **self._range_query(start, end)}),
+            }
+            for label, start, end in options
+        ]
+
+    def _changelist_url(self, **lookups):
+        query = {
+            key: value.isoformat() if isinstance(value, datetime) else value
+            for key, value in lookups.items()
+            if value is not None
+        }
+        return (
+            reverse("admin:api_endpointaccesslog_changelist") + "?" + urlencode(query)
+        )
+
+    @staticmethod
+    def _ratio(count_field):
+        return ExpressionWrapper(
+            Cast(count_field, FloatField()) / Cast("request_count", FloatField()),
+            output_field=FloatField(),
+        )
+
+    def _build_sessions(self, events):
+        """Group time-ordered (timestamp, endpoint, status, suspicious) rows into sessions."""
+        sessions = []
+        for timestamp, endpoint, status_code, suspicious in events:
+            if not sessions or timestamp - sessions[-1]["end"] > self.SESSION_GAP:
+                sessions.append(
+                    {
+                        "start": timestamp,
+                        "end": timestamp,
+                        "requests": 0,
+                        "errors": 0,
+                        "suspicious": 0,
+                        "endpoint_set": set(),
+                    }
+                )
+            session = sessions[-1]
+            session["end"] = timestamp
+            session["requests"] += 1
+            session["endpoint_set"].add(endpoint)
+            if status_code is None or status_code >= 400:
+                session["errors"] += 1
+            if suspicious:
+                session["suspicious"] += 1
+
+        for session in sessions:
+            session["endpoints"] = len(session.pop("endpoint_set"))
+            session["duration_min"] = int(
+                (session["end"] - session["start"]).total_seconds() // 60
+            )
+        return sessions
+
+    def ip_summary_view(self, request):
+        """Visitors list: one row per IP for a date range, aggregated in SQL."""
+        from api.models import FlaggedIP
+        from core.services.feature_flag_service import feature_flags
+
+        latest = self._latest_day()
+        start, end = self._date_range(request, latest)
+        range_query = self._range_query(start, end)
+        sort = request.GET.get("sort")
+        if sort not in self.VISITOR_SORTS:
+            sort = "last_seen"
+        direction = "asc" if request.GET.get("dir") == "asc" else "desc"
+        sort_prefix = "" if direction == "asc" else "-"
+
+        logs = self._scope(self.model.objects.all(), start, end)
+        suspicious_q = self._suspicious_q()
+
+        visitors = (
+            logs.values("ip_address")
             .annotate(
                 request_count=Count("id"),
                 first_seen=Min("timestamp"),
                 last_seen=Max("timestamp"),
-                flagged_count=Count("id", filter=Q(is_flagged=True)),
                 unique_endpoints=Count("endpoint", distinct=True),
                 error_count=Count(
                     "id",
                     filter=Q(status_code__gte=400) | Q(status_code__isnull=True),
                 ),
                 notfound_count=Count("id", filter=Q(status_code=404)),
+                suspicious_hits=Count("id", filter=suspicious_q),
+                suspicious_endpoints=Count(
+                    "endpoint", distinct=True, filter=suspicious_q
+                ),
             )
-            .order_by("-last_seen")
+            .annotate(
+                error_ratio=self._ratio("error_count"),
+                notfound_ratio=self._ratio("notfound_count"),
+            )
+            .order_by(f"{sort_prefix}{self.VISITOR_SORTS[sort]}", "ip_address")
         )
 
-        for stat in ip_stats:
-            ip = stat["ip_address"]
+        page = Paginator(visitors, self.VISITORS_PER_PAGE).get_page(
+            request.GET.get("page")
+        )
+        rows = list(page.object_list)
+        flagged = FlaggedIP.objects.in_bulk(
+            [row["ip_address"] for row in rows], field_name="ip_address"
+        )
+        lo, hi = self._bounds(start, end)
 
-            # Status code distribution
-            status_codes = (
-                self.model.objects.filter(ip_address=ip)
-                .values("status_code")
-                .annotate(cnt=Count("id"))
-                .order_by("-cnt")[:5]
+        for row in rows:
+            ip = row["ip_address"]
+            row["error_rate"] = round(row["error_ratio"] * 100, 1)
+            row["notfound_rate"] = round(row["notfound_ratio"] * 100, 1)
+            row["classification"] = self._classify_ip(row)
+            row["ip_display"] = self._format_ip(ip)
+            row["is_ipv6"] = ":" in ip
+            flag = flagged.get(ip)
+            row["ban_status"] = (
+                ("banned" if flag.is_active else "flagged") if flag else "none"
             )
-            stat["top_status_codes"] = [
-                f"{s['status_code']} ({s['cnt']})" for s in status_codes
-            ]
-
-            # Error & 404 rates
-            total = stat["request_count"]
-            stat["error_rate"] = (
-                round(stat["error_count"] / total * 100, 1) if total else 0
+            row["flag_reason"] = flag.reason if flag else ""
+            row["detail_url"] = (
+                reverse("admin:endpointaccesslog_ip_detail")
+                + "?"
+                + urlencode({"ip": ip, **range_query})
             )
-            stat["notfound_rate"] = (
-                round(stat["notfound_count"] / total * 100, 1) if total else 0
-            )
-
-            # Count suspicious endpoint hits.  Admin API paths are excluded
-            # because they require authentication and are the admin's own
-            # browsing, not an attack probe.
-            suspicious_q = Q()
-            for pat in self._SUSPICIOUS_ENDPOINT_PATTERNS:
-                suspicious_q |= Q(endpoint__icontains=pat)
-            suspicious_q &= ~Q(endpoint__startswith=self._ADMIN_API_PREFIX)
-            stat["suspicious_hits"] = self.model.objects.filter(
-                ip_address=ip
-            ).filter(suspicious_q).count()
-
-            # Count unique suspicious endpoints
-            stat["suspicious_endpoints"] = (
-                self.model.objects.filter(ip_address=ip)
-                .filter(suspicious_q)
-                .values("endpoint")
-                .distinct()
-                .count()
+            row["requests_url"] = self._changelist_url(
+                ip_address=ip, timestamp__gte=lo, timestamp__lt=hi
             )
 
-            # Attack classification
-            stat["classification"] = self._classify_ip(stat)
-
-            # Sample requests (prioritize suspicious ones)
-            sample_logs = list(
-                self.model.objects.filter(ip_address=ip)
-                .filter(suspicious_q)
-                .order_by("-timestamp")[:3]
+        totals = logs.aggregate(
+            requests=Count("id"),
+            unique_ips=Count("ip_address", distinct=True),
+            logged_in_users=Count("user", distinct=True),
+        )
+        daily = list(
+            logs.annotate(day=TruncDate("timestamp"))
+            .values("day")
+            .annotate(
+                requests=Count("id"),
+                unique_ips=Count("ip_address", distinct=True),
             )
-            # If fewer than 3 suspicious, add normal ones
-            if len(sample_logs) < 5:
-                normal_logs = self.model.objects.filter(ip_address=ip).exclude(
-                    suspicious_q
-                ).order_by("-timestamp")[: 5 - len(sample_logs)]
-                sample_logs.extend(normal_logs)
+            .order_by("-day")[:90]
+        )
 
-            stat["sample_requests"] = []
-            for log in sample_logs:
-                qs = self._format_query_params(log.query_params)
-                stat["sample_requests"].append(
-                    {
-                        "method": log.method,
-                        "endpoint": log.endpoint,
-                        "query_string": qs,
-                        "status_code": log.status_code,
-                        "timestamp": log.timestamp.isoformat(),
-                    }
-                )
-
-            # IPv6: truncate for display, extract /64 prefix
-            stat["ip_display"] = self._format_ip(ip)
-            stat["is_ipv6"] = ":" in ip
-
-            # FlaggedIP status
-            from api.models import FlaggedIP
-
-            try:
-                flagged = FlaggedIP.objects.get(ip_address=ip)
-                stat["ban_status"] = "banned" if flagged.is_active else "flagged"
-                stat["flag_reason"] = flagged.reason
-            except FlaggedIP.DoesNotExist:
-                stat["ban_status"] = "none"
-                stat["flag_reason"] = ""
+        sort_columns = []
+        for key, label in self.VISITOR_COLUMNS:
+            active = key == sort
+            next_dir = "asc" if active and direction == "desc" else "desc"
+            sort_columns.append(
+                {
+                    "label": label,
+                    "arrow": ("▲" if direction == "asc" else "▼") if active else "",
+                    "url": "?"
+                    + urlencode({**range_query, "sort": key, "dir": next_dir}),
+                }
+            )
 
         context = {
             **self.admin_site.each_context(request),
-            "title": "IP Address Summary",
-            "ip_stats": list(ip_stats),
+            "title": "Visitors by IP",
+            "page": page,
+            "visitors": rows,
+            "totals": totals,
+            "daily": daily,
+            "presets": self._range_presets(
+                reverse("admin:endpointaccesslog_ip_summary"), latest
+            ),
+            "range_query": range_query,
+            "sort": sort,
+            "direction": direction,
+            "sort_columns": sort_columns,
+            "page_query": urlencode({**range_query, "sort": sort, "dir": direction}),
+            "forensic_logging": feature_flags.is_enabled(
+                "SECURITY_FORENSIC_LOGGING_ENABLED"
+            ),
             "opts": self.model._meta,
             "cl": {"model_admin": self},
         }
 
         return render(request, "admin/endpoint_access_log_ip_summary.html", context)
+
+    def ip_detail_view(self, request):
+        """Per-IP drill-down: daily totals and activity sessions for a date range."""
+        from core.services.feature_flag_service import feature_flags
+
+        try:
+            ip = str(ipaddress.ip_address(request.GET.get("ip", "")))
+        except ValueError:
+            raise Http404("Invalid IP address")
+
+        latest = self._latest_day()
+        start, end = self._date_range(request, latest)
+        range_query = self._range_query(start, end)
+        logs = self._scope(self.model.objects.filter(ip_address=ip), start, end)
+        suspicious = Case(
+            When(self._suspicious_q(), then=Value(True)),
+            default=Value(False),
+            output_field=BooleanField(),
+        )
+
+        totals = logs.aggregate(
+            requests=Count("id"),
+            endpoints=Count("endpoint", distinct=True),
+            errors=Count(
+                "id", filter=Q(status_code__gte=400) | Q(status_code__isnull=True)
+            ),
+            flagged=Count("id", filter=Q(is_flagged=True)),
+        )
+
+        daily = list(
+            logs.annotate(day=TruncDate("timestamp"))
+            .values("day")
+            .annotate(
+                requests=Count("id"),
+                unique_endpoints=Count("endpoint", distinct=True),
+                error_count=Count(
+                    "id",
+                    filter=Q(status_code__gte=400) | Q(status_code__isnull=True),
+                ),
+                suspicious_hits=Count("id", filter=self._suspicious_q()),
+            )
+            .order_by("day")
+        )
+        for row in daily:
+            lo, hi = self._bounds(row["day"], row["day"])
+            row["requests_url"] = self._changelist_url(
+                ip_address=ip, timestamp__gte=lo, timestamp__lt=hi
+            )
+
+        events = list(
+            logs.annotate(suspicious=suspicious)
+            .order_by("timestamp")
+            .values_list("timestamp", "endpoint", "status_code", "suspicious")[
+                : self.DETAIL_ROW_CAP + 1
+            ]
+        )
+        truncated = len(events) > self.DETAIL_ROW_CAP
+        sessions = self._build_sessions(events[: self.DETAIL_ROW_CAP])
+        for number, session in enumerate(sessions, start=1):
+            session["number"] = number
+            session["requests_url"] = self._changelist_url(
+                ip_address=ip,
+                timestamp__gte=session["start"],
+                timestamp__lte=session["end"],
+            )
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": f"Visitor {ip}",
+            "ip": ip,
+            "totals": totals,
+            "daily": daily,
+            "sessions": sessions,
+            "truncated": truncated,
+            "row_cap": self.DETAIL_ROW_CAP,
+            "range_query": range_query,
+            "presets": self._range_presets(
+                reverse("admin:endpointaccesslog_ip_detail"), latest, {"ip": ip}
+            ),
+            "back_url": reverse("admin:endpointaccesslog_ip_summary")
+            + "?"
+            + urlencode(range_query),
+            "forensic_logging": feature_flags.is_enabled(
+                "SECURITY_FORENSIC_LOGGING_ENABLED"
+            ),
+            "opts": self.model._meta,
+            "cl": {"model_admin": self},
+        }
+
+        return render(request, "admin/endpoint_access_log_ip_detail.html", context)
 
     # ── Endpoint Summary View ─────────────────────────────────────────
 

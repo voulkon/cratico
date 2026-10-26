@@ -529,24 +529,50 @@ class TestPathProbeStrikes:
     threshold (80).
     """
 
-    PROBE_PATHS = [
+    INSTANT_BAN_PATHS = [
         "/api/.env",
         "/api/v1/.env",
         "/api/v2/.env",
         "/api/.env.bak",
+        "/api/.env/public/.env",
         "/api/.git/config",
         "/api/.aws/credentials",
+        "/api/id_rsa",
+        "/api/.htaccess",
+        "/api/orders/../admin/config.json",
+    ]
+
+    STRIKE_PATHS = [
         "/api/wp-admin/setup.php",
         "/api/phpmyadmin/index.php",
         "/api/backup.sql",
-        "/api/id_rsa",
-        "/api/.htaccess",
         "/api/composer.json",
+        "/api/console/api_server",
     ]
 
-    def test_each_probe_path_records_a_strike(self):
-        """Every probe pattern fires record_strike exactly once per request."""
-        for probe in self.PROBE_PATHS:
+    def test_instant_ban_probes_ban_on_first_hit(self):
+        for probe in self.INSTANT_BAN_PATHS:
+            client = Client(REMOTE_ADDR="10.0.0.220")
+
+            with (
+                patch(
+                    f"{FF_PATH}.is_enabled",
+                    side_effect=_flags_enabled(
+                        "SECURITY_MONITORING_ENABLED", "SECURITY_AUTO_BAN_ENABLED"
+                    ),
+                ),
+                patch(f"{SEC_SVC}.record_strike", return_value=1),
+                patch(f"{SEC_SVC}.ban_ip") as mock_ban,
+            ):
+                client.get(probe)
+
+            mock_ban.assert_called_once()
+            assert mock_ban.call_args.args[1] == "scan", (
+                f"{probe} did not trigger an instant ban"
+            )
+
+    def test_strike_probes_do_not_ban_on_first_hit(self):
+        for probe in self.STRIKE_PATHS:
             client = Client(REMOTE_ADDR="10.0.0.220")
 
             with (
@@ -562,10 +588,8 @@ class TestPathProbeStrikes:
                     f"{SEC_SVC}.ban_ip"
                 ) as mock_ban,
             ):
-                response = client.get(probe)
+                client.get(probe)
 
-            # The path doesn't exist -> 404 is fine; the point is the strike.
-            assert response.status_code != 403
             mock_strike.assert_called_once()
             event_type = mock_strike.call_args.kwargs["event_type"]
             assert event_type.startswith("path_probe:"), (
@@ -599,8 +623,9 @@ class TestPathProbeStrikes:
                 f"{SEC_SVC}.ban_ip"
             ) as mock_ban,
         ):
-            for probe in ("/api/.env", "/api/.git/config", "/api/wp-login.php",
-                          "/api/.aws/credentials", "/api/backup.sql"):
+            for probe in ("/api/wp-login.php", "/api/phpmyadmin/index.php",
+                          "/api/backup.sql", "/api/composer.json",
+                          "/api/console/api_server"):
                 client.get(probe)
 
         assert mock_strike.call_count == 5
@@ -630,11 +655,13 @@ class TestPathProbeStrikes:
             "/api/auth/login/",
             "/api/system/rate-limit/status/1/",
             "/api/some.endpoint/",  # a dot mid-path, not a trailing extension
+            "/api/blog",  # ends in "log" but is not a log file
+            "/api/catalog",
         ]
         middleware = SecurityMonitoringMiddleware(lambda r: None)
         for path in legitimate:
             assert not any(
-                p.search(path) for p in middleware.compiled_path_patterns
+                p.search(path) for p, _ in middleware.compiled_path_patterns
             ), f"Legitimate path {path} matched a probe pattern"
 
     def test_probe_strike_gated_by_security_flag(self):
@@ -653,3 +680,23 @@ class TestPathProbeStrikes:
             client.get("/api/.env")
 
         mock_strike.assert_not_called()
+
+
+class TestBannedRequestsNotPersisted:
+    def test_banned_ip_request_is_not_persisted(self):
+        client = Client(REMOTE_ADDR="10.0.0.230")
+
+        with (
+            patch(
+                f"{FF_PATH}.is_enabled",
+                side_effect=_flags_enabled(
+                    "SECURITY_MONITORING_ENABLED", "SECURITY_FORENSIC_LOGGING_ENABLED"
+                ),
+            ),
+            patch(f"{SEC_SVC}.is_banned", return_value=True),
+            patch(TASK_PATH) as mock_task,
+        ):
+            response = client.get(API_PATH)
+
+        assert response.status_code == 403
+        mock_task.assert_not_called()

@@ -24,27 +24,32 @@ class SecurityMonitoringMiddleware:
 
         # Path-probe patterns: requests FOR well-known sensitive/scan targets
         # (dotfiles, VCS dirs, admin panels, backup dumps). These are never
-        # legitimate API paths on this platform, so a single hit is a strike.
+        # legitimate API paths on this platform. Instant-ban rules ban the IP
+        # on the first hit; the rest are strikes that ban at the threshold.
         # Observed in the wild on preview-test: /api/.env, /api/v1/.env, etc.
-        self.suspicious_path_patterns = [
-            r"/\.env(\.|$)",  # .env, .env.bak, /api/v2/.env
-            r"/\.git(/|$)",  # exposed VCS
-            r"/\.aws(/|$)",  # credentials
-            r"/\.ssh(/|$)",
-            r"/\.docker(/|$)",
+        instant_ban_path_patterns = [
+            r"/\.env(\.|/|$)",  # .env, .env.bak, /api/v2/.env, /api/.env/public/.env
+            r"/\.(git|aws|ssh|docker)(/|$)",  # exposed VCS and credentials
+            r"/(id_rsa|id_dsa|id_ed25519)(\.pub)?$",  # key files
+            r"/(web\.config|\.htaccess|\.htpasswd)$",  # server configs
+            r"/\.\.[/;]",  # path traversal, incl. nginx-style /..;/
+        ]
+        strike_path_patterns = [
             r"/wp-(admin|login|content)",  # WordPress probes
             r"/(phpmyadmin|pma|adminer)",  # DB admin panels
             r"/\.\w+-(bak|old|orig|save)$",  # editor backups
-            r"/?\.?(bak|sql|ini|conf|log|yml|yaml|xml|lock)$",  # config/backup dumps
+            r"/[^/]*\.(bak|sql|ini|conf|log|yml|yaml|xml|lock)$",  # config/backup dumps
             r"/(composer|package)\.json$",  # dependency manifests
             r"/\.DS_Store$",
-            r"/(id_rsa|id_dsa|id_ed25519)(\.pub)?$",  # key files
-            r"/(web\.config|\.htaccess|\.htpasswd)$",
             r"/(cgi-bin|actuator|console)/",  # java/cgi consoles
         ]
         self.compiled_path_patterns = [
-            re.compile(pattern, re.IGNORECASE)
-            for pattern in self.suspicious_path_patterns
+            (re.compile(pattern, re.IGNORECASE), instant_ban)
+            for patterns, instant_ban in (
+                (instant_ban_path_patterns, True),
+                (strike_path_patterns, False),
+            )
+            for pattern in patterns
         ]
 
     def __call__(self, request):
@@ -125,7 +130,7 @@ class SecurityMonitoringMiddleware:
     def _check_path_for_probes(self, request):
         """Strike IPs probing for sensitive files/dirs via the request path."""
         path = request.path
-        for i, pattern in enumerate(self.compiled_path_patterns):
+        for i, (pattern, instant_ban) in enumerate(self.compiled_path_patterns):
             if pattern.search(path):
                 security_tracer.log_security_event(
                     "security.path_probe",
@@ -139,11 +144,15 @@ class SecurityMonitoringMiddleware:
                     severity="WARNING",
                 )
                 self._record_strike_and_maybe_ban(
-                    request, event_type=f"path_probe:{i}"
+                    request,
+                    event_type=f"path_probe:{i}",
+                    immediate_ban_reason="scan" if instant_ban else None,
                 )
                 break  # one strike per request, same as param attacks
 
-    def _record_strike_and_maybe_ban(self, request, event_type):
+    def _record_strike_and_maybe_ban(
+        self, request, event_type, immediate_ban_reason=None
+    ):
         """Feed the strike counter and auto-ban when the threshold is crossed.
 
         Shared by param-pattern hits and path-probe hits so both attack
@@ -160,12 +169,17 @@ class SecurityMonitoringMiddleware:
                 strike_count = security_service.record_strike(ip, event_type=event_type)
                 # Evaluate immediately — a single SQLi attempt might
                 # not cross the threshold, but we check so a burst does.
+                threshold_reached = strike_count >= feature_flags.get_value(
+                    "SECURITY_STRIKE_THRESHOLD", 5
+                )
                 if (
-                    strike_count >= feature_flags.get_value("SECURITY_STRIKE_THRESHOLD", 5)
+                    (immediate_ban_reason or threshold_reached)
                     and feature_flags.is_enabled("SECURITY_AUTO_BAN_ENABLED")
                 ):
                     security_service.ban_ip(
-                        ip, "strikes", strike_count=strike_count
+                        ip,
+                        immediate_ban_reason or "strikes",
+                        strike_count=strike_count,
                     )
                     # Signal to the response middleware that this IP
                     # was already banned — prevents a duplicate ban_ip

@@ -149,6 +149,27 @@ html {
   --shadow-hover: rgba(0,0,0,0.15);
   --shadow-focus: rgba(0,0,0,0.3);
 
+  /* Fallbacks for tokens otherwise defined only inside a theme block, so an
+     absent/unknown data-theme never strips shadows or borders. */
+  --surface-color: var(--card-bg);
+  --text-on-primary: #ffffff;
+  --card-shadow:
+    0 1px 2px rgba(28,25,23,0.04),
+    0 8px 24px rgba(28,25,23,0.06);
+  --card-shadow-hover:
+    0 2px 4px rgba(28,25,23,0.05),
+    0 14px 36px rgba(28,25,23,0.09);
+
+  /* Neobrutalist knobs — shared by every theme. */
+  --neo-shadow-offset: 4px;        /* shadow X/Y offset */
+  --neo-shadow-offset-hover: 4px;  /* shadow X/Y offset on hover */
+  --neo-border-width: 2px;         /* card border thickness */
+  --neo-radius: var(--radius-sm);  /* card corner rounding */
+  --neo-lift-x: -2px;              /* horizontal nudge on hover */
+  --neo-lift-y: -4px;              /* vertical lift on hover */
+  --neo-divider-width: 2px;        /* content divider thickness */
+  --neo-accent-width: 5px;         /* left accent stripe width */
+
   /* ── Annotation span tokens (AnnotatedText) ────────────────
      Translucent so they read on both light and dark canvases.
      Each span type has a bg + underline-accent pair. */
@@ -230,16 +251,6 @@ html {
   --card-shadow-hover:
     0 2px 4px rgba(28,25,23,0.05),
     0 14px 36px rgba(28,25,23,0.09);
-
-  /* Neobrutalist knobs — tweak these to dial the brutalism up/down */
-  --neo-shadow-offset: 4px;        /* shadow X/Y offset */
-  --neo-shadow-offset-hover: 4px;  /* shadow X/Y offset on hover */
-  --neo-border-width: 2px;         /* card border thickness */
-  --neo-radius: var(--radius-sm);  /* card corner rounding */
-  --neo-lift-x: -2px;              /* horizontal nudge on hover */
-  --neo-lift-y: -4px;              /* vertical lift on hover */
-  --neo-divider-width: 2px;        /* content divider thickness */
-  --neo-accent-width: 5px;         /* left accent stripe width */
 }
 
 /* ===========================================

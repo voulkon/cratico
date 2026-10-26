@@ -170,6 +170,39 @@ class TestVerifyAmountsInText:
 # ── Service-level, JSON-driven tests ─────────────────────────────────────────
 
 
+class TestCandidateSelection:
+    """The post-import candidate gate must not be stricter than the detectors."""
+
+    def test_default_threshold_matches_correction_threshold(self):
+        from core.services.amount_correction_service import (
+            DEFAULT_CORRECTION_THRESHOLD,
+        )
+        from core.services.amount_verification_service import (
+            DEFAULT_HIGH_VALUE_THRESHOLD,
+        )
+
+        assert DEFAULT_HIGH_VALUE_THRESHOLD == DEFAULT_CORRECTION_THRESHOLD
+
+    def test_sub_million_decimal_shift_case_is_a_candidate(self):
+        """
+        Regression: ADA ΡΛ8Ζ469ΗΚΚ-ΦΕΜ records €986,500.00 for a €9,865.00
+        contract.  At the old €1M gate it never reached the correction
+        detector, even though the detector's own threshold is €100k.
+        """
+        from conftest import DecisionAmountFieldFactory, DecisionFactory
+
+        decision = DecisionFactory()
+        DecisionAmountFieldFactory(
+            decision=decision,
+            amount=Decimal("986500.00"),
+            source_field_name="awardAmount",
+        )
+
+        candidates = AmountVerificationService().get_high_value_candidates()
+
+        assert decision.id in {d.id for d in candidates}
+
+
 class TestRegexAmountVerification:
     """End-to-end verification via AmountVerificationService (method='regex')."""
 

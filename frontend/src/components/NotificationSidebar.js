@@ -225,6 +225,17 @@ export default function NotificationSidebar({ isOpen, onClose, onUnreadCountChan
         await handleRefresh();
     };
 
+    // Apply a successful subscription update locally instead of refetching the list
+    const handleSubscriptionUpdated = useCallback((subscriptionId, patch) => {
+        setSubscriptions(prev => prev.map(sub =>
+            sub.id === subscriptionId ? { ...sub, ...patch } : sub
+        ));
+    }, []);
+
+    const handleSubscriptionDeleted = useCallback((subscriptionId) => {
+        setSubscriptions(prev => prev.filter(sub => sub.id !== subscriptionId));
+    }, []);
+
     // Handle notification dismiss
     const handleDismissNotification = async (notificationId, event) => {
         event.stopPropagation(); // Prevent navigation when clicking X
@@ -433,6 +444,8 @@ export default function NotificationSidebar({ isOpen, onClose, onUnreadCountChan
                                             key={subscription.id}
                                             subscription={subscription}
                                             onRefresh={handleSubscriptionRefresh}
+                                            onSubscriptionUpdated={handleSubscriptionUpdated}
+                                            onSubscriptionDeleted={handleSubscriptionDeleted}
                                             cardClass={getCardClass()}
                                         />
                                     ))}

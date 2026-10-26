@@ -39,15 +39,12 @@ class SecurityMonitoringResponseMiddleware:
 
         if security_enabled and ip and security_service.is_banned(ip):
             logger.info(f"Blocked banned IP {ip} on {request.path}")
-            # Signal to _finalize that this IP was already banned — prevents
-            # record_signals + evaluate_threats + ban_ip from running again,
-            # which would cause a redundant DB write per request.
-            request._security_already_banned = True
-            response = JsonResponse(
+            # Not persisted to EndpointAccessLog: banned IPs are force-flagged
+            # for forensics, so logging here would write one row per blocked request.
+            return JsonResponse(
                 {"error": "Access denied", "detail": "IP has been blocked."},
                 status=403,
             )
-            return self._finalize(response, request, ip, start_time, security_enabled)
 
         # Process the request
         response = self.get_response(request)

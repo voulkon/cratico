@@ -3,6 +3,39 @@ import { Monitor, Sun, Sunrise, MoonStar, Moon } from 'lucide-react';
 
 const ThemeContext = createContext();
 
+// Keep these ids in sync with the pre-paint script in public/index.html.
+const THEME_IDS = ['system', 'light', 'solarized-light', 'solarized-dark', 'dark'];
+const CONCRETE_THEME_IDS = ['light', 'solarized-light', 'solarized-dark', 'dark'];
+const PALETTE_IDS = ['orange', 'blue', 'purple', 'green', 'red', 'pink'];
+
+// Older builds stored "auto" for System mode. Normalize it (and discard any
+// other unknown value) so a stale localStorage entry can never leave
+// data-theme pointing at a block that does not exist.
+const readStoredTheme = () => {
+  const stored = localStorage.getItem('theme');
+  const normalized = stored === 'auto' ? 'system' : stored;
+  if (THEME_IDS.includes(normalized)) {
+    if (stored !== normalized) localStorage.setItem('theme', normalized);
+    return normalized;
+  }
+  if (stored) localStorage.removeItem('theme');
+  return 'light';
+};
+
+const readStoredSystemBase = () => {
+  const stored = localStorage.getItem('system-theme-base');
+  if (CONCRETE_THEME_IDS.includes(stored)) return stored;
+  if (stored) localStorage.removeItem('system-theme-base');
+  return 'light';
+};
+
+const readStoredPalette = () => {
+  const stored = localStorage.getItem('palette');
+  if (PALETTE_IDS.includes(stored)) return stored;
+  if (stored) localStorage.removeItem('palette');
+  return 'orange';
+};
+
 const prefersDarkQuery =
   typeof window !== 'undefined' && window.matchMedia
     ? window.matchMedia('(prefers-color-scheme: dark)')
@@ -29,20 +62,14 @@ export const useTheme = () => {
 };
 
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('theme') || 'light';
-  });
+  const [theme, setTheme] = useState(readStoredTheme);
 
-  const [palette, setPalette] = useState(() => {
-    return localStorage.getItem('palette') || 'orange';
-  });
+  const [palette, setPalette] = useState(readStoredPalette);
 
   // The concrete theme the "system" mode pivots around: the theme that was
   // active when the user last selected "system". Its family (plain vs
   // solarized) is preserved while following the OS preference.
-  const [systemBase, setSystemBase] = useState(() => {
-    return localStorage.getItem('system-theme-base') || 'light';
-  });
+  const [systemBase, setSystemBase] = useState(readStoredSystemBase);
 
   // Track the OS-level color scheme so the "system" theme can follow it live.
   const [systemPrefersDark, setSystemPrefersDark] = useState(
