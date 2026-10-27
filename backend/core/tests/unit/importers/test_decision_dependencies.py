@@ -1,3 +1,4 @@
+import io
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -6,9 +7,20 @@ from core.importers.decisions import DecisionImporter
 from core.models.decisions import Decision
 from core.models.organizations import Organization, Signer
 from core.tests.utils import create_decision_dto
+from diavgeia_api.exceptions import DiavgeiaAPIError
 from diavgeia_api.models.decisions import Decision as DecisionDTO
 from diavgeia_api.models.organizations import Organization as OrganizationDTO
 from diavgeia_api.models.organizations import Signer as SignerDTO
+from loguru import logger
+
+
+@pytest.fixture
+def loguru_capture():
+    """Capture loguru output via an in-memory sink."""
+    stream = io.StringIO()
+    handler_id = logger.add(stream, format="{message}")
+    yield stream
+    logger.remove(handler_id)
 
 
 @pytest.fixture
@@ -56,6 +68,50 @@ def mock_diavgeia_fetcher(db):
         mock_fetcher.fetch_a_signer.return_value = signer_dto
 
         yield mock_fetcher
+
+
+@pytest.mark.django_db
+def test_org_id_resolves_from_db_without_unit_api_call():
+    """An ID that is already an organization in DB is not queried as a unit."""
+    Organization.objects.create(
+        uid="6069",
+        label="Test Organization",
+        latin_name="test_org",
+        status="active",
+        category="MINISTRY",
+    )
+    importer = DecisionImporter()
+    fetcher = MagicMock()
+
+    org_id, path, units_to_import = importer._resolve_unit_organization_through_parents(
+        "6069", fetcher
+    )
+
+    assert org_id == "6069"
+    assert path["result"] == "found_in_db_as_organization"
+    assert units_to_import == []
+    fetcher.fetch_a_unit.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_unit_api_404_is_logged_as_debug(loguru_capture):
+    """A 404 while probing an ID as a unit is expected and not a warning."""
+    importer = DecisionImporter()
+    fetcher = MagicMock()
+    fetcher.fetch_a_unit.side_effect = DiavgeiaAPIError(404, "Unit not found")
+    fetcher.fetch_an_organization.side_effect = DiavgeiaAPIError(
+        404, "Organization not found"
+    )
+
+    org_id, path, _ = importer._resolve_unit_organization_through_parents(
+        "999999", fetcher
+    )
+
+    assert org_id is None
+    assert path["result"] == "not_found_anywhere"
+    output = loguru_capture.getvalue()
+    assert "is not a unit in the API (404)" in output
+    assert "Error fetching 999999 as unit from API" not in output
 
 
 @pytest.mark.django_db
