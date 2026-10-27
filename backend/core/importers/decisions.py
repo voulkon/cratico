@@ -393,7 +393,7 @@ class DecisionImporter(BaseImporter):
                                 imported_units.add(target_unit_id)
 
                                 if created_count > 0:
-                                    logger.info(
+                                    logger.debug(
                                         f"Imported unit {target_unit_id} with organization {org_id}"
                                     )
 
@@ -674,7 +674,7 @@ class DecisionImporter(BaseImporter):
             # Fetch missing signers on the spot
             if len(signer_pk_uids) != len(dto.signerIds):
                 missing_signers = set(dto.signerIds) - set(signer_pk_uids)
-                logger.info(
+                logger.debug(
                     f"Fetching {len(missing_signers)} missing signers for ADA '{dto.ada}'"
                 )
 
@@ -1164,7 +1164,7 @@ class DecisionImporter(BaseImporter):
         if visited is None:
             visited = set()
 
-        logger.info(f"[UNIT RESOLUTION] Starting resolution for unit {unit_id}")
+        logger.debug(f"[UNIT RESOLUTION] Starting resolution for unit {unit_id}")
 
         # Track the full resolution path
         resolution_path = {
@@ -1215,7 +1215,7 @@ class DecisionImporter(BaseImporter):
                         )
                         resolution_path["resolved_through_unit"] = current_id
 
-                        logger.info(
+                        logger.debug(
                             f"[UNIT RESOLUTION] [OK] Found unit {current_id} in DB with organization {existing_unit.organization_id}"
                         )
                         return (
@@ -1278,7 +1278,7 @@ class DecisionImporter(BaseImporter):
                         resolution_path["result"] = "found_in_db_as_organization"
                         resolution_path["organization_id"] = current_id
 
-                        logger.info(
+                        logger.debug(
                             f"[UNIT RESOLUTION] [OK] Found {current_id} as organization in DB"
                         )
                         return current_id, resolution_path, units_to_import
@@ -1321,7 +1321,7 @@ class DecisionImporter(BaseImporter):
                                     unit_dto.organizationId
                                 )
 
-                                logger.info(
+                                logger.debug(
                                     f"[UNIT RESOLUTION] [OK] Found unit {current_id} in API with organization {unit_dto.organizationId}"
                                 )
                                 return (
@@ -1392,7 +1392,7 @@ class DecisionImporter(BaseImporter):
                             # Import the organization if found
                             self._ensure_organization_exists(current_id, org_dto)
 
-                            logger.info(
+                            logger.debug(
                                 f"[UNIT RESOLUTION] [OK] Found {current_id} as organization in API"
                             )
                             return current_id, resolution_path, units_to_import
