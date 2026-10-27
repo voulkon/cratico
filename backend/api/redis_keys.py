@@ -28,6 +28,9 @@ IP_RATELIMIT_PREFIX = f"{RATELIMIT_NS}:ip:"
 # Import decision chunks keys
 IMPORT_CHUNK_PREFIX = f"{IMPORT_CHUNKS_NS}:chunk:"  # import:chunk:<job_id>_chunk_<n>
 IMPORT_JOB_METADATA_PREFIX = f"{IMPORT_CHUNKS_NS}:job:"  # import:job:<job_id>
+IMPORT_PROGRESS_PREFIX = (
+    f"{IMPORT_CHUNKS_NS}:progress:"  # import:progress:<job_id>:<milestone>
+)
 
 #  Import job queue keys
 IMPORT_JOB_QUEUE_PENDING = f"{IMPORT_JOB_QUEUE_NS}:pending"
@@ -195,6 +198,15 @@ def get_import_chunk_key(chunk_id: str) -> str:
 def get_import_job_metadata_key(job_id: int) -> str:
     """Generate Redis key for storing import job metadata"""
     return f"{IMPORT_JOB_METADATA_PREFIX}{job_id}"
+
+
+def get_import_progress_key(job_id: int, milestone: int) -> str:
+    """Generate Redis key for the last logged progress milestone of an import job.
+
+    Used as an atomic ``SET NX`` guard so parallel chunk workers log each
+    10% progress milestone exactly once.
+    """
+    return f"{IMPORT_PROGRESS_PREFIX}{job_id}:{milestone}"
 
 
 # [SCAN] Search history key helpers
