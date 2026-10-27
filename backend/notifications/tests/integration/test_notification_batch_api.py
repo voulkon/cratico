@@ -372,6 +372,90 @@ class TestNotificationBatchManagement:
         assert batch.is_dismissed is True
         assert batch.dismissed_at is not None
 
+    def test_mark_all_batches_as_read(
+        self, authenticated_client, user, notification_subscription
+    ):
+        """Test marking all unread batches as read in a single request."""
+        from conftest import (
+            NotificationBatchFactory,
+            NotificationSubscriptionFactory,
+            UserFactory,
+        )
+
+        now = timezone.now()
+        unread = [
+            NotificationBatchFactory(
+                user=user,
+                subscription=notification_subscription,
+                is_read=False,
+                check_window_start=now - timedelta(days=i + 1),
+                check_window_end=now - timedelta(days=i),
+            )
+            for i in range(3)
+        ]
+        NotificationBatchFactory(
+            user=user,
+            subscription=notification_subscription,
+            is_read=True,
+            check_window_start=now - timedelta(days=10),
+            check_window_end=now - timedelta(days=9),
+        )
+
+        other_user = UserFactory()
+        other_subscription = NotificationSubscriptionFactory(user=other_user)
+        other_batch = NotificationBatchFactory(
+            user=other_user,
+            subscription=other_subscription,
+            is_read=False,
+            check_window_start=now - timedelta(days=20),
+            check_window_end=now - timedelta(days=19),
+        )
+
+        response = authenticated_client.post(
+            "/api/notifications/batches/mark-all-read/"
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["marked_read"] == 3
+
+        for batch in unread:
+            batch.refresh_from_db()
+            assert batch.is_read is True
+            assert batch.read_at is not None
+
+        other_batch.refresh_from_db()
+        assert other_batch.is_read is False
+
+    def test_dismiss_all_batches(
+        self, authenticated_client, user, notification_subscription
+    ):
+        """Test dismissing all batches in a single request."""
+        from conftest import NotificationBatchFactory
+
+        now = timezone.now()
+        batches = [
+            NotificationBatchFactory(
+                user=user,
+                subscription=notification_subscription,
+                is_dismissed=False,
+                check_window_start=now - timedelta(days=i + 1),
+                check_window_end=now - timedelta(days=i),
+            )
+            for i in range(3)
+        ]
+
+        response = authenticated_client.post(
+            "/api/notifications/batches/dismiss-all/"
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["dismissed"] == 3
+
+        for batch in batches:
+            batch.refresh_from_db()
+            assert batch.is_dismissed is True
+            assert batch.dismissed_at is not None
+
     def test_get_unread_batch_count(
         self, authenticated_client, user, notification_subscription
     ):
