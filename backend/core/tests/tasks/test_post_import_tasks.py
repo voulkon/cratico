@@ -12,10 +12,11 @@ Feature flags are overridden via patch so no env-var changes are needed.
 """
 
 from collections import Counter
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from unittest.mock import MagicMock, call, patch
 
 import pytest
+from freezegun import freeze_time
 
 
 # ---------------------------------------------------------------------------
@@ -167,6 +168,141 @@ class TestPostDailyImportOrchestrator:
                 f"in a single post-import run"
             )
         assert len(dispatched) == 5
+
+
+class TestDailyOrchestratorImportWindow:
+    """§4.2 / §5.3: the DAILY run verifies its OWN import window.
+
+    Before the fix the daily orchestrator passed only the reference calendar
+    day (yesterday), so decisions inserted by that same run (after 00:00 today)
+    were not candidates — every decision was verified about 24 h late.
+    """
+
+    def test_forwards_import_window_to_verification(self):
+        import core.tasks.tasks_post_import as tasks_post_import
+        from core.tasks.tasks_post_import import post_daily_import_orchestrator
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                side_effect=_flag_enabled("POST_IMPORT_ORCHESTRATOR_ENABLED"),
+            ),
+            patch.object(
+                tasks_post_import.verify_high_value_amounts, "si"
+            ) as mock_si,
+        ):
+            mock_si.return_value.apply_async.return_value = MagicMock(
+                id="verify-id"
+            )
+
+            post_daily_import_orchestrator(
+                job_id=1,
+                reference_date_str="2026-05-28",
+                imported_since_str="2026-05-29T00:30:00+00:00",
+                imported_until_str="2026-05-29T00:50:00+00:00",
+            )
+
+        mock_si.assert_called_once_with(
+            reference_date_str="2026-05-28",
+            imported_since_str="2026-05-29T00:30:00+00:00",
+            imported_until_str="2026-05-29T00:50:00+00:00",
+        )
+
+    def test_without_window_keeps_calendar_day_scope(self):
+        """Tasks queued during a deploy (no window kwargs) keep working."""
+        import core.tasks.tasks_post_import as tasks_post_import
+        from core.tasks.tasks_post_import import post_daily_import_orchestrator
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.feature_flags.is_enabled",
+                side_effect=_flag_enabled("POST_IMPORT_ORCHESTRATOR_ENABLED"),
+            ),
+            patch.object(
+                tasks_post_import.verify_high_value_amounts, "si"
+            ) as mock_si,
+        ):
+            mock_si.return_value.apply_async.return_value = MagicMock(
+                id="verify-id"
+            )
+
+            post_daily_import_orchestrator(
+                job_id=1, reference_date_str="2026-05-28"
+            )
+
+        mock_si.assert_called_once_with(reference_date_str="2026-05-28")
+
+
+class TestParseImportWindow:
+    def test_default_window_is_the_reference_day(self):
+        from django.utils import timezone as dj_timezone
+        from core.tasks.tasks_post_import import _parse_import_window
+
+        ref, since, until = _parse_import_window("2026-05-28", None, None)
+
+        assert ref == date(2026, 5, 28)
+        # Local midnight (Europe/Athens), not UTC midnight.
+        assert since == dj_timezone.make_aware(
+            datetime(2026, 5, 28, 0, 0)
+        )
+        assert until - since == timedelta(days=1)
+
+    def test_explicit_window_is_returned_unchanged(self):
+        from core.tasks.tasks_post_import import _parse_import_window
+
+        _, since, until = _parse_import_window(
+            "2026-05-28",
+            "2026-05-29T00:30:00+00:00",
+            "2026-05-29T00:50:00+00:00",
+        )
+
+        assert since == datetime.fromisoformat("2026-05-29T00:30:00+00:00")
+        assert until == datetime.fromisoformat("2026-05-29T00:50:00+00:00")
+
+
+@pytest.mark.django_db
+class TestDailyRunVerifiesItsOwnInserts:
+    def test_decision_inserted_by_the_daily_run_is_a_candidate(self):
+        """The wanted behaviour: verification sees the run's own inserts.
+
+        A DAILY job created 00:30 UTC imports yesterday's issue dates but
+        inserts the rows after midnight today.  With the job's own window they
+        are candidates of the same run; the previous day's inserts are not.
+        """
+        from decimal import Decimal
+
+        from conftest import DecisionAmountFieldFactory, DecisionFactory
+        from core.services.amount_verification_service import (
+            AmountVerificationService,
+        )
+        from core.tasks.tasks_post_import import _parse_import_window
+
+        with freeze_time("2026-05-28 12:00:00"):
+            before = DecisionFactory(ada="DAILY-BEFORE")
+            DecisionAmountFieldFactory(
+                decision=before, amount=Decimal("200000.00")
+            )
+
+        with freeze_time("2026-05-29 00:40:00"):
+            inside = DecisionFactory(ada="DAILY-INSIDE")
+            DecisionAmountFieldFactory(
+                decision=inside, amount=Decimal("200000.00")
+            )
+
+        ref, since, until = _parse_import_window(
+            "2026-05-28",
+            "2026-05-29T00:30:00+00:00",
+            "2026-05-29T00:50:00+00:00",
+        )
+        assert ref == date(2026, 5, 28)
+
+        candidates = AmountVerificationService().get_high_value_candidates(
+            imported_since=since, imported_until=until
+        )
+        candidate_ids = {decision.id for decision in candidates}
+
+        assert inside.id in candidate_ids
+        assert before.id not in candidate_ids
 
 
 class TestTailChainShape:

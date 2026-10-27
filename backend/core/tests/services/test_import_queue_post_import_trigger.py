@@ -9,7 +9,7 @@ without needing a real broker or a live import run.
 """
 
 from datetime import date
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from core.models.import_jobs import ImportJob, ImportJobStatus, ImportJobType
@@ -103,13 +103,16 @@ class TestTriggerPostImportIfGlobal:
         ) as mock_task:
             mock_task.apply_async = MagicMock()
             queue._trigger_post_import_if_global(job.id)
-            mock_task.apply_async.assert_called_once_with(
-                kwargs={
-                    "job_id": job.id,
-                    "reference_date_str": "2026-05-29",
-                },
-                countdown=60,
-            )
+            call_kwargs = mock_task.apply_async.call_args.kwargs
+            assert call_kwargs["countdown"] == 60
+            sent = call_kwargs["kwargs"]
+            assert sent["job_id"] == job.id
+            assert sent["reference_date_str"] == "2026-05-29"
+            # §4.2 fix: the DAILY run verifies its OWN import window, not the
+            # reference calendar day.  The daily fetch has no
+            # fetch_started_at, so the window starts at created_at.
+            assert sent["imported_since_str"] == job.created_at.isoformat()
+            assert sent["imported_until_str"]
 
     def test_org_filtered_import_skips_orchestrator(self, queue):
         """A job scoped to a specific org should NOT trigger the orchestrator."""
@@ -255,3 +258,53 @@ class TestTriggerPostImportIfGlobal:
 
             mock_daily.apply_async.assert_not_called()
             mock_hourly.apply_async.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # §5.2 — the completion path is flag-agnostic (pinned on purpose)
+    # ------------------------------------------------------------------
+
+    def test_daily_completion_enqueues_orchestrator_with_flag_off(self, queue):
+        """With POST_IMPORT_ORCHESTRATOR_ENABLED off, a completed global DAILY
+        job STILL enqueues the orchestrator.
+
+        This is intentional (docs/en/AUTO_IMPORT_FLAG_MATRIX.md §2): the
+        orchestrator's own gate is the single switch for the pipeline, and it
+        reports the skip.  If someone later adds a gate here, this test must be
+        updated on purpose — otherwise the two gates can silently disagree.
+        """
+        job = _make_job(import_type=ImportJobType.DAILY)
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.post_daily_import_orchestrator"
+            ) as mock_daily,
+            patch(
+                "core.services.feature_flag_service.feature_flags.is_enabled",
+                return_value=False,
+            ),
+        ):
+            mock_daily.apply_async = MagicMock()
+            queue._trigger_post_import_if_global(job.id)
+
+            mock_daily.apply_async.assert_called_once()
+
+    def test_hourly_completion_enqueues_orchestrator_with_flag_off(self, queue):
+        """Same as the daily case: the enqueue side has no flag check."""
+        job = _make_job(
+            import_type=ImportJobType.HOURLY,
+            search_params={"fetch_started_at": "2026-05-29T10:00:00+00:00"},
+        )
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import.post_hourly_import_orchestrator"
+            ) as mock_hourly,
+            patch(
+                "core.services.feature_flag_service.feature_flags.is_enabled",
+                return_value=False,
+            ),
+        ):
+            mock_hourly.apply_async = MagicMock()
+            queue._trigger_post_import_if_global(job.id)
+
+            mock_hourly.apply_async.assert_called_once()

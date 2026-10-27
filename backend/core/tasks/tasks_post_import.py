@@ -415,7 +415,12 @@ def _dispatch_post_verification_tail(
 
 @shared_task
 @log_task_run
-def post_daily_import_orchestrator(job_id: int, reference_date_str: str):
+def post_daily_import_orchestrator(
+    job_id: int,
+    reference_date_str: str,
+    imported_since_str: str | None = None,
+    imported_until_str: str | None = None,
+):
     """
     Orchestrate all post-daily-import tasks in order.
 
@@ -429,9 +434,17 @@ def post_daily_import_orchestrator(job_id: int, reference_date_str: str):
     Args:
         job_id: The completed ImportJob's ID (for logging).
         reference_date_str: ISO-format date string for the "as-of" date.
+        imported_since_str: Optional aware-ISO start of the job's own import
+            window.  Verification uses it instead of the reference calendar
+            day, so the day's own inserts are verified by the same run
+            (§4.2).  Optional so tasks queued before a deploy keep working.
+        imported_until_str: Optional aware-ISO end (exclusive) of the window.
     """
     if not feature_flags.is_enabled("POST_IMPORT_ORCHESTRATOR_ENABLED"):
-        logger.info("POST_IMPORT_ORCHESTRATOR_ENABLED is disabled, skipping")
+        logger.warning(
+            "POST_IMPORT_ORCHESTRATOR_ENABLED is disabled, skipping — "
+            "imported data will not be verified, warmed or notified"
+        )
         return {"status": "skipped", "reason": "feature_flag_disabled"}
 
     logger.info(
@@ -439,7 +452,8 @@ def post_daily_import_orchestrator(job_id: int, reference_date_str: str):
         f"(reference date: {reference_date_str})"
     )
 
-    reference_date = date.fromisoformat(reference_date_str)
+    # Validate the ISO date early (also raises on a malformed value).
+    date.fromisoformat(reference_date_str)
 
     # Amount verification is the ONLY thing queued here — it owns the rest of
     # the post-import work and dispatches the tail exactly once:
@@ -449,9 +463,12 @@ def post_daily_import_orchestrator(job_id: int, reference_date_str: str):
     # Queuing the tail here as well made each of its tasks run twice per
     # import — two concurrent notification fan-outs, one duplicate
     # NotificationBatch per subscription (2026-09-15).
-    result = verify_high_value_amounts.si(
-        reference_date_str=reference_date_str
-    ).apply_async()
+    verify_kwargs = {"reference_date_str": reference_date_str}
+    if imported_since_str is not None and imported_until_str is not None:
+        verify_kwargs["imported_since_str"] = imported_since_str
+        verify_kwargs["imported_until_str"] = imported_until_str
+
+    result = verify_high_value_amounts.si(**verify_kwargs).apply_async()
     logger.info(
         f"Post-import chain dispatched (verification task id: {result.id}) "
         f"for job #{job_id}"
@@ -495,7 +512,10 @@ def post_hourly_import_orchestrator(
         imported_until_str: Aware-ISO end of the import window.
     """
     if not feature_flags.is_enabled("POST_IMPORT_ORCHESTRATOR_ENABLED"):
-        logger.info("POST_IMPORT_ORCHESTRATOR_ENABLED is disabled, skipping")
+        logger.warning(
+            "POST_IMPORT_ORCHESTRATOR_ENABLED is disabled, skipping — "
+            "imported data will not be verified, warmed or notified"
+        )
         return {"status": "skipped", "reason": "feature_flag_disabled"}
 
     logger.info(
