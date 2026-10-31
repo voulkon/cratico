@@ -122,17 +122,27 @@ class TestBeatTaskNames:
     ``tasks_amount_correction`` declares explicit short names via
     ``@shared_task(name=...)``.  Referencing the module path in beat instead
     silently drops the job ("Received unregistered task of type …") — the task
-    never runs and produces no logs.  This regression guard caught exactly that
-    for ``daily-amount-correction``.
+    never runs and produces no logs.
     """
 
-    def test_daily_amount_correction_beat_entry_matches_registered_name(self):
+    def test_daily_amount_correction_has_no_beat_entry(self):
+        """WI-3: correction runs after each import, not on a schedule."""
         from diavgeia_project.celery import app
 
-        from core.tasks.tasks_amount_correction import daily_amount_correction
+        assert "daily-amount-correction" not in app.conf.beat_schedule
+        assert "amount_correction.daily" not in {
+            entry["task"] for entry in app.conf.beat_schedule.values()
+        }
 
-        entry = app.conf.beat_schedule["daily-amount-correction"]
-        assert entry["task"] == daily_amount_correction.name
+    def test_sweeper_beat_entry_matches_registered_name(self):
+        from diavgeia_project.celery import app
+
+        from core.tasks.tasks_amount_correction import (
+            sweep_amount_correction_jobs,
+        )
+
+        entry = app.conf.beat_schedule["amount-correction-finalize-sweeper"]
+        assert entry["task"] == sweep_amount_correction_jobs.name
 
     def test_all_active_beat_entries_resolve_to_registered_tasks(self):
         import importlib
@@ -165,3 +175,66 @@ class TestBeatTaskNames:
             if entry["task"] not in app.tasks
         }
         assert missing == set()
+
+
+class TestFinalizerSweeper:
+    """WI-4: beat finalises RUNNING jobs whose results are all settled."""
+
+    def test_settled_job_is_completed_and_caches_invalidated(self):
+        from core.models.amount_correction_job import CorrectionJobStatus
+        from core.services.response_cache_service import response_cache
+        from core.tasks.tasks_amount_correction import sweep_amount_correction_jobs
+
+        job = _make_job(
+            status=CorrectionJobStatus.RUNNING,
+            total_candidates=2,
+            processed_count=2,
+            corrected=1,
+        )
+
+        with patch.object(
+            response_cache, "invalidate_prefix"
+        ) as mock_invalidate:
+            result = sweep_amount_correction_jobs()
+
+        job.refresh_from_db()
+        assert job.status == CorrectionJobStatus.COMPLETED
+        assert job.completed_at is not None
+        assert result["finalized"] == 1
+        mock_invalidate.assert_called_once_with("top_")
+
+    def test_in_progress_job_stays_running(self):
+        from core.models.amount_correction_job import CorrectionJobStatus
+        from core.tasks.tasks_amount_correction import sweep_amount_correction_jobs
+
+        job = _make_job(
+            status=CorrectionJobStatus.RUNNING,
+            total_candidates=2,
+            processed_count=1,
+        )
+
+        result = sweep_amount_correction_jobs()
+
+        job.refresh_from_db()
+        assert job.status == CorrectionJobStatus.RUNNING
+        assert result["finalized"] == 0
+
+    def test_no_change_job_does_not_invalidate(self):
+        from core.models.amount_correction_job import CorrectionJobStatus
+        from core.services.response_cache_service import response_cache
+        from core.tasks.tasks_amount_correction import sweep_amount_correction_jobs
+
+        job = _make_job(
+            status=CorrectionJobStatus.RUNNING,
+            total_candidates=1,
+            processed_count=1,
+        )
+
+        with patch.object(
+            response_cache, "invalidate_prefix"
+        ) as mock_invalidate:
+            sweep_amount_correction_jobs()
+
+        job.refresh_from_db()
+        assert job.status == CorrectionJobStatus.COMPLETED
+        mock_invalidate.assert_not_called()

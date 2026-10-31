@@ -482,20 +482,30 @@ daily import has run.
 
 ### Scope
 
-Both phases filter on `Decision.created_at` — **import** time, not issue date —
-over `[reference_date 00:00, +1 day)`. A run therefore never fans out over the
-historical backlog. To backfill a specific import day, pass the date:
+Both phases filter on `Decision.created_at` — **import** time, not issue date.
+Hourly runs use their own import window (`fetch_started_at` → completion); the
+daily run uses `[job.created_at, completion)` because the daily fetch does not
+write `fetch_started_at`. A run therefore never fans out over the historical
+backlog, and it verifies the decisions it just inserted instead of a day later.
+To backfill a specific import day, pass the date and window explicitly:
 
 ```python
-verify_high_value_amounts(reference_date_str="2026-05-29")
+verify_high_value_amounts(
+    reference_date_str="2026-05-29",
+    imported_since_str="2026-05-29T00:30:00+00:00",
+    imported_until_str="2026-05-29T00:50:00+00:00",
+)
 ```
 
 ### One hazard
 
-⚠️ **Do not enable the `daily_amount_correction` beat job while post-import
-Phase 2 is on.** They cover the same decisions; the beat job re-runs the whole
-correction over the last 2 days of imports and re-downloads documents for
-anything Phase 2 missed. Keep exactly one of them.
+⚠️ **Do not enable a scheduled `daily_amount_correction` job while post-import
+Phase 2 is on.** They cover the same decisions; the scheduled job re-runs the
+whole correction over the last 2 days of imports and re-downloads documents for
+anything Phase 2 missed. The `amount_correction.daily` beat entry was removed
+for this reason. The task remains available for manual/admin use only, and the
+`amount_correction.sweep_jobs` sweeper finalises its jobs. Keep exactly one
+correction path.
 
 ---
 

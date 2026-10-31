@@ -64,16 +64,15 @@ def test_module_binding_matches_helper():
 
 
 def test_daily_beat_entries_unchanged():
-    """Regression: the pre-existing daily entries are untouched."""
+    """Regression: the pre-existing daily entry is untouched, and the
+    amount-correction schedule stays removed (WI-3)."""
     schedule = app.conf.beat_schedule
 
     daily = schedule["auto-daily-import"]
     assert daily["task"] == "core.tasks.tasks_auto_import.auto_daily_import_task"
     assert isinstance(daily["schedule"], crontab)
 
-    correction = schedule["daily-amount-correction"]
-    assert correction["task"] == "amount_correction.daily"
-    correction_schedule = correction["schedule"]
-    assert isinstance(correction_schedule, crontab)
-    assert correction_schedule._orig_hour == 3
-    assert correction_schedule._orig_minute == 30
+    assert "daily-amount-correction" not in schedule
+    assert "amount_correction.daily" not in {
+        entry["task"] for entry in schedule.values()
+    }

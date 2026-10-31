@@ -311,18 +311,16 @@ app.conf.beat_schedule = {
         "task": "core.tasks.tasks_auto_import.trigger_next_company_gemi_batch",
         "schedule": crontab(hour=2, minute=0),
     },
-    # Daily amount correction — APPLIES corrections (dry_run=False) over
-    # high-value decisions.  Runs on the worker; progress visible in admin.
+    # Amount-correction finaliser sweeper — every 10 minutes, marks every
+    # RUNNING AmountCorrectionJob whose per-decision results are all settled
+    # as completed (and invalidates the amount-dependent caches once).
     #
-    # NOTE: the task is declared with an explicit short name in
-    # ``tasks_amount_correction.py``:
-    #     @shared_task(name="amount_correction.daily")
-    # Beat MUST reference that registered name.  Referencing the module path
-    # instead ("core.tasks.tasks_amount_correction.daily_amount_correction")
-    # silently yields "Received unregistered task of type …" — the job is
-    # dropped and NOTHING runs (no logs, no corrections).
-    "daily-amount-correction": {
-        "task": "amount_correction.daily",
-        "schedule": crontab(hour=3, minute=30),
+    # Amount correction itself is NOT scheduled: post-import verification
+    # (``tasks_post_import.verify_high_value_amounts``) corrects each job's own
+    # decisions right after the fetch.  ``amount_correction.daily`` was
+    # removed from beat so the same decisions are never corrected twice.
+    "amount-correction-finalize-sweeper": {
+        "task": "amount_correction.sweep_jobs",
+        "schedule": crontab(minute="*/10"),
     },
 }
