@@ -1,6 +1,6 @@
 """
 NotificationPreference: defaults, enforcement points, digests, and the
-legacy-guard migration (docs/en/AUTO_IMPORT_FLAG_MARKDOWN §6.6).
+legacy-guard migration (docs/en/AUTO_IMPORT_FLAG_MATRIX.md §5.2).
 
 Email is a digest by default, so a per-run send is deferred and the hourly
 digest task sends every un-emailed batch exactly once.
