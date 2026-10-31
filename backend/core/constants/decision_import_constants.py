@@ -134,6 +134,12 @@ def get_coverage_date_field() -> str:
 # ---------------------------------------------------------------------------
 HOURLY_IMPORT_OVERLAP_MINUTES = 10
 HOURLY_IMPORT_MIN_INTERVAL_MINUTES = 5
+# Cap a single hourly catch-up window.  After an outage the window would
+# otherwise span the whole gap and block the shared import queue (one prod
+# daily job is 14–19k decisions / 12–20 min, so 24 h is a comparable bound).
+# When the cap applies, the watermark advances only to the capped end and the
+# following jobs catch up in bounded steps.
+HOURLY_IMPORT_MAX_WINDOW_HOURS = 24
 HOURLY_IMPORT_SYNC_TYPE = "decisions_hourly"
 ADVANCED_QUERY_TEMPLATE = (
     'submissionTimestamp:[DT({from_ts}) TO DT({to_ts})] AND status:"Αναρτημένη"'

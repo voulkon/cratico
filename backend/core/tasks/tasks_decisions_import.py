@@ -347,7 +347,9 @@ def fetch_hourly_decisions_to_redis(self, job_id: int):
 
     Unlike the daily task, the window is recomputed **at execution time** from
     the live hourly watermark — enqueue-time estimates are never trusted. The
-    window always spans ``watermark − HOURLY_IMPORT_OVERLAP_MINUTES → now``.
+    window spans ``watermark − HOURLY_IMPORT_OVERLAP_MINUTES → now``, capped at
+    ``HOURLY_IMPORT_MAX_WINDOW_HOURS`` so a long outage does not create one
+    unbounded job that blocks the import queue.
 
     Hourly jobs are always queue-created, so ``job_id`` is required and no
     fallback job is ever created.
@@ -362,7 +364,10 @@ def fetch_hourly_decisions_to_redis(self, job_id: int):
     Returns:
         Dict with job_id, window bounds, Redis chunk metadata
     """
-    from core.constants.decision_import_constants import HOURLY_IMPORT_OVERLAP_MINUTES
+    from core.constants.decision_import_constants import (
+        HOURLY_IMPORT_MAX_WINDOW_HOURS,
+        HOURLY_IMPORT_OVERLAP_MINUTES,
+    )
     from core.models.sync_status import SyncStatus
 
     chunk_size = 10
@@ -392,6 +397,20 @@ def fetch_hourly_decisions_to_redis(self, job_id: int):
         from_dt = SyncStatus.get_last_hourly_sync() - timedelta(
             minutes=HOURLY_IMPORT_OVERLAP_MINUTES
         )
+
+        # Bound a catch-up after an outage: one job never spans more than the
+        # cap.  The watermark advances only to the capped end, so later jobs
+        # continue from there in bounded steps.
+        max_window = timedelta(hours=HOURLY_IMPORT_MAX_WINDOW_HOURS)
+        if to_dt - from_dt > max_window:
+            capped_to = from_dt + max_window
+            logger.warning(
+                f"Task {self.request.id}: Hourly window {from_dt} → {to_dt} "
+                f"exceeds {HOURLY_IMPORT_MAX_WINDOW_HOURS}h; capping to "
+                f"{capped_to} (remaining gap caught up by later runs)"
+            )
+            to_dt = capped_to
+
         window_from = from_dt.isoformat()
         window_to = to_dt.isoformat()
 
