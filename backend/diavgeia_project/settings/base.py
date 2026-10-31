@@ -134,3 +134,12 @@ RETRY_AFM_FETCHES_AFTER_NUMBER_OF_DAYS = int(
 # Set to 1 for sequential processing (prevents Redis/OpenSearch memory exhaustion)
 # Set to higher values for parallel processing (requires more memory)
 IMPORT_MAX_CONCURRENT_JOBS = int(os.getenv("IMPORT_MAX_CONCURRENT_JOBS", "1"))
+
+# AI summary ceiling: at most this many AI-summarised notification batches per
+# subscription per calendar day (Europe/Athens).  Further batches are still
+# created and emailed, without a summary (ai_summary_status = SKIPPED).
+# Post-import verification/notifications can create one batch per hour; prod
+# runs at ~0.7 batches/subscription/day, so 2 keeps the AI bill near today's.
+NOTIFICATION_AI_SUMMARIES_PER_SUBSCRIPTION_PER_DAY = int(
+    os.getenv("NOTIFICATION_AI_SUMMARIES_PER_SUBSCRIPTION_PER_DAY", "2")
+)

@@ -16,6 +16,7 @@ from notifications.models import (
     Notification,
     NotificationBatch,
     NotificationBatchDecision,
+    NotificationPreference,
     NotificationSubscription,
 )
 from notifications.serializers import (
@@ -24,6 +25,7 @@ from notifications.serializers import (
     NotificationBatchListSerializer,
     NotificationDetailSerializer,
     NotificationListSerializer,
+    NotificationPreferenceSerializer,
     NotificationSerializer,
     NotificationSubscriptionCreateSerializer,
     NotificationSubscriptionListSerializer,
@@ -930,3 +932,24 @@ class NotificationBatchViewSet(viewsets.ReadOnlyModelViewSet):
             data["total_output_tokens"] = run.total_output_tokens
             data["billed_to"] = run.billed_to
         return Response(data)
+
+
+class NotificationPreferenceViewSet(viewsets.ModelViewSet):
+    """The current user's notification preferences (one row per user).
+
+    Users can read and update only their own row: the queryset is scoped to
+    ``request.user``, so another user's id resolves to 404.
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = NotificationPreferenceSerializer
+
+    def get_queryset(self):
+        if not self.request.user or not self.request.user.is_authenticated:
+            return NotificationPreference.objects.none()
+        return NotificationPreference.objects.filter(
+            user=self.request.user
+        ).select_related("user")
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
