@@ -739,7 +739,8 @@ def warm_analytics_cache(reference_date_str: str | None = None):
         warmed += outcome["keys_warmed"]
         errors.extend(outcome["errors"])
 
-    logger.info(
+    # The @log_task_run wrapper already logs the task outcome summary.
+    logger.debug(
         f"Analytics cache warming complete: {warmed} keys warmed, "
         f"{len(errors)} errors (ref={ref})"
     )
@@ -779,7 +780,8 @@ def warm_today_window(reference_date_str: str | None = None):
 
     outcome = _warm_window("daily", ref, ref)
 
-    logger.info(
+    # The @log_task_run wrapper already logs the task outcome summary.
+    logger.debug(
         f"Today-window cache warming complete: {outcome['keys_warmed']} keys "
         f"warmed, {len(outcome['errors'])} errors (ref={ref})"
     )

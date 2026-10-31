@@ -63,7 +63,17 @@ def cache_paginated_offset(
     extra = extra_cache_kwargs or {}
     timeout = response_cache.EXPIRE_HISTORICAL if use_historical_ttl else None
 
+    # Constant part of every key in this batch (everything except ``offset``).
+    base_key = response_cache.build_key(
+        cache_prefix,
+        start_date=start_date_str,
+        end_date=end_date_str,
+        limit=str(page_size),
+        **extra,
+    )
+
     cached = 0
+    last_offset = 0
     for offset in range(0, len(full_results), page_size):
         page_results = full_results[offset : offset + page_size]
         if not page_results:
@@ -74,6 +84,7 @@ def cache_paginated_offset(
             max(1, (total_count + page_size - 1) // page_size) if page_size else 1
         )
         page_data = build_page_data(page_results, offset, page, total_pages)
+        last_offset = offset
 
         cache_key = response_cache.build_key(
             cache_prefix,
@@ -107,10 +118,17 @@ def cache_paginated_offset(
         response_cache.set(empty_key, empty_data, **kwargs)
         cached += 1
 
+    if cached <= 1:
+        offsets_desc = f"offset={last_offset}"
+    else:
+        offsets_desc = (
+            f"offsets=0..{last_offset} step {page_size} ({cached} pages)"
+        )
+
     logger.info(
         f"[AnalyticsPrecalc] Warmed {log_label or cache_prefix} "
-        f"[{start_date_str} → {end_date_str}] {cached} pages "
-        f"(max_limit={max_limit}, page_size={page_size}, total={total_count})"
+        f"[{start_date_str} → {end_date_str}] base={base_key} | "
+        f"{offsets_desc} | max_limit={max_limit}, total={total_count}"
     )
 
     return cached
@@ -155,5 +173,5 @@ def cache_single_key(
     detail = f" ({log_detail})" if log_detail else ""
     logger.info(
         f"[AnalyticsPrecalc] Warmed {log_label or cache_prefix} "
-        f"[{start_date_str} → {end_date_str}]{detail}"
+        f"[{start_date_str} → {end_date_str}] key={cache_key}{detail}"
     )
