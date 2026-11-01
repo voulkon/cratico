@@ -34,17 +34,8 @@ def _verification_required() -> bool:
     return bool(getattr(settings, "DJANGO_EMAIL_VERIFICATION_REQUIRED", False))
 
 
-def _email_configured() -> bool:
-    """True when a real SES sender/credentials are configured."""
-    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", None)
-    access_key = getattr(settings, "AWS_SES_ACCESS_KEY_ID", None)
-    return bool(from_email) and access_key != "YOUR-ACCESS-KEY-ID"
-
-
 def _send_verification_email(user) -> bool:
     """(Re)send the verification email for a pending account."""
-    if not _email_configured():
-        return False
     try:
         from core.email_service import RegistrationEmailService
 
@@ -364,15 +355,14 @@ def verify_email(request):
         token, _ = Token.objects.get_or_create(user=user)
 
         # Optionally send welcome email
-        if _email_configured():
-            try:
-                from core.email_service import RegistrationEmailService
+        try:
+            from core.email_service import RegistrationEmailService
 
-                RegistrationEmailService.send_welcome_email(
-                    user_email=user.email, username=user.username
-                )
-            except Exception as e:
-                logger.warning(f"Failed to send welcome email: {e}")
+            RegistrationEmailService.send_welcome_email(
+                user_email=user.email, username=user.username
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send welcome email: {e}")
 
         logger.debug(f"Email verified for user: {user.email}")
 
@@ -481,29 +471,22 @@ def request_password_reset(request):
             )  # 1 hour expiry
             user.save()
 
-            if _email_configured():
-                try:
-                    from core.email_service import PasswordResetEmailService
+            try:
+                from core.email_service import PasswordResetEmailService
 
-                    email_sent = PasswordResetEmailService.send_password_reset_email(
-                        user_email=user.email,
-                        username=user.username,
-                        reset_token=str(reset_token),
-                    )
-                    if email_sent:
-                        logger.debug(f"Password reset email sent to: {user.email}")
-                    else:
-                        logger.warning(
-                            f"Failed to send password reset email to: {user.email}"
-                        )
-                except Exception as e:
-                    logger.error(
-                        f"Error sending password reset email: {e}", exc_info=True
-                    )
-            else:
-                logger.warning(
-                    "Email not configured - password reset requested but no email sent"
+                email_sent = PasswordResetEmailService.send_password_reset_email(
+                    user_email=user.email,
+                    username=user.username,
+                    reset_token=str(reset_token),
                 )
+                if email_sent:
+                    logger.debug(f"Password reset email sent to: {user.email}")
+                else:
+                    logger.warning(
+                        f"Failed to send password reset email to: {user.email}"
+                    )
+            except Exception as e:
+                logger.error(f"Error sending password reset email: {e}", exc_info=True)
 
         payload = {
             "message": "If an account with that email exists, a password reset link has been sent."
