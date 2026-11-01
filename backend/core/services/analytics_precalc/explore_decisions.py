@@ -396,8 +396,20 @@ def warm_explore_decisions_window(
         response_cache.set(empty_alias_key, empty_data, end_date=end_date, timeout=response_cache.EXPIRE_HISTORICAL)
         cached += 1
 
+    # Constant part of the primary warmed keys (everything except ``page``).
+    base_key = response_cache.build_key(
+        "explore_decisions",
+        start_date=start_date_str,
+        end_date=end_date_str,
+        page_size=str(page_size),
+        sort_by="entity_amount_desc",
+        organization_uid="",
+        entity_afm="",
+        direct_assignments_only="",
+    )
     logger.info(
         f"[AnalyticsPrecalc] Warmed explore_decisions "
-        f"[{start_date_str} → {end_date_str}] {cached} pages "
-        f"(max_limit={max_limit}, page_size={page_size}, total_count={total_count})"
+        f"[{start_date_str} → {end_date_str}] base={base_key} "
+        f"(+ amount_desc alias) | pages=1..{cached} ({cached} pages) | "
+        f"max_limit={max_limit}, total_count={total_count}"
     )

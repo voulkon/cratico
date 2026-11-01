@@ -10,8 +10,13 @@ Single point of work:
     persisted ``AmountCorrectionJob`` **via the detectors' candidate queries**,
     fans out one task per decision, and tracks progress on the job row.
 
-  - ``daily_amount_correction`` — scheduled entry (beat) that creates a job
-    with applying corrections enabled and runs it.
+  - ``finalize_amount_correction_job`` — marks a job completed once all its
+    per-decision results settled; ``sweep_amount_correction_jobs`` calls it
+    from beat every 10 minutes.
+
+  - ``daily_amount_correction`` — manual/admin entry that creates an applying
+    job over the last 2 days of imports.  It has no beat entry: post-import
+    verification is the active correction path.
 
 Detector selection
 ------------------
@@ -22,7 +27,6 @@ requires no change to this module: the mode→detector mapping and the candidate
 queries both live in the registry.
 """
 
-from datetime import date
 from typing import Any
 
 from celery import shared_task
@@ -274,20 +278,61 @@ def finalize_amount_correction_job(job_id: str) -> dict[str, Any]:
     return {"status": "running", "processed": job.processed_count}
 
 
+@shared_task(name="amount_correction.sweep_jobs")
+def sweep_amount_correction_jobs() -> dict[str, Any]:
+    """
+    Finalise every RUNNING job whose per-decision results are all settled.
+
+    ``run_amount_correction_job`` fans out the per-decision tasks, but nothing
+    calls the finaliser at the end.  Without this sweeper admin-launched jobs
+    stay ``running`` forever and their cache invalidation never fires (§4.2).
+    Cheap: one indexed query every 10 minutes, then a no-op for in-progress
+    jobs.
+    """
+    from django.db.models import F
+
+    from core.models.amount_correction_job import (
+        AmountCorrectionJob,
+        CorrectionJobStatus,
+    )
+
+    settled_job_ids = list(
+        AmountCorrectionJob.objects.filter(
+            status=CorrectionJobStatus.RUNNING,
+            processed_count__gte=F("total_candidates"),
+        ).values_list("job_id", flat=True)
+    )
+
+    if not settled_job_ids:
+        return {"status": "completed", "finalized": 0}
+
+    results = [
+        finalize_amount_correction_job(job_id=str(job_id))
+        for job_id in settled_job_ids
+    ]
+    finalized = sum(1 for result in results if result.get("status") == "completed")
+
+    logger.info(
+        f"Amount correction sweeper: {finalized}/{len(settled_job_ids)} "
+        f"job(s) finalised"
+    )
+    return {"status": "completed", "finalized": finalized}
+
+
 @shared_task(name="amount_correction.daily")
 def daily_amount_correction() -> dict[str, Any]:
     """
-    Scheduled daily run — creates a job that APPLIES corrections
-    (dry_run=False) over high-value decisions and runs it.
+    Create an applying (dry_run=False) batch correction job over the last 2
+    days of imports.  Kept for MANUAL and ADMIN use — it has no beat entry.
 
-    Scoped to decisions imported in the last 2 days (created_at) so the
-    daily job covers yesterday's + today's imports without re-scanning the
-    entire historical backlog.
+    Amount correction now runs organically right after each import job
+    (``tasks_post_import.verify_high_value_amounts``, hourly and daily).  The
+    old ``amount_correction.daily`` schedule was removed because it corrected
+    the same decisions twice and re-downloaded the PDF; see
+    docs/en/AUTO_IMPORT_FLAG_MATRIX.md §10 WI-3.
 
-    NOTE: this duplicates post-import Phase 2
-    (``tasks_post_import.verify_high_value_amounts``) — enabling both makes
-    every decision be corrected twice, and the second pass re-downloads the
-    PDF.  Keep exactly one of them enabled.
+    Scoped to decisions imported in the last 2 days (created_at) so the job
+    covers recent imports without re-scanning the entire historical backlog.
     """
     from datetime import timedelta
 

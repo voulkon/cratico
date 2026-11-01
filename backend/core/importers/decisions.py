@@ -13,11 +13,17 @@ from core.models.decisions import Attachment, Decision, DecisionAmountKAE
 from core.models.entities import DecisionAmountField, DecisionEntityRelationship
 from core.models.types import ActType
 from core.services.entity_extraction_service import EntityExtractionService
+from diavgeia_api.exceptions import DiavgeiaAPIError
 from diavgeia_api.models.decisions import Decision as DecisionDTO
 from django.core.exceptions import FieldDoesNotExist
 from django.db import transaction
 from django.utils import timezone
 from loguru import logger
+
+
+def _is_not_found_error(error: Exception) -> bool:
+    """Return True for Diavgeia API 404s, which callers often handle as a fallback."""
+    return isinstance(error, DiavgeiaAPIError) and error.status_code == 404
 
 
 class DecisionImporter(BaseImporter):
@@ -387,7 +393,7 @@ class DecisionImporter(BaseImporter):
                                 imported_units.add(target_unit_id)
 
                                 if created_count > 0:
-                                    logger.info(
+                                    logger.debug(
                                         f"Imported unit {target_unit_id} with organization {org_id}"
                                     )
 
@@ -571,7 +577,14 @@ class DecisionImporter(BaseImporter):
                                 f"Failed to import missing {entity_type} with ID {entity_id}"
                             )
             except Exception as e:
-                logger.error(f"Error fetching/importing {entity_type} {entity_id}: {e}")
+                if _is_not_found_error(e):
+                    logger.debug(
+                        f"{entity_type.capitalize()} {entity_id} was not found in the Diavgeia API (404)"
+                    )
+                else:
+                    logger.error(
+                        f"Error fetching/importing {entity_type} {entity_id}: {e}"
+                    )
 
         return fetched_uids
 
@@ -661,7 +674,7 @@ class DecisionImporter(BaseImporter):
             # Fetch missing signers on the spot
             if len(signer_pk_uids) != len(dto.signerIds):
                 missing_signers = set(dto.signerIds) - set(signer_pk_uids)
-                logger.info(
+                logger.debug(
                     f"Fetching {len(missing_signers)} missing signers for ADA '{dto.ada}'"
                 )
 
@@ -1151,7 +1164,7 @@ class DecisionImporter(BaseImporter):
         if visited is None:
             visited = set()
 
-        logger.info(f"[UNIT RESOLUTION] Starting resolution for unit {unit_id}")
+        logger.debug(f"[UNIT RESOLUTION] Starting resolution for unit {unit_id}")
 
         # Track the full resolution path
         resolution_path = {
@@ -1202,7 +1215,7 @@ class DecisionImporter(BaseImporter):
                         )
                         resolution_path["resolved_through_unit"] = current_id
 
-                        logger.info(
+                        logger.debug(
                             f"[UNIT RESOLUTION] [OK] Found unit {current_id} in DB with organization {existing_unit.organization_id}"
                         )
                         return (
@@ -1247,10 +1260,37 @@ class DecisionImporter(BaseImporter):
                     path_step["checked_db_unit"] = True
                     path_step["found_in_db_as_unit"] = False
                     logger.debug(
-                        f"[UNIT RESOLUTION] {current_id} not found as unit in DB, trying API"
+                        f"[UNIT RESOLUTION] {current_id} not found as unit in DB"
                     )
 
-                    # 2. Not in DB as unit, try API as unit
+                    # 2. Not in DB as a unit - the ID may actually be an
+                    # organization (common in Diavgeia data), so check the DB
+                    # before asking the API for a unit it will 404 on.
+                    try:
+                        Organization.objects.get(uid=current_id)
+                        path_step["checked_db_org"] = True
+                        path_step["found_in_db_as_org"] = True
+                        logger.debug(
+                            f"[UNIT RESOLUTION] Found {current_id} as organization in DB"
+                        )
+
+                        resolution_path["path"].append(path_step)
+                        resolution_path["result"] = "found_in_db_as_organization"
+                        resolution_path["organization_id"] = current_id
+
+                        logger.debug(
+                            f"[UNIT RESOLUTION] [OK] Found {current_id} as organization in DB"
+                        )
+                        return current_id, resolution_path, units_to_import
+
+                    except Organization.DoesNotExist:
+                        path_step["checked_db_org"] = True
+                        path_step["found_in_db_as_org"] = False
+                        logger.debug(
+                            f"[UNIT RESOLUTION] {current_id} not found as organization in DB, trying API as unit"
+                        )
+
+                    # 3. Not in DB as unit or organization, try API as unit
                     try:
                         unit_dto = fetcher.fetch_a_unit(current_id)
                         path_step["checked_api_unit"] = True
@@ -1281,7 +1321,7 @@ class DecisionImporter(BaseImporter):
                                     unit_dto.organizationId
                                 )
 
-                                logger.info(
+                                logger.debug(
                                     f"[UNIT RESOLUTION] [OK] Found unit {current_id} in API with organization {unit_dto.organizationId}"
                                 )
                                 return (
@@ -1329,61 +1369,44 @@ class DecisionImporter(BaseImporter):
                     except Exception as unit_api_error:
                         path_step["checked_api_unit"] = True
                         path_step["api_unit_error"] = str(unit_api_error)
-                        logger.warning(
-                            f"[UNIT RESOLUTION] Error fetching {current_id} as unit from API: {unit_api_error}"
-                        )
+                        if _is_not_found_error(unit_api_error):
+                            logger.debug(
+                                f"[UNIT RESOLUTION] ID {current_id} is not a unit in the API (404), trying as organization"
+                            )
+                        else:
+                            logger.warning(
+                                f"[UNIT RESOLUTION] Error fetching {current_id} as unit from API: {unit_api_error}"
+                            )
 
-                    # 3. Not found as unit, check if it exists as organization in DB
+                    # 4. Not found as a unit in the API either, try as organization
                     try:
-                        Organization.objects.get(uid=current_id)
-                        path_step["checked_db_org"] = True
-                        path_step["found_in_db_as_org"] = True
-                        logger.debug(
-                            f"[UNIT RESOLUTION] Found {current_id} as organization in DB"
-                        )
+                        org_dto = fetcher.fetch_an_organization(current_id)
+                        path_step["checked_api_org"] = True
 
-                        resolution_path["path"].append(path_step)
-                        resolution_path["result"] = "found_in_db_as_organization"
-                        resolution_path["organization_id"] = current_id
+                        if org_dto:
+                            path_step["found_in_api_as_org"] = True
+                            resolution_path["path"].append(path_step)
+                            resolution_path["result"] = "found_in_api_as_organization"
+                            resolution_path["organization_id"] = current_id
 
-                        logger.info(
-                            f"[UNIT RESOLUTION] [OK] Found {current_id} as organization in DB"
-                        )
-                        return current_id, resolution_path, units_to_import
+                            # Import the organization if found
+                            self._ensure_organization_exists(current_id, org_dto)
 
-                    except Organization.DoesNotExist:
-                        path_step["checked_db_org"] = True
-                        path_step["found_in_db_as_org"] = False
-                        logger.debug(
-                            f"[UNIT RESOLUTION] {current_id} not found as organization in DB, trying API"
-                        )
+                            logger.debug(
+                                f"[UNIT RESOLUTION] [OK] Found {current_id} as organization in API"
+                            )
+                            return current_id, resolution_path, units_to_import
+                        else:
+                            path_step["found_in_api_as_org"] = False
 
-                        # 4. Not in DB as org, try API as organization
-                        try:
-                            org_dto = fetcher.fetch_an_organization(current_id)
-                            path_step["checked_api_org"] = True
-
-                            if org_dto:
-                                path_step["found_in_api_as_org"] = True
-                                resolution_path["path"].append(path_step)
-                                resolution_path["result"] = (
-                                    "found_in_api_as_organization"
-                                )
-                                resolution_path["organization_id"] = current_id
-
-                                # Import the organization if found
-                                self._ensure_organization_exists(current_id, org_dto)
-
-                                logger.info(
-                                    f"[UNIT RESOLUTION] [OK] Found {current_id} as organization in API"
-                                )
-                                return current_id, resolution_path, units_to_import
-                            else:
-                                path_step["found_in_api_as_org"] = False
-
-                        except Exception as org_api_error:
-                            path_step["checked_api_org"] = True
-                            path_step["api_org_error"] = str(org_api_error)
+                    except Exception as org_api_error:
+                        path_step["checked_api_org"] = True
+                        path_step["api_org_error"] = str(org_api_error)
+                        if _is_not_found_error(org_api_error):
+                            logger.debug(
+                                f"[UNIT RESOLUTION] ID {current_id} is not an organization in the API (404)"
+                            )
+                        else:
                             logger.warning(
                                 f"Error fetching {current_id} as organization from API: {org_api_error}"
                             )

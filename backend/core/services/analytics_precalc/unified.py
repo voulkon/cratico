@@ -73,8 +73,15 @@ def warm_unified_window(
         )
         response_cache.set(cache_key, data, end_date=end_date)
 
+    # Constant part of the warmed keys (everything except ``view``).
+    base_key = response_cache.build_key(
+        "unified",
+        source="temporal",
+        start_date=start_date_str,
+        end_date=end_date_str,
+    )
     logger.info(
         f"[AnalyticsPrecalc] Warmed unified endpoint "
-        f"[{start_date_str} → {end_date_str}] "
-        f"(views: date_range, statistics, decision_types)"
+        f"[{start_date_str} → {end_date_str}] base={base_key} | "
+        f"views=date_range,statistics,decision_types"
     )

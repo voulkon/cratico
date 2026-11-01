@@ -29,6 +29,26 @@ from rest_framework.response import Response
 User = get_user_model()
 
 
+def _verification_required() -> bool:
+    """Whether Django-registered accounts must verify their email."""
+    return bool(getattr(settings, "DJANGO_EMAIL_VERIFICATION_REQUIRED", False))
+
+
+def _send_verification_email(user) -> bool:
+    """(Re)send the verification email for a pending account."""
+    try:
+        from core.email_service import RegistrationEmailService
+
+        return RegistrationEmailService.send_verification_email(
+            user_email=user.email,
+            username=user.username,
+            verification_token=str(user.email_verification_token),
+        )
+    except Exception as e:
+        logger.error(f"Error sending verification email: {e}", exc_info=True)
+        return False
+
+
 @csrf_exempt
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -75,9 +95,7 @@ def register(request):
         # Email verification is optional. When disabled (local dev / e2e),
         # create an already-active, verified user and skip the SES send
         # entirely — there is nothing to verify and no working mailer.
-        verification_required = getattr(
-            settings, "DJANGO_EMAIL_VERIFICATION_REQUIRED", False
-        )
+        verification_required = _verification_required()
 
         if verification_required:
             # Create user - inactive until email is verified
@@ -106,30 +124,12 @@ def register(request):
 
         # Send verification email only when verification is actually required.
         email_sent = False
-        if verification_required and (
-            getattr(settings, "DEFAULT_FROM_EMAIL", None)
-            and settings.DEFAULT_FROM_EMAIL != "YOUR-ACCESS-KEY-ID"
-        ):
-            try:
-                from core.email_service import RegistrationEmailService
-
-                email_sent = RegistrationEmailService.send_verification_email(
-                    user_email=user.email,
-                    username=user.username,
-                    verification_token=str(verification_token),
-                )
-                if email_sent:
-                    logger.debug(f"Verification email sent to: {user.email}")
-                else:
-                    logger.warning(
-                        f"Failed to send verification email to: {user.email}"
-                    )
-            except Exception as e:
-                logger.error(f"Error sending verification email: {e}", exc_info=True)
-        elif verification_required:
-            logger.warning(
-                "Email not configured - user created but no verification email sent"
-            )
+        if verification_required:
+            email_sent = _send_verification_email(user)
+            if email_sent:
+                logger.debug(f"Verification email sent to: {user.email}")
+            else:
+                logger.warning(f"Failed to send verification email to: {user.email}")
 
         logger.debug(
             f"Created Django user "
@@ -216,10 +216,11 @@ def login(request):
                 {"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED
             )
 
-        # Check if user is active (for Django-registered users, this means email is verified)
-        if not user.is_active:
-            # Check if it's specifically because email is not verified
-            if not user.email_verified and user.email_verification_token:
+        # Account gating. When verification is required, an unverified account
+        # must never log in even if it was reactivated out-of-band; otherwise
+        # is_active alone is the gate (disabled accounts).
+        if _verification_required() and not user.email_verified:
+            if user.email_verification_token:
                 return Response(
                     {
                         "error": "Email not verified. Please check your email for the verification link.",
@@ -227,6 +228,11 @@ def login(request):
                     },
                     status=status.HTTP_403_FORBIDDEN,
                 )
+            return Response(
+                {"error": "User account is disabled"}, status=status.HTTP_403_FORBIDDEN
+            )
+
+        if not user.is_active:
             return Response(
                 {"error": "User account is disabled"}, status=status.HTTP_403_FORBIDDEN
             )
@@ -349,18 +355,14 @@ def verify_email(request):
         token, _ = Token.objects.get_or_create(user=user)
 
         # Optionally send welcome email
-        if (
-            getattr(settings, "DEFAULT_FROM_EMAIL", None)
-            and settings.DEFAULT_FROM_EMAIL != "YOUR-ACCESS-KEY-ID"
-        ):
-            try:
-                from core.email_service import RegistrationEmailService
+        try:
+            from core.email_service import RegistrationEmailService
 
-                RegistrationEmailService.send_welcome_email(
-                    user_email=user.email, username=user.username
-                )
-            except Exception as e:
-                logger.warning(f"Failed to send welcome email: {e}")
+            RegistrationEmailService.send_welcome_email(
+                user_email=user.email, username=user.username
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send welcome email: {e}")
 
         logger.debug(f"Email verified for user: {user.email}")
 
@@ -406,7 +408,9 @@ def request_password_reset(request):
         "message": "If an account with that email exists, a password reset link has been sent."
     }
 
-    Note: Returns the same message whether the user exists or not (for security).
+    Always returns the same message so the endpoint is not an oracle for
+    account existence or verification state (``email_sent`` is only exposed
+    when ``DEBUG`` is on, for local troubleshooting).
     """
     email = request.data.get("email")
 
@@ -416,35 +420,57 @@ def request_password_reset(request):
         )
 
     try:
-        # Try to find the user (don't reveal if user exists or not)
-        user = User.objects.get(email=email, is_active=True)
+        # Look up without filtering on is_active so unverified/disabled
+        # accounts can be handled consistently without changing the response.
+        user = User.objects.filter(email=email).first()
+        email_sent = False
 
-        # Only allow password reset for Django users (not Clerk users)
-        if user.clerk_id:
+        if user is None:
+            logger.debug(f"Password reset requested for unknown email: {email}")
+        elif user.clerk_id:
             # For Clerk users, they should use Clerk's password reset
             logger.debug(f"Password reset attempted for Clerk user: {email}")
-            # Still return success message (don't reveal it's a Clerk user)
             return Response(
                 {
                     "message": "If an account with that email exists, a password reset link has been sent.",
                     "note": "For Clerk users, please use the Clerk password reset flow.",
                 }
             )
+        elif _verification_required() and not user.email_verified:
+            # Unverified accounts cannot log in, so a reset link would be
+            # useless. Resend verification instead; the generic "check your
+            # email" message stays true and no account state is leaked.
+            if (
+                not user.email_verification_token
+                or not user.email_verification_token_expires
+                or user.email_verification_token_expires < timezone.now()
+            ):
+                user.email_verification_token = uuid.uuid4()
+                user.email_verification_token_expires = timezone.now() + timedelta(
+                    hours=24
+                )
+                user.save(
+                    update_fields=[
+                        "email_verification_token",
+                        "email_verification_token_expires",
+                    ]
+                )
+            email_sent = _send_verification_email(user)
+            logger.debug(
+                f"Resent verification email instead of reset for: {email} "
+                f"(sent={email_sent})"
+            )
+        elif not user.is_active:
+            logger.debug(f"Password reset requested for inactive account: {email}")
+        else:
+            # Generate password reset token
+            reset_token = uuid.uuid4()
+            user.password_reset_token = reset_token
+            user.password_reset_token_expires = timezone.now() + timedelta(
+                hours=1
+            )  # 1 hour expiry
+            user.save()
 
-        # Generate password reset token
-        reset_token = uuid.uuid4()
-        user.password_reset_token = reset_token
-        user.password_reset_token_expires = timezone.now() + timedelta(
-            hours=1
-        )  # 1 hour expiry
-        user.save()
-
-        # Send password reset email
-        email_sent = False
-        if (
-            getattr(settings, "DEFAULT_FROM_EMAIL", None)
-            and settings.DEFAULT_FROM_EMAIL != "YOUR-ACCESS-KEY-ID"
-        ):
             try:
                 from core.email_service import PasswordResetEmailService
 
@@ -461,27 +487,13 @@ def request_password_reset(request):
                     )
             except Exception as e:
                 logger.error(f"Error sending password reset email: {e}", exc_info=True)
-        else:
-            logger.warning(
-                "Email not configured - password reset requested but no email sent"
-            )
 
-        # Always return success message (don't reveal if user exists)
-        return Response(
-            {
-                "message": "If an account with that email exists, a password reset link has been sent.",
-                "email_sent": email_sent,
-            }
-        )
-
-    except User.DoesNotExist:
-        # Don't reveal that user doesn't exist - return same message
-        logger.debug(f"Password reset requested for non-existent email: {email}")
-        return Response(
-            {
-                "message": "If an account with that email exists, a password reset link has been sent."
-            }
-        )
+        payload = {
+            "message": "If an account with that email exists, a password reset link has been sent."
+        }
+        if settings.DEBUG:
+            payload["email_sent"] = email_sent
+        return Response(payload)
     except Exception as e:
         logger.error(f"Error processing password reset request: {e}", exc_info=True)
         return Response(

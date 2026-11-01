@@ -230,7 +230,11 @@ const CombinedAuthProvider = ({ clerkActive, clerkState, configLoading, children
 
       if (response.ok) {
         const data = await response.json();
-        return { success: true, message: data.message };
+        return {
+          success: true,
+          message: data.message,
+          emailSent: data.email_sent,
+        };
       } else {
         const error = await response.json();
         return { success: false, error: error.error || 'Password reset request failed' };

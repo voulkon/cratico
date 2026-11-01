@@ -28,6 +28,50 @@ from diavgeia_api.models.decisions import Decision
 from django.utils import timezone
 from loguru import logger
 
+PROGRESS_LOG_STEP = 10
+
+
+def _log_import_progress(
+    import_job: ImportJob, redis_client: Any, task_id: str
+) -> None:
+    """Log a job's progress once per 10% milestone (10%, 20%, ... 100%).
+
+    Chunks are processed by parallel workers, so a Redis ``SET NX`` guard makes
+    sure only one worker emits the line for a given milestone.
+    """
+    progress = import_job.progress_percentage
+    milestone = int(progress // PROGRESS_LOG_STEP) * PROGRESS_LOG_STEP
+    if milestone <= 0:
+        return
+
+    from api.redis_keys import IMPORT_CHUNKS_EXPIRE, get_import_progress_key
+
+    try:
+        claimed = redis_client.set(
+            get_import_progress_key(import_job.id, milestone),
+            "1",
+            nx=True,
+            ex=IMPORT_CHUNKS_EXPIRE,
+        )
+    except Exception as e:
+        logger.warning(
+            f"Task {task_id}: Could not record {milestone}% progress milestone "
+            f"for job {import_job.id}: {e}"
+        )
+        return
+
+    if not claimed:
+        return
+
+    logger.info(
+        f"Task {task_id}: Import job {import_job.id} at {progress:.1f}% "
+        f"({import_job.chunks_completed + import_job.chunks_failed}/"
+        f"{import_job.total_chunks} chunks), "
+        f"restored={import_job.decisions_restored_from_redis}/"
+        f"{import_job.total_decisions}, "
+        f"assigned={import_job.decisions_assigned_to_pipeline}"
+    )
+
 
 @shared_task(bind=True, max_retries=3)
 def fetch_daily_decisions_to_redis(
@@ -303,7 +347,9 @@ def fetch_hourly_decisions_to_redis(self, job_id: int):
 
     Unlike the daily task, the window is recomputed **at execution time** from
     the live hourly watermark — enqueue-time estimates are never trusted. The
-    window always spans ``watermark − HOURLY_IMPORT_OVERLAP_MINUTES → now``.
+    window spans ``watermark − HOURLY_IMPORT_OVERLAP_MINUTES → now``, capped at
+    ``HOURLY_IMPORT_MAX_WINDOW_HOURS`` so a long outage does not create one
+    unbounded job that blocks the import queue.
 
     Hourly jobs are always queue-created, so ``job_id`` is required and no
     fallback job is ever created.
@@ -318,7 +364,10 @@ def fetch_hourly_decisions_to_redis(self, job_id: int):
     Returns:
         Dict with job_id, window bounds, Redis chunk metadata
     """
-    from core.constants.decision_import_constants import HOURLY_IMPORT_OVERLAP_MINUTES
+    from core.constants.decision_import_constants import (
+        HOURLY_IMPORT_MAX_WINDOW_HOURS,
+        HOURLY_IMPORT_OVERLAP_MINUTES,
+    )
     from core.models.sync_status import SyncStatus
 
     chunk_size = 10
@@ -348,6 +397,20 @@ def fetch_hourly_decisions_to_redis(self, job_id: int):
         from_dt = SyncStatus.get_last_hourly_sync() - timedelta(
             minutes=HOURLY_IMPORT_OVERLAP_MINUTES
         )
+
+        # Bound a catch-up after an outage: one job never spans more than the
+        # cap.  The watermark advances only to the capped end, so later jobs
+        # continue from there in bounded steps.
+        max_window = timedelta(hours=HOURLY_IMPORT_MAX_WINDOW_HOURS)
+        if to_dt - from_dt > max_window:
+            capped_to = from_dt + max_window
+            logger.warning(
+                f"Task {self.request.id}: Hourly window {from_dt} → {to_dt} "
+                f"exceeds {HOURLY_IMPORT_MAX_WINDOW_HOURS}h; capping to "
+                f"{capped_to} (remaining gap caught up by later runs)"
+            )
+            to_dt = capped_to
+
         window_from = from_dt.isoformat()
         window_to = to_dt.isoformat()
 
@@ -549,7 +612,7 @@ def store_decisions_from_redis(
         time.sleep(delay_seconds)
 
     try:
-        logger.info(
+        logger.debug(
             f"Task {self.request.id}: Processing chunk {chunk_id} for job {job_id}"
         )
 
@@ -597,7 +660,7 @@ def store_decisions_from_redis(
         decision_dicts = chunk_data["decisions"]
         metadata = chunk_data.get("metadata", {})
 
-        logger.info(
+        logger.debug(
             f"Task {self.request.id}: Loaded {len(decision_dicts)} decisions from Redis chunk {chunk_id}"
         )
 
@@ -615,10 +678,6 @@ def store_decisions_from_redis(
                 logger.debug(f"Problematic dict: {decision_dict}")
                 # Skip this decision and continue with others
                 continue
-
-        logger.info(
-            f"Task {self.request.id}: Successfully parsed {len(decisions)} Decision DTOs"
-        )
 
         # Get ImportJob for progress tracking
         try:
@@ -639,7 +698,7 @@ def store_decisions_from_redis(
         dispatched_tasks = []
         failed_imports = []
 
-        logger.info(
+        logger.debug(
             f"Task {self.request.id}: Processing {len(decisions)} decisions through orchestrator"
         )
 
@@ -689,8 +748,13 @@ def store_decisions_from_redis(
                             {"ada": decision.ada, "task_id": pipeline_task.id}
                         )
                 else:
+                    decision_ada = getattr(decision_dto, "ada", "unknown")
+                    logger.error(
+                        f"Task {self.request.id}: Failed to import {decision_ada}: "
+                        f"orchestrator returned None"
+                    )
                     failed_imports.append(
-                        {"ada": decision_dto.ada, "error": "Import returned None"}
+                        {"ada": decision_ada, "error": "Import returned None"}
                     )
 
             except Exception as decision_error:
@@ -713,7 +777,7 @@ def store_decisions_from_redis(
                     )
                     raise decision_error  # Fail the whole chunk
                 else:
-                    logger.warning(
+                    logger.error(
                         f"Task {self.request.id}: Failed to process {decision_ada}: {decision_error}"
                     )
                     failed_imports.append(
@@ -755,15 +819,9 @@ def store_decisions_from_redis(
                 )
                 import_job.refresh_from_db()
 
-            logger.info(
-                f"Task {self.request.id}: Updated job {job_id} progress: "
-                f"{import_job.chunks_completed}/{import_job.total_chunks} chunks completed "
-                f"({import_job.progress_percentage:.1f}%), "
-                f"Restored: {import_job.decisions_restored_from_redis}/{import_job.total_decisions}, "
-                f"Assigned to pipeline: {import_job.decisions_assigned_to_pipeline}"
-            )
+            _log_import_progress(import_job, redis_cache.redis_client, self.request.id)
 
-        logger.success(
+        logger.debug(
             f"Task {self.request.id}: Processed chunk {chunk_id}, "
             f"dispatched {len(dispatched_tasks)} pipeline tasks"
         )

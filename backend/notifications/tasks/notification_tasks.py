@@ -6,9 +6,11 @@ from django.utils import timezone
 from loguru import logger
 from notifications.constants import CHECK_FREQUENCY_DAILY, CHECK_FREQUENCY_WEEKLY
 from notifications.models import (
+    EmailMode,
     Notification,
     NotificationBatch,
     NotificationBatchDecision,
+    NotificationPreference,
     NotificationSubscription,
 )
 from notifications.utils import determine_match_reason, find_matching_decisions
@@ -906,6 +908,78 @@ def check_user_subscriptions(user_id, subscription_ids, lookback_days=1):
     }
 
 
+def _filter_summarisable_batch_ids(user_id, new_batch_ids):
+    """Apply the user-level AI toggle and the per-subscription daily ceiling.
+
+    Returns the batch ids that may run ``summarize_notification_batch``.
+    Batches rejected by either rule are persisted as ``SKIPPED`` (with a
+    reason) so they are still emailed without a summary.
+    """
+    from collections import Counter
+
+    preference = NotificationPreference.get_for_user_id(user_id)
+
+    batches = list(
+        NotificationBatch.objects.filter(id__in=new_batch_ids).select_related(
+            "subscription"
+        )
+    )
+    batches_by_id = {batch.id: batch for batch in batches}
+    # Preserve the caller's order (it drives the summary dispatch order).
+    batches = [
+        batches_by_id[batch_id]
+        for batch_id in new_batch_ids
+        if batch_id in batches_by_id
+    ]
+
+    if not preference.ai_summary_enabled:
+        for batch in batches:
+            batch.ai_summary_status = "SKIPPED"
+            batch.ai_summary_error = "AI summaries disabled at user level"
+            batch.save(update_fields=["ai_summary_status", "ai_summary_error"])
+        logger.info(f"User {user_id}: AI summaries disabled, skipping all")
+        return []
+
+    ceiling = getattr(
+        settings, "NOTIFICATION_AI_SUMMARIES_PER_SUBSCRIPTION_PER_DAY", 2
+    )
+    if ceiling <= 0:
+        return []
+
+    local_now = timezone.localtime()
+    day_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    subscription_ids = {batch.subscription_id for batch in batches}
+
+    # Batches already consumed today (the new ones are still PENDING and are
+    # not counted yet).
+    used = Counter(
+        NotificationBatch.objects.filter(
+            subscription_id__in=subscription_ids,
+            created_at__gte=day_start,
+            ai_summary_status__in=["PENDING", "RUNNING", "COMPLETED", "FAILED"],
+        )
+        .exclude(id__in=new_batch_ids)
+        .values_list("subscription_id", flat=True)
+    )
+
+    allowed = []
+    for batch in batches:
+        subscription_id = batch.subscription_id
+        if used[subscription_id] >= ceiling:
+            batch.ai_summary_status = "SKIPPED"
+            batch.ai_summary_error = "Daily AI summary ceiling reached"
+            batch.save(update_fields=["ai_summary_status", "ai_summary_error"])
+            logger.info(
+                f"Batch {batch.id}: AI summary ceiling "
+                f"({ceiling}/subscription/day) reached"
+            )
+            continue
+        used[subscription_id] += 1
+        allowed.append(batch.id)
+
+    return allowed
+
+
 @shared_task
 def dispatch_summaries_then_email(*args, user_id=None):
     """
@@ -958,6 +1032,11 @@ def dispatch_summaries_then_email(*args, user_id=None):
         if header_result is not None
         else []
     )
+
+    # User-level AI gate + daily ceiling (§6.4 / WI-7).  Batches that cannot
+    # be summarised are marked SKIPPED and still emailed.
+    if new_batch_ids:
+        new_batch_ids = _filter_summarisable_batch_ids(user_id, new_batch_ids)
 
     if not new_batch_ids:
         logger.info(
@@ -1014,12 +1093,40 @@ def send_consolidated_email_for_user(*args, user_id=None, header_result=None):
     Returns:
         dict with user_id, batches_emailed, success
     """
-    from core.email_service import NotificationEmailService
     from django.contrib.auth import get_user_model
 
     if user_id is None:
         logger.error("send_consolidated_email_for_user called without user_id")
         return {"user_id": None, "batches_emailed": 0, "success": False}
+
+    # User-level email controls (§6.4).  Digest modes leave the batches
+    # un-emailed for the scheduled digest task, which sends them once.
+    from django.db import IntegrityError
+
+    try:
+        preference = NotificationPreference.get_for_user_id(user_id)
+    except IntegrityError:
+        logger.error(f"User {user_id} not found, cannot read email preference")
+        return {"user_id": user_id, "batches_emailed": 0, "success": False}
+    if not preference.email_enabled:
+        logger.info(f"User {user_id}: email disabled, keeping batches unread")
+        return {
+            "user_id": user_id,
+            "batches_emailed": 0,
+            "success": True,
+            "email_disabled": True,
+        }
+    if preference.email_mode != EmailMode.EVERY_RUN:
+        logger.info(
+            f"User {user_id}: email mode is {preference.email_mode}, "
+            f"deferring to the digest"
+        )
+        return {
+            "user_id": user_id,
+            "batches_emailed": 0,
+            "success": True,
+            "email_deferred": True,
+        }
 
     User = get_user_model()
 
@@ -1105,6 +1212,21 @@ def send_consolidated_email_for_user(*args, user_id=None, header_result=None):
     user_language = getattr(user, "preferred_language", "en") or "en"
 
     # Build batch data for the template
+    return _send_unemailed_batches(user, unemailed_batches, user_language)
+
+
+def _send_unemailed_batches(user, unemailed_batches, user_language=None):
+    """Send one consolidated email for ``unemailed_batches`` and mark them sent.
+
+    Shared by the per-run path and the digest task, so both render the same
+    batch data and honour the same ``email_verified`` rule.
+    """
+    from core.email_service import NotificationEmailService
+
+    user_language = user_language or getattr(
+        user, "preferred_language", "en"
+    ) or "en"
+
     batch_data_list = []
     total_decisions = 0
     batch_ids_to_mark = []
@@ -1139,7 +1261,6 @@ def send_consolidated_email_for_user(*args, user_id=None, header_result=None):
             }
         )
 
-    # Send one consolidated email
     email_sent = NotificationEmailService.send_consolidated_batch_summary(
         user_email=user.email,
         username=user.username or user.email,
@@ -1149,7 +1270,6 @@ def send_consolidated_email_for_user(*args, user_id=None, header_result=None):
     )
 
     if email_sent:
-        # Mark all batches as emailed
         now = timezone.now()
         NotificationBatch.objects.filter(id__in=batch_ids_to_mark).update(
             email_sent=True,
@@ -1160,14 +1280,95 @@ def send_consolidated_email_for_user(*args, user_id=None, header_result=None):
             f"{len(batch_ids_to_mark)} batches, {total_decisions} decisions"
         )
         return {
-            "user_id": user_id,
+            "user_id": user.id,
             "batches_emailed": len(batch_ids_to_mark),
             "success": True,
         }
-    else:
-        logger.error(f"Failed to send consolidated email to {user.email}")
+
+    logger.error(f"Failed to send consolidated email to {user.email}")
+    return {
+        "user_id": user.id,
+        "batches_emailed": 0,
+        "success": False,
+    }
+
+
+@shared_task
+def send_notification_digests():
+    """Hourly beat task: send each due user's un-emailed batches once.
+
+    Daily digests fire when the local hour equals ``digest_hour_local``.
+    Weekly digests fire at that hour on Monday.  Because the batches are marked
+    ``email_sent`` after a successful send, a second run in the same hour —
+    or any later run — sends nothing.  Users on ``every_run`` are untouched:
+    their email is sent by ``send_consolidated_email_for_user`` per run.
+    """
+    now = timezone.localtime()
+    hour = now.hour
+    is_monday = now.weekday() == 0
+
+    preferences = (
+        NotificationPreference.objects.filter(
+            email_enabled=True,
+            digest_hour_local=hour,
+            email_mode__in=[EmailMode.DAILY_DIGEST, EmailMode.WEEKLY_DIGEST],
+        )
+        .select_related("user")
+        .order_by("user_id")
+    )
+
+    users = 0
+    emails = 0
+    for preference in preferences:
+        if preference.email_mode == EmailMode.WEEKLY_DIGEST and not is_monday:
+            continue
+        users += 1
+        result = send_digest_for_user(preference.user_id)
+        if result.get("batches_emailed"):
+            emails += 1
+
+    logger.info(
+        f"Notification digests: {emails} email(s) for {users} due user(s)"
+    )
+    return {"status": "completed", "due_users": users, "emails_sent": emails}
+
+
+@shared_task
+def send_digest_for_user(user_id):
+    """Send all of a user's un-emailed batches in one digest email."""
+    from django.contrib.auth import get_user_model
+
+    preference = NotificationPreference.get_for_user_id(user_id)
+    if not preference.email_enabled or preference.email_mode == EmailMode.EVERY_RUN:
         return {
             "user_id": user_id,
             "batches_emailed": 0,
-            "success": False,
+            "success": True,
         }
+
+    User = get_user_model()
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        logger.error(f"User {user_id} not found, cannot send digest")
+        return {"user_id": user_id, "batches_emailed": 0, "success": False}
+
+    if not getattr(user, "email_verified", False):
+        logger.warning(
+            f"User {user_id} ({user.email}) email not verified — "
+            f"skipping notification digest"
+        )
+        return {"user_id": user_id, "batches_emailed": 0, "success": True}
+
+    unemailed_batches = (
+        NotificationBatch.objects.filter(
+            email_sent=False, user_id=user_id, match_count__gt=0
+        )
+        .select_related("subscription__organization", "subscription__entity")
+        .order_by("created_at")
+    )
+
+    if not unemailed_batches.exists():
+        return {"user_id": user_id, "batches_emailed": 0, "success": True}
+
+    return _send_unemailed_batches(user, unemailed_batches)

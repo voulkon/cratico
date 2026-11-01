@@ -392,16 +392,29 @@ class ImportJobQueue:
 
             reference_date = job.start_date.isoformat()
 
+            # Verify on the job's OWN import window, exactly like HOURLY.
+            # The daily fetch does not write fetch_started_at, so fall back to
+            # created_at (the enqueue time): earlier than or equal to the real
+            # start, so it can only widen the window.  Decisions inserted by an
+            # earlier hourly job keep their older created_at, so they are not
+            # verified twice.
+            imported_since = (
+                (job.search_params or {}).get("fetch_started_at")
+                or job.created_at.isoformat()
+            )
+
             logger.info(
                 f"ImportJobQueue: Global daily import #{job_id} completed, "
                 f"triggering post-import orchestrator (countdown=60s, "
-                f"ref={reference_date})"
+                f"ref={reference_date}, window from {imported_since})"
             )
 
             post_daily_import_orchestrator.apply_async(
                 kwargs={
                     "job_id": job_id,
                     "reference_date_str": reference_date,
+                    "imported_since_str": imported_since,
+                    "imported_until_str": timezone.now().isoformat(),
                 },
                 countdown=60,  # Let pipeline tasks finish
             )

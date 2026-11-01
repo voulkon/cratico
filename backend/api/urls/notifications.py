@@ -8,6 +8,7 @@ from django.urls import include, path
 PREFIX = "notifications/"
 from notifications.views import (
     NotificationBatchViewSet,
+    NotificationPreferenceViewSet,
     NotificationSubscriptionViewSet,
 )
 from notifications.views_metadata import (
@@ -25,6 +26,11 @@ router.register(
     basename="notification-subscription",
 )
 router.register("batches", NotificationBatchViewSet, basename="notification-batch")
+router.register(
+    "preferences",
+    NotificationPreferenceViewSet,
+    basename="notification-preference",
+)
 
 urlpatterns = [
     # Include router URLs (creates /notifications/subscriptions/ and /notifications/batches/)

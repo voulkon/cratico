@@ -19,8 +19,10 @@ from .notification_subscription import (
     NotificationSubscriptionSerializer,
     OrganizationNestedSerializer,
 )
+from .notification_preference import NotificationPreferenceSerializer
 
 __all__ = [
+    "NotificationPreferenceSerializer",
     "NotificationSubscriptionSerializer",
     "NotificationSubscriptionCreateSerializer",
     "NotificationSubscriptionListSerializer",

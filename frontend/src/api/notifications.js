@@ -248,14 +248,8 @@ export async function getUnreadCount() {
  * @returns {Promise<Object>} Object with { marked_read: number }
  */
 export async function markAllNotificationsRead() {
-  // Get all unread batches
-  const batches = await getNotificationBatches({ is_read: false });
-
-  // Mark each as read
-  const promises = batches.map(batch => markBatchRead(batch.id));
-  await Promise.all(promises);
-
-  return { marked_read: batches.length };
+  const response = await apiClient.post(`${BATCHES_BASE}/mark-all-read/`);
+  return response.data;
 }
 
 /**
@@ -263,14 +257,8 @@ export async function markAllNotificationsRead() {
  * @returns {Promise<Object>} Object with { dismissed: number }
  */
 export async function dismissAllNotifications() {
-  // Get all non-dismissed batches
-  const batches = await getNotificationBatches({ is_dismissed: false });
-
-  // Dismiss each
-  const promises = batches.map(batch => dismissBatch(batch.id));
-  await Promise.all(promises);
-
-  return { dismissed: batches.length };
+  const response = await apiClient.post(`${BATCHES_BASE}/dismiss-all/`);
+  return response.data;
 }
 
 // ============ METADATA ============

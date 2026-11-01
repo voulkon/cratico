@@ -31,6 +31,33 @@ def _call(args=(HEADER_RESULT,), user_id=7):
 
 class TestDispatchSummariesThenEmail:
 
+    @pytest.fixture(autouse=True)
+    def summary_batches(self, db):
+        """User 7 with the batches referenced by HEADER_RESULT.
+
+        The user-level AI toggle and the daily ceiling need a real user, a
+        preference, and the batches themselves.
+        """
+        from conftest import (
+            NotificationBatchFactory,
+            NotificationSubscriptionFactory,
+            UserFactory,
+        )
+
+        user = UserFactory(id=7)
+        preference = user.notification_preference
+        preference.ai_summary_enabled = True
+        preference.email_mode = "every_run"
+        preference.save(update_fields=["ai_summary_enabled", "email_mode"])
+
+        for batch_id in (11, 12, 13):
+            NotificationBatchFactory(
+                id=batch_id,
+                user=user,
+                subscription=NotificationSubscriptionFactory(user=user),
+                ai_summary_status="PENDING",
+            )
+
     def test_dispatches_inner_chord_for_new_batches(self):
         """
         With new_batch_ids present, an inner chord runs one
@@ -128,6 +155,9 @@ class TestSendConsolidatedEmailHeaderOverride:
         """Email sending requires a verified address."""
         user.email_verified = True
         user.save(update_fields=["email_verified"])
+        preference = user.notification_preference
+        preference.email_mode = "every_run"
+        preference.save(update_fields=["email_mode"])
         return user
 
     def test_header_result_override_wins_over_args(self, user):

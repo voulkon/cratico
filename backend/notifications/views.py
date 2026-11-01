@@ -16,6 +16,7 @@ from notifications.models import (
     Notification,
     NotificationBatch,
     NotificationBatchDecision,
+    NotificationPreference,
     NotificationSubscription,
 )
 from notifications.serializers import (
@@ -24,6 +25,7 @@ from notifications.serializers import (
     NotificationBatchListSerializer,
     NotificationDetailSerializer,
     NotificationListSerializer,
+    NotificationPreferenceSerializer,
     NotificationSerializer,
     NotificationSubscriptionCreateSerializer,
     NotificationSubscriptionListSerializer,
@@ -672,6 +674,8 @@ class NotificationBatchViewSet(viewsets.ReadOnlyModelViewSet):
     - decisions: Get paginated list of decisions in this batch
     - mark_read: Mark a batch as read
     - dismiss: Dismiss a batch
+    - mark_all_read: Mark all unread batches as read
+    - dismiss_all: Dismiss all batches
     - unread_count: Get count of unread batches
 
     Query parameters for list:
@@ -834,6 +838,36 @@ class NotificationBatchViewSet(viewsets.ReadOnlyModelViewSet):
         batch.dismiss()
         return Response({"status": "dismissed", "batch_id": batch.id})
 
+    @action(detail=False, methods=["post"], url_path="mark-all-read")
+    def mark_all_read(self, request):
+        """
+        Mark all unread, non-dismissed batches as read for the current user.
+
+        POST /api/notifications/batches/mark-all-read/
+
+        Returns:
+            {"marked_read": <count>}
+        """
+        count = NotificationBatch.objects.filter(
+            user=request.user, is_read=False, is_dismissed=False
+        ).update(is_read=True, read_at=timezone.now())
+        return Response({"marked_read": count})
+
+    @action(detail=False, methods=["post"], url_path="dismiss-all")
+    def dismiss_all(self, request):
+        """
+        Dismiss all non-dismissed batches for the current user.
+
+        POST /api/notifications/batches/dismiss-all/
+
+        Returns:
+            {"dismissed": <count>}
+        """
+        count = NotificationBatch.objects.filter(
+            user=request.user, is_dismissed=False
+        ).update(is_dismissed=True, dismissed_at=timezone.now())
+        return Response({"dismissed": count})
+
     @action(detail=False, methods=["get"], url_path="unread-count")
     def unread_count(self, request):
         """
@@ -898,3 +932,24 @@ class NotificationBatchViewSet(viewsets.ReadOnlyModelViewSet):
             data["total_output_tokens"] = run.total_output_tokens
             data["billed_to"] = run.billed_to
         return Response(data)
+
+
+class NotificationPreferenceViewSet(viewsets.ModelViewSet):
+    """The current user's notification preferences (one row per user).
+
+    Users can read and update only their own row: the queryset is scoped to
+    ``request.user``, so another user's id resolves to 404.
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = NotificationPreferenceSerializer
+
+    def get_queryset(self):
+        if not self.request.user or not self.request.user.is_authenticated:
+            return NotificationPreference.objects.none()
+        return NotificationPreference.objects.filter(
+            user=self.request.user
+        ).select_related("user")
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)

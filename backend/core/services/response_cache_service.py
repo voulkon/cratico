@@ -120,7 +120,9 @@ class ResponseCacheService:
 
         cache.set(cache_key, data, effective_timeout)
 
-        logger.info(
+        # Individual SETs are debug-level detail: callers that write many keys
+        # (e.g. paginated warmup) emit a single centralized summary instead.
+        logger.debug(
             f"[ResponseCache SET] key={cache_key} | "
             f"TTL={effective_timeout}s ({effective_timeout//60}m) | "
             f"source={timeout_source} | "
