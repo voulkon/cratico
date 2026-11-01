@@ -15,7 +15,7 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 
 # Centralized repository URL – single source of truth for all markdown files.
-REPO_URL = "https://github.com/voulkon/crati"
+REPO_URL = "https://github.com/voulkon/cratico"
 
 # Registry of default document types: slug → {en_title, el_title}
 _DEFAULT_DOCS = {
