@@ -157,45 +157,49 @@ class Command(BaseCommand):
             # --- Synchronous Batch Processing ---
             self.stdout.write(f"Processing {total_found} decisions synchronously...")
             success_count = 0
+            failed_adas = []
+            progress_every = 100
             # Fetch decisions corresponding to the ada_list to avoid N+1 queries inside loop
             decisions_to_process = Decision.objects.filter(ada__in=ada_list)
 
-            for decision in tqdm(
-                decisions_to_process, total=total_found, desc="Processing Decisions"
+            for index, decision in enumerate(
+                tqdm(
+                    decisions_to_process,
+                    total=total_found,
+                    desc="Processing Decisions",
+                ),
+                start=1,
             ):
                 try:
-                    # Log every 10th decision for progress tracking
-                    if (success_count + 1) % 10 == 0:
-                        self.stdout.write(
-                            f"Processing decision #{success_count + 1}: {decision.ada}"
-                        )
-
                     result = service.process_decision(decision)
                     if result["success"]:
                         success_count += 1
-                        # Log successful extractions with brief info
-                        if result.get("extraction_status") == "COMPLETED":
-                            self.stdout.write(
-                                self.style.SUCCESS(
-                                    f"[OK] {decision.ada} - Extracted successfully"
-                                )
-                            )
                     else:
-                        self.stdout.write(
-                            self.style.ERROR(
-                                f"[ERROR] Failed processing {decision.ada}"
-                            )
+                        failed_adas.append(decision.ada)
+                        self.stderr.write(
+                            self.style.ERROR(f"[ERROR] Failed processing {decision.ada}")
                         )
                 except Exception as e:
-                    self.stdout.write(
+                    failed_adas.append(decision.ada)
+                    self.stderr.write(
                         self.style.ERROR(
                             f"[CRASH] Error processing {decision.ada}: {e}"
                         )
                     )
+
+                # Periodic aggregate progress instead of one line per document.
+                if index % progress_every == 0:
+                    self.stdout.write(
+                        f"Progress: {index}/{total_found} "
+                        f"(ok={success_count}, failed={len(failed_adas)})"
+                    )
+
                 time.sleep(0.5)  # 500ms delay between requests
 
             self.stdout.write(
                 self.style.SUCCESS(
-                    f"Synchronous processing complete. {success_count}/{total_found} successful."
+                    "Synchronous processing complete. "
+                    f"{success_count}/{total_found} successful, "
+                    f"{len(failed_adas)} failed."
                 )
             )

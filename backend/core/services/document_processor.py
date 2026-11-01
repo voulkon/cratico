@@ -293,7 +293,7 @@ class TextExtractionProcessor(BaseDocumentProcessor):
             preprocessing_result = None
 
             if raw_extracted_text and not raw_extracted_text.isspace():
-                logger.info(
+                logger.debug(
                     f"Starting text preprocessing for {decision.ada} (Original length: {len(raw_extracted_text)})"
                 )
 
@@ -321,11 +321,11 @@ class TextExtractionProcessor(BaseDocumentProcessor):
                         )
 
                 if processed_text != raw_extracted_text:
-                    logger.info(
+                    logger.debug(
                         f"Text preprocessed for {decision.ada}. New length: {len(processed_text)}"
                     )
                 else:
-                    logger.info(
+                    logger.debug(
                         f"No significant changes made by text preprocessor for {decision.ada}."
                     )
 
@@ -350,7 +350,9 @@ class TextExtractionProcessor(BaseDocumentProcessor):
                 else ""
             )
 
-            # Log extraction results with content preview
+            # Per-document details stay at DEBUG so a bulk run does not flood
+            # the logs; the structured INFO line below is the single record
+            # emitted for each processed document.
             if final_text_to_log_and_save:
                 text_length = len(final_text_to_log_and_save)
                 # Show first and last 100 characters
@@ -361,15 +363,15 @@ class TextExtractionProcessor(BaseDocumentProcessor):
                     else ""
                 )
 
-                logger.info(
+                logger.debug(
                     f"Extracted {text_length} characters from {decision.ada} in {processing_time_ms}ms"
                 )
-                logger.info(f"Content start: '{preview_start}...'")
+                logger.debug(f"Content start: '{preview_start}...'")
                 if preview_end and preview_end != preview_start:
-                    logger.info(f"Content end: '...{preview_end}'")
+                    logger.debug(f"Content end: '...{preview_end}'")
 
                 if result.page_count:
-                    logger.info(f"Document has {result.page_count} pages")
+                    logger.debug(f"Document has {result.page_count} pages")
             elif raw_extracted_text:
                 logger.warning(
                     f"Text became empty after preprocessing for {decision.ada}. Original text was present."
@@ -397,7 +399,24 @@ class TextExtractionProcessor(BaseDocumentProcessor):
                 ),
             )
 
-            logger.info(f"Successfully processed {decision.ada}")
+            logger.info(
+                f"Document {decision.ada} extracted",
+                document_ada=decision.ada,
+                character_count=len(final_text_to_log_and_save),
+                page_count=result.page_count,
+                processing_time_ms=processing_time_ms,
+                provider=provider_name,
+                corrupted=is_corrupted,
+                extraction_status=(
+                    ProcessingStatus.CORRUPTED_CONTENT.value
+                    if is_corrupted
+                    else (
+                        ProcessingStatus.NEEDS_VISION.value
+                        if final_extraction_result.is_scanned
+                        else ProcessingStatus.COMPLETED.value
+                    )
+                ),
+            )
             return True
 
         except Exception as e:
