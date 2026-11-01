@@ -1548,7 +1548,7 @@ class TestFinalizeAmountVerification:
         ]
 
     @staticmethod
-    def _run(overrides):
+    def _run(overrides, tail_kind="daily"):
         from core.tasks.tasks_post_import import finalize_amount_verification
 
         batch = {
@@ -1586,7 +1586,9 @@ class TestFinalizeAmountVerification:
             mock_chain_cls.return_value = mock_chain_instance
 
             finalize_amount_verification.run(
-                [batch], reference_date_str="2026-05-29"
+                [batch],
+                reference_date_str="2026-05-29",
+                tail_kind=tail_kind,
             )
 
         return mock_invalidate
@@ -1600,6 +1602,12 @@ class TestFinalizeAmountVerification:
 
     def test_flagged_amounts_invalidate_analytics_caches(self):
         """Writing the invalid-amount marker also changes the facet layer."""
+        mock_invalidate = self._run({"flagged": 1})
+
+        assert mock_invalidate.call_count == 3
+
+    def test_discrepancies_invalidate_analytics_caches(self):
+        """A detected discrepancy also drops the amount-dependent caches."""
         mock_invalidate = self._run({"discrepancies": 1})
 
         assert mock_invalidate.call_count == 3
@@ -1608,6 +1616,48 @@ class TestFinalizeAmountVerification:
         mock_invalidate = self._run({})
 
         mock_invalidate.assert_not_called()
+
+    def test_hourly_tail_does_not_invalidate_daily_window_caches(self):
+        """The hourly tail only re-warms today, so it must not drop the
+        weekly/monthly/yearly keys the nightly daily tail built — for any of
+        the three counters that trigger daily invalidation."""
+        for trigger in (
+            {"corrected": 1},
+            {"discrepancies": 1},
+            {"flagged": 1},
+        ):
+            mock_invalidate = self._run(trigger, tail_kind="hourly")
+            mock_invalidate.assert_not_called()
+
+    def test_hourly_invalidation_skip_still_dispatches_the_tail(self):
+        """Skipping the hourly invalidation must not skip the tail (it is the
+        only place that re-warms today and triggers notifications)."""
+        from core.tasks.tasks_post_import import finalize_amount_verification
+
+        with (
+            patch(
+                "core.tasks.tasks_post_import._discover_non_monetary_values",
+                return_value={
+                    "afm_anomalies": 0,
+                    "kae_anomalies": 0,
+                    "total_anomalies": 0,
+                    "sample": [],
+                },
+            ),
+            patch(
+                "core.tasks.tasks_post_import._dispatch_post_verification_tail",
+                return_value="tail-id",
+            ) as mock_dispatch,
+        ):
+            result = finalize_amount_verification.run(
+                [{"corrected": 1}],
+                reference_date_str="2026-05-29",
+                tail_kind="hourly",
+            )
+
+        assert result["status"] == "completed"
+        assert result["continuation_task_id"] == "tail-id"
+        assert mock_dispatch.call_args.kwargs["tail_kind"] == "hourly"
 
     def test_discovery_failure_still_dispatches_the_tail(self):
         """Discovery is observability-only — its failure must not skip the
