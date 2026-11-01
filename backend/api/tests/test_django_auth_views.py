@@ -258,6 +258,27 @@ class TestLogin:
         assert response.status_code == 403
         assert "disabled" in response.json()["error"]
 
+    @override_settings(DJANGO_EMAIL_VERIFICATION_REQUIRED=True)
+    def test_login_active_but_unverified_403(self, api_client):
+        # Uniform contract: when verification is required, email_verified is
+        # the gate — an account flipped active out-of-band still cannot log in.
+        email = "active-unverified@example.com"
+        user = User.objects.create_user(
+            username=email,
+            email=email,
+            password=STRONG_PASSWORD,
+            is_active=True,
+        )
+        user.email_verified = False
+        user.email_verification_token = uuid.uuid4()
+        user.save()
+
+        response = _post(
+            api_client, LOGIN_URL, {"email": email, "password": STRONG_PASSWORD}
+        )
+        assert response.status_code == 403
+        assert response.json()["verification_required"] is True
+
 
 # ---------------------------------------------------------------------------
 # Logout / me
@@ -402,6 +423,52 @@ class TestPasswordReset:
         response = _post(api_client, REQUEST_RESET_URL, {"email": user.email})
         assert response.status_code == 200
         assert "Clerk" in response.json().get("note", "")
+
+    @override_settings(DJANGO_EMAIL_VERIFICATION_REQUIRED=True)
+    def test_request_password_reset_resends_verification_for_unverified(
+        self, api_client
+    ):
+        from django.utils import timezone
+
+        email = "pending-reset@example.com"
+        user = User.objects.create_user(
+            username=email,
+            email=email,
+            password=STRONG_PASSWORD,
+            is_active=False,
+        )
+        user.email_verified = False
+        user.email_verification_token = uuid.uuid4()
+        user.email_verification_token_expires = timezone.now() + timezone.timedelta(
+            hours=1
+        )
+        user.save()
+
+        with patch(
+            "core.email_service.RegistrationEmailService.send_verification_email",
+            return_value=True,
+        ) as mock_send:
+            response = _post(api_client, REQUEST_RESET_URL, {"email": email})
+
+        assert response.status_code == 200
+        assert mock_send.called
+        user.refresh_from_db()
+        # No reset token is issued for an account that cannot log in yet.
+        assert user.password_reset_token is None
+
+    @override_settings(DEBUG=False)
+    def test_request_password_reset_hides_delivery_status_outside_debug(
+        self, api_client, user
+    ):
+        user.email_verified = True
+        user.save()
+        with patch(
+            "core.email_service.PasswordResetEmailService.send_password_reset_email",
+            return_value=True,
+        ):
+            response = _post(api_client, REQUEST_RESET_URL, {"email": user.email})
+        assert response.status_code == 200
+        assert "email_sent" not in response.json()
 
     def test_reset_password_success(self, api_client, user):
         from django.utils import timezone

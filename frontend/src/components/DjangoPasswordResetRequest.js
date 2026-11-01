@@ -25,6 +25,15 @@ function DjangoPasswordResetRequest({ onCancel, onSuccess }) {
     try {
       const result = await requestPasswordReset(email);
       if (result.success) {
+        // The backend only exposes email_sent in DEBUG. In production the
+        // request is always accepted (anti-enumeration), so we only surface
+        // delivery failures when the server explicitly reports one.
+        if (result.emailSent === false) {
+          setError(
+            'The reset request was accepted, but no email could be sent. Check the server email configuration.'
+          );
+          return;
+        }
         setSuccess(result.message || 'Password reset email sent! Please check your inbox.');
         setEmail(''); // Clear the form
 
