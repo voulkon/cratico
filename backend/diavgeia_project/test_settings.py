@@ -10,6 +10,10 @@ PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.MD5PasswordHasher",
 ]
 
+# Tests must never reach SES: capture mail in memory so assertions are
+# deterministic and no credentials/network are required.
+EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+
 # Disable SSL redirects in tests (prevents 301 redirects)
 SECURE_SSL_REDIRECT = False
 SESSION_COOKIE_SECURE = False
