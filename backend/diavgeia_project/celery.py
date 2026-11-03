@@ -297,8 +297,9 @@ app.conf.beat_schedule = {
     },
     # Daily hourly-coverage reconciliation — report-only safety net that
     # compares our yesterday publish_date_day count against the official
-    # Diavgeia submission-date count.  Runs at 01:00, after the 00:30 daily
-    # issue-date import has settled.  Self-gates on AUTO_HOURLY_IMPORT_ENABLED.
+    # Diavgeia submission-date count.  Runs at 01:00 UTC, after the 00:30
+    # daily submission-date import has settled.  Self-gates on
+    # AUTO_HOURLY_IMPORT_ENABLED.
     "reconcile-hourly-coverage": {
         "task": "core.tasks.tasks_auto_import.reconcile_hourly_coverage_task",
         "schedule": crontab(hour=1, minute=0),  # daily, after 00:30 daily import

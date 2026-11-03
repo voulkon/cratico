@@ -63,7 +63,7 @@ def auto_daily_import_task():
     logger.info("Starting auto daily import for fresh data")
 
     queue = ImportJobQueue()
-    yesterday = date.today() - timedelta(days=1)
+    yesterday = timezone.localdate() - timedelta(days=1)
 
     try:
         job = queue.enqueue_job(
@@ -159,9 +159,9 @@ def reconcile_hourly_coverage_task():
     Daily production safety net for the hourly import (report-only).
 
     Compares our ``publish_date_day`` count for yesterday against the official
-    Diavgeia submission-date count.  This *detects* drift; it never repairs —
-    the 00:30 issue-date daily import already re-sweeps yesterday, so most
-    hourly misses self-heal within the day.
+    Diavgeia submission-date count.  This *detects* drift; it never repairs.
+    Recent DAILY imports fetch by submission date, so the 00:30 daily run is
+    the path that heals yesterday's hourly misses.
 
     Only runs if AUTO_HOURLY_IMPORT_ENABLED is true.
     """

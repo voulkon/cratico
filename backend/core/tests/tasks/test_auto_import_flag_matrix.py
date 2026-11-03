@@ -23,7 +23,7 @@ the "email needs all three flags" rule of §2 is pinned.
 """
 
 import io
-from datetime import date, timedelta
+from datetime import timedelta
 from itertools import product
 from unittest.mock import MagicMock, patch
 
@@ -155,7 +155,7 @@ class TestFlagMatrix:
         assert result["status"] == "success"
         assert result["job_id"] == 11
         kwargs = mock_queue.return_value.enqueue_job.call_args.kwargs
-        assert kwargs["target_date"] == date.today() - timedelta(days=1)
+        assert kwargs["target_date"] == timezone.localdate() - timedelta(days=1)
         assert kwargs["import_type"] == ImportJobType.DAILY
 
     def test_hourly_task_gated_by_auto_hourly(
