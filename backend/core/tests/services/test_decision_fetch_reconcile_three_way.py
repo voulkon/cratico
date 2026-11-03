@@ -24,8 +24,12 @@ class TestThreeWayReconciliation:
 
     @pytest.fixture
     def service(self):
-        """Create service instance for testing"""
-        return DecisionFetchReconcileService()
+        """Create a submission-date service for three-way reconciliation tests.
+
+        The official daily-count endpoint is submission-date based, so these
+        comparisons are only meaningful in submission mode.
+        """
+        return DecisionFetchReconcileService(use_submission_date=True)
 
     @pytest.fixture
     def test_date(self):
@@ -321,6 +325,43 @@ class TestThreeWayReconciliation:
             assert result["our_vs_api_diff"] == -5
             assert result["filters_applied"] is True
             assert result["status"] == "filtered_query_pagination_mismatch"
+
+    def test_issue_date_mode_skips_official_submission_comparison(self, test_date):
+        """Official counts are submission-day based and cannot be compared
+        with an issue-date fetch."""
+        service = DecisionFetchReconcileService(use_submission_date=False)
+
+        with patch.object(
+            service, "get_official_count_for_date", return_value=100
+        ) as mock_official:
+            result = service.reconcile_counts(
+                target_date=test_date,
+                our_count=95,
+                api_reported_total=95,
+            )
+
+        mock_official.assert_not_called()
+        assert result["official_count"] is None
+        assert result["difference"] is None
+        assert result["percentage_diff"] is None
+        assert result["our_vs_api_diff"] == 0
+        assert result["status"] == "issue_date_mode"
+
+    def test_issue_date_mode_still_checks_pagination(self, test_date):
+        service = DecisionFetchReconcileService(use_submission_date=False)
+
+        with patch.object(
+            service, "get_official_count_for_date", return_value=100
+        ) as mock_official:
+            result = service.reconcile_counts(
+                target_date=test_date,
+                our_count=95,
+                api_reported_total=100,
+            )
+
+        mock_official.assert_not_called()
+        assert result["our_vs_api_diff"] == -5
+        assert result["status"] == "issue_date_mode_pagination_mismatch"
 
 
 class TestFilterDetection:
