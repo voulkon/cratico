@@ -28,6 +28,14 @@ Flag values are resolved from the database (cached for 300 seconds), then the
 environment, then the default. A change can take up to five minutes to reach a
 running worker.
 
+Beat evaluates the schedules in **UTC** (`CELERY_TIMEZONE = "UTC"`), so the
+default 00:30 daily run is 02:30 Athens in winter and 03:30 in summer; the
+hourly import fires at `:10` UTC. `AUTO_DAILY_IMPORT_TIME` and
+`AUTO_HOURLY_IMPORT_MINUTE` are read from the environment when beat starts;
+their database rows are informational and changing them in admin has no
+effect. Also note that enabling a flag does not enqueue an immediate run: it
+only gates the next scheduled tick.
+
 ## 2. What happens after an import
 
 ```
@@ -59,8 +67,10 @@ Several consequences are easy to miss:
 - The completion hook has no flag check. A completed global job always queues an
   orchestrator; the orchestrator itself is the single gate for the pipeline.
   With the orchestrator off it returns `skipped` and logs a warning.
-- Email needs an auto import, the orchestrator, the notifications flag, and the
-  user's own email preference. Any one of them being off stops the email.
+- Email needs an auto import, the orchestrator, the notifications flag, the
+  user's own email preference, a `NotificationPreference` row, and a verified
+  address (`User.email_verified`). Any one missing stops the email; unverified
+  users are skipped with a warning and their batches stay `email_sent=False`.
 - The post-verification tail is queued exactly once, from verification. The
   orchestrator must not queue it again; doing so caused duplicate notification
   batches on 2026-09-15.
@@ -103,6 +113,17 @@ by issue date. Each job verifies the decisions it just inserted:
 
 This was fixed after the previous daily behaviour verified `[yesterday 00:00, today 00:00)`, which did not include the rows the run itself inserted after
 midnight. In practice every decision used to be verified about 24 hours late.
+
+### 4.1.1 Fetch date mode
+
+Recent DAILY imports (target date within 30 days) fetch by **submission date**
+so the daily run can heal the submission-day coverage the reconciliation task
+measures. Older DAILY/manual imports and BACKFILL keep **issue-date** semantics
+because the Diavgeia submission filters are unreliable beyond that window.
+`reconcile_hourly_coverage_task` always compares `publish_date_day` against the
+official submission-day count, so a daily run in issue-date mode cannot close
+that gap. In issue-date mode, `reconcile_counts` skips the official
+submission-day comparison entirely and only validates pagination.
 
 ### 4.2 Hourly catch-up
 
@@ -193,6 +214,20 @@ Email cadence is controlled by `NotificationPreference`, one row per user:
   `every_run` in the API. New users get the defaults above.
 - A user-level AI toggle on with no pipeline falls back to the default summary
   pipeline.
+- The digest task matches the **exact** local hour. Batches created after that
+  hour are not sent until the next day; there is no catch-up if the task is
+  delayed past the hour.
+- Email is skipped for users whose address is not verified
+  (`User.email_verified=False`); their batches remain `email_sent=False`.
+
+**Known limitation: one email, many batch sections.** Hourly runs create a new
+`NotificationBatch` per subscription per run, and the digest currently passes
+each un-emailed batch to the template separately. A subscription matched in
+several hourly runs therefore appears several times in one email. The fix is
+email-side grouping — one section per subscription with merged counts/items —
+not changing the per-run batch model. Tracked in
+`docs/notification-batch-impl/notification-batch-design-decisions.md` (Decision
+11).
 
 The preference is available at `/api/notifications/preferences/`.
 
@@ -220,6 +255,10 @@ The behaviour above is covered by:
   notification gating.
 - `core/tests/tasks/test_store_decisions_refetch_idempotency.py` — repeated
   fetches and the health-check guard.
+- `core/tests/tasks/test_fetch_daily_decisions_reconciliation.py` — recent
+  DAILY submission-date fetches versus older issue-date imports.
+- `core/tests/services/test_decision_fetch_reconcile_three_way.py` — issue-date
+  mode skips the submission-based official comparison.
 - `core/tests/tasks/test_hourly_catchup_window.py` — the 24-hour cap and
   watermark behaviour.
 - `core/tests/tasks/test_amount_correction_tasks.py` — finaliser sweeper.
