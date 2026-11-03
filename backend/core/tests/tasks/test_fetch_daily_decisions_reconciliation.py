@@ -11,13 +11,15 @@ Key tests:
 """
 
 import io
-from datetime import date
+from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
-from core.models.import_jobs import ImportJob, ImportJobStatus
+from core.constants.decision_import_constants import SUBMISSION_DATE_MAX_AGE_DAYS
+from core.models.import_jobs import ImportJob, ImportJobStatus, ImportJobType
 from core.tasks.tasks_decisions_import import fetch_daily_decisions_to_redis
 from diavgeia_api.models.decisions import Decision
+from django.utils import timezone
 from loguru import logger
 
 
@@ -613,3 +615,68 @@ class TestFetchDailyDecisionsReconciliation:
                 # Should detect pagination mismatch even in filtered query
                 assert "Pagination_mismatch=-45" in log_output
                 assert "Status=filtered_query_pagination_mismatch" in log_output
+
+    def test_recent_daily_job_fetches_by_submission_date(
+        self, sample_decisions, mock_reconciliation_result
+    ):
+        """A recent DAILY job must use submission-date semantics so it can
+        repair the submission-day coverage gap the daily reconcile measures."""
+        target = timezone.localdate() - timedelta(days=1)
+        job = ImportJob.objects.create(
+            start_date=target,
+            end_date=target,
+            status=ImportJobStatus.PENDING,
+            import_type=ImportJobType.DAILY,
+        )
+
+        with patch(
+            "core.services.decision_fetch_reconcile_service.DecisionFetchReconcileService"
+        ) as MockService:
+            mock_service = MagicMock()
+            MockService.return_value = mock_service
+            mock_service.fetch_and_reconcile.return_value = (
+                sample_decisions,
+                mock_reconciliation_result,
+            )
+
+            with patch("core.tasks.tasks_decisions_import.RedisDecisionCache"):
+                fetch_daily_decisions_to_redis.run(
+                    target_date_str=target.isoformat(),
+                    chunk_size=5,
+                    job_id=job.id,
+                )
+
+        assert MockService.call_args.kwargs["use_submission_date"] is True
+
+    def test_old_daily_job_keeps_issue_date_mode(
+        self, sample_decisions, mock_reconciliation_result
+    ):
+        """Submission-date filters are unreliable beyond the recency window."""
+        target = timezone.localdate() - timedelta(
+            days=SUBMISSION_DATE_MAX_AGE_DAYS + 1
+        )
+        job = ImportJob.objects.create(
+            start_date=target,
+            end_date=target,
+            status=ImportJobStatus.PENDING,
+            import_type=ImportJobType.DAILY,
+        )
+
+        with patch(
+            "core.services.decision_fetch_reconcile_service.DecisionFetchReconcileService"
+        ) as MockService:
+            mock_service = MagicMock()
+            MockService.return_value = mock_service
+            mock_service.fetch_and_reconcile.return_value = (
+                sample_decisions,
+                mock_reconciliation_result,
+            )
+
+            with patch("core.tasks.tasks_decisions_import.RedisDecisionCache"):
+                fetch_daily_decisions_to_redis.run(
+                    target_date_str=target.isoformat(),
+                    chunk_size=5,
+                    job_id=job.id,
+                )
+
+        assert MockService.call_args.kwargs["use_submission_date"] is False

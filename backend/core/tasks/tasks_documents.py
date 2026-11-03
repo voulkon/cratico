@@ -125,11 +125,11 @@ def process_document_task(self, ada, provider=None):
     # Use structured logging context for this document processing job
     with log_document_processing(ada, task_id=self.request.id, provider=provider):
         try:
-            logger.info("Document processing task started")
+            logger.debug("Document processing task started")
 
             # Get the decision
             decision = Decision.objects.get(ada=ada)
-            logger.info(
+            logger.debug(
                 "Decision retrieved",
                 subject=decision.subject[:50] if decision.subject else "N/A",
             )
@@ -139,7 +139,8 @@ def process_document_task(self, ada, provider=None):
             result = service.process_decision(decision, provider=provider)
 
             logger.info(
-                "Document processing completed",
+                f"Document {ada} processing completed",
+                document_ada=ada,
                 success=result.get("success"),
                 extraction_status=result.get("extraction_status"),
             )
@@ -175,10 +176,21 @@ def process_scanned_document_task(decision_ada, provider="GOOGLE_VISION"):
 def collect_batch_results(results):
     """Collect and process the results of the batch processing"""
     success_count = sum(1 for r in results if r.get("success", False))
+    processed = len(results)
+    failed = processed - success_count
+
+    # One aggregate line per batch instead of one per document.
+    logger.info(
+        f"Document batch completed: {success_count}/{processed} succeeded, {failed} failed",
+        processed=processed,
+        successful=success_count,
+        failed=failed,
+    )
+
     return {
-        "processed": len(results),
+        "processed": processed,
         "successful": success_count,
-        "failed": len(results) - success_count,
+        "failed": failed,
     }
 
 
@@ -237,7 +249,7 @@ def process_document_task_enhanced(self, ada, provider=None):
                 )
 
                 # Add trace context to logs
-                logger.bind(trace_id=trace_id, span_id=span_id).info(
+                logger.bind(trace_id=trace_id, span_id=span_id).debug(
                     "Document processing started",
                     subject=decision.subject[:50] if decision.subject else "N/A",
                 )

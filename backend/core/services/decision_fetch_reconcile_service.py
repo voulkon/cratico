@@ -669,7 +669,7 @@ class DecisionFetchReconcileService:
             Dict with reconciliation results:
             {
                 "date": "2026-05-01",
-                "official_count": 313,  # None if filters_applied=True
+                "official_count": 313,  # None if filters or issue-date mode
                 "api_reported_total": 313,
                 "our_count": 313,
                 "difference": 0,
@@ -677,8 +677,15 @@ class DecisionFetchReconcileService:
                 "api_vs_official_diff": 0,
                 "our_vs_api_diff": 0,
                 "filters_applied": True,  # NEW: indicates if filters were active
-                "status": "match"|"discrepancy"|"no_official_data"|"pagination_mismatch"|"filtered_query"
+                "status": (
+                    "match" | "discrepancy" | "no_official_data"
+                    | "pagination_mismatch" | "filtered_query"
+                    | "issue_date_mode" | "issue_date_mode_pagination_mismatch"
+                )
             }
+
+        In issue-date mode the official submission-day count is not comparable,
+        so it is never fetched; only pagination is checked.
         """
         # If filters are applied, skip official count check
         # (official count is for ALL decisions, while we're querying a filtered subset)
@@ -721,6 +728,38 @@ class DecisionFetchReconcileService:
             
             return result
         
+        # The official daily-count endpoint is submission-date based.  In
+        # issue-date mode the fetched set and the official count describe
+        # different populations, so only pagination can be validated.
+        if not self.use_submission_date:
+            logger.info(
+                f"Issue-date mode for {target_date}: official counts are "
+                f"submission-day based; skipping official count comparison"
+            )
+            result = {
+                "date": target_date.isoformat(),
+                "official_count": None,
+                "api_reported_total": api_reported_total,
+                "our_count": our_count,
+                "difference": None,
+                "percentage_diff": None,
+                "api_vs_official_diff": None,
+                "our_vs_api_diff": None,
+                "filters_applied": False,
+                "status": "issue_date_mode",
+            }
+            if api_reported_total is not None:
+                our_vs_api_diff = our_count - api_reported_total
+                result["our_vs_api_diff"] = our_vs_api_diff
+                if our_vs_api_diff != 0:
+                    result["status"] = "issue_date_mode_pagination_mismatch"
+                    logger.warning(
+                        f"Pagination mismatch in issue-date mode for "
+                        f"{target_date}! API reported {api_reported_total}, "
+                        f"but fetched {our_count} (diff: {our_vs_api_diff})"
+                    )
+            return result
+
         # No filters - proceed with full three-way reconciliation
         official_count = self.get_official_count_for_date(target_date)
 

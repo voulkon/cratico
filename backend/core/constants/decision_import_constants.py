@@ -76,6 +76,10 @@ COVERAGE_DATE_FIELD = "publish_date_day" if USE_SUBMISSION_DATE else "issue_date
 # ---------------------------------------------------------------------------
 # Runtime helpers — resolve date mode from the COVERAGE_DATE_MODE feature flag
 # ---------------------------------------------------------------------------
+# The Diavgeia submission-date filters (from_date/to_date) are reliable only
+# for recent dates; older imports keep issue-date semantics.  This is the same
+# horizon used by the official daily-count endpoint.
+SUBMISSION_DATE_MAX_AGE_DAYS = 30
 # These are the preferred way to determine the date mode at runtime.
 # The module-level USE_SUBMISSION_DATE / COVERAGE_DATE_FIELD constants above
 # act as fallback defaults and are still used at import-time where necessary.

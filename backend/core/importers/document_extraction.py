@@ -115,15 +115,17 @@ class DocumentExtractionImporter:
             )
 
             if skip_page_creation:
-                logger.info(f"Skipping page creation for {decision.ada} as requested")
+                logger.debug(f"Skipping page creation for {decision.ada} as requested")
                 # Create a single page with all text as a reference
                 self._create_single_page_fallback(extraction, result.text)
             # Create or update page records if pages_data is available
             elif hasattr(result, "pages_data") and result.pages_data:
                 self._create_or_update_pages(extraction, result.pages_data)
             else:
-                # Fallback: create a single page with all the text
-                logger.warning(
+                # Fallback: create a single page with all the text.
+                # This is the normal path for extractors that do not report
+                # per-page data, so it must not warn once per document.
+                logger.debug(
                     f"No pages_data available for {decision.ada}, creating single page"
                 )
                 self._create_single_page_fallback(extraction, result.text)
@@ -155,7 +157,7 @@ class DocumentExtractionImporter:
 
         # Bulk create for better performance
         DocumentPage.objects.bulk_create(pages_to_create)
-        logger.info(
+        logger.debug(
             f"Created {len(pages_to_create)} pages for {extraction.decision.ada}"
         )
 
@@ -171,7 +173,7 @@ class DocumentExtractionImporter:
             page_number=1,
             character_count=len(text) if text else 0,
         )
-        logger.info(f"Created single fallback page for {extraction.decision.ada}")
+        logger.debug(f"Created single fallback page for {extraction.decision.ada}")
 
     def mark_extraction_failed(
         self, extraction: DocumentExtraction, error_msg: str

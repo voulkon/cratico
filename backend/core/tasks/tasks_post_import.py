@@ -1382,7 +1382,20 @@ def finalize_amount_verification(
     # keep serving pre-correction figures.  These prefixes cover the views
     # that read amounts via the facet layer (explore_orgs / da_top_pairs are
     # NOT matched by the "top_" prefix).
-    if totals["corrected"] or totals["discrepancies"] or totals.get("flagged"):
+    #
+    # DAILY ONLY: the hourly tail re-warms just the (today, today) window
+    # (see _post_verification_tail_chain).  Invalidating on an hourly run
+    # would delete the nightly daily tail's weekly/monthly/yearly keys and
+    # leave them cold until the next daily run — every dashboard section then
+    # eats a cache miss + defer_on_miss warm.  Hourly runs already accept
+    # larger-window staleness until the nightly tail
+    # (docs/en/AUTO_IMPORT_FLAG_MATRIX.md §4.4), so keep that same contract
+    # instead of dropping caches this tail cannot rebuild.  Today's window is
+    # unaffected: warm_today_window writes over its keys right after this task.
+    amounts_changed = bool(
+        totals["corrected"] or totals["discrepancies"] or totals.get("flagged")
+    )
+    if amounts_changed and tail_kind != "hourly":
         try:
             from core.services.response_cache_service import response_cache
 

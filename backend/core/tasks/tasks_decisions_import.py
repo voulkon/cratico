@@ -22,7 +22,12 @@ from typing import Any, Dict, Optional
 
 from celery import shared_task
 from core.fetchers.diavgeia_fetcher import DiavgeiaFetcher
-from core.models.import_jobs import ImportFailure, ImportJob, ImportJobStatus
+from core.models.import_jobs import (
+    ImportFailure,
+    ImportJob,
+    ImportJobStatus,
+    ImportJobType,
+)
 from core.services.redis_decision_cache import RedisDecisionCache
 from diavgeia_api.models.decisions import Decision
 from django.utils import timezone
@@ -153,11 +158,27 @@ def fetch_daily_decisions_to_redis(
         )
 
         # Use centralized fetch service for consistency
+        from core.constants.decision_import_constants import (
+            SUBMISSION_DATE_MAX_AGE_DAYS,
+        )
         from core.services.decision_fetch_reconcile_service import (
             DecisionFetchReconcileService,
         )
 
-        fetch_service = DecisionFetchReconcileService()
+        # Daily runs are the coverage-healing path for recent days: use
+        # submission-date semantics so they fill submission-day gaps.  Older
+        # daily/manual imports keep the global issue-date mode because the
+        # Diavgeia submission filters are unreliable beyond the recency window.
+        is_recent = (
+            timezone.localdate() - target_date
+        ).days <= SUBMISSION_DATE_MAX_AGE_DAYS
+        use_submission_date = (
+            import_job.import_type == ImportJobType.DAILY and is_recent
+        )
+
+        fetch_service = DecisionFetchReconcileService(
+            use_submission_date=use_submission_date
+        )
 
         # Fetch all decisions AND reconcile with official count
         # This handles: pagination, feature flags, entity filters, AND validates count accuracy
