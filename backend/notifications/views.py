@@ -713,13 +713,24 @@ class NotificationBatchViewSet(viewsets.ReadOnlyModelViewSet):
         if subscription_id:
             queryset = queryset.filter(subscription_id=subscription_id)
 
-        return queryset.select_related(
-            "subscription",
-            "subscription__organization",
-            "subscription__entity",
-            "subscription__relationship_org",
-            "subscription__relationship_entity",
-        ).order_by("-created_at")
+        return (
+            queryset.select_related(
+                "subscription",
+                "subscription__organization",
+                "subscription__entity",
+                "subscription__relationship_org",
+                "subscription__relationship_entity",
+            )
+            .annotate(
+                decision_publish_start=Min(
+                    "batch_decisions__decision__publish_timestamp"
+                ),
+                decision_publish_end=Max(
+                    "batch_decisions__decision__publish_timestamp"
+                ),
+            )
+            .order_by("-created_at")
+        )
 
     def get_serializer_class(self):
         """
@@ -792,8 +803,15 @@ class NotificationBatchViewSet(viewsets.ReadOnlyModelViewSet):
 
         # Bulk-compute entity relationships + calculated amounts for the page
         # so nested decision cards match the unified /decisions/unified/ shape.
+        from core.services.decision_projections import (
+            build_shareable_one_liners_by_decision,
+        )
+
         page_ids = [nbd.decision_id for nbd in page] if page is not None else []
         serializer_context = build_decision_card_context(page_ids)
+        serializer_context["one_liners_by_decision"] = (
+            build_shareable_one_liners_by_decision(page_ids)
+        )
 
         if page is not None:
             serializer = NotificationBatchDecisionSerializer(
@@ -801,12 +819,13 @@ class NotificationBatchViewSet(viewsets.ReadOnlyModelViewSet):
             )
             return paginator.get_paginated_response(serializer.data)
 
+        fallback_ids = [nbd.decision_id for nbd in queryset]
+        fallback_context = build_decision_card_context(fallback_ids)
+        fallback_context["one_liners_by_decision"] = (
+            build_shareable_one_liners_by_decision(fallback_ids)
+        )
         serializer = NotificationBatchDecisionSerializer(
-            queryset,
-            many=True,
-            context=build_decision_card_context(
-                [nbd.decision_id for nbd in queryset]
-            ),
+            queryset, many=True, context=fallback_context
         )
         return Response(serializer.data)
 
@@ -896,7 +915,22 @@ class NotificationBatchViewSet(viewsets.ReadOnlyModelViewSet):
         from notifications.tasks.ai_summary_tasks import summarize_notification_batch
 
         batch = self.get_object()
-        task = summarize_notification_batch.delay(batch_id=batch.id)
+        preference = NotificationPreference.get_for_user_id(batch.user_id)
+        override = request.query_params.get("override") == "true"
+
+        if not preference.ai_summary_enabled and not override:
+            return Response(
+                {
+                    "error": "user_ai_disabled",
+                    "detail": "Enable AI summaries in preferences first.",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        task = summarize_notification_batch.delay(
+            batch_id=batch.id,
+            manual_override=override,
+        )
         return Response(
             {"status": "started", "task_id": task.id, "batch_id": batch.id}
         )
@@ -918,11 +952,43 @@ class NotificationBatchViewSet(viewsets.ReadOnlyModelViewSet):
                 "completed_at": "...",
             }
         """
+        from core.services.decision_projections import (
+            build_shareable_one_liners_by_decision,
+        )
+
         batch = self.get_object()
+        decision_rows = list(
+            batch.batch_decisions.values(
+                "decision_id", "decision__ada", "decision__subject"
+            )
+        )
+        decision_ids = [row["decision_id"] for row in decision_rows]
+        shared = build_shareable_one_liners_by_decision(decision_ids)
+
+        items_by_decision = {
+            item.get("decision_id"): item
+            for item in (batch.ai_summary_items or [])
+            if item.get("decision_id")
+        }
+        for row in decision_rows:
+            if row["decision_id"] in items_by_decision:
+                continue
+            entry = shared.get(row["decision_id"])
+            if entry:
+                items_by_decision[row["decision_id"]] = {
+                    "decision_id": row["decision_id"],
+                    "ada": row["decision__ada"],
+                    "subject": row["decision__subject"],
+                    "one_liner": entry["one_liner"],
+                }
+
         data = {
             "status": batch.ai_summary_status,
+            "skip_reason": batch.ai_summary_skip_reason,
             "summary": batch.ai_summary,
             "error": batch.ai_summary_error,
+            "items": list(items_by_decision.values()),
+            "shared_items_available": len(shared),
             "completed_at": batch.ai_summary_completed_at,
         }
         if batch.ai_summary_run_id:

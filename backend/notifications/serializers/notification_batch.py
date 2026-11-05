@@ -1,6 +1,7 @@
 from notifications.models import (
     NotificationBatch,
     NotificationBatchDecision,
+    NotificationBatchGroup,
     NotificationSubscription,
 )
 from rest_framework import serializers
@@ -64,6 +65,15 @@ class DecisionNestedForBatchSerializer(serializers.Serializer):
         data["protocol_number"] = instance.protocol_number
         data["publish_timestamp"] = instance.publish_timestamp
 
+        # Shared per-decision one-liner (bulk-fetched by the view).  Present
+        # even when the batch summary itself was skipped, so cached results
+        # paid for by another user are visible here.
+        entry = self.context.get("one_liners_by_decision", {}).get(instance.id)
+        if entry:
+            data["one_liner"] = entry["one_liner"]
+            data["one_liner_model"] = entry["model"]
+            data["one_liner_prompt_kind"] = entry["prompt_kind"]
+
         return data
 
 
@@ -123,6 +133,8 @@ class NotificationBatchListSerializer(serializers.ModelSerializer):
             "is_read",
             "is_dismissed",
             "created_at",
+            "aggregate_stats",
+            "ai_summary_status",
         ]
         read_only_fields = fields
 
@@ -218,6 +230,8 @@ class NotificationBatchDetailSerializer(serializers.ModelSerializer):
     """
 
     subscription = SubscriptionNestedForBatchSerializer(read_only=True)
+    decision_publish_start = serializers.DateTimeField(read_only=True)
+    decision_publish_end = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = NotificationBatch
@@ -227,6 +241,8 @@ class NotificationBatchDetailSerializer(serializers.ModelSerializer):
             "subscription",
             "check_window_start",
             "check_window_end",
+            "decision_publish_start",
+            "decision_publish_end",
             "match_count",
             "aggregate_stats",
             "is_read",
@@ -236,7 +252,60 @@ class NotificationBatchDetailSerializer(serializers.ModelSerializer):
             "dismissed_at",
             "ai_summary",
             "ai_summary_status",
+            "ai_summary_skip_reason",
+            "ai_summary_manual_override",
             "ai_summary_error",
             "ai_summary_completed_at",
+        ]
+        read_only_fields = fields
+
+
+class NotificationBatchGroupListSerializer(serializers.ModelSerializer):
+    """One presentation/email group (no AI summary fields)."""
+
+    subscription_alias = serializers.CharField(
+        source="subscription.alias", read_only=True
+    )
+    display_name = serializers.SerializerMethodField()
+    period_label = serializers.SerializerMethodField()
+    decision_publish_start = serializers.DateTimeField(read_only=True)
+    decision_publish_end = serializers.DateTimeField(read_only=True)
+
+    class Meta:
+        model = NotificationBatchGroup
+        fields = [
+            "id",
+            "subscription",
+            "subscription_alias",
+            "display_name",
+            "period_label",
+            "period_start",
+            "period_end",
+            "local_date",
+            "total_match_count",
+            "decision_publish_start",
+            "decision_publish_end",
+            "is_read",
+            "is_dismissed",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+    def get_display_name(self, obj):
+        return NotificationBatchListSerializer._get_target_name(obj.subscription)
+
+    def get_period_label(self, obj):
+        return _format_date_range(obj.period_start, obj.period_end)
+
+
+class NotificationBatchGroupDetailSerializer(NotificationBatchGroupListSerializer):
+    """Group with its subscription and batches (presentation state only)."""
+
+    subscription = SubscriptionNestedForBatchSerializer(read_only=True)
+    batches = NotificationBatchListSerializer(many=True, read_only=True)
+
+    class Meta(NotificationBatchGroupListSerializer.Meta):
+        fields = NotificationBatchGroupListSerializer.Meta.fields + [
+            "batches",
         ]
         read_only_fields = fields

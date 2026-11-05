@@ -22,6 +22,10 @@ class TestBatchSummarizeAction:
         """POST /batches/{id}/summarize/ triggers a celery task and returns task_id."""
         from conftest import NotificationBatchFactory
 
+        preference = user.notification_preference
+        preference.ai_summary_enabled = True
+        preference.save(update_fields=["ai_summary_enabled"])
+
         batch = NotificationBatchFactory(
             user=user,
             subscription=notification_subscription,
@@ -37,6 +41,54 @@ class TestBatchSummarizeAction:
         assert data["status"] == "started"
         assert data["batch_id"] == batch.id
         assert "task_id" in data
+
+    def test_summarize_user_ai_disabled_returns_409(
+        self, authenticated_client, user, notification_subscription
+    ):
+        from conftest import NotificationBatchFactory
+
+        preference = user.notification_preference
+        preference.ai_summary_enabled = False
+        preference.save(update_fields=["ai_summary_enabled"])
+
+        batch = NotificationBatchFactory(
+            user=user, subscription=notification_subscription, match_count=1
+        )
+
+        response = authenticated_client.post(
+            f"/api/notifications/batches/{batch.id}/summarize/"
+        )
+
+        assert response.status_code == status.HTTP_409_CONFLICT
+        assert response.data["error"] == "user_ai_disabled"
+
+    def test_summarize_with_override_bypasses_user_toggle(
+        self, authenticated_client, user, notification_subscription
+    ):
+        from unittest.mock import Mock, patch
+
+        from conftest import NotificationBatchFactory
+
+        preference = user.notification_preference
+        preference.ai_summary_enabled = False
+        preference.save(update_fields=["ai_summary_enabled"])
+
+        batch = NotificationBatchFactory(
+            user=user, subscription=notification_subscription, match_count=1
+        )
+
+        with patch(
+            "notifications.tasks.ai_summary_tasks.summarize_notification_batch"
+        ) as mock_task:
+            mock_task.delay.return_value = Mock(id="task-id")
+            response = authenticated_client.post(
+                f"/api/notifications/batches/{batch.id}/summarize/?override=true"
+            )
+
+        assert response.status_code == status.HTTP_200_OK
+        mock_task.delay.assert_called_once_with(
+            batch_id=batch.id, manual_override=True
+        )
 
     def test_summarize_other_user_batch_returns_404(
         self, authenticated_client

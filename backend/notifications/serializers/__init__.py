@@ -9,6 +9,8 @@ from .notification_batch import (
     DecisionNestedForBatchSerializer,
     NotificationBatchDecisionSerializer,
     NotificationBatchDetailSerializer,
+    NotificationBatchGroupDetailSerializer,
+    NotificationBatchGroupListSerializer,
     NotificationBatchListSerializer,
     SubscriptionNestedForBatchSerializer,
 )
@@ -36,6 +38,8 @@ __all__ = [
     "NotificationBatchListSerializer",
     "NotificationBatchDetailSerializer",
     "NotificationBatchDecisionSerializer",
+    "NotificationBatchGroupListSerializer",
+    "NotificationBatchGroupDetailSerializer",
     "SubscriptionNestedForBatchSerializer",
     "DecisionNestedForBatchSerializer",
 ]
