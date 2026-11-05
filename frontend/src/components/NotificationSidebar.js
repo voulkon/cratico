@@ -4,11 +4,9 @@ import { useTranslation } from '../contexts/TranslationContext';
 import { useAuth } from '../contexts/AuthContext';
 import {
     getSubscriptions,
-    getNotificationBatches,
-    dismissBatch,
-    markBatchRead,
-    markAllNotificationsRead,
-    dismissAllNotifications
+    getNotificationGroups,
+    markGroupRead,
+    dismissGroup
 } from '../api/notifications';
 import { NOTIFICATION_CONFIG } from '../config/notifications';
 import SubscriptionCard from './SubscriptionCard';
@@ -110,16 +108,16 @@ export default function NotificationSidebar({ isOpen, onClose, onUnreadCountChan
 
         setIsLoading(true);
         try {
-            const [subsData, notifsData] = await Promise.all([
+            const [subsData, groupsData] = await Promise.all([
                 getSubscriptions(),
-                getNotificationBatches()
+                getNotificationGroups()
             ]);
 
             setSubscriptions(subsData);
-            setNotifications(notifsData);
+            setNotifications(groupsData);
 
             // Update unread count
-            const unreadCount = notifsData.filter(n => !n.is_read).length;
+            const unreadCount = groupsData.filter(n => !n.is_read).length;
             onUnreadCountChange?.(unreadCount);
         } catch (error) {
             console.error('Failed to load notification data:', error);
@@ -151,16 +149,16 @@ export default function NotificationSidebar({ isOpen, onClose, onUnreadCountChan
     async function handleRefresh() {
         setIsLoading(true);
         try {
-            const [subsData, notifsData] = await Promise.all([
+            const [subsData, groupsData] = await Promise.all([
                 getSubscriptions(),
-                getNotificationBatches()
+                getNotificationGroups()
             ]);
 
             setSubscriptions(subsData);
-            setNotifications(notifsData);
+            setNotifications(groupsData);
 
             // Update unread count
-            const unreadCount = notifsData.filter(n => !n.is_read).length;
+            const unreadCount = groupsData.filter(n => !n.is_read).length;
             onUnreadCountChange?.(unreadCount);
         } catch (error) {
             console.error('Failed to load notification data:', error);
@@ -236,49 +234,50 @@ export default function NotificationSidebar({ isOpen, onClose, onUnreadCountChan
         setSubscriptions(prev => prev.filter(sub => sub.id !== subscriptionId));
     }, []);
 
-    // Handle notification dismiss
-    const handleDismissNotification = async (notificationId, event) => {
+    // Handle group dismiss
+    const handleDismissNotification = async (groupId, event) => {
         event.stopPropagation(); // Prevent navigation when clicking X
         try {
-            await dismissBatch(notificationId);
-            // Update local state
-            setNotifications(prev => prev.filter(n => n.id !== notificationId));
-            // Update unread count
-            const unreadCount = notifications.filter(n => !n.is_read && n.id !== notificationId).length;
+            await dismissGroup(groupId);
+            setNotifications(prev => prev.filter(n => n.id !== groupId));
+            const unreadCount = notifications.filter(
+                n => !n.is_read && n.id !== groupId
+            ).length;
             onUnreadCountChange?.(unreadCount);
         } catch (error) {
-            console.error('Failed to dismiss notification:', error);
+            console.error('Failed to dismiss notification group:', error);
         }
     };
 
-    // Handle notification click (navigate to batch detail page)
-    const handleNotificationClick = async (notification) => {
+    // Handle group click (navigate to group detail page)
+    const handleNotificationClick = async (group) => {
         try {
-            // Mark as read if not already
-            if (!notification.is_read) {
-                await markBatchRead(notification.id);
-                // Update local state
+            if (!group.is_read) {
+                await markGroupRead(group.id);
                 setNotifications(prev => prev.map(n =>
-                    n.id === notification.id ? { ...n, is_read: true } : n
+                    n.id === group.id ? { ...n, is_read: true } : n
                 ));
-                // Update unread count
-                const unreadCount = notifications.filter(n => !n.is_read && n.id !== notification.id).length;
+                const unreadCount = notifications.filter(
+                    n => !n.is_read && n.id !== group.id
+                ).length;
                 onUnreadCountChange?.(unreadCount);
             }
 
-            // Navigate to batch detail page
-            navigate(`/batch/${notification.id}`);
+            navigate(`/group/${group.id}`);
             onClose?.(); // Close sidebar after navigation
         } catch (error) {
-            console.error('Failed to handle notification click:', error);
+            console.error('Failed to handle notification group click:', error);
         }
     };
 
-    // Handle mark all as read
+    // Handle mark all groups as read
     const handleMarkAllRead = async () => {
         try {
-            await markAllNotificationsRead();
-            // Update local state
+            await Promise.all(
+                notifications
+                    .filter(n => !n.is_read)
+                    .map(n => markGroupRead(n.id))
+            );
             setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
             onUnreadCountChange?.(0);
         } catch (error) {
@@ -286,13 +285,13 @@ export default function NotificationSidebar({ isOpen, onClose, onUnreadCountChan
         }
     };
 
-    // Handle dismiss all
+    // Handle dismiss all groups
     const handleDismissAll = async () => {
         if (!window.confirm('Are you sure you want to dismiss all notifications?')) {
             return;
         }
         try {
-            await dismissAllNotifications();
+            await Promise.all(notifications.map(n => dismissGroup(n.id)));
             setNotifications([]);
             onUnreadCountChange?.(0);
         } catch (error) {
@@ -511,7 +510,7 @@ export default function NotificationSidebar({ isOpen, onClose, onUnreadCountChan
 
                                             <div className="notification-item-header">
                                                 <span className="notification-item-type">
-                                                    {notification.display_name || notification.subscription?.subscription_type || 'notification'}
+                                                    {notification.display_name || 'notification'}
                                                 </span>
                                                 <span className="notification-item-time">
                                                     {new Date(notification.created_at).toLocaleDateString('el-GR')}
@@ -526,26 +525,18 @@ export default function NotificationSidebar({ isOpen, onClose, onUnreadCountChan
 
                                             <div className="notification-item-content">
                                                 <div className="notification-item-subject">
-                                                    {notification.match_count === 1
+                                                    {notification.total_match_count === 1
                                                         ? '1 new decision'
-                                                        : `${notification.match_count} new decisions`
+                                                        : `${notification.total_match_count || 0} new decisions`
                                                     }
                                                 </div>
                                                 {!notification.display_name && (
                                                     <div className="notification-item-ada">
-                                                        {notification.subscription?.alias ||
-                                                         notification.subscription?.organization?.label ||
-                                                         notification.subscription?.entity?.label ||
+                                                        {notification.subscription_alias ||
                                                          'Subscription match'}
                                                     </div>
                                                 )}
                                             </div>
-
-                                            {notification.aggregate_stats && notification.aggregate_stats.total_amount && (
-                                                <div className="notification-item-reason">
-                                                    Total: €{notification.aggregate_stats.total_amount.toLocaleString()}
-                                                </div>
-                                            )}
                                         </div>
                                     ))}
                                 </div>

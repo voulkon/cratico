@@ -29,7 +29,15 @@ const BatchMetadataHeader = ({
     return null;
   }
 
-  const { subscription, check_window_start, check_window_end, created_at, match_count, aggregate_stats } = batch;
+  const {
+    subscription,
+    check_window_end,
+    decision_publish_start,
+    decision_publish_end,
+    created_at,
+    match_count,
+    aggregate_stats,
+  } = batch;
 
   const displayTitle = title || t('notifications.notificationBatch');
   const subtitle = match_count > 0
@@ -73,16 +81,30 @@ const BatchMetadataHeader = ({
 
       {/* Batch Metadata */}
       <div className="batch-metadata">
-        {showCheckWindow && check_window_start && check_window_end && (
+        {showCheckWindow && check_window_end && (
           <div className="metadata-item">
-            <div className="metadata-label">{t('notifications.checkWindow')}</div>
+            <div className="metadata-label">{t('notifications.checkedAt')}</div>
             <div className="metadata-value">
-              <span className="date-range">
-                {formatDate(check_window_start)} → {formatDate(check_window_end)}
-              </span>
+              {formatDate(created_at || check_window_end)}
+              {' · '}
+              {t('notifications.lookback24h')}
             </div>
           </div>
         )}
+
+        {showCheckWindow &&
+          decision_publish_start &&
+          decision_publish_end && (
+            <div className="metadata-item">
+              <div className="metadata-label">
+                {t('notifications.publishRange')}
+              </div>
+              <div className="metadata-value">
+                {formatDate(decision_publish_start)} →{' '}
+                {formatDate(decision_publish_end)}
+              </div>
+            </div>
+          )}
 
         {showCreatedAt && created_at && (
           <div className="metadata-item">
@@ -160,6 +182,8 @@ BatchMetadataHeader.propTypes = {
     }),
     check_window_start: PropTypes.string,
     check_window_end: PropTypes.string,
+    decision_publish_start: PropTypes.string,
+    decision_publish_end: PropTypes.string,
     created_at: PropTypes.string,
     match_count: PropTypes.number,
     aggregate_stats: PropTypes.object

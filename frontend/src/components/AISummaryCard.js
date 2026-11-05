@@ -10,11 +10,13 @@ import './AISummaryCard.css';
  *   - PENDING: no summary yet, shows generate button
  *   - RUNNING: summary is being generated (spinner)
  *   - COMPLETED: summary text, cost metadata, regenerate button
+ *   - PARTIAL: partial summary + the summaries that were available
  *   - FAILED: error message, retry button
- *   - SKIPPED: AI summary disabled for this subscription
+ *   - SKIPPED: the real reason, plus any shared summaries already available
  *
  * Props:
- *   summary      – { status, summary, cost_usd, total_input_tokens,
+ *   summary      – { status, skip_reason, summary, items,
+ *                    shared_items_available, cost_usd, total_input_tokens,
  *                    total_output_tokens, billed_to, error }
  *   onGenerate   – () => void, called when user clicks generate/regenerate/retry
  *   triggering   – boolean, when true disables the action button
@@ -23,6 +25,47 @@ const AISummaryCard = ({ summary, onGenerate, triggering }) => {
   const { t } = useTranslation();
 
   if (!summary) return null;
+
+  const items = summary.items || [];
+  const sharedItemsAvailable = summary.shared_items_available || 0;
+  const skipReason = summary.skip_reason;
+
+  const renderItems = () => {
+    if (!items.length) return null;
+    return (
+      <div className="ai-summary-items">
+        <div className="ai-summary-items-title">
+          {t('notifications.aiSummaryItemsTitle')}
+        </div>
+        <ul>
+          {items.map((item) => (
+            <li key={item.decision_id}>
+              <span className="ai-summary-item-subject">
+                {item.subject || item.ada}
+              </span>
+              {' — '}
+              <span className="ai-summary-item-text">{item.one_liner}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  };
+
+  const renderSharedBlock = () => {
+    const hasShared = items.length > 0 || sharedItemsAvailable > 0;
+    if (!hasShared) return null;
+    return (
+      <>
+        <p className="ai-summary-shared">
+          {t('notifications.aiSummarySharedAvailable', {
+            count: items.length || sharedItemsAvailable,
+          })}
+        </p>
+        {renderItems()}
+      </>
+    );
+  };
 
   const renderContent = () => {
     switch (summary.status) {
@@ -36,7 +79,7 @@ const AISummaryCard = ({ summary, onGenerate, triggering }) => {
         );
 
       case 'COMPLETED':
-        if (!summary.summary) {
+        if (!summary.summary && !items.length) {
           // Completed but no content — treat like pending so user can regenerate
           return (
             <div className="ai-summary-pending">
@@ -53,7 +96,10 @@ const AISummaryCard = ({ summary, onGenerate, triggering }) => {
         }
         return (
           <div className="ai-summary-completed">
-            <div className="ai-summary-text">{summary.summary}</div>
+            {summary.summary && (
+              <div className="ai-summary-text">{summary.summary}</div>
+            )}
+            {renderItems()}
             {summary.cost_usd && (
               <div className="ai-summary-meta">
                 {t('notifications.aiSummaryCost')}: ${parseFloat(summary.cost_usd).toFixed(4)}
@@ -73,6 +119,28 @@ const AISummaryCard = ({ summary, onGenerate, triggering }) => {
           </div>
         );
 
+      case 'PARTIAL':
+        return (
+          <div className="ai-summary-completed ai-summary-partial">
+            {summary.summary && (
+              <div className="ai-summary-text">{summary.summary}</div>
+            )}
+            <p className="ai-summary-partial-note">
+              {t('notifications.aiSummaryPartial')}
+            </p>
+            {renderItems()}
+            <button
+              className="ai-summary-btn ai-summary-btn--secondary"
+              onClick={onGenerate}
+              disabled={triggering}
+            >
+              {triggering
+                ? t('notifications.aiSummaryStarting')
+                : t('notifications.aiSummaryRegenerate')}
+            </button>
+          </div>
+        );
+
       case 'FAILED':
         return (
           <div className="ai-summary-failed">
@@ -87,19 +155,35 @@ const AISummaryCard = ({ summary, onGenerate, triggering }) => {
           </div>
         );
 
-      case 'SKIPPED':
+      case 'SKIPPED': {
+        const reasonMessage = {
+          DAILY_CEILING: t('notifications.aiSummaryCeiling'),
+          BUDGET_EXHAUSTED: t('notifications.aiSummaryBudget'),
+          USER_DISABLED: t('notifications.aiSummaryUserDisabled'),
+          SUBSCRIPTION_DISABLED: t('notifications.aiSummarySubscriptionDisabled'),
+          NO_DECISIONS: t('notifications.aiSummaryNoDecisions'),
+        }[skipReason] || t('notifications.aiSummarySkipped');
+        const hasShared = items.length > 0 || sharedItemsAvailable > 0;
+
         return (
           <div className="ai-summary-pending">
-            <p>{t('notifications.aiSummarySkipped')}</p>
-            <button
-              className="ai-summary-btn ai-summary-btn--primary"
-              onClick={onGenerate}
-              disabled={triggering}
-            >
-              {triggering ? t('notifications.aiSummaryStarting') : t('notifications.aiSummaryGenerate')}
-            </button>
+            <p>{reasonMessage}</p>
+            {hasShared ? (
+              renderSharedBlock()
+            ) : (
+              <button
+                className="ai-summary-btn ai-summary-btn--primary"
+                onClick={onGenerate}
+                disabled={triggering}
+              >
+                {triggering
+                  ? t('notifications.aiSummaryStarting')
+                  : t('notifications.aiSummaryGenerate')}
+              </button>
+            )}
           </div>
         );
+      }
 
       case 'PENDING':
       default:
@@ -129,7 +213,17 @@ const AISummaryCard = ({ summary, onGenerate, triggering }) => {
 AISummaryCard.propTypes = {
   summary: PropTypes.shape({
     status: PropTypes.string,
+    skip_reason: PropTypes.string,
     summary: PropTypes.string,
+    items: PropTypes.arrayOf(
+      PropTypes.shape({
+        decision_id: PropTypes.number,
+        ada: PropTypes.string,
+        subject: PropTypes.string,
+        one_liner: PropTypes.string,
+      })
+    ),
+    shared_items_available: PropTypes.number,
     cost_usd: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     total_input_tokens: PropTypes.number,
     total_output_tokens: PropTypes.number,
