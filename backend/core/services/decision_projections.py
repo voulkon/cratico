@@ -112,12 +112,16 @@ def build_decision_card_context(decision_ids):
     }
 
 
-def build_one_liners_by_decision(decision_ids):
+def build_one_liners_by_decision(decision_ids, prompt_kinds=None):
     """
     Bulk-fetch the default per-decision one-liner (the latest-COMPLETED
     ``DecisionOneLiner`` attempt, mirroring ``default_for_decision``) for a
     list of decision IDs, keyed by decision id.  ONE query — list endpoints
     render the one-liner under the card title with no N+1.
+
+    ``prompt_kinds`` restricts the result to those ``OneLinerConfig`` prompt
+    kinds; the budget inventory passes the same shareable allowlist as the
+    runtime cache so a free cache hit is never counted as new work.
 
     Decisions without a completed attempt are simply absent (the frontend
     renders nothing).
@@ -128,13 +132,15 @@ def build_one_liners_by_decision(decision_ids):
     if not decision_ids:
         return {}
 
+    rows = DecisionOneLiner.objects.filter(
+        decision_id__in=decision_ids,
+        status=OneLinerStatus.COMPLETED,
+        one_liner__isnull=False,
+    )
+    if prompt_kinds is not None:
+        rows = rows.filter(config__prompt_kind__in=prompt_kinds)
     rows = (
-        DecisionOneLiner.objects.filter(
-            decision_id__in=decision_ids,
-            status=OneLinerStatus.COMPLETED,
-            one_liner__isnull=False,
-        )
-        .exclude(one_liner__exact="")
+        rows.exclude(one_liner__exact="")
         .select_related("config", "extraction")
         .order_by("decision_id", "-completed_at", "-attempt", "-id")
     )
@@ -154,6 +160,15 @@ def build_one_liners_by_decision(decision_ids):
             "completed_at": row.completed_at,
         }
     return one_liners_by_decision
+
+
+def build_shareable_one_liners_by_decision(decision_ids):
+    """``build_one_liners_by_decision`` restricted to cross-user shareable kinds."""
+    from core.services.pipeline_steps.ai_call import SHAREABLE_ONE_LINER_KINDS
+
+    return build_one_liners_by_decision(
+        decision_ids, prompt_kinds=SHAREABLE_ONE_LINER_KINDS
+    )
 
 
 # ---------------------------------------------------------------------------

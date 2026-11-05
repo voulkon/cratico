@@ -143,3 +143,11 @@ IMPORT_MAX_CONCURRENT_JOBS = int(os.getenv("IMPORT_MAX_CONCURRENT_JOBS", "1"))
 NOTIFICATION_AI_SUMMARIES_PER_SUBSCRIPTION_PER_DAY = int(
     os.getenv("NOTIFICATION_AI_SUMMARIES_PER_SUBSCRIPTION_PER_DAY", "2")
 )
+
+# Cache-aware allowance: at most this many *uncached* decisions per
+# subscription per calendar day may require a provider call.  Decisions
+# already present in the shared one-liner cache cost nothing and are not
+# counted, so a mostly-cached batch is allowed even when this is exhausted.
+NOTIFICATION_AI_NEW_DECISIONS_PER_SUBSCRIPTION_PER_DAY = int(
+    os.getenv("NOTIFICATION_AI_NEW_DECISIONS_PER_SUBSCRIPTION_PER_DAY", "25")
+)
