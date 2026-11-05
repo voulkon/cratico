@@ -7,7 +7,7 @@
 
 <p>Hi {{ username }},</p>
 
-<p>Your subscriptions found <strong>{{ total_decisions }}</strong> new matching decision{{ total_decisions|pluralize }} across <strong>{{ batches|length }}</strong> subscription{{ batches|length|pluralize }}.</p>
+<p>Your subscriptions found <strong>{{ total_decisions }}</strong> new matching decision{{ total_decisions|pluralize }} across <strong>{{ subscription_count }}</strong> subscription{{ subscription_count|pluralize }}.</p>
 
 {% for batch in batches %}
 <div style="border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
@@ -24,7 +24,7 @@
     <ul style="margin: 0 0 12px 0; padding-left: 20px;">
         {% for item in batch.ai_summary_items %}
         <li style="margin-bottom: 6px; font-size: 14px;">
-            <a href="{{ app_url }}/decision/{{ item.decision_id }}" style="color: #0066cc; text-decoration: none; font-weight: 500;">{{ item.subject|default:item.ada }}</a>
+            <a href="{{ app_url }}/decision/{{ item.ada }}" style="color: #0066cc; text-decoration: none; font-weight: 500;">{{ item.subject|default:item.ada }}</a>
             <span style="color: #374151;"> — {{ item.one_liner }}</span>
         </li>
         {% endfor %}

@@ -427,8 +427,8 @@ class TestConsolidatedEmailSummaryBullets:
         html = _consolidated_batch(batches)
 
         # One bullet per item, linked to the decision page
-        assert html.count("/decision/101") == 1
-        assert html.count("/decision/102") == 1
+        assert html.count("/decision/ΑΒΓΔΕ-ΖΗΘ") == 1
+        assert html.count("/decision/ΑΒΓΔΕ-ΖΙΚ") == 1
         # Link text: subject, falling back to ada when the subject is empty
         assert "Approval of works" in html
         assert "ΑΒΓΔΕ-ΖΙΚ" in html
@@ -488,7 +488,7 @@ class TestConsolidatedEmailSummaryBullets:
 
         assert result is True
         html = _get_html_alternative(mail.outbox[-1])
-        assert "/decision/7" in html
+        assert "/decision/ΑΒΓΔΕ-ΩΚΦ" in html
         assert "Υπογράφηκε σύμβαση." in html
 
 

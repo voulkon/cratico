@@ -403,17 +403,22 @@ class TestAiSummaryCeiling:
         new_batch.refresh_from_db()
         assert new_batch.ai_summary_status == "PENDING"
 
-    def test_at_the_ceiling_batch_is_skipped_and_still_emailed(self, user):
+    def test_legacy_batch_count_ceiling_no_longer_blocks_dispatch(self, user):
+        """The old batch-count ceiling was replaced by a new-decision budget.
+
+        Dispatch now always hands summarisable batches to the task; the task
+        decides how much *new provider work* is affordable from the shared
+        cache inventory.
+        """
         from notifications.tasks.notification_tasks import (
             dispatch_summaries_then_email,
         )
 
         _, new_batch = self._setup(user, ai_summarised_today=2)
 
-        with (
-            patch("notifications.tasks.notification_tasks.chord") as mock_chord,
-            patch(EMAIL_SENDER, return_value=True) as mock_send,
-        ):
+        with patch(
+            "notifications.tasks.notification_tasks.chord"
+        ) as mock_chord:
             result = dispatch_summaries_then_email(
                 {
                     "user_id": user.id,
@@ -423,9 +428,7 @@ class TestAiSummaryCeiling:
                 user_id=user.id,
             )
 
-        mock_chord.assert_not_called()
-        mock_send.assert_called_once()
-        assert result["batches_emailed"] == 1
+        assert result["summaries_dispatched"] == 1
+        mock_chord.assert_called_once()
         new_batch.refresh_from_db()
-        assert new_batch.ai_summary_status == "SKIPPED"
-        assert "ceiling" in (new_batch.ai_summary_error or "").lower()
+        assert new_batch.ai_summary_status == "PENDING"
