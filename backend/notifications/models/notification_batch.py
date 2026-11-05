@@ -2,6 +2,17 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 
+class AISummarySkipReason(models.TextChoices):
+    USER_DISABLED = "USER_DISABLED", _("User-level AI summaries disabled")
+    SUBSCRIPTION_DISABLED = "SUBSCRIPTION_DISABLED", _(
+        "Subscription-level AI summaries disabled"
+    )
+    DAILY_CEILING = "DAILY_CEILING", _("Daily summary ceiling reached")
+    BUDGET_EXHAUSTED = "BUDGET_EXHAUSTED", _("AI budget exhausted")
+    NO_DECISIONS = "NO_DECISIONS", _("No decisions to summarize")
+    PROVIDER_ERROR = "PROVIDER_ERROR", _("Provider error")
+
+
 class NotificationBatch(models.Model):
     """
     A batch of matching decisions for a notification subscription.
@@ -80,6 +91,16 @@ class NotificationBatch(models.Model):
         help_text=_("When the email notification was sent"),
     )
 
+    # Presentation/email grouping (null for every_run users)
+    group = models.ForeignKey(
+        "notifications.NotificationBatchGroup",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="batches",
+        verbose_name=_("Batch group"),
+    )
+
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Created at"))
 
@@ -108,7 +129,28 @@ class NotificationBatch(models.Model):
         max_length=20,
         default="PENDING",
         verbose_name=_("AI summary status"),
-        help_text=_("PENDING / RUNNING / COMPLETED / FAILED / SKIPPED"),
+        help_text=_("PENDING / RUNNING / COMPLETED / PARTIAL / FAILED / SKIPPED"),
+    )
+    ai_summary_skip_reason = models.CharField(
+        max_length=32,
+        choices=AISummarySkipReason.choices,
+        null=True,
+        blank=True,
+        verbose_name=_("AI summary skip reason"),
+        help_text=_("Machine-readable reason when the summary was skipped"),
+    )
+    ai_summary_manual_override = models.BooleanField(
+        default=False,
+        verbose_name=_("AI summary manual override"),
+        help_text=_("Whether an explicit user override triggered this summary"),
+    )
+    ai_summary_new_count = models.IntegerField(
+        default=0,
+        help_text=_("Uncached decisions that required a provider call in this run"),
+    )
+    ai_summary_cached_count = models.IntegerField(
+        default=0,
+        help_text=_("Decisions reused from the shared one-liner cache"),
     )
     ai_summary_run = models.ForeignKey(
         "core.PipelineRun",

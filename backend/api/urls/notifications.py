@@ -11,6 +11,7 @@ from notifications.views import (
     NotificationPreferenceViewSet,
     NotificationSubscriptionViewSet,
 )
+from notifications.views_groups import NotificationBatchGroupViewSet
 from notifications.views_metadata import (
     decision_types_list,
     popular_decision_types,
@@ -26,6 +27,9 @@ router.register(
     basename="notification-subscription",
 )
 router.register("batches", NotificationBatchViewSet, basename="notification-batch")
+router.register(
+    "groups", NotificationBatchGroupViewSet, basename="notification-group"
+)
 router.register(
     "preferences",
     NotificationPreferenceViewSet,

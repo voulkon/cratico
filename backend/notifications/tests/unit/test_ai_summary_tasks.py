@@ -16,6 +16,13 @@ pytestmark = pytest.mark.django_db
 class TestSummarizeNotificationBatch:
     """Tests for the ``summarize_notification_batch`` Celery task."""
 
+    @pytest.fixture(autouse=True)
+    def enable_user_ai(self, user):
+        """The task applies the user-level AI toggle (default: off)."""
+        preference = user.notification_preference
+        preference.ai_summary_enabled = True
+        preference.save(update_fields=["ai_summary_enabled"])
+
     def test_batch_not_found(self):
         """Task returns error when batch does not exist."""
         from notifications.tasks.ai_summary_tasks import summarize_notification_batch
@@ -318,6 +325,12 @@ class TestSummarizeNotificationBatch:
 
 class TestSummaryItemsPopulation:
     """``ai_summary_items`` — per-decision one-liners from the map step."""
+
+    @pytest.fixture(autouse=True)
+    def enable_user_ai(self, user):
+        preference = user.notification_preference
+        preference.ai_summary_enabled = True
+        preference.save(update_fields=["ai_summary_enabled"])
 
     def _run_task(self, batch, decision, context, run):
         """Run ``summarize_notification_batch`` with the given context/run."""
@@ -650,6 +663,12 @@ class TestSummaryItemsPopulation:
 
 class TestRetriesExhausted:
     """Chord-safety: exhausted retries must not break the email chord."""
+
+    @pytest.fixture(autouse=True)
+    def enable_user_ai(self, user):
+        preference = user.notification_preference
+        preference.ai_summary_enabled = True
+        preference.save(update_fields=["ai_summary_enabled"])
 
     def test_returns_error_dict_instead_of_raising(
         self, user, notification_subscription, decision

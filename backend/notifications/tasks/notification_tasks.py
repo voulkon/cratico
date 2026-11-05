@@ -1,11 +1,12 @@
 from datetime import timedelta
 
 from celery import chord, shared_task
-from django.conf import settings
+from django.db.models import F
 from django.utils import timezone
 from loguru import logger
 from notifications.constants import CHECK_FREQUENCY_DAILY, CHECK_FREQUENCY_WEEKLY
 from notifications.models import (
+    AISummarySkipReason,
     EmailMode,
     Notification,
     NotificationBatch,
@@ -418,6 +419,46 @@ def _decisions_already_batched(subscription, decisions) -> set[int]:
     )
 
 
+def compute_batch_aggregate_stats(batch):
+    """Aggregate statistics from the batch's actual junction rows.
+
+    Never from a single call's ``new_decisions``: a batch can receive decisions
+    across several checks, and the stats must describe the whole batch.
+    """
+    rows = (
+        NotificationBatchDecision.objects.filter(batch=batch)
+        .select_related("decision__decision_type")
+        .only(
+            "decision__amount",
+            "decision__decision_type__uid",
+        )
+    )
+    amounts = [
+        float(row.decision.amount)
+        for row in rows
+        if row.decision.amount is not None
+    ]
+    decision_types = {}
+    for row in rows:
+        uid = row.decision.decision_type.uid if row.decision.decision_type else None
+        if uid:
+            decision_types[uid] = decision_types.get(uid, 0) + 1
+
+    stats = {}
+    if amounts:
+        stats.update(
+            total_amount=sum(amounts),
+            avg_amount=sum(amounts) / len(amounts),
+            min_amount=min(amounts),
+            max_amount=max(amounts),
+        )
+    if decision_types:
+        stats["decision_type_counts"] = decision_types
+        # Backward compatibility for readers that still use the old key.
+        stats["decision_types"] = decision_types
+    return stats
+
+
 def create_batch_for_matches(
     subscription, matching_decisions, check_window_start, check_window_end
 ):
@@ -487,32 +528,37 @@ def create_batch_for_matches(
         f"{len(existing_decision_ids)} already in batches"
     )
 
-    # Calculate aggregate statistics (only for new decisions)
-    aggregate_stats = {}
-
-    # Amount statistics (if decisions have amounts)
-    amounts = []
-    for decision in new_decisions:
-        if hasattr(decision, "amount") and decision.amount:
-            amounts.append(float(decision.amount))
-
-    if amounts:
-        aggregate_stats["total_amount"] = sum(amounts)
-        aggregate_stats["avg_amount"] = sum(amounts) / len(amounts)
-        aggregate_stats["min_amount"] = min(amounts)
-        aggregate_stats["max_amount"] = max(amounts)
-
-    # Decision type breakdown
-    decision_types = {}
-    for decision in new_decisions:
-        if decision.decision_type:
-            type_uid = decision.decision_type.uid
-            decision_types[type_uid] = decision_types.get(type_uid, 0) + 1
-
-    if decision_types:
-        aggregate_stats["decision_types"] = decision_types
-
     try:
+        from notifications.models import NotificationBatchGroup
+        from notifications.services.batch_grouping import resolve_digest_period
+
+        # Resolve the presentation/email group once, at creation time.  Do not
+        # derive it later from created_at (digest-hour changes must not move
+        # historical batches).
+        from django.db import IntegrityError
+
+        period = resolve_digest_period(subscription.user, check_window_end)
+        group = None
+        if period is not None:
+            try:
+                group, _ = NotificationBatchGroup.objects.get_or_create(
+                    subscription=subscription,
+                    period_start=period[0],
+                    period_end=period[1],
+                    defaults={
+                        "user": subscription.user,
+                        "local_date": timezone.localtime(period[1]).date(),
+                    },
+                )
+            except IntegrityError:
+                # Concurrent creators race on the unique constraint: the
+                # winner's row is the only valid result.
+                group = NotificationBatchGroup.objects.get(
+                    subscription=subscription,
+                    period_start=period[0],
+                    period_end=period[1],
+                )
+
         with transaction.atomic():
             # Create or get existing batch for this time window
             batch, created = NotificationBatch.objects.get_or_create(
@@ -524,7 +570,8 @@ def create_batch_for_matches(
                     # Written authoritatively below, from the rows the batch
                     # actually owns.
                     "match_count": 0,
-                    "aggregate_stats": aggregate_stats,
+                    "aggregate_stats": {},
+                    "group": group,
                 },
             )
 
@@ -532,6 +579,9 @@ def create_batch_for_matches(
                 logger.info(
                     f"Created new batch {batch.id} for subscription {subscription.id}"
                 )
+            elif group is not None and batch.group_id != group.id:
+                batch.group = group
+                batch.save(update_fields=["group"])
 
             rows_in_batch_before = NotificationBatchDecision.objects.filter(
                 batch=batch
@@ -610,8 +660,13 @@ def create_batch_for_matches(
             batch.match_count = NotificationBatchDecision.objects.filter(
                 batch=batch
             ).count()
-            batch.aggregate_stats = aggregate_stats
+            batch.aggregate_stats = compute_batch_aggregate_stats(batch)
             batch.save(update_fields=["match_count", "aggregate_stats"])
+
+            if group is not None and decisions_added > 0:
+                NotificationBatchGroup.objects.filter(pk=group.pk).update(
+                    total_match_count=F("total_match_count") + decisions_added
+                )
 
             logger.info(
                 f"Batch {batch.id}: Added {decisions_added} decisions "
@@ -909,13 +964,14 @@ def check_user_subscriptions(user_id, subscription_ids, lookback_days=1):
 
 
 def _filter_summarisable_batch_ids(user_id, new_batch_ids):
-    """Apply the user-level AI toggle and the per-subscription daily ceiling.
+    """Apply the user-level AI toggle only.
 
-    Returns the batch ids that may run ``summarize_notification_batch``.
-    Batches rejected by either rule are persisted as ``SKIPPED`` (with a
-    reason) so they are still emailed without a summary.
+    The per-subscription new-decision allowance and the shared cache check are
+    applied inside ``summarize_notification_batch``, because only the task can
+    see which decisions are already cached (a cache hit costs nothing and must
+    be allowed even when the user is out of budget).
     """
-    from collections import Counter
+    from notifications.tasks.ai_summary_tasks import mark_summary_skipped
 
     preference = NotificationPreference.get_for_user_id(user_id)
 
@@ -934,50 +990,15 @@ def _filter_summarisable_batch_ids(user_id, new_batch_ids):
 
     if not preference.ai_summary_enabled:
         for batch in batches:
-            batch.ai_summary_status = "SKIPPED"
-            batch.ai_summary_error = "AI summaries disabled at user level"
-            batch.save(update_fields=["ai_summary_status", "ai_summary_error"])
+            mark_summary_skipped(
+                batch,
+                AISummarySkipReason.USER_DISABLED,
+                "AI summaries are disabled in notification preferences",
+            )
         logger.info(f"User {user_id}: AI summaries disabled, skipping all")
         return []
 
-    ceiling = getattr(
-        settings, "NOTIFICATION_AI_SUMMARIES_PER_SUBSCRIPTION_PER_DAY", 2
-    )
-    if ceiling <= 0:
-        return []
-
-    local_now = timezone.localtime()
-    day_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
-    subscription_ids = {batch.subscription_id for batch in batches}
-
-    # Batches already consumed today (the new ones are still PENDING and are
-    # not counted yet).
-    used = Counter(
-        NotificationBatch.objects.filter(
-            subscription_id__in=subscription_ids,
-            created_at__gte=day_start,
-            ai_summary_status__in=["PENDING", "RUNNING", "COMPLETED", "FAILED"],
-        )
-        .exclude(id__in=new_batch_ids)
-        .values_list("subscription_id", flat=True)
-    )
-
-    allowed = []
-    for batch in batches:
-        subscription_id = batch.subscription_id
-        if used[subscription_id] >= ceiling:
-            batch.ai_summary_status = "SKIPPED"
-            batch.ai_summary_error = "Daily AI summary ceiling reached"
-            batch.save(update_fields=["ai_summary_status", "ai_summary_error"])
-            logger.info(
-                f"Batch {batch.id}: AI summary ceiling "
-                f"({ceiling}/subscription/day) reached"
-            )
-            continue
-        used[subscription_id] += 1
-        allowed.append(batch.id)
-
-    return allowed
+    return [batch.id for batch in batches]
 
 
 @shared_task
@@ -1220,22 +1241,33 @@ def _send_unemailed_batches(user, unemailed_batches, user_language=None):
 
     Shared by the per-run path and the digest task, so both render the same
     batch data and honour the same ``email_verified`` rule.
+
+    Batches are grouped by subscription: one section per subscription and
+    digest period, with the sections' decision counts and AI bullets merged.
+    Shared one-liners are composed at send time so a batch that was skipped
+    earlier still renders bullets another user paid for.
     """
+    from collections import OrderedDict
+
     from core.email_service import NotificationEmailService
+    from core.services.decision_projections import (
+        build_shareable_one_liners_by_decision,
+    )
 
     user_language = user_language or getattr(
         user, "preferred_language", "en"
     ) or "en"
 
-    batch_data_list = []
-    total_decisions = 0
+    sections = OrderedDict()
     batch_ids_to_mark = []
+    total_decisions = 0
 
     for batch in unemailed_batches:
         batch_ids_to_mark.append(batch.id)
         total_decisions += batch.match_count
 
-        batch_data_list.append(
+        section = sections.setdefault(
+            batch.subscription_id,
             {
                 "id": batch.id,
                 "subscription_name": (
@@ -1252,20 +1284,60 @@ def _send_unemailed_batches(user, unemailed_batches, user_language=None):
                     if batch.subscription.entity
                     else None
                 ),
-                "decision_count": batch.match_count,
-                # Per-decision one-liners for the email bullets (empty when
-                # AI is disabled or the summary failed — templates fall back
-                # to the plain list rendering).
+                "decision_count": 0,
+                "batch_ids": [],
                 "ai_summary_status": batch.ai_summary_status,
-                "ai_summary_items": batch.ai_summary_items or [],
-            }
+                "ai_summary_items": [],
+            },
         )
+        section["decision_count"] += batch.match_count
+        section["batch_ids"].append(batch.id)
+        section["ai_summary_items"].extend(batch.ai_summary_items or [])
+        if batch.ai_summary_status in ("COMPLETED", "PARTIAL"):
+            section["ai_summary_status"] = batch.ai_summary_status
+
+    decision_rows = list(
+        NotificationBatchDecision.objects.filter(
+            batch_id__in=batch_ids_to_mark
+        ).values("batch_id", "decision_id", "decision__ada", "decision__subject")
+    )
+    shared = build_shareable_one_liners_by_decision(
+        {row["decision_id"] for row in decision_rows}
+    )
+
+    # Merge by decision_id: batch snapshot first, then the live shared cache.
+    batch_to_sections = {}
+    for section in sections.values():
+        for batch_id in section["batch_ids"]:
+            batch_to_sections[batch_id] = section
+
+    for section in sections.values():
+        by_decision = {
+            item.get("decision_id"): item
+            for item in section["ai_summary_items"]
+            if item.get("decision_id")
+        }
+        for row in decision_rows:
+            if batch_to_sections.get(row["batch_id"]) is not section:
+                continue
+            entry = shared.get(row["decision_id"])
+            if entry and row["decision_id"] not in by_decision:
+                by_decision[row["decision_id"]] = {
+                    "decision_id": row["decision_id"],
+                    "ada": row["decision__ada"],
+                    "subject": row["decision__subject"],
+                    "one_liner": entry["one_liner"],
+                }
+        section["ai_summary_items"] = list(by_decision.values())
+
+    batch_data_list = list(sections.values())
 
     email_sent = NotificationEmailService.send_consolidated_batch_summary(
         user_email=user.email,
         username=user.username or user.email,
         batches=batch_data_list,
         total_decisions=total_decisions,
+        subscription_count=len(batch_data_list),
         language=user_language,
     )
 

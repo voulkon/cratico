@@ -27,6 +27,11 @@ from core.services.pipeline_engine import PipelineContext
 from django.utils import timezone
 from loguru import logger
 
+# Prompt kinds whose completed one-liners may be shared across users and
+# pipeline configurations.  The cache lookup and the budget inventory must use
+# the same allowlist so a "free" cache hit is never counted as new work.
+SHAREABLE_ONE_LINER_KINDS = {"batch_one_liner"}
+
 # Code-level default for max_tokens.  Only persist an override in step config
 # when you need a non-default budget — scalar defaults stay in code so tuning
 # them is a code change, not a data migration.
@@ -99,8 +104,11 @@ class AICallStep:
             force_attempt = False
 
         if map_over_items and context.per_item_outputs:
-            # Map mode: one call per item
+            # Map mode: one call per item.  ``max_new_one_liners`` is the
+            # cache-aware budget: only provider calls consume it.
             results = {}
+            max_new = context.metadata.get("max_new_one_liners")
+            new_calls = 0
             for item_id, text in context.per_item_outputs.items():
                 decision = decisions_by_item.get(item_id) if ol_config else None
                 extraction_id = item_extractions.get(item_id) if ol_config else None
@@ -108,12 +116,17 @@ class AICallStep:
                 # Cache hit: reuse the stored one-liner at zero cost.
                 if ol_config is not None and not force_attempt:
                     cached = self._one_liner_cache_get(
-                        decision, ol_config, extraction_id
+                        context, decision, ol_config, extraction_id
                     )
                     if cached is not None:
                         results[item_id] = cached.one_liner
                         ol_stats["hits"] += 1
                         continue
+
+                if max_new is not None and new_calls >= max_new:
+                    # Budget spent: leave this item without a bullet.
+                    continue
+                new_calls += 1
 
                 rendered_prompt = self._render_prompt(
                     prompt_template, text, context, step
@@ -221,15 +234,42 @@ class AICallStep:
             max_tokens=max_tokens,
         )
 
-    def _one_liner_cache_get(self, decision, ol_config, extraction_id):
-        """Return the max-attempt COMPLETED row of this lineage, or ``None``."""
+    def _one_liner_cache_get(self, context, decision, ol_config, extraction_id):
+        """Return a COMPLETED row for this decision, or ``None``.
+
+        First tries the exact ``(decision, extraction, config)`` lineage.  If
+        that misses, falls back to a completed one-liner generated under any
+        *shareable* prompt kind, so a one-liner paid for by another user is
+        reused at zero cost even when this user's pipeline/model differs.
+        """
         if decision is None:
             return None
-        from core.models.decision_one_liner import DecisionOneLiner
+        from core.models.decision_one_liner import DecisionOneLiner, OneLinerStatus
 
-        return DecisionOneLiner.latest_completed(
+        row = DecisionOneLiner.latest_completed(
             decision=decision, config=ol_config, extraction_id=extraction_id
         )
+        if row is not None:
+            return row
+
+        row = (
+            DecisionOneLiner.objects.filter(
+                decision_id=decision.id,
+                status=OneLinerStatus.COMPLETED,
+                one_liner__isnull=False,
+                config__prompt_kind__in=SHAREABLE_ONE_LINER_KINDS,
+            )
+            .exclude(one_liner__exact="")
+            .select_related("config")
+            .order_by("-completed_at", "-attempt", "-id")
+            .first()
+        )
+        if row is not None:
+            stats = context.metadata.setdefault(
+                "one_liner_cache", {"hits": 0, "misses": 0, "shared_hits": 0}
+            )
+            stats["shared_hits"] = stats.get("shared_hits", 0) + 1
+        return row
 
     def _one_liner_claim(self, item_id, decision, ol_config, extraction_id, context):
         """Adopt → claim → mint an attempt row for a cache miss.

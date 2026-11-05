@@ -109,3 +109,37 @@
 .ai-summary-failed p {
   margin-bottom: 0.75rem;
 }
+
+/* ── Shared / partial per-decision items ─────────────────────── */
+
+.ai-summary-items {
+  margin: 0.75rem 0;
+}
+
+.ai-summary-items-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted-text);
+  margin-bottom: 0.35rem;
+}
+
+.ai-summary-items ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.ai-summary-items li {
+  font-size: 0.85rem;
+  margin-bottom: 0.35rem;
+}
+
+.ai-summary-item-subject {
+  font-weight: 600;
+}
+
+.ai-summary-shared,
+.ai-summary-partial-note {
+  font-size: 0.85rem;
+  color: var(--muted-text);
+  margin-bottom: 0.5rem;
+}

@@ -11,6 +11,7 @@ import apiClient from './client';
 const NOTIFICATIONS_BASE = '/notifications';
 const SUBSCRIPTIONS_BASE = `${NOTIFICATIONS_BASE}/subscriptions`;
 const BATCHES_BASE = `${NOTIFICATIONS_BASE}/batches`;
+const GROUPS_BASE = `${NOTIFICATIONS_BASE}/groups`;
 const METADATA_BASE = '/notifications-meta/metadata';
 
 // ============ SUBSCRIPTIONS ============
@@ -258,6 +259,88 @@ export async function markAllNotificationsRead() {
  */
 export async function dismissAllNotifications() {
   const response = await apiClient.post(`${BATCHES_BASE}/dismiss-all/`);
+  return response.data;
+}
+
+// ============ NOTIFICATION GROUPS ============
+
+/**
+ * Get all presentation/email groups for the current user.
+ * @param {Object} [filters] - Filter options
+ * @returns {Promise<Array>} Array of group objects
+ */
+export async function getNotificationGroups(filters = {}) {
+  const response = await apiClient.get(`${GROUPS_BASE}/`, { params: filters });
+  return response.data;
+}
+
+/**
+ * Get a specific notification group by ID (includes its batches).
+ * @param {number} id - Group ID
+ * @returns {Promise<Object>} Group object
+ */
+export async function getNotificationGroup(id) {
+  const response = await apiClient.get(`${GROUPS_BASE}/${id}/`);
+  return response.data;
+}
+
+/**
+ * Get decisions across all batches in a group (paginated).
+ * @param {number} groupId - Group ID
+ * @param {number} [page=1] - Page number
+ * @param {number} [pageSize=20] - Items per page
+ * @param {boolean|null} [isViewed] - Filter by viewed status
+ * @param {string} [sortBy='recent'] - Sort order
+ * @returns {Promise<Object>} Paginated response with decisions
+ */
+export async function getGroupDecisions(
+  groupId,
+  page = 1,
+  pageSize = 20,
+  isViewed = null,
+  sortBy = 'recent'
+) {
+  const params = { page, page_size: pageSize };
+  if (isViewed !== null) {
+    params.is_viewed = isViewed;
+  }
+  if (sortBy) {
+    params.sort = sortBy;
+  }
+  const response = await apiClient.get(
+    `${GROUPS_BASE}/${groupId}/decisions/`,
+    { params }
+  );
+  return response.data;
+}
+
+/**
+ * Read-only composition of a group's summaries (batches + shared cache).
+ * @param {number} id - Group ID
+ * @returns {Promise<Object>} Summary payload
+ */
+export async function getNotificationGroupSummary(id) {
+  const response = await apiClient.get(`${GROUPS_BASE}/${id}/summary/`);
+  return response.data;
+}
+
+/**
+ * Mark a group as read.
+ * @param {number} id - Group ID
+ * @returns {Promise<Object>} Response with status
+ */
+export async function markGroupRead(id) {
+  const response = await apiClient.post(`${GROUPS_BASE}/${id}/mark-read/`);
+  return response.data;
+}
+
+/**
+ * Dismiss a group.
+ * @param {number} id - Group ID
+ * @returns {Promise<Object>} Response with status
+ */
+export async function dismissGroup(id) {
+  const response = await apiClient.post(`${GROUPS_BASE}/${id}/dismiss/`);
   return response.data;
 }
 

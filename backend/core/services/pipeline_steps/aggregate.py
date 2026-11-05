@@ -26,6 +26,17 @@ class AggregateStep:
         config = step.config or {}
         strategy = config.get("strategy", "concat")
 
+        # Budget stop: keep the per-decision bullets but do not pay for the
+        # merge provider call.
+        if context.metadata.get("skip_aggregate") is True:
+            self._concat(context, step)
+            step_run.output_text = (context.steps_output.get(step.order) or "")[
+                :10000
+            ]
+            step_run.save()
+            logger.info("AggregateStep: skipped merge (AI budget)")
+            return
+
         if strategy == "concat":
             self._concat(context, step)
         elif strategy == "summarize_each_then_merge":

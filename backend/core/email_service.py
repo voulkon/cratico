@@ -381,6 +381,7 @@ class NotificationEmailService:
         username: str,
         batches: List[Dict[str, Any]],
         total_decisions: int,
+        subscription_count: int | None = None,
         language: str = "en",
     ) -> bool:
         """
@@ -397,9 +398,11 @@ class NotificationEmailService:
         Returns:
             bool: True if sent successfully
         """
+        subscription_count = subscription_count or len(batches)
         context = {
             "username": username,
             "batches": batches,
+            "subscription_count": subscription_count,
             "total_decisions": total_decisions,
             "app_name": getattr(settings, "APP_NAME", "Diavgeia Platform"),
             "app_url": RegistrationEmailService.frontend_url,
@@ -407,12 +410,20 @@ class NotificationEmailService:
 
         # Localize subject based on language
         if language == "el":
-            subject = (
-                f"{len(batches)} συνδρομές βρήκαν {total_decisions} νέες αποφάσεις"
-            )
+            if subscription_count == 1:
+                subject = (
+                    f"1 συνδρομή βρήκε {total_decisions} νέες αποφάσεις"
+                )
+            else:
+                subject = (
+                    f"{subscription_count} συνδρομές βρήκαν "
+                    f"{total_decisions} νέες αποφάσεις"
+                )
         else:
             subject = (
-                f"{len(batches)} subscriptions found {total_decisions} new decisions"
+                f"{subscription_count} subscription"
+                f"{'' if subscription_count == 1 else 's'} found "
+                f"{total_decisions} new decisions"
             )
 
         return EmailService.send_template_email(

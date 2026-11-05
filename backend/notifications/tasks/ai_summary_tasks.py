@@ -17,11 +17,29 @@ from core.ai_services.summary_prompts import (
     CACHE_ONE_LINERS_FLAG,
 )
 from core.tasks.tasks_decision_ai import _extract_pipeline_output
-from notifications.models import NotificationBatch
+from notifications.models import (
+    AISummarySkipReason,
+    NotificationBatch,
+    NotificationPreference,
+)
+
+
+def mark_summary_skipped(batch, reason, error=None):
+    """Persist a SKIPPED status with its machine-readable reason."""
+    batch.ai_summary_status = "SKIPPED"
+    batch.ai_summary_skip_reason = reason
+    batch.ai_summary_error = error
+    batch.save(
+        update_fields=[
+            "ai_summary_status",
+            "ai_summary_skip_reason",
+            "ai_summary_error",
+        ]
+    )
 
 
 @shared_task(bind=True, max_retries=2)
-def summarize_notification_batch(self, batch_id):
+def summarize_notification_batch(self, batch_id, manual_override=False):
     """
     Run the AI summarization pipeline on a notification batch.
 
@@ -45,16 +63,44 @@ def summarize_notification_batch(self, batch_id):
 
     subscription = batch.subscription
 
+    if manual_override:
+        batch.ai_summary_manual_override = True
+        batch.save(update_fields=["ai_summary_manual_override"])
+
     # Check if AI summary is enabled
     if not subscription.ai_summary_enabled:
-        batch.ai_summary_status = "SKIPPED"
-        batch.save(update_fields=["ai_summary_status"])
+        mark_summary_skipped(
+            batch,
+            AISummarySkipReason.SUBSCRIPTION_DISABLED,
+            "AI summary disabled for this subscription",
+        )
         logger.info(f"Batch {batch_id}: AI summary disabled, skipping")
         return {"batch_id": batch_id, "status": "skipped"}
 
-    # Mark as running
+    # The task is the authoritative gate for the user-level toggle too, so a
+    # direct task call cannot bypass it.  An explicit manual override is the
+    # documented exception.
+    preference = NotificationPreference.get_for_user_id(subscription.user_id)
+    if not preference.ai_summary_enabled and not manual_override:
+        mark_summary_skipped(
+            batch,
+            AISummarySkipReason.USER_DISABLED,
+            "AI summaries are disabled in notification preferences",
+        )
+        logger.info(f"Batch {batch_id}: user-level AI summaries disabled, skipping")
+        return {"batch_id": batch_id, "status": "skipped"}
+
+    # Mark as running and clear any previous skip/error detail.
     batch.ai_summary_status = "RUNNING"
-    batch.save(update_fields=["ai_summary_status"])
+    batch.ai_summary_skip_reason = None
+    batch.ai_summary_error = None
+    batch.save(
+        update_fields=[
+            "ai_summary_status",
+            "ai_summary_skip_reason",
+            "ai_summary_error",
+        ]
+    )
 
     try:
         from core.services.pipeline_engine import PipelineContext, PipelineEngine
@@ -64,6 +110,10 @@ def summarize_notification_batch(self, batch_id):
         if pipeline_def is None:
             pipeline_def = _get_or_create_default_pipeline()
 
+        map_mode = pipeline_def.steps.filter(
+            step_type="AI_CALL", is_active=True, config__map_over_items=True
+        ).exists()
+
         # Gather decisions from the batch
         batch_decisions = batch.batch_decisions.select_related(
             "decision__text_extraction"
@@ -71,10 +121,51 @@ def summarize_notification_batch(self, batch_id):
         decisions = [bd.decision for bd in batch_decisions]
 
         if not decisions:
-            batch.ai_summary_status = "SKIPPED"
-            batch.ai_summary_error = "No decisions in batch to summarize"
-            batch.save(update_fields=["ai_summary_status", "ai_summary_error"])
+            mark_summary_skipped(
+                batch,
+                AISummarySkipReason.NO_DECISIONS,
+                "No decisions in batch to summarize",
+            )
             return {"batch_id": batch_id, "status": "skipped", "reason": "no_decisions"}
+
+        # Cache inventory: decisions already covered by a shareable one-liner
+        # cost nothing, so the budget only applies to the remainder.
+        from core.services.decision_projections import (
+            build_shareable_one_liners_by_decision,
+        )
+        from notifications.services.ai_budget import (
+            subscription_new_decision_allowance,
+            user_has_ai_budget,
+        )
+
+        cached = build_shareable_one_liners_by_decision(
+            [decision.id for decision in decisions]
+        )
+        uncached = [d for d in decisions if d.id not in cached]
+
+        # Compute the allowance before persisting this batch's counts: the
+        # allowance sums *previous* batches for the day, and this batch must
+        # not consume its own budget.
+        allowance = subscription_new_decision_allowance(
+            subscription, exclude_batch_id=batch.id
+        )
+        if manual_override:
+            allowance = len(uncached)
+        elif not user_has_ai_budget(subscription.user_id):
+            allowance = 0
+
+        max_new = min(len(uncached), allowance)
+        skip_aggregate = (
+            not manual_override and allowance == 0
+        )
+
+        batch.ai_summary_cached_count = len(cached)
+        # Only allowed provider calls count against the daily budget; items
+        # skipped because the budget was already spent are not charged.
+        batch.ai_summary_new_count = max_new
+        batch.save(
+            update_fields=["ai_summary_cached_count", "ai_summary_new_count"]
+        )
 
         # Build context and run pipeline
         context = PipelineContext(
@@ -82,6 +173,11 @@ def summarize_notification_batch(self, batch_id):
             batch=batch,
             user=subscription.user,
         )
+
+        if isinstance(context.metadata, dict):
+            context.metadata["max_new_one_liners"] = max_new
+            context.metadata["shared_one_liners"] = True
+            context.metadata["skip_aggregate"] = skip_aggregate
 
         # Adopt one-liner rows minted by the previous (failed) try so internal
         # Celery retries overwrite the same rows in place instead of minting
@@ -124,18 +220,56 @@ def summarize_notification_batch(self, batch_id):
             # never surface those as one-liners.
             ai_summary_items = None
 
+        # Cache-aware budget bookkeeping only applies to a real context (the
+        # task configures metadata on it).  Tests and non-notification callers
+        # that patch PipelineContext keep the plain run status.
+        budget_active = isinstance(context.metadata, dict) and (
+            "max_new_one_liners" in context.metadata
+        )
+        skip_aggregate_active = (
+            isinstance(context.metadata, dict)
+            and context.metadata.get("skip_aggregate") is True
+        )
+
+        status = run.status
+        skip_reason = None
+        error = None
+        if skip_aggregate_active:
+            # Cached bullets without a paid merge paragraph.
+            final_output = None
+
+        if budget_active and map_mode and run.status == "COMPLETED":
+            item_count = len(ai_summary_items or [])
+            if item_count == 0:
+                status = "SKIPPED"
+                skip_reason = AISummarySkipReason.BUDGET_EXHAUSTED
+                error = (
+                    "AI budget exhausted and no shared one-liners were available"
+                )
+                ai_summary_items = None
+            elif item_count < len(decisions) or skip_aggregate_active:
+                status = "PARTIAL"
+                skip_reason = AISummarySkipReason.BUDGET_EXHAUSTED
+                error = "AI budget exhausted before every decision was summarized"
+
         batch.ai_summary = final_output
         batch.ai_summary_items = ai_summary_items
-        batch.ai_summary_status = run.status
+        batch.ai_summary_status = status
+        batch.ai_summary_skip_reason = skip_reason
         batch.ai_summary_run = run
         batch.ai_summary_completed_at = run.completed_at
         if run.status == "FAILED":
             batch.ai_summary_error = run.error_message
+        elif error is not None:
+            batch.ai_summary_error = error
+        else:
+            batch.ai_summary_error = None
         batch.save(
             update_fields=[
                 "ai_summary",
                 "ai_summary_items",
                 "ai_summary_status",
+                "ai_summary_skip_reason",
                 "ai_summary_run",
                 "ai_summary_completed_at",
                 "ai_summary_error",
@@ -143,13 +277,14 @@ def summarize_notification_batch(self, batch_id):
         )
 
         logger.info(
-            f"Batch {batch_id}: AI summary {run.status} "
+            f"Batch {batch_id}: AI summary {status} "
             f"(cost: ${run.total_cost_usd}, tokens: {run.total_input_tokens}+{run.total_output_tokens}, "
             f"items: {len(ai_summary_items) if ai_summary_items else 0})"
         )
         return {
             "batch_id": batch_id,
-            "status": run.status,
+            "status": status,
+            "skip_reason": skip_reason,
             "pipeline_run_id": run.id,
             "cost_usd": str(run.total_cost_usd),
             # Cache observability: {hits, misses} when the pipeline's
