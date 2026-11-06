@@ -456,6 +456,57 @@ class TestConsolidatedEmailSummaryBullets:
         assert "/batch/5" in html
         assert "View Matches" in html
 
+    def test_group_section_links_to_the_group_page(self):
+        batches = [
+            {
+                "id": 5,
+                "group_id": 42,
+                "subscription_name": "My Sub",
+                "organization_name": None,
+                "entity_name": None,
+                "decision_count": 1,
+                "ai_summary_status": "COMPLETED",
+                "ai_summary_items": [],
+            }
+        ]
+
+        html = _consolidated_batch(batches)
+
+        assert "/group/42" in html
+        assert "/batch/5" not in html
+
+    def test_footer_links_to_the_email_period(self):
+        from datetime import date
+
+        batches = [
+            {
+                "id": 5,
+                "subscription_name": "My Sub",
+                "organization_name": None,
+                "entity_name": None,
+                "decision_count": 1,
+                "ai_summary_status": "COMPLETED",
+                "ai_summary_items": [],
+            }
+        ]
+
+        from core.email_service import NotificationEmailService
+
+        result = NotificationEmailService.send_consolidated_batch_summary(
+            user_email=TEST_EMAIL,
+            username=TEST_USERNAME,
+            batches=batches,
+            total_decisions=1,
+            digest_period=date(2026, 11, 6),
+            more_sections_count=2,
+            language="en",
+        )
+
+        assert result is True
+        html = _get_html_alternative(mail.outbox[-1])
+        assert "/notifications?period=2026-11-06" in html
+        assert "+ 2 more subscriptions" in html
+
     def test_greek_template_renders_bullets(self):
         batches = [
             {
