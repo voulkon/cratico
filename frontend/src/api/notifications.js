@@ -262,6 +262,44 @@ export async function dismissAllNotifications() {
   return response.data;
 }
 
+// ============ NOTIFICATION PREFERENCES ============
+
+/**
+ * Get the current user's notification preference row.
+ * @returns {Promise<Array>} Array containing the user's preference
+ */
+export async function getNotificationPreferences() {
+  const response = await apiClient.get(`${NOTIFICATIONS_BASE}/preferences/`);
+  return response.data;
+}
+
+/**
+ * Create the current user's notification preference row.
+ * @param {Object} data - Preference fields
+ * @returns {Promise<Object>} Created preference
+ */
+export async function createNotificationPreference(data) {
+  const response = await apiClient.post(
+    `${NOTIFICATIONS_BASE}/preferences/`,
+    data
+  );
+  return response.data;
+}
+
+/**
+ * Update a notification preference row.
+ * @param {number} id - Preference ID
+ * @param {Object} data - Fields to update
+ * @returns {Promise<Object>} Updated preference
+ */
+export async function updateNotificationPreference(id, data) {
+  const response = await apiClient.patch(
+    `${NOTIFICATIONS_BASE}/preferences/${id}/`,
+    data
+  );
+  return response.data;
+}
+
 // ============ NOTIFICATION GROUPS ============
 
 /**

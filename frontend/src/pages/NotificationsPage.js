@@ -7,6 +7,7 @@ import {
   getNotificationGroups,
 } from '../api/notifications';
 import { ChevronLeft, ChevronRight } from '../components/Icons';
+import { Settings } from 'lucide-react';
 import './NotificationsPage.css';
 
 const NotificationsPage = () => {
@@ -55,10 +56,13 @@ const NotificationsPage = () => {
   const period = useMemo(() => {
     if (!periods.length) return null;
     if (requestedPeriod) {
-      const match = periods.find(
-        (entry) => entry.local_date === requestedPeriod
-      );
-      if (match) return match;
+      const requestedTime = new Date(requestedPeriod).getTime();
+      if (!Number.isNaN(requestedTime)) {
+        const match = periods.find(
+          (entry) => new Date(entry.period_end).getTime() === requestedTime
+        );
+        if (match) return match;
+      }
     }
     return periods[0];
   }, [periods, requestedPeriod]);
@@ -75,7 +79,7 @@ const NotificationsPage = () => {
         setLoadingGroups(true);
         setError(null);
         const data = await getNotificationGroups({
-          local_date: period.local_date,
+          period_end: period.period_end,
         });
         if (!cancelled) {
           setGroups(data || []);
@@ -100,7 +104,7 @@ const NotificationsPage = () => {
   const periodIndex = useMemo(
     () =>
       period
-        ? periods.findIndex((entry) => entry.local_date === period.local_date)
+        ? periods.findIndex((entry) => entry.period_end === period.period_end)
         : -1,
     [period, periods]
   );
@@ -114,7 +118,7 @@ const NotificationsPage = () => {
   const goToPeriod = (target) => {
     if (!target) return;
     const next = new URLSearchParams(searchParams);
-    next.set('period', target.local_date);
+    next.set('period', target.period_end);
     setSearchParams(next);
   };
 
@@ -133,6 +137,15 @@ const NotificationsPage = () => {
         </div>
 
         <div className="notifications-period-nav">
+          <button
+            type="button"
+            className="period-nav-button"
+            onClick={() => navigate('/settings/notifications')}
+            title={t('notificationSettings.title')}
+          >
+            <Settings size={16} />
+            <span>{t('notificationSettings.title')}</span>
+          </button>
           <button
             type="button"
             className="period-nav-button"

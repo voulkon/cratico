@@ -10,6 +10,7 @@ import RelationshipDetailPage from "./pages/RelationshipDetailPage";
 import NotificationBatchDetailPage from "./pages/NotificationBatchDetailPage";
 import NotificationGroupDetailPage from "./pages/NotificationGroupDetailPage";
 import NotificationsPage from "./pages/NotificationsPage";
+import NotificationSettingsPage from "./pages/NotificationSettingsPage";
 import SubscriptionHistoryPage from "./pages/SubscriptionHistoryPage";
 import AISettingsPage from "./pages/AISettingsPage";
 import AIInteractionsPage from "./pages/AIInteractionsPage";
@@ -227,6 +228,10 @@ function AuthenticatedApp({ controlsLayout }) {
             <Route path="/person/:personName" element={<PersonPage />} />
             <Route path="/relationship/entity/:afm/org/:orgUid" element={<RelationshipDetailPage />} />
             <Route path="/notifications" element={<NotificationsPage />} />
+            <Route
+              path="/settings/notifications"
+              element={<NotificationSettingsPage />}
+            />
             <Route path="/batch/:batchId" element={<NotificationBatchDetailPage />} />
             <Route path="/group/:groupId" element={<NotificationGroupDetailPage />} />
             <Route path="/notifications/subscriptions/:subscriptionId/history" element={<SubscriptionHistoryPage />} />
