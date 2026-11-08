@@ -16,7 +16,7 @@
     </p>
     {% if batch.period_start and batch.period_end %}
     <p style="font-size: 14px; color: #6b7280; margin: 0 0 8px 0;">
-        {{ batch.period_start|date:"M d, Y" }} – {{ batch.period_end|date:"M d, Y" }}
+        {{ batch.period_start|date:"M d, Y H:i" }} – {{ batch.period_end|date:"M d, Y H:i" }}
     </p>
     {% endif %}
     {% if batch.organization_name or batch.entity_name %}
@@ -55,7 +55,7 @@
 {% endif %}
 
 <div style="text-align: center; margin: 30px 0;">
-    <a href="{{ app_url }}/notifications{% if digest_period %}?period={{ digest_period|date:'Y-m-d' }}{% endif %}" class="button">View All Notifications</a>
+    <a href="{{ app_url }}/notifications{% if digest_period_end %}?period={{ digest_period_end|date:"c"|urlencode }}{% endif %}" class="button">View All Notifications</a>
 </div>
 
 <p style="font-size: 14px; color: #6b7280;">

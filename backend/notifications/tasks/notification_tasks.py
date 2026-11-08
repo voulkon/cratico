@@ -1380,19 +1380,13 @@ def _send_unemailed_batches(user, unemailed_batches, user_language=None):
             section["ai_summary_items"] = items[:max_items]
     more_sections_count = max(len(all_sections) - len(batch_data_list), 0)
 
-    digest_period = (
-        timezone.localtime(latest_period_end).date()
-        if latest_period_end is not None
-        else None
-    )
-
     email_sent = NotificationEmailService.send_consolidated_batch_summary(
         user_email=user.email,
         username=user.username or user.email,
         batches=batch_data_list,
         total_decisions=total_decisions,
         subscription_count=len(subscription_ids),
-        digest_period=digest_period,
+        digest_period_end=latest_period_end,
         more_sections_count=more_sections_count,
         language=user_language,
     )
@@ -1432,8 +1426,8 @@ def _send_unemailed_batches(user, unemailed_batches, user_language=None):
 def send_notification_digests():
     """Hourly beat task: send each due user's un-emailed batches once.
 
-    Daily digests fire when the local hour equals ``digest_hour_local``.
-    Weekly digests fire at that hour on Monday.  Because the batches are marked
+    Daily digests fire at each of the user's configured local hours.  Weekly
+    digests fire at those hours on Monday.  Because the batches are marked
     ``email_sent`` after a successful send, a second run in the same hour —
     or any later run — sends nothing.  Users on ``every_run`` are untouched:
     their email is sent by ``send_consolidated_email_for_user`` per run.

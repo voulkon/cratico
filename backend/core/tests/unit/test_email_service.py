@@ -476,7 +476,7 @@ class TestConsolidatedEmailSummaryBullets:
         assert "/batch/5" not in html
 
     def test_footer_links_to_the_email_period(self):
-        from datetime import date
+        from datetime import datetime, timezone as dt_timezone
 
         batches = [
             {
@@ -497,7 +497,9 @@ class TestConsolidatedEmailSummaryBullets:
             username=TEST_USERNAME,
             batches=batches,
             total_decisions=1,
-            digest_period=date(2026, 11, 6),
+            digest_period_end=datetime(
+                2026, 11, 6, 14, 0, tzinfo=dt_timezone.utc
+            ),
             more_sections_count=2,
             language="en",
         )

@@ -6,7 +6,8 @@ provider.
 """
 
 from django.db.models import Count, Max, Min, Sum
-from django.utils.dateparse import parse_date
+from django.utils import timezone
+from django.utils.dateparse import parse_date, parse_datetime
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
@@ -56,6 +57,16 @@ class NotificationBatchGroupViewSet(viewsets.ReadOnlyModelViewSet):
         )
         if local_date is not None:
             queryset = queryset.filter(local_date=local_date)
+
+        period_end = parse_datetime(
+            self.request.query_params.get("period_end", "")
+        )
+        if period_end is not None:
+            if timezone.is_naive(period_end):
+                period_end = timezone.make_aware(
+                    period_end, timezone.get_current_timezone()
+                )
+            queryset = queryset.filter(period_end=period_end)
         return queryset
 
     @action(detail=False, methods=["get"], url_path="periods")

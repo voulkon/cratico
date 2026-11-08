@@ -8,7 +8,7 @@ Provides reusable email sending functionality for:
 - Other transactional emails
 """
 
-from datetime import date
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from django.conf import settings
@@ -383,7 +383,7 @@ class NotificationEmailService:
         batches: List[Dict[str, Any]],
         total_decisions: int,
         subscription_count: int | None = None,
-        digest_period: date | None = None,
+        digest_period_end: datetime | None = None,
         more_sections_count: int = 0,
         language: str = "en",
     ) -> bool:
@@ -396,8 +396,8 @@ class NotificationEmailService:
             batches: List of batch data dicts, each with id, subscription_name,
                      organization_name, entity_name, decision_count
             total_decisions: Total decisions across all batches
-            digest_period: Local date of the digest period, used to open the
-                     in-app page on the same period as the email.
+            digest_period_end: End datetime of the digest period, used to open
+                     the in-app page on the same period as the email.
             more_sections_count: Sections omitted from the email because of
                      the size cap; the in-app page shows all of them.
             language: User's preferred language ('en' or 'el')
@@ -411,7 +411,7 @@ class NotificationEmailService:
             "batches": batches,
             "subscription_count": subscription_count,
             "total_decisions": total_decisions,
-            "digest_period": digest_period,
+            "digest_period_end": digest_period_end,
             "more_sections_count": more_sections_count,
             "app_name": getattr(settings, "APP_NAME", "Diavgeia Platform"),
             "app_url": RegistrationEmailService.frontend_url,
