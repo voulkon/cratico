@@ -113,7 +113,7 @@ class TestConsolidatedEmailGrouping:
                 "subject": f"Subject {i}",
                 "one_liner": f"One liner {i}",
             }
-            for i in range(4)
+            for i in range(1, 5)
         ]
         batch = NotificationBatchFactory(
             user=user,

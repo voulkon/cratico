@@ -744,6 +744,11 @@
     "loadingGroup": "Loading notification group...",
     "errorLoadingGroup": "Error Loading Group",
     "viewAllGroups": "View all notification groups",
+    "notificationPeriod": "Notification period",
+    "previousPeriod": "Previous period",
+    "nextPeriod": "Next period",
+    "noNotificationsInPeriod": "No notifications in this period.",
+    "groupDecisionCount": "{count} {count, plural, one {decision} other {decisions}}",
     "aiSummaryCost": "Cost",
     "aiSummaryTokens": "tokens",
     "aiSummaryBilled": "Billed"

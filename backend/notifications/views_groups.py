@@ -5,7 +5,8 @@ over the batches' snapshots plus the shared one-liner cache; it never calls a
 provider.
 """
 
-from django.db.models import Max, Min
+from django.db.models import Count, Max, Min, Sum
+from django.utils.dateparse import parse_date
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
@@ -31,7 +32,7 @@ class NotificationBatchGroupViewSet(viewsets.ReadOnlyModelViewSet):
         if not self.request.user or not self.request.user.is_authenticated:
             return NotificationBatchGroup.objects.none()
 
-        return (
+        queryset = (
             NotificationBatchGroup.objects.filter(user=self.request.user)
             .select_related(
                 "subscription",
@@ -49,6 +50,31 @@ class NotificationBatchGroupViewSet(viewsets.ReadOnlyModelViewSet):
             )
             .order_by("-period_end")
         )
+
+        local_date = parse_date(
+            self.request.query_params.get("local_date", "")
+        )
+        if local_date is not None:
+            queryset = queryset.filter(local_date=local_date)
+        return queryset
+
+    @action(detail=False, methods=["get"], url_path="periods")
+    def periods(self, request):
+        """Distinct digest periods that have groups for the current user.
+
+        The in-app notification page uses this to move to the previous/next
+        period that actually has notifications instead of walking empty days.
+        """
+        rows = (
+            NotificationBatchGroup.objects.filter(user=request.user)
+            .values("period_start", "period_end", "local_date")
+            .annotate(
+                group_count=Count("id"),
+                total_match_count=Sum("total_match_count"),
+            )
+            .order_by("-period_end")
+        )
+        return Response(list(rows))
 
     def get_serializer_class(self):
         if self.action == "list":

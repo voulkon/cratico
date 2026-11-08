@@ -275,6 +275,15 @@ export async function getNotificationGroups(filters = {}) {
 }
 
 /**
+ * Get the distinct digest periods that have groups for the current user.
+ * @returns {Promise<Array>} Array of period summaries, newest first
+ */
+export async function getNotificationGroupPeriods() {
+  const response = await apiClient.get(`${GROUPS_BASE}/periods/`);
+  return response.data;
+}
+
+/**
  * Get a specific notification group by ID (includes its batches).
  * @param {number} id - Group ID
  * @returns {Promise<Object>} Group object

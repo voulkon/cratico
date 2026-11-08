@@ -744,6 +744,11 @@
     "loadingGroup": "Φόρτωση ομάδας ειδοποιήσεων...",
     "errorLoadingGroup": "Σφάλμα φόρτωσης ομάδας",
     "viewAllGroups": "Προβολή όλων των ομάδων ειδοποιήσεων",
+    "notificationPeriod": "Περίοδος ειδοποιήσεων",
+    "previousPeriod": "Προηγούμενη περίοδος",
+    "nextPeriod": "Επόμενη περίοδος",
+    "noNotificationsInPeriod": "Δεν υπάρχουν ειδοποιήσεις σε αυτή την περίοδο.",
+    "groupDecisionCount": "{count} {count, plural, one {απόφαση} other {αποφάσεις}}",
     "aiSummaryCost": "Κόστος",
     "aiSummaryTokens": "tokens",
     "aiSummaryBilled": "Χρέωση"
