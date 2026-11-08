@@ -43,14 +43,33 @@ class TestNotificationPreferenceApi:
 
         response = _client(user).patch(
             url,
-            {"email_mode": "every_run", "digest_hour_local": 19},
+            {
+                "email_mode": "daily_digest",
+                "digest_hours_local": [13, 10, 13],
+            },
             format="json",
         )
 
         assert response.status_code == 200
         preference.refresh_from_db()
-        assert preference.email_mode == "every_run"
+        assert preference.email_mode == "daily_digest"
+        assert preference.digest_hours_local == [10, 13]
+        assert preference.digest_hour_local == 10
+
+    def test_legacy_digest_hour_updates_the_list(self, user):
+        preference = user.notification_preference
+        url = reverse("notification-preference-detail", args=[preference.id])
+
+        response = _client(user).patch(
+            url,
+            {"digest_hour_local": 19},
+            format="json",
+        )
+
+        assert response.status_code == 200
+        preference.refresh_from_db()
         assert preference.digest_hour_local == 19
+        assert preference.digest_hours_local == [19]
 
     def test_other_users_preference_is_not_found(self, user):
         from conftest import UserFactory

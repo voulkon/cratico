@@ -14,6 +14,11 @@
     <p style="margin: 0 0 8px 0;">
         <strong>{{ batch.subscription_name }}</strong> βρήκε <strong>{{ batch.decision_count }}</strong> {% if batch.decision_count == 1 %}νέα απόφαση που ταιριάζει{% else %}νέες αποφάσεις που ταιριάζουν{% endif %}.
     </p>
+    {% if batch.period_start and batch.period_end %}
+    <p style="font-size: 14px; color: #6b7280; margin: 0 0 8px 0;">
+        {{ batch.period_start|date:"M d, Y H:i" }} – {{ batch.period_end|date:"M d, Y H:i" }}
+    </p>
+    {% endif %}
     {% if batch.organization_name or batch.entity_name %}
     <p style="font-size: 14px; color: #6b7280; margin: 0 0 12px 0;">
         {% if batch.organization_name %}<strong>Οργανισμός:</strong> {{ batch.organization_name }}{% endif %}
@@ -30,12 +35,27 @@
         {% endfor %}
     </ul>
     {% endif %}
+    {% if batch.more_items_count %}
+    <p style="font-size: 14px; color: #6b7280; margin: 0 0 12px 0;">
+        {% if batch.group_id %}<a href="{{ app_url }}/group/{{ batch.group_id }}" style="color: #0066cc; text-decoration: none;">+ {{ batch.more_items_count }} ακόμη {% if batch.more_items_count == 1 %}απόφαση{% else %}αποφάσεις{% endif %}</a>{% else %}+ {{ batch.more_items_count }} ακόμη {% if batch.more_items_count == 1 %}απόφαση{% else %}αποφάσεις{% endif %}{% endif %}
+    </p>
+    {% endif %}
+    {% if batch.group_id %}
+    <a href="{{ app_url }}/group/{{ batch.group_id }}" style="display: inline-block; padding: 8px 16px; background-color: #0066cc; color: white !important; text-decoration: none; border-radius: 4px; font-weight: 500; font-size: 14px;">Προβολή Αντιστοιχιών</a>
+    {% else %}
     <a href="{{ app_url }}/batch/{{ batch.id }}" style="display: inline-block; padding: 8px 16px; background-color: #0066cc; color: white !important; text-decoration: none; border-radius: 4px; font-weight: 500; font-size: 14px;">Προβολή Αντιστοιχιών</a>
+    {% endif %}
 </div>
 {% endfor %}
 
+{% if more_sections_count %}
+<p style="font-size: 14px; color: #6b7280; text-align: center;">
+    + {{ more_sections_count }} ακόμη {% if more_sections_count == 1 %}συνδρομή{% else %}συνδρομές{% endif %} με νέες αποφάσεις.
+</p>
+{% endif %}
+
 <div style="text-align: center; margin: 30px 0;">
-    <a href="{{ app_url }}/notifications" class="button">Προβολή Όλων των Ειδοποιήσεων</a>
+    <a href="{{ app_url }}/notifications{% if digest_period_end %}?period={{ digest_period_end|date:"c"|urlencode }}{% endif %}" class="button">Προβολή Όλων των Ειδοποιήσεων</a>
 </div>
 
 <p style="font-size: 14px; color: #6b7280;">

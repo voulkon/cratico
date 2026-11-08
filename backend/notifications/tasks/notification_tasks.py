@@ -1,7 +1,8 @@
 from datetime import timedelta
 
 from celery import chord, shared_task
-from django.db.models import F
+from django.conf import settings
+from django.db.models import F, Q
 from django.utils import timezone
 from loguru import logger
 from notifications.constants import CHECK_FREQUENCY_DAILY, CHECK_FREQUENCY_WEEKLY
@@ -11,6 +12,7 @@ from notifications.models import (
     Notification,
     NotificationBatch,
     NotificationBatchDecision,
+    NotificationBatchGroup,
     NotificationPreference,
     NotificationSubscription,
 )
@@ -1189,7 +1191,11 @@ def send_consolidated_email_for_user(*args, user_id=None, header_result=None):
             NotificationBatch.objects.filter(
                 email_sent=False, user_id=user_id, id__in=batch_ids_from_run
             )
-            .select_related("subscription__organization", "subscription__entity")
+            .select_related(
+                "group",
+                "subscription__organization",
+                "subscription__entity",
+            )
             .order_by("-created_at")
         )
     else:
@@ -1206,7 +1212,11 @@ def send_consolidated_email_for_user(*args, user_id=None, header_result=None):
             NotificationBatch.objects.filter(
                 email_sent=False, user_id=user_id, created_at__gte=recent_cutoff
             )
-            .select_related("subscription__organization", "subscription__entity")
+            .select_related(
+                "group",
+                "subscription__organization",
+                "subscription__entity",
+            )
             .order_by("-created_at")
         )
 
@@ -1242,10 +1252,12 @@ def _send_unemailed_batches(user, unemailed_batches, user_language=None):
     Shared by the per-run path and the digest task, so both render the same
     batch data and honour the same ``email_verified`` rule.
 
-    Batches are grouped by subscription: one section per subscription and
-    digest period, with the sections' decision counts and AI bullets merged.
-    Shared one-liners are composed at send time so a batch that was skipped
-    earlier still renders bullets another user paid for.
+    Batches are grouped by subscription and group (i.e. one section per
+    subscription per digest period), with the sections' decision counts and AI
+    bullets merged.  The email section is therefore the same set the group
+    detail page renders, and "View Matches" can link to that group.  Shared
+    one-liners are composed at send time so a batch that was skipped earlier
+    still renders bullets another user paid for.
     """
     from collections import OrderedDict
 
@@ -1260,16 +1272,37 @@ def _send_unemailed_batches(user, unemailed_batches, user_language=None):
 
     sections = OrderedDict()
     batch_ids_to_mark = []
+    group_ids_to_mark = set()
+    subscription_ids = set()
     total_decisions = 0
+    latest_period_end = None
 
     for batch in unemailed_batches:
         batch_ids_to_mark.append(batch.id)
+        subscription_ids.add(batch.subscription_id)
         total_decisions += batch.match_count
+        if batch.group_id:
+            group_ids_to_mark.add(batch.group_id)
+            if (
+                latest_period_end is None
+                or batch.group.period_end > latest_period_end
+            ):
+                latest_period_end = batch.group.period_end
 
+        # One section per subscription *per group*: the email section and the
+        # group detail page must contain the same decisions.  Batches without
+        # a group (every_run users) keep the old per-subscription grouping.
+        section_key = (batch.subscription_id, batch.group_id)
         section = sections.setdefault(
-            batch.subscription_id,
+            section_key,
             {
                 "id": batch.id,
+                "group_id": batch.group_id,
+                "subscription_id": batch.subscription_id,
+                "period_start": (
+                    batch.group.period_start if batch.group_id else None
+                ),
+                "period_end": batch.group.period_end if batch.group_id else None,
                 "subscription_name": (
                     batch.subscription.alias
                     or f"Subscription #{batch.subscription.id}"
@@ -1330,14 +1363,31 @@ def _send_unemailed_batches(user, unemailed_batches, user_language=None):
                 }
         section["ai_summary_items"] = list(by_decision.values())
 
-    batch_data_list = list(sections.values())
+    # Keep the email a teaser: long digests clip in Gmail and are slow to
+    # render.  The full list is always available on the group/period page.
+    max_sections = getattr(
+        settings, "NOTIFICATION_EMAIL_MAX_SECTIONS", 10
+    )
+    max_items = getattr(
+        settings, "NOTIFICATION_EMAIL_MAX_ITEMS_PER_SECTION", 5
+    )
+    all_sections = list(sections.values())
+    batch_data_list = all_sections[:max_sections]
+    for section in batch_data_list:
+        items = section["ai_summary_items"]
+        if len(items) > max_items:
+            section["more_items_count"] = len(items) - max_items
+            section["ai_summary_items"] = items[:max_items]
+    more_sections_count = max(len(all_sections) - len(batch_data_list), 0)
 
     email_sent = NotificationEmailService.send_consolidated_batch_summary(
         user_email=user.email,
         username=user.username or user.email,
         batches=batch_data_list,
         total_decisions=total_decisions,
-        subscription_count=len(batch_data_list),
+        subscription_count=len(subscription_ids),
+        digest_period_end=latest_period_end,
+        more_sections_count=more_sections_count,
         language=user_language,
     )
 
@@ -1347,6 +1397,13 @@ def _send_unemailed_batches(user, unemailed_batches, user_language=None):
             email_sent=True,
             email_sent_at=now,
         )
+        if group_ids_to_mark:
+            NotificationBatchGroup.objects.filter(
+                id__in=group_ids_to_mark
+            ).update(
+                email_sent=True,
+                email_sent_at=now,
+            )
         logger.info(
             f"Consolidated email sent to {user.email}: "
             f"{len(batch_ids_to_mark)} batches, {total_decisions} decisions"
@@ -1369,8 +1426,8 @@ def _send_unemailed_batches(user, unemailed_batches, user_language=None):
 def send_notification_digests():
     """Hourly beat task: send each due user's un-emailed batches once.
 
-    Daily digests fire when the local hour equals ``digest_hour_local``.
-    Weekly digests fire at that hour on Monday.  Because the batches are marked
+    Daily digests fire at each of the user's configured local hours.  Weekly
+    digests fire at those hours on Monday.  Because the batches are marked
     ``email_sent`` after a successful send, a second run in the same hour —
     or any later run — sends nothing.  Users on ``every_run`` are untouched:
     their email is sent by ``send_consolidated_email_for_user`` per run.
@@ -1382,7 +1439,6 @@ def send_notification_digests():
     preferences = (
         NotificationPreference.objects.filter(
             email_enabled=True,
-            digest_hour_local=hour,
             email_mode__in=[EmailMode.DAILY_DIGEST, EmailMode.WEEKLY_DIGEST],
         )
         .select_related("user")
@@ -1392,6 +1448,8 @@ def send_notification_digests():
     users = 0
     emails = 0
     for preference in preferences:
+        if hour not in preference.get_digest_hours():
+            continue
         if preference.email_mode == EmailMode.WEEKLY_DIGEST and not is_monday:
             continue
         users += 1
@@ -1407,7 +1465,7 @@ def send_notification_digests():
 
 @shared_task
 def send_digest_for_user(user_id):
-    """Send all of a user's un-emailed batches in one digest email."""
+    """Send the un-emailed batches of every due group in one digest email."""
     from django.contrib.auth import get_user_model
 
     preference = NotificationPreference.get_for_user_id(user_id)
@@ -1432,11 +1490,21 @@ def send_digest_for_user(user_id):
         )
         return {"user_id": user_id, "batches_emailed": 0, "success": True}
 
+    # Only send the groups whose digest period has actually ended.  Batches
+    # detected after the boundary belong to the next period and must wait for
+    # that digest; otherwise an email can mix two periods and its "View
+    # Matches" link would point at a group that is not the email's group.
+    now = timezone.now()
     unemailed_batches = (
         NotificationBatch.objects.filter(
             email_sent=False, user_id=user_id, match_count__gt=0
         )
-        .select_related("subscription__organization", "subscription__entity")
+        .filter(Q(group__isnull=True) | Q(group__period_end__lte=now))
+        .select_related(
+            "group",
+            "subscription__organization",
+            "subscription__entity",
+        )
         .order_by("created_at")
     )
 

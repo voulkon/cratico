@@ -7,6 +7,7 @@ digest task sends every un-emailed batch exactly once.
 """
 
 import importlib
+from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
@@ -183,6 +184,51 @@ class TestDigestTask:
 
         assert result["due_users"] == 0
         mock_send.assert_not_called()
+
+    @freeze_time("2026-05-30 08:00:00")
+    def test_digest_skips_batches_in_the_next_period(self, user):
+        from conftest import NotificationSubscriptionFactory
+        from notifications.models import NotificationBatchGroup
+        from notifications.tasks.notification_tasks import (
+            send_notification_digests,
+        )
+
+        user.email_verified = True
+        user.save(update_fields=["email_verified"])
+        preference = user.notification_preference
+        preference.digest_hour_local = timezone.localtime().hour
+        preference.save(update_fields=["digest_hour_local"])
+
+        subscription = NotificationSubscriptionFactory(user=user)
+        now = timezone.now()
+        ended = NotificationBatchGroup.objects.create(
+            user=user,
+            subscription=subscription,
+            period_start=now - timedelta(days=1),
+            period_end=now,
+            local_date=now.date(),
+        )
+        next_period = NotificationBatchGroup.objects.create(
+            user=user,
+            subscription=subscription,
+            period_start=now,
+            period_end=now + timedelta(days=1),
+            local_date=(now + timedelta(days=1)).date(),
+        )
+        ended_batch = _batch(user, subscription=subscription, group=ended)
+        future_batch = _batch(user, subscription=subscription, group=next_period)
+
+        with patch(EMAIL_SENDER, return_value=True) as mock_send:
+            send_notification_digests()
+
+        assert mock_send.call_count == 1
+        sent_batches = mock_send.call_args.kwargs["batches"]
+        assert {b["id"] for b in sent_batches} == {ended_batch.id}
+
+        ended_batch.refresh_from_db()
+        future_batch.refresh_from_db()
+        assert ended_batch.email_sent is True
+        assert future_batch.email_sent is False
 
     @freeze_time("2026-06-01 08:00:00")  # Monday
     def test_weekly_digest_sends_on_monday(self, user):

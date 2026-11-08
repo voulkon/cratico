@@ -74,6 +74,78 @@ class TestNotificationGroupList:
         )
         assert [row["id"] for row in results] == [own.id]
 
+    def test_list_filters_by_local_date(
+        self, authenticated_client, user, notification_subscription
+    ):
+        from conftest import NotificationSubscriptionFactory
+
+        today = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
+        yesterday = today - timedelta(days=1)
+
+        old = _make_group(
+            user,
+            notification_subscription,
+            start=yesterday,
+            end=today,
+        )
+        current = _make_group(
+            user,
+            NotificationSubscriptionFactory(user=user),
+            start=today,
+            end=today + timedelta(days=1),
+        )
+
+        response = authenticated_client.get(
+            "/api/notifications/groups/",
+            {"local_date": str(current.local_date)},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        results = (
+            response.data["results"]
+            if isinstance(response.data, dict) and "results" in response.data
+            else response.data
+        )
+        assert [row["id"] for row in results] == [current.id]
+        assert old.id not in [row["id"] for row in results]
+
+    def test_periods_group_same_window_and_are_newest_first(
+        self, authenticated_client, user, notification_subscription
+    ):
+        from conftest import NotificationSubscriptionFactory
+
+        today = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
+        yesterday = today - timedelta(days=1)
+
+        _make_group(
+            user,
+            notification_subscription,
+            start=yesterday,
+            end=today,
+        )
+        _make_group(
+            user,
+            NotificationSubscriptionFactory(user=user),
+            start=yesterday,
+            end=today,
+        )
+        _make_group(
+            user,
+            notification_subscription,
+            start=today,
+            end=today + timedelta(days=1),
+        )
+
+        response = authenticated_client.get(
+            "/api/notifications/groups/periods/"
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data) == 2
+        assert response.data[0]["local_date"] > response.data[1]["local_date"]
+        older = response.data[1]
+        assert older["group_count"] == 2
+
     def test_detail_has_no_group_ai_fields(
         self, authenticated_client, user, notification_subscription
     ):

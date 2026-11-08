@@ -151,3 +151,13 @@ NOTIFICATION_AI_SUMMARIES_PER_SUBSCRIPTION_PER_DAY = int(
 NOTIFICATION_AI_NEW_DECISIONS_PER_SUBSCRIPTION_PER_DAY = int(
     os.getenv("NOTIFICATION_AI_NEW_DECISIONS_PER_SUBSCRIPTION_PER_DAY", "25")
 )
+
+# Notification email size caps.  The email is a teaser: long digests clip in
+# Gmail and make browsers sluggish, so each subscription section renders only
+# the first items and the footer links to the in-app period page for the rest.
+NOTIFICATION_EMAIL_MAX_ITEMS_PER_SECTION = int(
+    os.getenv("NOTIFICATION_EMAIL_MAX_ITEMS_PER_SECTION", "5")
+)
+NOTIFICATION_EMAIL_MAX_SECTIONS = int(
+    os.getenv("NOTIFICATION_EMAIL_MAX_SECTIONS", "10")
+)

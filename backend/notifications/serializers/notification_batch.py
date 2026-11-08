@@ -1,3 +1,4 @@
+from django.utils import timezone
 from notifications.models import (
     NotificationBatch,
     NotificationBatchDecision,
@@ -223,6 +224,34 @@ def _format_date_range(start, end):
     return f"{start.strftime('%b %d, %Y')} – {end.strftime('%b %d, %Y')}"
 
 
+def _format_datetime_range(start, end):
+    """Format a digest period with local times.
+
+    Multi-digest schedules create more than one period per day, so the date
+    alone is ambiguous.  Times are shown in the user-facing timezone.
+    """
+    if start is None and end is None:
+        return ""
+    if start is None:
+        local_end = timezone.localtime(end)
+        return local_end.strftime("%b %d, %Y %H:%M")
+    if end is None:
+        local_start = timezone.localtime(start)
+        return local_start.strftime("%b %d, %Y %H:%M")
+
+    local_start = timezone.localtime(start)
+    local_end = timezone.localtime(end)
+    if local_start.date() == local_end.date():
+        return (
+            f"{local_start.strftime('%b %d, %Y')} · "
+            f"{local_start.strftime('%H:%M')}–{local_end.strftime('%H:%M')}"
+        )
+    return (
+        f"{local_start.strftime('%b %d, %Y %H:%M')} – "
+        f"{local_end.strftime('%b %d, %Y %H:%M')}"
+    )
+
+
 class NotificationBatchDetailSerializer(serializers.ModelSerializer):
     """
     Full serializer for NotificationBatch with nested details.
@@ -295,7 +324,7 @@ class NotificationBatchGroupListSerializer(serializers.ModelSerializer):
         return NotificationBatchListSerializer._get_target_name(obj.subscription)
 
     def get_period_label(self, obj):
-        return _format_date_range(obj.period_start, obj.period_end)
+        return _format_datetime_range(obj.period_start, obj.period_end)
 
 
 class NotificationBatchGroupDetailSerializer(NotificationBatchGroupListSerializer):

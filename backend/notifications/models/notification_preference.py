@@ -43,7 +43,18 @@ class NotificationPreference(models.Model):
         default=8,
         validators=[MinValueValidator(0), MaxValueValidator(23)],
         verbose_name=_("Digest hour (local)"),
-        help_text=_("Hour of day at which a daily digest is sent. Weekly digests send on Mondays."),
+        help_text=_(
+            "Legacy single digest hour. Used when digest_hours_local is empty."
+        ),
+    )
+    digest_hours_local = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name=_("Digest hours (local)"),
+        help_text=_(
+            "Local hours at which digests are sent. Multiple hours split the "
+            "day into consecutive periods; empty falls back to digest_hour_local."
+        ),
     )
     ai_summary_enabled = models.BooleanField(
         default=False,
@@ -63,6 +74,26 @@ class NotificationPreference(models.Model):
 
     def __str__(self):
         return f"NotificationPreference(user={self.user_id}, {self.email_mode})"
+
+    def get_digest_hours(self):
+        """Return the sorted, valid local digest hours for this user.
+
+        ``digest_hours_local`` is canonical; the legacy ``digest_hour_local``
+        keeps older rows working until the 0018 data migration fills the list.
+        """
+        values = self.digest_hours_local
+        hours = set()
+        if isinstance(values, (list, tuple)):
+            for value in values:
+                try:
+                    hour = int(value)
+                except (TypeError, ValueError):
+                    continue
+                if 0 <= hour <= 23:
+                    hours.add(hour)
+        if hours:
+            return sorted(hours)
+        return [self.digest_hour_local]
 
     @classmethod
     def get_for_user(cls, user):
