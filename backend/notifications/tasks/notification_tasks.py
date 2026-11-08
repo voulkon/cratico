@@ -1445,7 +1445,6 @@ def send_notification_digests():
     preferences = (
         NotificationPreference.objects.filter(
             email_enabled=True,
-            digest_hour_local=hour,
             email_mode__in=[EmailMode.DAILY_DIGEST, EmailMode.WEEKLY_DIGEST],
         )
         .select_related("user")
@@ -1455,6 +1454,8 @@ def send_notification_digests():
     users = 0
     emails = 0
     for preference in preferences:
+        if hour not in preference.get_digest_hours():
+            continue
         if preference.email_mode == EmailMode.WEEKLY_DIGEST and not is_monday:
             continue
         users += 1
