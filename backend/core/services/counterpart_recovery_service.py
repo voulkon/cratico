@@ -75,7 +75,7 @@ DEFAULT_CANDIDATE_LIMIT = 200
 # Bump when the recovery decision logic changes materially; a new version makes
 # previously skipped inputs eligible for a retry even though the text is the
 # same.
-RECOVERY_SIGNATURE_VERSION = 1
+RECOVERY_SIGNATURE_VERSION = 2
 
 
 class CounterpartRecoveryService:
@@ -504,14 +504,29 @@ class CounterpartRecoveryService:
                 continue
             by_afm.setdefault(afm, []).append(span)
 
+        # A document with exactly one checksum-valid, non-org AFM is a very
+        # strong signal when that AFM sits next to the "ΑΦΜ" label: the
+        # recorded counterpart was the org itself, so the only other AFM on
+        # the page is the real counterpart.  This lets the common
+        # "εταιρεία ... με ΑΦΜ: ..." case auto-apply without an AI key; two or
+        # more candidates remain ambiguous and go to the AI/needs-review path.
+        single_candidate = len(by_afm) == 1
+
         scored: list[dict] = []
         for afm, occurrences in by_afm.items():
             score = 0.35
             signals: list[str] = []
+            near_keyword = any(
+                s.value.get("near_keyword") for s in occurrences
+            )
 
-            if any(s.value.get("near_keyword") for s in occurrences):
+            if near_keyword:
                 score += 0.25
                 signals.append("near_afm_keyword")
+
+            if single_candidate and near_keyword:
+                score += 0.25
+                signals.append("only_candidate")
 
             role_keywords = sorted(
                 {

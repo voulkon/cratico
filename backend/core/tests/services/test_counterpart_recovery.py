@@ -229,6 +229,32 @@ class TestCounterpartRecovery:
         assert attempt.original_afm == SELF_AFM
         assert attempt.original_role == "person"
 
+    def test_single_candidate_near_afm_auto_applies_without_ai(self):
+        """The final-boss shape: one non-org AFM, introduced by "επωνυμία/ΑΦΜ".
+
+        No DB history, no AI key — the uniqueness signal must be enough to
+        clear the auto-apply threshold.
+        """
+        decision, relationship, _, extraction = _seed_decision(
+            with_target_entity=False
+        )
+        extraction.raw_text = (
+            "Η υπηρεσία ανατέθηκε στην εταιρεία με την επωνυμία "
+            "«EKVASIS Μ.Ι.Κ.Ε.», με ΑΦΜ: 899972873 και έδρα την Αττική. "
+            "Η αξία της ανάθεσης είναι 30.000,00 ευρώ."
+        )
+        extraction.save(update_fields=["raw_text"])
+
+        result = CounterpartRecoveryService().recover_decision(
+            decision, force=True, apply=True, allow_ai=False
+        )
+
+        assert result["status"] == "recovered"
+        relationship.refresh_from_db()
+        assert relationship.entity.afm == REAL_AFM
+        attempt = CounterpartRecoveryAttempt.objects.get(decision=decision)
+        assert "only_candidate" in (attempt.candidate_afms[0]["signals"] or [])
+
     def test_same_inputs_are_skipped(self):
         decision, _, _, _ = _seed_decision(with_target_entity=False)
         extraction = decision.text_extraction

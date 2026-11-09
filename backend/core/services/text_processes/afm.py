@@ -49,6 +49,12 @@ DEFAULT_CONTEXT_KEYWORDS = (
     "ανάθεση",
     "χορηγία",
     "δωρεά",
+    # Company-name labels: the counterpart is often introduced as
+    # "στην εταιρεία με την επωνυμία «...», με ΑΦΜ: ...".
+    "εταιρεία",
+    "εταιρείας",
+    "επωνυμία",
+    "επωνυμίας",
 )
 
 # Placeholder AFMs (all same digit) are never real entities.
