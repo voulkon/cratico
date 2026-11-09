@@ -105,6 +105,12 @@ _SUMMARY_KEYS = (
     "consistent",
     "no_text",
     "errors",
+    "candidates",
+    "recovered",
+    "needs_review",
+    "no_candidate",
+    "already_recovered",
+    "ai_calls",
 )
 
 
@@ -338,7 +344,10 @@ def _build_warmup_sentinel_keys(
 
 
 def _post_verification_tail_chain(
-    reference_date_str: str | None = None, tail_kind: str = "daily"
+    reference_date_str: str | None = None,
+    imported_since_str: str | None = None,
+    imported_until_str: str | None = None,
+    tail_kind: str = "daily",
 ):
     """
     Build the chain of everything that runs AFTER amount verification.
@@ -362,6 +371,14 @@ def _post_verification_tail_chain(
             ),
         )
     return chain(
+        # Recover self-as-counterpart decisions from the document text BEFORE
+        # any statistics read the relationships (amounts were corrected by the
+        # preceding verification phase, on the same text).
+        recover_self_counterparts.si(
+            reference_date_str=reference_date_str,
+            imported_since_str=imported_since_str,
+            imported_until_str=imported_until_str,
+        ),
         # Track 2: Compute entity rankings (DB snapshots) from corrected amounts
         compute_entity_rankings.si(reference_date_str=reference_date_str),
         # Invalidate browse caches so fresh entity data appears after import
@@ -400,7 +417,10 @@ def _dispatch_post_verification_tail(
     them, so the chain calls are unchanged.
     """
     result = _post_verification_tail_chain(
-        reference_date_str, tail_kind=tail_kind
+        reference_date_str,
+        imported_since_str=imported_since_str,
+        imported_until_str=imported_until_str,
+        tail_kind=tail_kind,
     ).apply_async()
     logger.info(
         f"Post-import tail dispatched (chain task id: {result.id}, reason: {reason})"
@@ -1554,3 +1574,152 @@ def _discover_non_monetary_values(
     }
     logger.info(f"Non-monetary-value discovery: {result}")
     return result
+
+
+# ---------------------------------------------------------------------------
+# Counterpart recovery — self-as-counterpart decisions
+# ---------------------------------------------------------------------------
+# Runs in the post-verification tail on the DAILY path only: an hourly run
+# would pay OCR/AI cost repeatedly for the same decisions, and the next daily
+# run covers them anyway.
+
+COUNTERPART_RECOVERY_CANDIDATE_LIMIT = int(
+    os.environ.get("COUNTERPART_RECOVERY_LIMIT", "200")
+)
+
+
+@shared_task
+@log_task_run(swallow_errors=True)
+def recover_self_counterparts(
+    reference_date_str: str | None = None,
+    imported_since_str: str | None = None,
+    imported_until_str: str | None = None,
+    limit: int | None = None,
+    tail_kind: str = "daily",
+):
+    """
+    Recover the real counterpart for decisions whose counterpart AFM equals
+    the issuing org's own VAT number.
+
+    Runs after amount verification (so ``verified_amount`` reflects the same
+    text) and before entity rankings/cache warming/notifications.  Each
+    decision is isolated: one failure is counted, never raised.  When the
+    feature flag is off this returns a ``skipped`` dict — the tail keeps going.
+
+    Returns counts: candidates, recovered, needs_review, no_candidate,
+    already_recovered, ai_calls, errors.
+    """
+    if tail_kind == "hourly":
+        return {"status": "skipped", "reason": "hourly_tail"}
+
+    if not feature_flags.is_enabled("COUNTERPART_RECOVERY_ENABLED"):
+        logger.debug(
+            "COUNTERPART_RECOVERY_ENABLED is disabled, skipping counterpart "
+            "recovery"
+        )
+        return {"status": "skipped", "reason": "feature_flag_disabled"}
+
+    from django.db import close_old_connections
+
+    from core.services.counterpart_recovery_service import (
+        CounterpartRecoveryService,
+    )
+
+    # Children/batch tasks must not reuse stale CONN_MAX_AGE connections.
+    close_old_connections()
+
+    ref, imported_since, imported_until = _parse_import_window(
+        reference_date_str, imported_since_str, imported_until_str
+    )
+
+    service = CounterpartRecoveryService()
+    try:
+        candidates = service.get_candidates(
+            imported_since=imported_since,
+            imported_until=imported_until,
+            limit=limit or COUNTERPART_RECOVERY_CANDIDATE_LIMIT,
+        )
+    except Exception as exc:
+        logger.exception("Counterpart recovery candidate query failed")
+        return {"status": "error", "error": str(exc)}
+
+    summary = {
+        "status": "completed",
+        "reference_date": str(ref),
+        "candidates": len(candidates),
+        "recovered": 0,
+        "needs_review": 0,
+        "no_candidate": 0,
+        "already_recovered": 0,
+        "ai_calls": 0,
+        "errors": 0,
+    }
+
+    affected_entity_ids: set[int] = set()
+
+    for decision in candidates:
+        try:
+            before_ids = set(
+                decision.entity_relationships.values_list("entity_id", flat=True)
+            )
+            result = service.recover_decision(decision)
+            status = result.get("status")
+
+            if status == "recovered":
+                summary["recovered"] += 1
+            elif status == "needs_review":
+                summary["needs_review"] += 1
+            elif status == "no_candidate":
+                summary["no_candidate"] += 1
+            elif status == "already_recovered":
+                summary["already_recovered"] += 1
+
+            if result.get("method") == "AI_TEXT":
+                summary["ai_calls"] += 1
+
+            after_ids = set(
+                decision.entity_relationships.values_list("entity_id", flat=True)
+            )
+            affected_entity_ids |= before_ids | after_ids
+        except Exception as exc:
+            logger.error(
+                f"Counterpart recovery failed for decision {decision.id} "
+                f"({decision.ada}): {exc}",
+                exc_info=True,
+            )
+            summary["errors"] += 1
+
+    if affected_entity_ids:
+        try:
+            from core.services.afm_entity_stats_service import (
+                AFMEntityStatsService,
+            )
+
+            AFMEntityStatsService().compute_entities(affected_entity_ids)
+        except Exception:
+            logger.exception(
+                "Counterpart recovery: AFMEntityStats recomputation failed"
+            )
+
+        try:
+            from core.services.response_cache_service import response_cache
+
+            invalidated = sum(
+                response_cache.invalidate_prefix(prefix)
+                for prefix in ("top_", "da_top_pairs", "explore_orgs", "browse")
+            )
+            logger.info(
+                f"Counterpart recovery changed entities — invalidated "
+                f"{invalidated} analytics/browse cache key(s)"
+            )
+        except Exception:
+            logger.exception(
+                "Counterpart recovery: cache invalidation failed"
+            )
+
+    logger.info(
+        f"Counterpart recovery complete: {summary['candidates']} candidate(s), "
+        f"{summary['recovered']} recovered, {summary['needs_review']} "
+        f"needs_review, {summary['errors']} error(s)"
+    )
+    return summary
