@@ -78,6 +78,15 @@ const EntityDisplay = ({
             </div>
           </button>
 
+          {rel.is_inferred && (
+            <div
+              className="entity-recovered-badge"
+              title={t('common.recoveredFromDocumentHint')}
+            >
+              {t('common.recoveredFromDocument')}
+            </div>
+          )}
+
           {rel.confidence_score && rel.confidence_score < 1.0 && (
             <div className="confidence-indicator" title={t('common.confidence', { percentage: (rel.confidence_score * 100).toFixed(0) })}>
               ~{(rel.confidence_score * 100).toFixed(0)}%

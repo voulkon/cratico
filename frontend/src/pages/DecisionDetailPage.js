@@ -344,6 +344,41 @@ const DecisionDetailPage = () => {
       })}
     </p>
   ) : null;
+  const recovery = decision.counterpart_recovery;
+  const counterpartRecoveryNote = recovery ? (
+    recovery.status === 'APPLIED' ? (
+      <p className="amount-invalid-explanation counterpart-recovery-note">
+        {t('decisionDetail.counterpartRecoveredNote', {
+          recovered: recovery.recovered_afm || '—',
+          original: recovery.original_afm || '—',
+        })}
+        {recovery.confidence != null && (
+          <span className="counterpart-recovery-meta">
+            {' '}
+            {t('decisionDetail.counterpartRecoveredConfidence', {
+              method: recovery.method || '—',
+              percentage: Math.round(recovery.confidence * 100),
+            })}
+          </span>
+        )}
+        {recovery.evidence && (
+          <span
+            className="counterpart-recovery-evidence"
+            title={recovery.evidence}
+          >
+            {' '}
+            “{recovery.evidence.length > 120
+              ? `${recovery.evidence.slice(0, 120)}…`
+              : recovery.evidence}”
+          </span>
+        )}
+      </p>
+    ) : recovery.status === 'NEEDS_REVIEW' ? (
+      <p className="amount-invalid-explanation counterpart-recovery-note">
+        {t('decisionDetail.counterpartRecoveryReviewNote')}
+      </p>
+    ) : null
+  ) : null;
   const formattedRecordedAmount = formatAmount(
     decision.recorded_amount ?? decision.amount
   );
@@ -520,6 +555,8 @@ const DecisionDetailPage = () => {
           </div>
         </div>
       )}
+
+      {counterpartRecoveryNote}
 
       {/* Main recipient (counterpart entity receiving the funds) — rendered
           independently of the amount hero: the amount may be unknown (null)

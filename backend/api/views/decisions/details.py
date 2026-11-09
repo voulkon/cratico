@@ -7,6 +7,10 @@ from api.permissions import PublicReadOnly
 from api.utils.decision_refs import resolve_decision
 from api.utils.response import pydantic_response
 from core.models.companies import Company
+from core.models.counterpart_recovery import (
+    CounterpartRecoveryAttempt,
+    RecoveryStatus,
+)
 from core.models.decision_ai_analysis import DecisionAIAnalysis
 from core.models.decisions import Decision
 from core.models.document_analysis import DocumentExtraction, ProcessingStatus
@@ -280,6 +284,62 @@ def decision_detail(request, decision_ref):
             sorted(self_counterparts)[0] if self_counterparts else None
         )
 
+        # Counterpart recovery — newest attempt that explains the relationship
+        # state to the UI.  APPLIED wins over NEEDS_REVIEW when both exist.
+        recovery_attempt = (
+            CounterpartRecoveryAttempt.objects.filter(
+                decision=decision,
+                status__in=[
+                    RecoveryStatus.APPLIED,
+                    RecoveryStatus.NEEDS_REVIEW,
+                ],
+            )
+            .select_related("new_relationship__entity", "extraction")
+            .order_by("-created_at", "-id")
+            .first()
+        )
+        if recovery_attempt is not None:
+            new_entity = (
+                recovery_attempt.new_relationship.entity
+                if recovery_attempt.new_relationship_id
+                else None
+            )
+            evidence = recovery_attempt.evidence or {}
+            evidence_snippet = (
+                recovery_attempt.span_text
+                or evidence.get("evidence")
+                or (
+                    (evidence.get("ai") or {}).get("evidence")
+                    if isinstance(evidence.get("ai"), dict)
+                    else None
+                )
+            )
+            if evidence_snippet is not None and not isinstance(
+                evidence_snippet, str
+            ):
+                evidence_snippet = str(evidence_snippet)
+            decision_data["counterpart_recovery"] = {
+                "id": recovery_attempt.id,
+                "status": recovery_attempt.status,
+                "method": recovery_attempt.method,
+                "recovered_afm": recovery_attempt.chosen_afm,
+                "recovered_name": getattr(new_entity, "name", None),
+                "original_afm": recovery_attempt.original_afm,
+                "confidence": recovery_attempt.confidence,
+                "evidence": evidence_snippet,
+                "extraction_provider": (
+                    recovery_attempt.extraction.extraction_provider
+                    if recovery_attempt.extraction
+                    else None
+                ),
+                "recovered_at": (
+                    recovery_attempt.completed_at
+                    or recovery_attempt.created_at
+                ),
+            }
+        else:
+            decision_data["counterpart_recovery"] = None
+
         return pydantic_response(DecisionDetailResponse(**decision_data))
 
     except Decision.DoesNotExist:
@@ -335,6 +395,20 @@ def decision_entities(request, decision_ref):
         .order_by("role", "entity__afm")
     )
 
+    # Latest APPLIED recovery attempt per entity (fetched from the attempt
+    # table, not a relationship FK) so the UI can show "recovered" provenance.
+    recovery_attempt_by_entity: dict[int, int] = {}
+    for row in (
+        CounterpartRecoveryAttempt.objects.filter(
+            decision=decision, status=RecoveryStatus.APPLIED
+        )
+        .order_by("-created_at", "-id")
+        .values("id", "new_relationship__entity_id")
+    ):
+        entity_id = row["new_relationship__entity_id"]
+        if entity_id is not None and entity_id not in recovery_attempt_by_entity:
+            recovery_attempt_by_entity[entity_id] = row["id"]
+
     grouped = {}
     for rel in relationships:
         key = (rel.role, rel.entity_id)
@@ -373,6 +447,13 @@ def decision_entities(request, decision_ref):
                     )
                 ),
                 "parent_key_paths": [],
+                # Counterpart-recovery provenance (consumed by EntityDisplay).
+                "is_inferred": rel.is_inferred,
+                "metadata_source": rel.metadata_source,
+                "confidence_score": rel.confidence_score,
+                "recovery_attempt_id": recovery_attempt_by_entity.get(
+                    rel.entity_id
+                ),
                 **totals_map.get(
                     key, {"total_amount": 0.0, "occurrences": 0, "currency": "EUR"}
                 ),
