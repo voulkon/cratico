@@ -125,6 +125,73 @@ class TestOcrFallback:
             "provider"
         ] == ProcessingProvider.PYMUPDF.value
 
+    def test_corrupted_header_only_text_triggers_ocr(self, monkeypatch):
+        """A photographed page can yield ~200 chars of signature header.
+
+        That passes the length threshold but is flagged corrupted; OCR must
+        still run (regression: the final-boss PDF produced 196 header chars).
+        """
+        decision = _decision()
+        native_text = (
+            "ΟΙΚ-ΙΦΕΤ ΜΑΕ - Αρ.Πρωτ.7511-05/11/2026 : 6ΧΩΜ469ΗΣΥ-ΒΗ4 "
+            "Ministry of Digital Governance Digitally signed by Ministry "
+            "of Digital Governance Date: 2026.11.05 12:24:51 EET Reason: "
+            "Location: Athens"
+        )
+        assert len(native_text) > 100
+
+        processor, _, ocr_extractor = _make_processor(
+            monkeypatch,
+            native=_native_result(native_text),
+            ocr=_ocr_result(
+                text="ΑΦΜ 899972873 " + ("πραγματικό κείμενο εγγράφου " * 30)
+            ),
+        )
+        preprocessing_calls = []
+
+        def fake_preprocess(text):
+            preprocessing_calls.append(text)
+            return SimpleNamespace(
+                processed_text=text,
+                is_corrupted=(text == native_text),
+                corruption_indicators={},
+                confidence_score=0.77,
+                performance_stats={},
+            )
+
+        processor.text_preprocessor.preprocess = fake_preprocess
+
+        assert processor.process_document(decision) is True
+        assert ocr_extractor.calls == 1
+        extraction = DocumentExtraction.objects.get(decision=decision)
+        assert extraction.extraction_status == ProcessingStatus.COMPLETED
+        assert extraction.ocr_applied is True
+        # Native quality check + OCR text preprocessing (not twice on native).
+        assert len(preprocessing_calls) == 2
+
+    def test_corrupted_text_without_flag_stays_corrupted(self, monkeypatch):
+        decision = _decision()
+        native_text = "ΟΙΚ-ΙΦΕΤ ΜΑΕ - Αρ.Πρωτ.7511-05/11/2026 : 6ΧΩΜ469ΗΣΥ-ΒΗ4 " * 2
+        processor, _, ocr_extractor = _make_processor(
+            monkeypatch,
+            native=_native_result(native_text),
+            ocr=_ocr_result(),
+            ocr_enabled=False,
+        )
+        processor.text_preprocessor.preprocess = lambda text: SimpleNamespace(
+            processed_text=text,
+            is_corrupted=True,
+            corruption_indicators={},
+            confidence_score=0.7,
+            performance_stats={},
+        )
+
+        processor.process_document(decision)
+        assert ocr_extractor.calls == 0
+        extraction = DocumentExtraction.objects.get(decision=decision)
+        assert extraction.extraction_status == ProcessingStatus.CORRUPTED_CONTENT
+        assert extraction.ocr_applied is False
+
     def test_flag_off_never_calls_ocr(self, monkeypatch):
         decision = _decision()
         processor, _, ocr_extractor = _make_processor(

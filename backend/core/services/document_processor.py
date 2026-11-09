@@ -409,6 +409,25 @@ class TextExtractionProcessor(BaseDocumentProcessor):
             ocr_confidence = result.confidence
             requires_vision = bool(result.requires_vision)
 
+            # Cheap native quality check BEFORE deciding on OCR.  A
+            # photographed page often yields only the signature header
+            # (~200 chars), which passes the length threshold but is flagged
+            # as corrupted by the preprocessor.  That flag is the reliable
+            # signal that the body was never extracted.
+            native_preprocessing = None
+            native_is_corrupted = False
+            if (
+                (result.text or "").strip()
+                and not result.ocr_applied
+                and provider != ProcessingProvider.TESSERACT
+            ):
+                native_preprocessing = self.text_preprocessor.preprocess(
+                    result.text
+                )
+                native_is_corrupted = bool(
+                    native_preprocessing.is_corrupted
+                )
+
             # ── OCR fallback ───────────────────────────────────────────
             # Some Diavgeia documents are photographs: native extraction
             # succeeds but returns nothing useful.  When OCR is enabled, retry
@@ -418,7 +437,10 @@ class TextExtractionProcessor(BaseDocumentProcessor):
             if (
                 allow_ocr
                 and provider != ProcessingProvider.TESSERACT
-                and self._text_too_short(result.text, result.page_count)
+                and (
+                    self._text_too_short(result.text, result.page_count)
+                    or native_is_corrupted
+                )
             ):
                 from core.services.feature_flag_service import feature_flags
 
@@ -455,9 +477,10 @@ class TextExtractionProcessor(BaseDocumentProcessor):
                                 f"(confidence={ocr_confidence})"
                             )
                         else:
-                            requires_vision = bool(
-                                ocr_result.requires_vision or not ocr_result.text
-                            )
+                            # Keep the native text; only escalate to vision
+                            # when there is nothing usable to keep.
+                            if not (result.text or "").strip():
+                                requires_vision = True
                             extraction_metadata["ocr_fallback"] = {
                                 "applied": False,
                                 "reason": "ocr_text_not_longer",
@@ -477,6 +500,11 @@ class TextExtractionProcessor(BaseDocumentProcessor):
                             result.text or ""
                         ).strip()
                 else:
+                    logger.info(
+                        f"OCR fallback for {decision.ada} requested "
+                        f"(native text {'too short' if self._text_too_short(result.text, result.page_count) else 'flagged corrupted'}) "
+                        f"but DOCUMENT_OCR_ENABLED is off"
+                    )
                     extraction_metadata["ocr_fallback"] = {
                         "applied": False,
                         "reason": "feature_flag_disabled",
@@ -490,14 +518,26 @@ class TextExtractionProcessor(BaseDocumentProcessor):
             preprocessing_result = None
 
             if raw_extracted_text and not raw_extracted_text.isspace():
-                logger.debug(
-                    f"Starting text preprocessing for {decision.ada} (Original length: {len(raw_extracted_text)})"
-                )
-
-                # Get the Pydantic model from preprocessor
-                preprocessing_result = self.text_preprocessor.preprocess(
-                    raw_extracted_text
-                )
+                if ocr_applied:
+                    logger.debug(
+                        f"Starting text preprocessing for {decision.ada} "
+                        f"(OCR text, length: {len(raw_extracted_text)})"
+                    )
+                    preprocessing_result = self.text_preprocessor.preprocess(
+                        raw_extracted_text
+                    )
+                elif native_preprocessing is not None:
+                    # Reuse the quality check already done for the OCR
+                    # decision — do not preprocess the same text twice.
+                    preprocessing_result = native_preprocessing
+                else:
+                    logger.debug(
+                        f"Starting text preprocessing for {decision.ada} "
+                        f"(Original length: {len(raw_extracted_text)})"
+                    )
+                    preprocessing_result = self.text_preprocessor.preprocess(
+                        raw_extracted_text
+                    )
 
                 # Unpack the fields from the model
                 processed_text = preprocessing_result.processed_text
