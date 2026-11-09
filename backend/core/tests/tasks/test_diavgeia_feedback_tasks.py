@@ -76,6 +76,29 @@ class TestRunFeedbackJobCandidateSelection:
         assert result["total"] == 1
         assert mock_delay.call_count == 1
 
+    def test_counterpart_recovery_decision_is_candidate(self):
+        """Wrong counterpart metadata is reportable even when the amount is
+        fine; the batch job must use the same population as the admin pool."""
+        from conftest import DecisionFactory
+        from core.models.counterpart_recovery import CounterpartRecoveryAttempt
+
+        decision = DecisionFactory()
+        CounterpartRecoveryAttempt.objects.create(
+            decision=decision,
+            method="REGEX_OCR",
+            status="APPLIED",
+            original_afm="090064864",
+            chosen_afm="899972873",
+        )
+        job = _make_job()
+
+        result, mock_delay = _run(job)
+
+        job.refresh_from_db()
+        assert job.total_candidates == 1
+        assert result["total"] == 1
+        assert mock_delay.call_count == 1
+
     def test_clean_decision_is_not_candidate(self):
         from conftest import DecisionAmountFieldFactory, DecisionFactory
 

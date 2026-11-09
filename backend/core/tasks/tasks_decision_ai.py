@@ -45,16 +45,22 @@ def _has_completed_analysis(decision_id: int, *, force: bool = False, model: str
 def _needs_text_extraction(decision) -> bool:
     """
     Return True if *decision* has no usable extracted text yet.
+
+    "COMPLETED but useless" (empty / a single stray line) is a real state in
+    this codebase and must count as not extracted, otherwise OCR can never be
+    attempted for those documents.
     """
     from core.models.document_analysis import ProcessingStatus
+    from core.services.document_processor import TextExtractionProcessor
+
     extraction = getattr(decision, "text_extraction", None)
     if extraction is None:
         return True
     if extraction.extraction_status != ProcessingStatus.COMPLETED:
         return True
-    if not extraction.raw_text:
-        return True
-    return False
+    return TextExtractionProcessor._text_too_short(
+        extraction.raw_text, extraction.page_count
+    )
 
 
 def _resolve_user(user_id: int):
@@ -90,7 +96,13 @@ def _extract_pipeline_output(context, run) -> str | None:
 # ---------------------------------------------------------------------------
 
 @shared_task(bind=True, max_retries=2)
-def extract_decision_text(self, decision_id: int, provider: str = None):
+def extract_decision_text(
+    self,
+    decision_id: int,
+    provider: str = None,
+    force: bool = False,
+    allow_ocr: bool = True,
+):
     """
     Extract text from a decision's PDF document.
 
@@ -101,13 +113,18 @@ def extract_decision_text(self, decision_id: int, provider: str = None):
         decision_id: Primary key of the Decision.
         provider: Optional extraction provider (e.g. ``"PYMUPDF"``, ``"DOCLING"``).
                   Defaults to the system-wide default (PyMuPDF).
+        force: Re-extract even when a COMPLETED extraction already exists.
+        allow_ocr: Allow the Tesseract fallback for image-only documents.
 
     Returns:
         dict with keys: decision_id, status, extraction_id, character_count
     """
     from core.models.decisions import Decision
     from core.models.document_analysis import DocumentExtraction, ProcessingStatus
-    from core.services.document_processor import DocumentAnalysisService
+    from core.services.document_processor import (
+        DocumentAnalysisService,
+        TextExtractionProcessor,
+    )
 
     try:
         decision = Decision.objects.get(id=decision_id)
@@ -124,7 +141,13 @@ def extract_decision_text(self, decision_id: int, provider: str = None):
         qs = qs.filter(extraction_provider=provider)
     existing = qs.first()
 
-    if existing and existing.raw_text:
+    if (
+        not force
+        and existing
+        and not TextExtractionProcessor._text_too_short(
+            existing.raw_text, existing.page_count
+        )
+    ):
         logger.info(f"Decision {decision_id}: text already extracted ({existing.character_count} chars, provider={existing.extraction_provider})")
         return {
             "decision_id": decision_id,
@@ -140,7 +163,9 @@ def extract_decision_text(self, decision_id: int, provider: str = None):
 
     # Run extraction
     doc_service = DocumentAnalysisService()
-    result = doc_service.process_decision(decision, provider=provider)
+    result = doc_service.process_decision(
+        decision, provider=provider, force=force, allow_ocr=allow_ocr
+    )
 
     if not result.get("success"):
         error_msg = result.get("error", "extraction failed")

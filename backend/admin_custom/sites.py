@@ -560,6 +560,7 @@ def register_all_models():
         AttachmentAdmin,
         BackupAdmin,
         ClassificationJobAdmin,
+        CounterpartRecoveryAttemptAdmin,
         CustomUserAdmin,
         DailyTrafficAdmin,
         DecisionAdmin,
@@ -685,8 +686,10 @@ def register_all_models():
     from core.models.afm_entity_stats import AFMEntityStats
     from core.models.afm_scoring import AFMEntityScore, AFMScoringConfig
     from core.models.afm_scoring_job import AFMScoringJob
+    from core.models.counterpart_recovery import CounterpartRecoveryAttempt
     from core.models.entities import AFMEntity
 
+    admin_site.register(CounterpartRecoveryAttempt, CounterpartRecoveryAttemptAdmin)
     admin_site.register(AFMEntityStats, AFMEntityStatsAdmin)
     admin_site.register(AFMEntity, AFMEntityAdmin)
     admin_site.register(AFMScoringConfig, AFMScoringConfigAdmin)

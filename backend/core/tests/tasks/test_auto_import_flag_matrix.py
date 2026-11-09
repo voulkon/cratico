@@ -54,6 +54,7 @@ NOTIFICATIONS = "POST_IMPORT_NOTIFICATIONS_ENABLED"
 QUEUE = "core.tasks.tasks_auto_import.ImportJobQueue"
 
 TAIL_TASKS = [
+    "recover_self_counterparts",
     "compute_entity_rankings",
     "invalidate_browse_cache",
     "warm_analytics_cache",

@@ -313,7 +313,22 @@ class AFMExtractionService:
         self, decision: Decision, entities: List[Dict[str, Any]]
     ):
         """Save extracted entities and relationships to database."""
+        from core.services.non_monetary_value_guard import (
+            collect_recovered_original_afms,
+        )
+
+        suppressed_afms = collect_recovered_original_afms(decision)
+
         for entity_info in entities:
+            # Re-import guard: never recreate an AFM that an applied recovery
+            # attempt replaced (the raw JSON still contains it).
+            if entity_info["afm"] in suppressed_afms:
+                logger.debug(
+                    f"Skipping superseded self-counterpart AFM "
+                    f"{entity_info['afm']} for decision {decision.ada}"
+                )
+                continue
+
             # Get or create AFM entity
             entity, created = AFMEntity.objects.get_or_create(
                 afm=entity_info["afm"],

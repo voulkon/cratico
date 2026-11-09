@@ -16,6 +16,7 @@ from .companies import (
     CompanyPerson,
     CompanyStock,
 )
+from .counterpart_recovery import CounterpartRecoveryAttempt
 from .decision_ai_analysis import DecisionAIAnalysis
 from .decision_classification import DecisionClassification
 from .decision_health import DecisionHealthCheck, DecisionHealthSummary, HealthStatus

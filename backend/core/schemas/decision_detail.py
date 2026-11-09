@@ -65,6 +65,21 @@ class AIAnalysisInfo(BaseModel):
     error_message: Optional[str] = None
 
 
+class CounterpartRecoveryInfo(BaseModel):
+    """Latest counterpart-recovery attempt for the decision."""
+
+    id: int
+    status: str
+    method: Optional[str] = None
+    recovered_afm: Optional[str] = None
+    recovered_name: Optional[str] = None
+    original_afm: Optional[str] = None
+    confidence: Optional[float] = None
+    evidence: Optional[str] = None
+    extraction_provider: Optional[str] = None
+    recovered_at: Optional[datetime] = None
+
+
 class OneLinerAttemptInfo(BaseModel):
     """One stored one-liner generation attempt (attempts history)."""
 
@@ -136,3 +151,5 @@ class DecisionDetailResponse(BaseModel):
     # counterpart is unknown (recovered in a future pass).
     has_self_counterpart: bool = False
     self_counterpart_afm: Optional[str] = None
+    # Counterpart recovery (newest APPLIED / NEEDS_REVIEW attempt).
+    counterpart_recovery: Optional[CounterpartRecoveryInfo] = None

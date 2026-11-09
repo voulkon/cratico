@@ -1096,6 +1096,47 @@ class TestFeedbackPoolIncludesFlagged:
         )
         assert decision.id not in pending
 
+    def test_pending_decisions_includes_counterpart_recovery(self):
+        """A self-as-counterpart decision is wrong metadata, even when the
+        amount itself is correct, so it belongs in the feedback pool."""
+        from conftest import DecisionFactory
+        from core.models.counterpart_recovery import CounterpartRecoveryAttempt
+        from core.services.diavgeia_feedback_service import DiavgeiaFeedbackService
+
+        decision = DecisionFactory()
+        CounterpartRecoveryAttempt.objects.create(
+            decision=decision,
+            method="REGEX_OCR",
+            status="APPLIED",
+            original_afm="090064864",
+            chosen_afm="899972873",
+            confidence=0.92,
+        )
+
+        pending = set(
+            DiavgeiaFeedbackService().pending_decisions().values_list("id", flat=True)
+        )
+        assert decision.id in pending
+
+    def test_counterpart_needs_review_still_pending(self):
+        """Under review or failed attempts are still known-wrong metadata."""
+        from conftest import DecisionFactory
+        from core.models.counterpart_recovery import CounterpartRecoveryAttempt
+        from core.services.diavgeia_feedback_service import DiavgeiaFeedbackService
+
+        decision = DecisionFactory()
+        CounterpartRecoveryAttempt.objects.create(
+            decision=decision,
+            method="REGEX_OCR",
+            status="NEEDS_REVIEW",
+            original_afm="090064864",
+        )
+
+        pending = set(
+            DiavgeiaFeedbackService().pending_decisions().values_list("id", flat=True)
+        )
+        assert decision.id in pending
+
 
 class TestInvalidAmountDetailApi:
     """The detail API must expose why the amount is unusable."""

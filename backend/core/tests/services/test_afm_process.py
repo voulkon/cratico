@@ -156,6 +156,25 @@ class TestAfmProcess:
         strict = AfmProcess().detect(text, require_keyword=True).spans
         assert [s.value["afm"] for s in strict] == ["167375970"]
 
+    @pytest.mark.parametrize(
+        "raw",
+        ["167 375 970", "167.375.970", "167-375-970"],
+    )
+    def test_detects_greek_formatted_afm(self, raw):
+        # OCR output often keeps the separator style from the paper document.
+        text = f"Ο ανάδοχος με ΑΦΜ {raw} και ΔΟΥ Μυτιλήνης."
+        result = AfmProcess().detect(text)
+        assert len(result.spans) == 1
+        span = result.spans[0]
+        assert span.value["afm"] == "167375970"
+        assert span.value["raw_afm"] == raw
+        assert text[span.start : span.end] == raw
+
+    def test_formatted_afm_still_requires_checksum(self):
+        # Formatting support must not bypass the checksum.
+        result = AfmProcess().detect("ΑΦΜ 167.375.971")
+        assert result.spans == []
+
     def test_empty_text(self):
         result = AfmProcess().detect("")
         assert result.success

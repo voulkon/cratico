@@ -91,12 +91,13 @@ from .tasks_org_decisions import (
     store_org_decisions_from_pickle,
 )
 from .tasks_post_import import (
-    post_daily_import_orchestrator, 
+    post_daily_import_orchestrator,
     compute_entity_rankings,
     warm_analytics_cache,
     warm_single_window,
     trigger_check_all_subscriptions,
     verify_high_value_amounts,
+    recover_self_counterparts,
     )
 from .tasks_periodic_validation import periodic_validation_task
 from .tasks_browse import (

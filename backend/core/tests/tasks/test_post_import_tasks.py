@@ -103,6 +103,7 @@ class TestPostDailyImportOrchestrator:
         )
 
         tail_tasks = (
+            "recover_self_counterparts",
             "compute_entity_rankings",
             "invalidate_browse_cache",
             "warm_analytics_cache",
@@ -167,7 +168,7 @@ class TestPostDailyImportOrchestrator:
                 f"{task_name} was queued {counts[task_name]}× "
                 f"in a single post-import run"
             )
-        assert len(dispatched) == 5
+        assert len(dispatched) == 6
 
 
 class TestDailyOrchestratorImportWindow:
@@ -306,8 +307,9 @@ class TestDailyRunVerifiesItsOwnInserts:
 
 
 class TestTailChainShape:
-    """T07c: the tail has a daily shape (4 tasks) and an hourly shape
-    (warm today + notifications only)."""
+    """T07c: the tail has a daily shape (recovery + rankings + invalidation +
+    warming + notifications) and an hourly shape (window-scoped recovery +
+    warm today + notifications)."""
 
     @staticmethod
     def _task_name(sig):
@@ -317,18 +319,34 @@ class TestTailChainShape:
         from core.tasks.tasks_post_import import _post_verification_tail_chain
 
         with patch("core.tasks.tasks_post_import.chain") as mock_chain:
-            _post_verification_tail_chain("2026-05-29", tail_kind="hourly")
+            _post_verification_tail_chain(
+                "2026-05-29",
+                imported_since_str="2026-05-29T10:00:00+00:00",
+                imported_until_str="2026-05-29T11:00:00+00:00",
+                tail_kind="hourly",
+            )
 
         signatures = mock_chain.call_args.args
         assert [self._task_name(s) for s in signatures] == [
+            "recover_self_counterparts",
             "warm_today_window",
             "trigger_check_all_subscriptions",
         ]
         assert signatures[0].kwargs["reference_date_str"] == "2026-05-29"
+        assert (
+            signatures[0].kwargs["imported_since_str"]
+            == "2026-05-29T10:00:00+00:00"
+        )
+        assert (
+            signatures[0].kwargs["imported_until_str"]
+            == "2026-05-29T11:00:00+00:00"
+        )
+        assert signatures[0].kwargs["tail_kind"] == "hourly"
         assert signatures[1].kwargs["reference_date_str"] == "2026-05-29"
+        assert signatures[2].kwargs["reference_date_str"] == "2026-05-29"
 
-    def test_daily_tail_chain_unchanged(self):
-        """Default tail_kind keeps the original 4-task chain in order."""
+    def test_daily_tail_chain_includes_recovery_first(self):
+        """Recovery runs before rankings/cache warming/notifications."""
         from core.tasks.tasks_post_import import _post_verification_tail_chain
 
         with patch("core.tasks.tasks_post_import.chain") as mock_chain:
@@ -336,6 +354,7 @@ class TestTailChainShape:
 
         signatures = mock_chain.call_args.args
         assert [self._task_name(s) for s in signatures] == [
+            "recover_self_counterparts",
             "compute_entity_rankings",
             "invalidate_browse_cache",
             "warm_analytics_cache",
@@ -982,6 +1001,7 @@ class TestVerifyHighValueAmountsDiscoveryWiring:
     @staticmethod
     def _tail_task_names():
         return [
+            "recover_self_counterparts",
             "compute_entity_rankings",
             "invalidate_browse_cache",
             "warm_analytics_cache",
@@ -1366,6 +1386,7 @@ class TestAmountVerificationChordErrorTail:
         assert "child lost" in result["chord_error"]
         assert result["tail_task_id"] == "tail-id"
         assert dispatched == [
+            "recover_self_counterparts",
             "compute_entity_rankings",
             "invalidate_browse_cache",
             "warm_analytics_cache",
@@ -1506,10 +1527,9 @@ class TestFinalizeAmountVerification:
 
         assert mock_dispatch.call_args.kwargs["tail_kind"] == "hourly"
 
-    def test_continuation_chain_contains_four_tasks_in_order(self):
-        """After the chord, the remaining post-import tasks must run in the
-        same order as the original chain (rankings → invalidate → warm →
-        notifications)."""
+    def test_continuation_chain_contains_five_tasks_in_order(self):
+        """After the chord, the remaining post-import tasks must run in order
+        (recovery → rankings → invalidate → warm → notifications)."""
         from core.tasks.tasks_post_import import finalize_amount_verification
 
         captured_chain_args = []
@@ -1535,12 +1555,13 @@ class TestFinalizeAmountVerification:
                 [], reference_date_str="2026-05-29"
             )
 
-        assert len(captured_chain_args) == 4
+        assert len(captured_chain_args) == 5
 
         def _name(sig):
             return (getattr(sig, "task", "") or "").rsplit(".", 1)[-1]
 
         assert [_name(s) for s in captured_chain_args] == [
+            "recover_self_counterparts",
             "compute_entity_rankings",
             "invalidate_browse_cache",
             "warm_analytics_cache",

@@ -385,6 +385,162 @@ class AFMEntityStatsService:
         logger.info("  combined_rank updated for {} entities", len(updates))
 
     # ------------------------------------------------------------------
+    # Targeted recomputation (counterpart recovery)
+    # ------------------------------------------------------------------
+
+    def compute_entities(self, entity_ids) -> Dict[str, int]:
+        """
+        Refresh stats for a small set of entities after their relationships
+        changed (e.g. counterpart recovery repointed a relationship).
+
+        Unlike :meth:`compute_single`, this does NOT re-gather every entity's
+        metrics in the database — relevant when a post-import run recovers many
+        decisions.  Combined ranks are still recomputed globally because they
+        are relative to every row.
+        """
+        ids = [eid for eid in set(entity_ids or []) if eid is not None]
+        if not ids:
+            return {"updated": 0}
+
+        updated = 0
+        for entity_id in ids:
+            m = self._gather_entity_metrics(entity_id)
+            AFMEntityStats.objects.update_or_create(
+                entity_id=entity_id,
+                defaults={
+                    "total_decisions": m["total_decisions"],
+                    "distinct_roles": m["distinct_roles"],
+                    "total_amount": m["total_amount"],
+                    "average_amount_per_decision": m["avg_amount"],
+                    "max_single_amount": m["max_amount"],
+                    "distinct_organizations": m["distinct_organizations"],
+                    "distinct_counterpart_entities": m[
+                        "distinct_counterpart_entities"
+                    ],
+                    "direct_assignment_count": m["direct_assignment_count"],
+                    "direct_assignment_percentage": m[
+                        "direct_assignment_percentage"
+                    ],
+                    "direct_assignment_30k_38k": m["direct_assignment_30k_38k"],
+                    "payment_30k_38k": m["payment_30k_38k"],
+                    "total_received_amount": m["total_received_amount"],
+                },
+            )
+            updated += 1
+
+        self._compute_combined_ranks()
+        return {"updated": updated}
+
+    def _gather_entity_metrics(self, entity_id: int) -> dict:
+        """Compute the same metrics as ``_gather_all_metrics`` for one entity."""
+        metrics = {
+            "total_decisions": 0,
+            "distinct_roles": 0,
+            "total_amount": Decimal("0.00"),
+            "avg_amount": Decimal("0.00"),
+            "max_amount": Decimal("0.00"),
+            "distinct_organizations": 0,
+            "distinct_counterpart_entities": 0,
+            "direct_assignment_count": 0,
+            "direct_assignment_percentage": 0.0,
+            "direct_assignment_30k_38k": 0,
+            "payment_30k_38k": 0,
+            "total_received_amount": Decimal("0.00"),
+        }
+
+        rel_qs = DecisionEntityRelationship.objects.filter(entity_id=entity_id)
+        agg = rel_qs.aggregate(
+            total_decisions=Count("decision_id", distinct=True),
+            distinct_roles=Count("role", distinct=True),
+            distinct_organizations=Count("decision__organization_id", distinct=True),
+        )
+        metrics.update(
+            total_decisions=agg["total_decisions"] or 0,
+            distinct_roles=agg["distinct_roles"] or 0,
+            distinct_organizations=agg["distinct_organizations"] or 0,
+        )
+
+        amounts = DecisionAmountField.objects.filter(
+            amount__isnull=False,
+            associated_relationship__entity_id=entity_id,
+        )
+        amount_agg = amounts.aggregate(
+            total=daf_effective_sum(),
+            amax=daf_effective_max(),
+        )
+        metrics["total_amount"] = amount_agg["total"] or Decimal("0")
+        metrics["max_amount"] = amount_agg["amax"] or Decimal("0")
+
+        per_decision = amounts.values("decision_id").annotate(
+            decision_total=daf_effective_sum()
+        )
+        totals = [row["decision_total"] for row in per_decision]
+        if totals:
+            metrics["avg_amount"] = (
+                Decimal(sum(totals)) / len(totals)
+            ).quantize(Decimal("0.01"))
+
+        metrics["direct_assignment_count"] = (
+            rel_qs.filter(decision__classification__is_direct_assignment=True)
+            .values("decision_id")
+            .distinct()
+            .count()
+        )
+
+        # Distinct counterparts: every other entity appearing in a decision
+        # where this entity also appears.
+        decision_ids = rel_qs.values("decision_id")
+        metrics["distinct_counterpart_entities"] = (
+            DecisionEntityRelationship.objects.filter(
+                decision_id__in=decision_ids
+            )
+            .exclude(entity_id=entity_id)
+            .values("entity_id")
+            .distinct()
+            .count()
+        )
+
+        if metrics["total_decisions"] > 0:
+            metrics["direct_assignment_percentage"] = round(
+                metrics["direct_assignment_count"]
+                / metrics["total_decisions"]
+                * 100,
+                1,
+            )
+
+        metrics["direct_assignment_30k_38k"] = self._count_band(
+            amounts.filter(
+                associated_relationship__decision__classification__is_direct_assignment=True
+            )
+        )
+        metrics["payment_30k_38k"] = self._count_band(
+            amounts.filter(
+                associated_relationship__role__in=(
+                    FinancialCalculationService.MONEY_RECEIVED_ROLES
+                )
+            )
+        )
+
+        received = amounts.filter(
+            associated_relationship__decision__decision_type__uid="Β.2.2"
+        ).aggregate(total=daf_effective_sum())
+        metrics["total_received_amount"] = received["total"] or Decimal("0")
+
+        return metrics
+
+    @staticmethod
+    def _count_band(amounts) -> int:
+        """Count per-decision totals in the €30k–€38k band."""
+        count = 0
+        for row in amounts.values("decision_id").annotate(
+            decision_total=daf_effective_sum()
+        ):
+            total = row["decision_total"]
+            if total and Decimal("30000.00") <= total <= Decimal("38000.00"):
+                count += 1
+        return count
+
+    # ------------------------------------------------------------------
     # Convenience: compute a single entity
     # ------------------------------------------------------------------
 

@@ -17,6 +17,7 @@ from core.models.document_analysis import (
 from core.protocols.extraction_protocol import ExtractionResult
 from core.services.extractors.docling import DoclingExtractor
 from core.services.extractors.pymupdf import PyMuPDFExtractor
+from core.services.extractors.tesseract import TesseractExtractor
 from core.services.text_preprocessor import TextPreprocessor
 from loguru import logger
 from requests.exceptions import ConnectionError, RequestException, Timeout
@@ -105,6 +106,12 @@ class BaseDocumentProcessor:
             logger.error(f"Failed to delete temp file {temp_path}: {str(e)}")
 
 
+# OCR fallback thresholds.  A COMPLETED extraction shorter than either bound is
+# treated as "not really extracted" and re-run through Tesseract.
+OCR_MIN_CHARS = int(os.environ.get("OCR_MIN_CHARS", "100"))
+OCR_MIN_CHARS_PER_PAGE = int(os.environ.get("OCR_MIN_CHARS_PER_PAGE", "100"))
+
+
 class TextExtractionProcessor(BaseDocumentProcessor):
     """Handles text extraction from PDFs using various providers"""
 
@@ -113,6 +120,9 @@ class TextExtractionProcessor(BaseDocumentProcessor):
     # Use DOCUMENT_EXTRACTOR env var to override: PYMUPDF (default) or DOCLING
     extractors = {
         ProcessingProvider.PYMUPDF: PyMuPDFExtractor(),
+        # Tesseract imports its binary lazily inside extract_text(), so an
+        # image without the OCR runtime installed still constructs here.
+        ProcessingProvider.TESSERACT: TesseractExtractor(),
         # Docling loaded lazily only when needed (see _get_docling_extractor)
         # ProcessingProvider.PLAINTEXT: PlainTextExtractor(),
     }
@@ -161,6 +171,80 @@ class TextExtractionProcessor(BaseDocumentProcessor):
                 # Default in full mode is still PyMuPDF unless explicitly set
                 logger.debug("FULL_WORKER mode: Using PyMuPDF extractor (default)")
 
+    @staticmethod
+    def _refresh_after_ocr(decision: Decision, extraction) -> None:
+        """
+        Re-run offset-bearing text processes and refresh OpenSearch.
+
+        Best-effort: a failure here must not turn a successful OCR extraction
+        into a failed document.
+        """
+        try:
+            from core.services.text_process_service import TextProcessService
+
+            service = TextProcessService()
+            for slug in ("afm", "amount"):
+                try:
+                    service.run_process(extraction, slug, force=True)
+                except Exception as exc:
+                    logger.warning(
+                        f"Post-OCR text process {slug!r} failed for "
+                        f"{decision.ada}: {exc}"
+                    )
+        except Exception as exc:
+            logger.warning(
+                f"Post-OCR text process refresh failed for {decision.ada}: {exc}"
+            )
+
+        try:
+            from core.services.opensearch_service import OpenSearchService
+
+            OpenSearchService().index_document(
+                {
+                    "decision_id": decision.id,
+                    "ada": decision.ada,
+                    "title": decision.subject or "",
+                    "content": extraction.raw_text or "",
+                    "organization": (
+                        str(decision.organization) if decision.organization else ""
+                    ),
+                    "decision_type": (
+                        str(decision.decision_type) if decision.decision_type else ""
+                    ),
+                    "issue_date": (
+                        decision.issue_date.isoformat()
+                        if decision.issue_date
+                        else None
+                    ),
+                    "extraction_date": (
+                        extraction.extraction_date.isoformat()
+                        if extraction.extraction_date
+                        else None
+                    ),
+                    "character_count": extraction.character_count,
+                    "page_count": extraction.page_count,
+                }
+            )
+        except Exception as exc:
+            logger.warning(
+                f"Post-OCR OpenSearch re-index failed for {decision.ada}: {exc}"
+            )
+
+    @staticmethod
+    def _text_too_short(text: str | None, page_count: int | None) -> bool:
+        """
+        Whether extracted text is too short to be useful.
+
+        Empty text always qualifies.  Otherwise require at least
+        ``OCR_MIN_CHARS`` overall and ``OCR_MIN_CHARS_PER_PAGE`` per page, so a
+        single stray line from a photographed page triggers the OCR fallback.
+        """
+        chars = len((text or "").strip())
+        if chars == 0:
+            return True
+        pages = max(1, int(page_count or 1))
+        return chars < OCR_MIN_CHARS or chars < OCR_MIN_CHARS_PER_PAGE * pages
+
     def _get_docling_extractor(self):
         """Lazy-load Docling extractor only when needed to avoid heavy initialization"""
         if ProcessingProvider.DOCLING not in self.extractors:
@@ -178,13 +262,22 @@ class TextExtractionProcessor(BaseDocumentProcessor):
                 ) from e
         return self.extractors[ProcessingProvider.DOCLING]
 
-    def process_document(self, decision: Decision, provider: str = None) -> bool:
+    def process_document(
+        self,
+        decision: Decision,
+        provider: str = None,
+        force: bool = False,
+        allow_ocr: bool = True,
+    ) -> bool:
         """
         Main entry point for text extraction
 
         Args:
             decision: The decision to process
             provider: Optional provider name to use (defaults to PYPDF)
+            force: Re-run even when a COMPLETED extraction already exists.
+            allow_ocr: Allow the Tesseract fallback when native text is
+                empty/too short (still gated by DOCUMENT_OCR_ENABLED).
 
         Returns:
             bool: Success status
@@ -228,8 +321,28 @@ class TextExtractionProcessor(BaseDocumentProcessor):
             decision=decision, defaults={"extraction_status": ProcessingStatus.PENDING}
         )
 
+        # A COMPLETED row with no/too-short text is a real state in this
+        # codebase (extractor succeeded but produced nothing usable).  Treat it
+        # as "not extracted" so the OCR fallback gets a chance, otherwise the
+        # document can never recover.
+        completed_but_useless = (
+            extraction.extraction_status == ProcessingStatus.COMPLETED
+            and not force
+            and self._text_too_short(extraction.raw_text, extraction.page_count)
+        )
+        if completed_but_useless:
+            logger.warning(
+                f"Document {decision.ada} is COMPLETED but has no usable text "
+                f"({len(extraction.raw_text or '')} chars) — re-processing"
+            )
+
         # If not pending, we've already processed or are processing it
-        if not created and extraction.extraction_status != ProcessingStatus.PENDING:
+        if (
+            not force
+            and not completed_but_useless
+            and not created
+            and extraction.extraction_status != ProcessingStatus.PENDING
+        ):
             if extraction.extraction_status == ProcessingStatus.COMPLETED:
                 logger.info(f"Document {decision.ada} already extracted")
                 return True
@@ -284,6 +397,118 @@ class TextExtractionProcessor(BaseDocumentProcessor):
 
             # Extract text using the selected provider (extractor already fetched above)
             result: ExtractionResult = extractor.extract_text(temp_path)
+            native_char_count = len(result.text or "")
+            native_provider_name = provider_name
+            extraction_metadata = dict(result.metadata or {})
+            extraction_metadata["native_extraction"] = {
+                "provider": provider_name,
+                "char_count": native_char_count,
+                "page_count": result.page_count,
+            }
+            ocr_applied = bool(result.ocr_applied)
+            ocr_confidence = result.confidence
+            requires_vision = bool(result.requires_vision)
+
+            # Cheap native quality check BEFORE deciding on OCR.  A
+            # photographed page often yields only the signature header
+            # (~200 chars), which passes the length threshold but is flagged
+            # as corrupted by the preprocessor.  That flag is the reliable
+            # signal that the body was never extracted.
+            native_preprocessing = None
+            native_is_corrupted = False
+            if (
+                (result.text or "").strip()
+                and not result.ocr_applied
+                and provider != ProcessingProvider.TESSERACT
+            ):
+                native_preprocessing = self.text_preprocessor.preprocess(
+                    result.text
+                )
+                native_is_corrupted = bool(
+                    native_preprocessing.is_corrupted
+                )
+
+            # ── OCR fallback ───────────────────────────────────────────
+            # Some Diavgeia documents are photographs: native extraction
+            # succeeds but returns nothing useful.  When OCR is enabled, retry
+            # the same temp PDF with Tesseract and keep whichever text is
+            # longer.  Missing tesseract/Greek data must never crash the
+            # worker — it degrades to NEEDS_VISION.
+            if (
+                allow_ocr
+                and provider != ProcessingProvider.TESSERACT
+                and (
+                    self._text_too_short(result.text, result.page_count)
+                    or native_is_corrupted
+                )
+            ):
+                from core.services.feature_flag_service import feature_flags
+
+                if feature_flags.is_enabled("DOCUMENT_OCR_ENABLED"):
+                    try:
+                        logger.info(
+                            f"Native extraction for {decision.ada} produced "
+                            f"{native_char_count} chars — trying Tesseract OCR"
+                        )
+                        ocr_result: ExtractionResult = self.extractors[
+                            ProcessingProvider.TESSERACT
+                        ].extract_text(temp_path)
+                        if len(ocr_result.text or "") > native_char_count:
+                            result = ocr_result
+                            provider_name = ProcessingProvider.TESSERACT.value
+                            extraction_metadata = dict(ocr_result.metadata or {})
+                            extraction_metadata["native_extraction"] = {
+                                "provider": native_provider_name,
+                                "char_count": native_char_count,
+                                "page_count": result.page_count,
+                            }
+                            extraction_metadata["ocr_fallback"] = {
+                                "applied": True,
+                                "dpi": (ocr_result.metadata or {}).get("dpi"),
+                                "lang": (ocr_result.metadata or {}).get("lang"),
+                            }
+                            ocr_applied = True
+                            ocr_confidence = ocr_result.confidence
+                            requires_vision = bool(ocr_result.requires_vision)
+                            logger.info(
+                                f"OCR fallback for {decision.ada}: "
+                                f"{native_char_count} → "
+                                f"{len(ocr_result.text or '')} chars "
+                                f"(confidence={ocr_confidence})"
+                            )
+                        else:
+                            # Keep the native text; only escalate to vision
+                            # when there is nothing usable to keep.
+                            if not (result.text or "").strip():
+                                requires_vision = True
+                            extraction_metadata["ocr_fallback"] = {
+                                "applied": False,
+                                "reason": "ocr_text_not_longer",
+                                "char_count": len(ocr_result.text or ""),
+                            }
+                    except Exception as exc:
+                        logger.error(
+                            f"OCR fallback failed for {decision.ada}: {exc}"
+                        )
+                        extraction_metadata["ocr_fallback"] = {
+                            "applied": False,
+                            "error": str(exc)[:500],
+                        }
+                        # No usable text at all → mark for vision rather than
+                        # reporting a successful empty extraction.
+                        requires_vision = requires_vision or not (
+                            result.text or ""
+                        ).strip()
+                else:
+                    logger.info(
+                        f"OCR fallback for {decision.ada} requested "
+                        f"(native text {'too short' if self._text_too_short(result.text, result.page_count) else 'flagged corrupted'}) "
+                        f"but DOCUMENT_OCR_ENABLED is off"
+                    )
+                    extraction_metadata["ocr_fallback"] = {
+                        "applied": False,
+                        "reason": "feature_flag_disabled",
+                    }
 
             raw_extracted_text = result.text
             processed_text = (
@@ -293,14 +518,26 @@ class TextExtractionProcessor(BaseDocumentProcessor):
             preprocessing_result = None
 
             if raw_extracted_text and not raw_extracted_text.isspace():
-                logger.debug(
-                    f"Starting text preprocessing for {decision.ada} (Original length: {len(raw_extracted_text)})"
-                )
-
-                # Get the Pydantic model from preprocessor
-                preprocessing_result = self.text_preprocessor.preprocess(
-                    raw_extracted_text
-                )
+                if ocr_applied:
+                    logger.debug(
+                        f"Starting text preprocessing for {decision.ada} "
+                        f"(OCR text, length: {len(raw_extracted_text)})"
+                    )
+                    preprocessing_result = self.text_preprocessor.preprocess(
+                        raw_extracted_text
+                    )
+                elif native_preprocessing is not None:
+                    # Reuse the quality check already done for the OCR
+                    # decision — do not preprocess the same text twice.
+                    preprocessing_result = native_preprocessing
+                else:
+                    logger.debug(
+                        f"Starting text preprocessing for {decision.ada} "
+                        f"(Original length: {len(raw_extracted_text)})"
+                    )
+                    preprocessing_result = self.text_preprocessor.preprocess(
+                        raw_extracted_text
+                    )
 
                 # Unpack the fields from the model
                 processed_text = preprocessing_result.processed_text
@@ -383,11 +620,14 @@ class TextExtractionProcessor(BaseDocumentProcessor):
             final_extraction_result = ExtractionResult(
                 text=final_text_to_log_and_save,
                 page_count=result.page_count,
-                char_count=len(final_text_to_log_and_save),
-                metadata=result.metadata,
+                metadata=extraction_metadata,
+                is_scanned=bool(result.is_scanned),
+                requires_vision=requires_vision,
+                ocr_applied=ocr_applied,
+                confidence=ocr_confidence,
             )
             # Use the importer to handle database operations
-            importer.import_extraction_result(
+            updated_extraction = importer.import_extraction_result(
                 decision=decision,
                 result=final_extraction_result,  # Use the result with processed text
                 provider_name=provider_name,
@@ -398,6 +638,11 @@ class TextExtractionProcessor(BaseDocumentProcessor):
                     preprocessing_result if "preprocessing_result" in locals() else None
                 ),
             )
+
+            # OCR replaced the text: re-run the text processes whose stored
+            # offsets were just cleared, and refresh the search index.
+            if ocr_applied and final_text_to_log_and_save:
+                self._refresh_after_ocr(decision, updated_extraction)
 
             logger.info(
                 f"Document {decision.ada} extracted",
@@ -412,7 +657,7 @@ class TextExtractionProcessor(BaseDocumentProcessor):
                     if is_corrupted
                     else (
                         ProcessingStatus.NEEDS_VISION.value
-                        if final_extraction_result.is_scanned
+                        if final_extraction_result.requires_vision
                         else ProcessingStatus.COMPLETED.value
                     )
                 ),
@@ -440,7 +685,11 @@ class DocumentAnalysisService:
         # We'll initialize other processors as needed
 
     def process_decision(
-        self, decision: Decision, provider: str = None
+        self,
+        decision: Decision,
+        provider: str = None,
+        force: bool = False,
+        allow_ocr: bool = True,
     ) -> Dict[str, Any]:
         """
         Main entry point for processing a decision document
@@ -452,7 +701,9 @@ class DocumentAnalysisService:
         }
 
         # Step 1: Extract text (if not already done)
-        extraction = self._get_or_extract_text(decision, provider)
+        extraction = self._get_or_extract_text(
+            decision, provider, force=force, allow_ocr=allow_ocr
+        )
         if not extraction:
             return results
 
@@ -474,33 +725,66 @@ class DocumentAnalysisService:
         return results
 
     def _get_or_extract_text(
-        self, decision: Decision, provider: str = None
+        self,
+        decision: Decision,
+        provider: str = None,
+        force: bool = False,
+        allow_ocr: bool = True,
     ) -> Optional[DocumentExtraction]:
         """Get existing extraction or create a new one"""
         try:
             extraction = DocumentExtraction.objects.get(decision=decision)
 
-            # If completed or needs vision, return it
-            if extraction.extraction_status in (
-                ProcessingStatus.COMPLETED,
-                ProcessingStatus.NEEDS_VISION,
-            ):
+            has_text = bool((extraction.raw_text or "").strip())
+
+            if not force:
+                # A COMPLETED row with text is done.  A COMPLETED row without
+                # usable text is NOT done — fall through so OCR can recover it.
+                if (
+                    extraction.extraction_status == ProcessingStatus.COMPLETED
+                    and has_text
+                ):
+                    return extraction
+
+                if extraction.extraction_status == ProcessingStatus.NEEDS_VISION:
+                    return extraction
+
+                # If failed but we haven't retried too much, try again
+                if (
+                    extraction.extraction_status == ProcessingStatus.FAILED
+                    and extraction.retry_count < 3
+                ):
+                    self.text_extractor.process_document(
+                        decision, provider, allow_ocr=allow_ocr
+                    )
+                    return DocumentExtraction.objects.get(decision=decision)
+
+                # Nothing to do (e.g. PROCESSING not stale yet) — process_document
+                # owns the decision to re-run or bail out.
+                if extraction.extraction_status in (
+                    ProcessingStatus.PENDING,
+                    ProcessingStatus.PROCESSING,
+                    ProcessingStatus.COMPLETED,
+                ):
+                    self.text_extractor.process_document(
+                        decision, provider, allow_ocr=allow_ocr
+                    )
+                    return DocumentExtraction.objects.get(decision=decision)
+
                 return extraction
 
-            # If failed but we haven't retried too much, try again
-            if (
-                extraction.extraction_status == ProcessingStatus.FAILED
-                and extraction.retry_count < 3
-            ):
-                self.text_extractor.process_document(decision, provider)
-                return DocumentExtraction.objects.get(decision=decision)
-
-            # Otherwise, return what we have
-            return extraction
+            # Forced re-extraction (recovery path): re-run even when a
+            # COMPLETED/NEEDS_VISION row exists.
+            self.text_extractor.process_document(
+                decision, provider, force=True, allow_ocr=allow_ocr
+            )
+            return DocumentExtraction.objects.get(decision=decision)
 
         except DocumentExtraction.DoesNotExist:
             # No extraction yet, create one
-            success = self.text_extractor.process_document(decision, provider)
+            success = self.text_extractor.process_document(
+                decision, provider, force=force, allow_ocr=allow_ocr
+            )
             if success:
                 return DocumentExtraction.objects.get(decision=decision)
             return None

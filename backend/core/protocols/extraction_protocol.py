@@ -11,6 +11,12 @@ class ExtractionResult(BaseModel):
     is_scanned: bool = False
     pages_data: Optional[List[Dict[str, Any]]] = None
     metadata: Optional[Dict[str, Any]] = None
+    # OCR provenance.  ``requires_vision`` means no text could be produced at
+    # all (the extraction should become NEEDS_VISION); ``ocr_applied`` means the
+    # text above came from OCR even though it is usable.
+    requires_vision: bool = False
+    ocr_applied: bool = False
+    confidence: Optional[float] = None
 
 
 class TextExtractor(Protocol):

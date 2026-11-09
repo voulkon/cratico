@@ -26,7 +26,7 @@
   top: calc(-1 * var(--spacing-xs));
   left: var(--spacing-md);
   background: var(--palette-primary);
-  color: white;
+  color: var(--text-on-primary);
   padding: var(--spacing-xs) var(--spacing-sm);
   border-radius: var(--radius-sm);
   font-size: var(--font-xs);
@@ -36,7 +36,7 @@
 
 .occurrence-count {
   margin-left: var(--spacing-xs);
-  background: rgba(255, 255, 255, 0.2);
+  background: color-mix(in srgb, var(--text-on-primary) 20%, transparent);
   padding: 2px 4px;
   border-radius: var(--radius-xs);
   font-size: var(--font-xs);
@@ -86,21 +86,21 @@
 
 .entity-amount {
   padding: var(--spacing-xs) var(--spacing-sm);
-  background: var(--success-bg, #d4edda);
-  border: 1px solid var(--success-border, #c3e6cb);
+  background: var(--success-bg);
+  border: 1px solid var(--success-border);
   border-radius: var(--radius-sm);
   flex-shrink: 0;
 }
 
 .amount-value {
   font-weight: var(--font-bold);
-  color: var(--success-text, #155724);
+  color: var(--success-text);
   font-size: var(--font-sm);
 }
 
 .entity-type {
   background: var(--palette-secondary);
-  color: white;
+  color: var(--text-on-primary);
   padding: 2px var(--spacing-xs);
   border-radius: var(--radius-sm);
   margin-right: var(--spacing-xs);
@@ -111,12 +111,23 @@
   font-family: monospace;
 }
 
+.entity-recovered-badge {
+  display: inline-block;
+  margin-top: var(--spacing-xs);
+  background: var(--success-color);
+  color: var(--text-on-primary);
+  padding: 2px var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-xs);
+  font-weight: var(--font-bold);
+}
+
 .confidence-indicator {
   position: absolute;
   top: var(--spacing-xs);
   right: var(--spacing-xs);
-  background: var(--warning-color, #ffc107);
-  color: var(--dark-text, #212529);
+  background: var(--warning-color);
+  color: var(--dark-text);
   padding: 2px var(--spacing-xs);
   border-radius: var(--radius-sm);
   font-size: var(--font-xs);
@@ -176,8 +187,8 @@
 }
 
 .company-type {
-  background: var(--bg-info, #e3f2fd);
-  color: var(--color-text-info, #0277bd);
+  background: var(--bg-info);
+  color: var(--color-text-info);
   padding: 1px 4px;
   border-radius: var(--radius-xs);
 }

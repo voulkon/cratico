@@ -1,9 +1,16 @@
 """
 Diavgeia Feedback Service
 
-Reports decisions whose metadata amounts were corrected (wrong amounts
-detected in the document text — see ``AmountCorrectionService``) back to the
-Diavgeia admins via the public feedback endpoint:
+Reports decisions with known metadata problems back to the Diavgeia admins
+via the public feedback endpoint.  Two sources populate the pool:
+
+* amount fields corrected (``verified_amount``) or flagged as non-monetary
+  (``invalid_amount_reason``) — see ``AmountCorrectionService``;
+* counterpart-recovery attempts — the counterpart AFM equalled the issuing
+  organization's own VAT number (``CounterpartRecoveryService``).
+
+The endpoint has one generic "wrong metadata" category (``FE_1``), which also
+covers a wrong counterpart.
 
     POST https://diavgeia.gov.gr/luminapi/api/feedback/new
     {"documentId": "<ADA>", "reporterEmail": "...",
@@ -30,13 +37,44 @@ from urllib.parse import quote
 import requests
 from django.conf import settings
 from django.db.models import Exists, OuterRef, Q
-from django.utils import timezone
 from loguru import logger
+
+
+def issue_exists():
+    """
+    ``Exists`` expression for every decision with a known metadata problem.
+
+    Two sources:
+      * amount fields we corrected (``verified_amount``) or flagged as
+        non-monetary (``invalid_amount_reason``);
+      * a counterpart-recovery attempt — the counterpart AFM equalled the
+        issuing org's own VAT number.  This covers both successfully repaired
+        relationships and ones still under review; Diavgeia's own record is
+        wrong in all cases.
+
+    Shared by ``pending_decisions()`` and ``run_feedback_job`` so the admin
+    pool and the batch job cannot drift.
+    """
+    from core.models.counterpart_recovery import CounterpartRecoveryAttempt
+    from core.models.entities import DecisionAmountField
+
+    has_amount_issue = Exists(
+        DecisionAmountField.objects.filter(
+            decision=OuterRef("pk"),
+        ).filter(
+            Q(verified_amount__isnull=False)
+            | Q(invalid_amount_reason__isnull=False)
+        )
+    )
+    has_counterpart_issue = Exists(
+        CounterpartRecoveryAttempt.objects.filter(decision=OuterRef("pk"))
+    )
+    return has_amount_issue | has_counterpart_issue
 
 
 class DiavgeiaFeedbackService:
     """
-    Report wrong-amount decisions to the Diavgeia feedback API.
+    Report wrong metadata decisions to the Diavgeia feedback API.
     """
 
     def __init__(
@@ -87,16 +125,7 @@ class DiavgeiaFeedbackService:
         """
         from core.models.decisions import Decision
         from core.models.diavgeia_feedback_report import DiavgeiaFeedbackReport
-        from core.models.entities import DecisionAmountField
 
-        has_amount_issue = Exists(
-            DecisionAmountField.objects.filter(
-                decision=OuterRef("pk"),
-            ).filter(
-                Q(verified_amount__isnull=False)
-                | Q(invalid_amount_reason__isnull=False)
-            )
-        )
         already_reported = Exists(
             DiavgeiaFeedbackReport.objects.filter(
                 decision=OuterRef("pk"), reported=True
@@ -104,7 +133,7 @@ class DiavgeiaFeedbackService:
         )
         qs = (
             Decision.objects
-            .filter(has_amount_issue)
+            .filter(issue_exists())
             .exclude(already_reported)
             .order_by("-issue_date")
         )

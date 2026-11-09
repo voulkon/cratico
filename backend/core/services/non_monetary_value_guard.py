@@ -215,6 +215,36 @@ def _is_self_counterpart(org_afm: str, counterpart_afm: str) -> bool:
     )
 
 
+def collect_recovered_original_afms(decision) -> set[str]:
+    """
+    Return the original (self) AFMs of APPLIED counterpart-recovery attempts.
+
+    The raw Diavgeia JSON is never rewritten, so
+    :func:`collect_counterpart_afms` keeps seeing the old AFM after a
+    successful recovery.  Subtracting these keeps the self-counterpart warning
+    from surviving the repair.
+    """
+    try:
+        from core.models.counterpart_recovery import (
+            CounterpartRecoveryAttempt,
+            RecoveryStatus,
+        )
+
+        return {
+            afm
+            for afm in CounterpartRecoveryAttempt.objects.filter(
+                decision=decision,
+                status=RecoveryStatus.APPLIED,
+                original_afm__isnull=False,
+            ).values_list("original_afm", flat=True)
+            if afm
+        }
+    except Exception:
+        # Table missing during a partial deploy / migration — never crash the
+        # verification pipeline because of the guard.
+        return set()
+
+
 def collect_self_counterparts(decision) -> set[str]:
     """
     Return counterpart AFMs that improperly equal the issuing org's AFM.
@@ -222,14 +252,19 @@ def collect_self_counterparts(decision) -> set[str]:
     The returned set holds the **full counterpart AFM** (e.g. ``090009802``),
     not the possibly-truncated org VAT — so the audit trail records the real
     counterpart value.
+
+    Applied recovery attempts subtract their ``original_afm``: after the live
+    relationship is repointed, the raw JSON still contains the old value, and
+    the warning must disappear once the counterpart has been recovered.
     """
     org_afm = collect_org_afm(decision)
     if org_afm is None:
         return set()
+    recovered = collect_recovered_original_afms(decision)
     return {
         afm
         for afm in collect_counterpart_afms(decision)
-        if _is_self_counterpart(org_afm, afm)
+        if afm not in recovered and _is_self_counterpart(org_afm, afm)
     }
 
 
