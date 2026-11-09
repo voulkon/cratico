@@ -25,6 +25,9 @@ filter.  Attempt rows are append-only and are the only history.
 
 from __future__ import annotations
 
+import hashlib
+import json
+import os
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -68,6 +71,11 @@ AUTO_APPLY_SCORE = 0.85
 AUTO_APPLY_GAP = 0.10
 
 DEFAULT_CANDIDATE_LIMIT = 200
+
+# Bump when the recovery decision logic changes materially; a new version makes
+# previously skipped inputs eligible for a retry even though the text is the
+# same.
+RECOVERY_SIGNATURE_VERSION = 1
 
 
 class CounterpartRecoveryService:
@@ -169,10 +177,55 @@ class CounterpartRecoveryService:
         if self_rel is None:
             return {"status": "skipped", "reason": "no_relationship_row"}
 
+        # ── Idempotency: same inputs → don't repeat OCR/AI/scoring ────
+        # A prior non-applied attempt with the exact same source signature
+        # means nothing has changed (text, provider, OCR metadata, flags,
+        # model).  A changed OCR provider/text or `--force` makes it eligible
+        # again.  APPLIED attempts are handled by the already_recovered path.
+        current_extraction = getattr(decision, "text_extraction", None)
+        pre_signature = self._source_signature(
+            decision,
+            org_afm,
+            self_afms,
+            current_extraction,
+            allow_ocr=allow_ocr,
+            allow_ai=allow_ai,
+            apply=apply,
+        )
+        if not force:
+            prior = self._prior_same_input_attempt(decision, pre_signature)
+            if prior is not None:
+                return {
+                    "status": "skipped",
+                    "reason": "same_inputs",
+                    "attempt_id": prior.id,
+                }
+
         # ── Ensure text ────────────────────────────────────────────────
         extraction, text = self._ensure_text(
             decision, org_afm, allow_ocr=allow_ocr
         )
+
+        source_signature = self._source_signature(
+            decision,
+            org_afm,
+            self_afms,
+            extraction,
+            allow_ocr=allow_ocr,
+            allow_ai=allow_ai,
+            apply=apply,
+        )
+        if not force and source_signature != pre_signature:
+            prior = self._prior_same_input_attempt(
+                decision, source_signature
+            )
+            if prior is not None:
+                return {
+                    "status": "skipped",
+                    "reason": "same_inputs",
+                    "attempt_id": prior.id,
+                }
+
         if not text or not self._has_usable_text(text, org_afm):
             if dry_run:
                 return {"status": "no_usable_text", "dry_run": True}
@@ -184,6 +237,7 @@ class CounterpartRecoveryService:
                 status=RecoveryStatus.NEEDS_REVIEW,
                 error_message="No usable text (OCR unavailable or unreadable).",
                 evidence={"reason": "no_usable_text"},
+                run_signature=source_signature,
             )
             return {"status": "needs_review", "reason": "no_usable_text", "attempt_id": attempt.id}
 
@@ -287,6 +341,7 @@ class CounterpartRecoveryService:
                 if extraction
                 else None,
                 ocr_confidence=extraction.ocr_confidence if extraction else None,
+                run_signature=source_signature,
                 **(self._ai_attempt_fields(ai_result)),
             )
             return {
@@ -306,6 +361,7 @@ class CounterpartRecoveryService:
                 confidence=chosen["score"],
                 candidate_afms=candidates,
                 evidence={"report_only": True, "ai": ai_result},
+                run_signature=source_signature,
                 **(self._ai_attempt_fields(ai_result)),
             )
             return {
@@ -327,6 +383,7 @@ class CounterpartRecoveryService:
                 method=method,
                 ai_result=ai_result,
                 text=text,
+                source_signature=source_signature,
             )
         except Exception as exc:
             logger.exception(
@@ -343,6 +400,7 @@ class CounterpartRecoveryService:
                 confidence=chosen["score"],
                 candidate_afms=candidates,
                 error_message=str(exc)[:2000],
+                run_signature=source_signature,
             )
             return {
                 "status": "failed",
@@ -579,6 +637,7 @@ class CounterpartRecoveryService:
         method: RecoveryMethod,
         ai_result: dict | None,
         text: str,
+        source_signature: str,
     ) -> CounterpartRecoveryAttempt:
         afm = chosen["afm"]
         source_span = next(
@@ -610,6 +669,7 @@ class CounterpartRecoveryService:
                 if extraction
                 else None,
                 ocr_confidence=extraction.ocr_confidence if extraction else None,
+                run_signature=source_signature,
                 completed_at=timezone.now(),
                 **(self._ai_attempt_fields(ai_result)),
             )
@@ -759,6 +819,78 @@ class CounterpartRecoveryService:
         )
 
     @staticmethod
+    def _source_signature(
+        decision: Decision,
+        org_afm: str,
+        self_afms: set[str],
+        extraction: DocumentExtraction | None,
+        *,
+        allow_ocr: bool,
+        allow_ai: bool,
+        apply: bool,
+    ) -> str:
+        """
+        Fingerprint every input that can change the recovery outcome.
+
+        Any difference (new text, OCR provider/lang/DPI, apply/AI flags, AI
+        model, algorithm version, org/self AFMs) produces a new signature and
+        makes the decision eligible for another attempt.  Identical inputs
+        reuse the prior non-applied attempt instead of paying OCR/AI again.
+        """
+        text = (extraction.raw_text or "") if extraction else ""
+        text_hash = (
+            hashlib.sha256(text.encode("utf-8")).hexdigest() if text else ""
+        )
+        ocr_metadata = (extraction.ocr_metadata or {}) if extraction else {}
+        payload = {
+            "version": RECOVERY_SIGNATURE_VERSION,
+            "decision_id": decision.id,
+            "org_afm": org_afm,
+            "self_afms": sorted(self_afms),
+            "extraction_id": extraction.id if extraction else None,
+            "extraction_provider": (
+                extraction.extraction_provider if extraction else None
+            ),
+            "extraction_status": (
+                extraction.extraction_status if extraction else None
+            ),
+            "text_hash": text_hash,
+            "ocr_provider": ocr_metadata.get("provider"),
+            "ocr_lang": ocr_metadata.get("lang"),
+            "ocr_dpi": ocr_metadata.get("dpi"),
+            # Current runtime OCR config, not just what the last extraction
+            # recorded: changing the provider settings must invalidate the
+            # skip guard even before a new extraction runs.
+            "ocr_config_lang": os.environ.get("OCR_LANG", ""),
+            "ocr_config_dpi": os.environ.get("OCR_DPI", ""),
+            "ocr_config_psm": os.environ.get("OCR_PSM", ""),
+            "allow_ocr": allow_ocr,
+            "allow_ai": allow_ai,
+            "apply": apply,
+            "ocr_feature": feature_flags.is_enabled("DOCUMENT_OCR_ENABLED"),
+            "ai_model": os.environ.get(
+                "COUNTERPART_RECOVERY_AI_MODEL", ""
+            ),
+        }
+        return hashlib.sha256(
+            json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+        ).hexdigest()
+
+    @staticmethod
+    def _prior_same_input_attempt(
+        decision: Decision, signature: str
+    ) -> CounterpartRecoveryAttempt | None:
+        return (
+            CounterpartRecoveryAttempt.objects.filter(
+                decision=decision,
+                evidence__run_signature=signature,
+            )
+            .exclude(status=RecoveryStatus.APPLIED)
+            .order_by("-created_at", "-id")
+            .first()
+        )
+
+    @staticmethod
     def _latest_applied(decision: Decision) -> CounterpartRecoveryAttempt | None:
         return (
             CounterpartRecoveryAttempt.objects.filter(
@@ -805,8 +937,12 @@ class CounterpartRecoveryService:
         cost_usd=None,
         input_tokens=None,
         output_tokens=None,
+        run_signature: str | None = None,
     ) -> CounterpartRecoveryAttempt:
         entity = getattr(self_rel, "entity", None) if self_rel else None
+        evidence = dict(evidence or {})
+        if run_signature:
+            evidence["run_signature"] = run_signature
         return CounterpartRecoveryAttempt.objects.create(
             decision=decision,
             extraction=extraction,

@@ -111,6 +111,7 @@ _SUMMARY_KEYS = (
     "needs_review",
     "no_candidate",
     "already_recovered",
+    "skipped",
     "ai_calls",
 )
 
@@ -1662,6 +1663,7 @@ def recover_self_counterparts(
         "needs_review": 0,
         "no_candidate": 0,
         "already_recovered": 0,
+        "skipped": 0,
         "ai_calls": 0,
         "errors": 0,
     }
@@ -1684,6 +1686,8 @@ def recover_self_counterparts(
                 summary["no_candidate"] += 1
             elif status == "already_recovered":
                 summary["already_recovered"] += 1
+            elif status == "skipped":
+                summary["skipped"] += 1
 
             if result.get("method") == "AI_TEXT":
                 summary["ai_calls"] += 1

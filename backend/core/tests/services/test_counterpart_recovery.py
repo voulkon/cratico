@@ -229,6 +229,88 @@ class TestCounterpartRecovery:
         assert attempt.original_afm == SELF_AFM
         assert attempt.original_role == "person"
 
+    def test_same_inputs_are_skipped(self):
+        decision, _, _, _ = _seed_decision(with_target_entity=False)
+        extraction = decision.text_extraction
+        extraction.raw_text = (
+            "ΑΦΜ 899972873 και ΑΦΜ 167375970 εμφανίζονται στο έγγραφο. "
+            "Η αξία της ανάθεσης είναι 30.000,00 ευρώ."
+        )
+        extraction.save(update_fields=["raw_text"])
+
+        service = CounterpartRecoveryService()
+        first = service.recover_decision(
+            decision, force=True, apply=True, allow_ai=False
+        )
+        assert first["status"] == "needs_review"
+        attempts_after_first = CounterpartRecoveryAttempt.objects.filter(
+            decision=decision
+        ).count()
+
+        # Same text/provider/flags: nothing new to learn, no new attempt.
+        second = service.recover_decision(
+            decision, force=False, apply=True, allow_ai=False
+        )
+        assert second["status"] == "skipped"
+        assert second["reason"] == "same_inputs"
+        assert (
+            CounterpartRecoveryAttempt.objects.filter(
+                decision=decision
+            ).count()
+            == attempts_after_first
+        )
+
+        # --force explicitly opts into a retry.
+        third = service.recover_decision(
+            decision, force=True, apply=True, allow_ai=False
+        )
+        assert third["status"] == "needs_review"
+
+    def test_changed_text_or_provider_retries(self):
+        decision, relationship, _, extraction = _seed_decision(
+            with_target_entity=False
+        )
+        extraction.raw_text = (
+            "ΑΦΜ 899972873 και ΑΦΜ 167375970 εμφανίζονται στο έγγραφο. "
+            "Η αξία της ανάθεσης είναι 30.000,00 ευρώ."
+        )
+        extraction.save(update_fields=["raw_text"])
+
+        service = CounterpartRecoveryService()
+        first = service.recover_decision(
+            decision, force=True, apply=True, allow_ai=False
+        )
+        assert first["status"] == "needs_review"
+
+        # A new OCR provider run (same text, different provider metadata) is a
+        # different input and must be eligible again.
+        extraction.ocr_metadata = {
+            "provider": "TESSERACT_V2",
+            "dpi": 300,
+            "lang": "ell+eng",
+        }
+        extraction.save(update_fields=["ocr_metadata"])
+        second = service.recover_decision(
+            decision, force=False, apply=True, allow_ai=False
+        )
+        assert second["status"] != "skipped"
+
+        # Changed text is also a new signature.
+        extraction.raw_text = (
+            "Ο ανάδοχος με ΑΦΜ 899972873 είναι ο μοναδικός αντισυμβαλλόμενος. "
+            "Η αξία της ανάθεσης είναι 30.000,00 ευρώ."
+        )
+        extraction.save(update_fields=["raw_text"])
+        AFMEntityFactory(
+            afm=REAL_AFM, name="ΠΡΑΓΜΑΤΙΚΟΣ ΑΝΑΔΟΧΟΣ", total_appearances=3
+        )
+        third = service.recover_decision(
+            decision, force=False, apply=True, allow_ai=False
+        )
+        assert third["status"] == "recovered"
+        relationship.refresh_from_db()
+        assert relationship.entity.afm == REAL_AFM
+
     def test_ai_fallback_validates_and_logs_system_cost(self, monkeypatch):
         from django.conf import settings
 
