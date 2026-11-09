@@ -128,7 +128,7 @@ def run_feedback_job(self, job_id: str) -> dict[str, Any]:
     candidate so progress is visible immediately, then enqueues one
     ``report_single_decision_feedback`` task each.
     """
-    from django.db.models import Exists, OuterRef, Q
+    from django.db.models import Exists, OuterRef
 
     from core.models.diavgeia_feedback_job import (
         DiavgeiaFeedbackJob,
@@ -137,7 +137,7 @@ def run_feedback_job(self, job_id: str) -> dict[str, Any]:
     )
     from core.models.diavgeia_feedback_report import DiavgeiaFeedbackReport
     from core.models.decisions import Decision
-    from core.models.entities import DecisionAmountField
+    from core.services.diavgeia_feedback_service import issue_exists
 
     try:
         job = DiavgeiaFeedbackJob.objects.get(job_id=job_id)
@@ -149,16 +149,7 @@ def run_feedback_job(self, job_id: str) -> dict[str, Any]:
 
     try:
         # Same population as DiavgeiaFeedbackService.pending_decisions():
-        # a decision qualifies when an amount was corrected (verified_amount)
-        # OR flagged as a non-monetary value (invalid_amount_reason).
-        has_amount_issue = Exists(
-            DecisionAmountField.objects.filter(
-                decision=OuterRef("pk"),
-            ).filter(
-                Q(verified_amount__isnull=False)
-                | Q(invalid_amount_reason__isnull=False)
-            )
-        )
+        # corrected/flagged amounts OR a counterpart-recovery attempt.
         already_reported = Exists(
             DiavgeiaFeedbackReport.objects.filter(
                 decision=OuterRef("pk"), reported=True
@@ -166,7 +157,7 @@ def run_feedback_job(self, job_id: str) -> dict[str, Any]:
         )
         candidates = (
             Decision.objects
-            .filter(has_amount_issue)
+            .filter(issue_exists())
             .exclude(already_reported)
         )
         if job.start_date:
