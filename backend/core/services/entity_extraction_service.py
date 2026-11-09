@@ -54,6 +54,13 @@ class EntityExtractionService:
         afm_entities = []
         efv = decision.extra_field_values_json
 
+        # Re-import guard — see EntityAmountExtractionService._save_entities.
+        from core.services.non_monetary_value_guard import (
+            collect_recovered_original_afms,
+        )
+
+        suppressed_afms = collect_recovered_original_afms(decision)
+
         # Extract AFM entities from various fields
         afm_extractions = self._extract_afms_from_efv(efv)
 
@@ -71,6 +78,14 @@ class EntityExtractionService:
             # Check afmType filtering
             if not self._should_process_afm(raw_context):
                 logger.debug(f"Skipping AFM {afm} due to afmType filtering")
+                continue
+
+            # Skip AFMs superseded by an applied counterpart recovery.
+            if afm in suppressed_afms:
+                logger.debug(
+                    f"Skipping superseded self-counterpart AFM {afm} on "
+                    f"re-import of decision {decision.ada}"
+                )
                 continue
 
             # Create or get AFM entity
@@ -231,8 +246,19 @@ class EntityExtractionService:
         role: str,
         parent_key_path: str,
         raw_context: Dict[str, Any],
-    ) -> DecisionEntityRelationship:
+    ) -> DecisionEntityRelationship | None:
         """Create a decision-entity relationship."""
+        from core.services.non_monetary_value_guard import (
+            collect_recovered_original_afms,
+        )
+
+        if entity.afm in collect_recovered_original_afms(decision):
+            logger.debug(
+                f"Not recreating superseded self-counterpart AFM {entity.afm} "
+                f"for decision {decision.ada}"
+            )
+            return None
+
         relationship, created = DecisionEntityRelationship.objects.get_or_create(
             decision=decision,
             entity=entity,

@@ -435,6 +435,16 @@ class EntityAmountExtractionService:
         """Save extracted entities to database."""
         relationships = []
 
+        # Re-import guard: the raw Diavgeia JSON still contains the old
+        # self-as-counterpart AFM.  Creating it again would undo the recovery
+        # (two "current" counterparts for the same path).  Skip any AFM that an
+        # APPLIED recovery attempt replaced.
+        from core.services.non_monetary_value_guard import (
+            collect_recovered_original_afms,
+        )
+
+        suppressed_afms = collect_recovered_original_afms(decision)
+
         # Sort by AFM to ensure all workers lock AFMEntity rows in the same
         # order, preventing deadlocks when concurrent decisions reference the
         # same entities in different JSON orderings.
@@ -447,6 +457,14 @@ class EntityAmountExtractionService:
             # Skip organization AFMs
             if role == EntityRole.ORGANIZATION:
                 logger.debug(f"Skipping organization AFM {afm}")
+                continue
+
+            # Skip AFMs superseded by an applied counterpart recovery.
+            if afm in suppressed_afms:
+                logger.debug(
+                    f"Skipping superseded self-counterpart AFM {afm} on "
+                    f"re-import of decision {decision.ada}"
+                )
                 continue
 
             # Skip based on afmType if present
