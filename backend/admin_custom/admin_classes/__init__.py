@@ -42,6 +42,7 @@ from .notifications import (
     NotificationBatchDecisionAdmin,
     NotificationSubscriptionAdmin,
 )
+from .recovery import CounterpartRecoveryAttemptAdmin
 from .users import CustomUserAdmin, SubscriptionAdmin
 
 __all__ = [
@@ -91,4 +92,6 @@ __all__ = [
     "FeatureFlagAuditLogAdmin",
     # Classification Job admin classes
     "ClassificationJobAdmin",
+    # Counterpart recovery admin classes
+    "CounterpartRecoveryAttemptAdmin",
 ]
