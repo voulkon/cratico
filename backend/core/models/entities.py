@@ -23,6 +23,15 @@ class EntityRole(models.TextChoices):
     OTHER = "other", "Other"
 
 
+class MetadataSource(models.TextChoices):
+    """Where the relationship's counterpart AFM came from."""
+
+    DIAVGEIA = "DIAVGEIA", "Diavgeia metadata"
+    OCR_AFM = "OCR_AFM", "Recovered from OCR text"
+    AI_TEXT = "AI_TEXT", "Recovered by AI from text"
+    MANUAL = "MANUAL", "Manual"
+
+
 class AFMEntity(models.Model):
     """Stores unique AFM entities found in decisions."""
 
@@ -110,6 +119,43 @@ class DecisionEntityRelationship(models.Model):
     confidence_score = models.FloatField(
         default=1.0
     )  # How confident are we in this extraction
+
+    # ------------------------------------------------------------------
+    # Counterpart-recovery provenance
+    # ------------------------------------------------------------------
+    # The row always represents the CURRENT counterpart.  When the recovery
+    # pipeline replaces a self-referential Diavgeia AFM with the AFM read from
+    # the document, these fields record that the value was inferred and where
+    # the evidence came from.  The replaced state lives in
+    # ``CounterpartRecoveryAttempt`` — deliberately no ``is_active`` flag or
+    # multi-row history here, so every existing relationship query keeps
+    # working unchanged.
+    is_inferred = models.BooleanField(
+        default=False,
+        help_text="True when this relationship was recovered from document text.",
+    )
+    metadata_source = models.CharField(
+        max_length=20,
+        choices=MetadataSource.choices,
+        default=MetadataSource.DIAVGEIA,
+        help_text="Origin of the counterpart AFM.",
+    )
+    source_extraction = models.ForeignKey(
+        "core.DocumentExtraction",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="recovered_relationships",
+        help_text="Extraction whose text produced the recovered counterpart.",
+    )
+    source_span = models.ForeignKey(
+        "core.TextSpan",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="recovered_relationships",
+        help_text="Text span that supplied the recovered counterpart AFM.",
+    )
 
     class Meta:
         unique_together = ["decision", "entity", "role", "parent_key_path"]

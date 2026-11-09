@@ -65,6 +65,13 @@ class DocumentExtraction(models.Model):
     is_scanned_document = models.BooleanField(null=True, blank=True)
     # language = models.CharField(max_length=10, null=True, blank=True)
 
+    # OCR provenance (Tesseract fallback).  ``ocr_metadata`` holds per-page
+    # confidence, DPI, language and the text hash so a re-extraction can be
+    # audited against what the recovery pipeline actually read.
+    ocr_applied = models.BooleanField(default=False)
+    ocr_confidence = models.FloatField(null=True, blank=True)
+    ocr_metadata = models.JSONField(default=dict, blank=True)
+
     # Full-text search field
     search_vector = SearchVectorField(null=True, blank=True)
 

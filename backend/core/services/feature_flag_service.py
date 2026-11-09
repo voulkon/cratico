@@ -332,6 +332,51 @@ class FeatureFlagService:
             "category": "data_quality",
             "requires_restart": False,
         },
+        # ── OCR + Counterpart Recovery ─────────────────────────────────
+        "DOCUMENT_OCR_ENABLED": {
+            "name": "Document OCR Fallback",
+            "description": "When native PDF extraction yields no/too little text "
+            "(image-only photographed decisions), retry the same PDF with "
+            "Tesseract (ell+eng). Requires the tesseract binary and Greek "
+            "language data in the worker image. Off = never run OCR.",
+            "default": True,
+            "env_var": "DOCUMENT_OCR_ENABLED",
+            "category": "data_extraction",
+            "requires_restart": False,
+        },
+        "COUNTERPART_RECOVERY_ENABLED": {
+            "name": "Counterpart Recovery",
+            "description": "Detect decisions whose counterpart AFM equals the "
+            "issuing org's own VAT number and recover the real counterpart from "
+            "the document text. Report-only unless "
+            "COUNTERPART_RECOVERY_APPLY_ENABLED is also on.",
+            "default": True,
+            "env_var": "COUNTERPART_RECOVERY_ENABLED",
+            "category": "data_quality",
+            "requires_restart": False,
+        },
+        "COUNTERPART_RECOVERY_APPLY_ENABLED": {
+            "name": "Counterpart Recovery — Apply",
+            "description": "Allow high-confidence recovered counterparts to "
+            "rewrite the live relationship row (with a full pre-change snapshot "
+            "in CounterpartRecoveryAttempt). Off = write NEEDS_REVIEW attempts "
+            "only and change nothing.",
+            "default": False,
+            "env_var": "COUNTERPART_RECOVERY_APPLY_ENABLED",
+            "category": "data_quality",
+            "requires_restart": False,
+        },
+        "COUNTERPART_RECOVERY_AI_ENABLED": {
+            "name": "Counterpart Recovery — AI Resolver",
+            "description": "When regex/scoring is inconclusive, ask an OpenRouter "
+            "model for a strict JSON counterpart AFM (validated against the "
+            "checksum and required to appear verbatim in the text). Billed to "
+            "SYSTEM under trigger='counterpart_recovery'.",
+            "default": False,
+            "env_var": "COUNTERPART_RECOVERY_AI_ENABLED",
+            "category": "data_quality",
+            "requires_restart": False,
+        },
         # ── User-Triggered GEMI Fetch ─────────────────────────────────
         "GEMI_FETCH_REQUEST_PUBLIC_ACCESS": {
             "name": "GEMI Fetch Request — Public Access",
