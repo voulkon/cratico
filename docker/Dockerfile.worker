@@ -73,6 +73,10 @@ RUN if [ "$LIGHT_WORKER" = "true" ]; then \
             && rm -rf /var/lib/apt/lists/*; \
     fi
 
+# Shared OCR runtime (Tesseract + Greek/English language data).
+COPY docker/install-ocr.sh /usr/local/bin/install-ocr.sh
+RUN chmod +x /usr/local/bin/install-ocr.sh && /usr/local/bin/install-ocr.sh
+
 WORKDIR /code
 
 # Copy ONLY the installed packages from the builder stage

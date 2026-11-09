@@ -22,6 +22,10 @@ RUN apt-get update && apt-get install -y \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
+# Shared OCR runtime (Tesseract + Greek/English language data).
+COPY docker/install-ocr.sh /usr/local/bin/install-ocr.sh
+RUN chmod +x /usr/local/bin/install-ocr.sh && /usr/local/bin/install-ocr.sh
+
 # Install Poetry (match host version)
 RUN pip install --no-cache-dir poetry==2.2.1
 

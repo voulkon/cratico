@@ -5,6 +5,7 @@ from core.models.document_analysis import (
     DocumentExtraction,
     DocumentPage,
     ProcessingStatus,
+    TextProcessResolution,
 )
 from core.protocols.extraction_protocol import ExtractionResult
 from django.db import transaction
@@ -48,6 +49,8 @@ class DocumentExtractionImporter:
             )
 
         # Common fields to update
+        previous_text = extraction.raw_text or ""
+        text_changed = (result.text or "") != previous_text
         extraction.extraction_provider = provider_name
         extraction.extraction_date = timezone.now()
         extraction.processing_time_ms = processing_time_ms
@@ -57,8 +60,27 @@ class DocumentExtractionImporter:
         # TODO: Remove this after migration is complete
         extraction.raw_text = result.text
 
-        # Handle differently based on whether it's a scanned document
-        if is_corrupted:
+        # OCR provenance.  Only overwrite ocr_metadata when OCR actually ran —
+        # a later native re-extraction must not erase the OCR audit trail of
+        # the text that was recovered.
+        extraction.ocr_applied = bool(result.ocr_applied)
+        if result.ocr_applied:
+            extraction.ocr_confidence = result.confidence
+            extraction.ocr_metadata = result.metadata or {}
+        elif text_changed:
+            extraction.ocr_confidence = None
+
+        # Handle differently based on whether it's a scanned document.
+        #
+        # ``requires_vision`` is the only "we truly cannot read this" signal.
+        # A scanned document WITH OCR text is COMPLETED — the corruption
+        # detector may still flag OCR artifacts, but discarding the text would
+        # defeat the whole recovery path.
+        if result.requires_vision:
+            extraction.extraction_status = ProcessingStatus.NEEDS_VISION
+            extraction.is_scanned_document = True
+            extraction.character_count = len(result.text) if result.text else 0
+        elif is_corrupted and not result.ocr_applied:
             extraction.extraction_status = ProcessingStatus.CORRUPTED_CONTENT
             logger.warning(
                 f"Marking extraction for {decision.ada} as CORRUPTED_CONTENT."
@@ -66,13 +88,6 @@ class DocumentExtractionImporter:
 
             # Store corruption details if available
             if preprocessing_result:
-                strategy_used = "unknown"
-                if (
-                    hasattr(preprocessing_result, "corruption_indicators")
-                    and preprocessing_result.corruption_indicators
-                ):
-                    pass  # corruption_indicators available in preprocessing_metadata below
-
                 extraction.preprocessing_metadata = {
                     "corruption_indicators": preprocessing_result.corruption_indicators,
                     "confidence_score": preprocessing_result.confidence_score,
@@ -82,32 +97,58 @@ class DocumentExtractionImporter:
                         "strategy_used", "unknown"
                     ),
                 }
-
-        elif result.is_scanned:
-            # Mark for vision processing
-            extraction.extraction_status = ProcessingStatus.NEEDS_VISION
-            extraction.is_scanned_document = True
         else:
-            # Complete the extraction
+            # Complete the extraction (native good text OR usable OCR text)
             extraction.extraction_status = ProcessingStatus.COMPLETED
-            extraction.is_scanned_document = False
+            extraction.is_scanned_document = bool(result.is_scanned)
             extraction.character_count = len(result.text) if result.text else 0
 
-            # Store preprocessing metadata even for non-corrupted text
+            # Store preprocessing metadata even for non-corrupted text.  OCR
+            # text may be flagged as "corrupted" by the artifact detector —
+            # record the indicators, but keep the COMPLETED status above.
             if preprocessing_result:
                 extraction.preprocessing_metadata = {
                     "confidence_score": preprocessing_result.confidence_score,
                     "performance_stats": preprocessing_result.performance_stats,
                     "processed_at": timezone.now().isoformat(),
-                    "strategy_used": preprocessing_result.corruption_indicators.get(
-                        "strategy_used", "unknown"
-                    ),
+                    "strategy_used": (
+                        preprocessing_result.corruption_indicators or {}
+                    ).get("strategy_used", "unknown"),
                 }
+
+        # Persist OCR fallback audit details that the processor put on the
+        # ExtractionResult (native char count, whether OCR ran and why).
+        metadata_extra = {
+            key: (result.metadata or {})[key]
+            for key in ("native_extraction", "ocr_fallback")
+            if result.metadata and key in result.metadata
+        }
+        if metadata_extra:
+            extraction.preprocessing_metadata = {
+                **(extraction.preprocessing_metadata or {}),
+                **metadata_extra,
+            }
 
         # Use transaction to ensure consistency between extraction and pages
         with transaction.atomic():
             # Save the extraction first
             extraction.save()
+
+            # Text was replaced (OCR or a different extraction): every stored
+            # char offset is now meaningless.  Delete the runs (spans cascade)
+            # and the decision-level resolutions before anything re-runs on the
+            # new text.
+            if text_changed:
+                deleted_runs, _ = extraction.text_process_runs.all().delete()
+                deleted_res, _ = TextProcessResolution.objects.filter(
+                    decision=decision
+                ).delete()
+                if deleted_runs or deleted_res:
+                    logger.info(
+                        f"Text changed for {decision.ada} — cleared "
+                        f"{deleted_runs} text-process run/span row(s) and "
+                        f"{deleted_res} resolution(s) with stale offsets"
+                    )
 
             # Check if we should skip page creation
             skip_page_creation = result.metadata and result.metadata.get(

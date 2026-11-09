@@ -114,7 +114,7 @@ def run_decision_pipeline_task(
 
 
 @shared_task(bind=True, max_retries=3)
-def process_document_task(self, ada, provider=None):
+def process_document_task(self, ada, provider=None, force_ocr: bool = False):
     """
     Celery task to process a document with structured logging.
     All logs are tagged with document_ada and task_id for easy filtering in Grafana.
@@ -136,7 +136,12 @@ def process_document_task(self, ada, provider=None):
 
             # Process the document with the specified provider
             service = DocumentAnalysisService()
-            result = service.process_decision(decision, provider=provider)
+            result = service.process_decision(
+                decision,
+                provider=provider,
+                force=force_ocr,
+                allow_ocr=True,
+            )
 
             logger.info(
                 f"Document {ada} processing completed",
@@ -208,7 +213,7 @@ def process_document_batch(ada_list):
 
 
 @shared_task(bind=True, max_retries=3)
-def process_document_task_enhanced(self, ada, provider=None):
+def process_document_task_enhanced(self, ada, provider=None, force_ocr: bool = False):
     """
     Enhanced Celery task to process a document with OpenSearch indexing and full observability.
     Includes structured logging with metadata for Grafana/Loki filtering.
@@ -256,7 +261,12 @@ def process_document_task_enhanced(self, ada, provider=None):
 
                 # Process the document with the specified provider
                 service = DocumentAnalysisService()
-                result = service.process_decision(decision, provider=provider)
+                result = service.process_decision(
+                    decision,
+                    provider=provider,
+                    force=force_ocr,
+                    allow_ocr=True,
+                )
 
                 if (
                     result.get("success")
