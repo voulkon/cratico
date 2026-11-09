@@ -30,15 +30,6 @@ def test_skips_when_flag_disabled():
     assert result == {"status": "skipped", "reason": "feature_flag_disabled"}
 
 
-def test_skips_hourly_tail():
-    from core.tasks.tasks_post_import import recover_self_counterparts
-
-    result = recover_self_counterparts(
-        reference_date_str="2026-11-08", tail_kind="hourly"
-    )
-    assert result == {"status": "skipped", "reason": "hourly_tail"}
-
-
 def test_counts_isolates_errors_and_refreshes(monkeypatch):
     from core.tasks import tasks_post_import
 
@@ -79,9 +70,11 @@ def test_counts_isolates_errors_and_refreshes(monkeypatch):
         lambda self, ids: recomputed.extend(ids),
     )
     invalidated = []
+    # Patch the class, not the singleton: restoring an instance attribute
+    # would shadow the class method for later tests.
     monkeypatch.setattr(
-        "core.services.response_cache_service.response_cache.invalidate_prefix",
-        lambda prefix: invalidated.append(prefix) or 0,
+        "core.services.response_cache_service.ResponseCacheService.invalidate_prefix",
+        staticmethod(lambda prefix: invalidated.append(prefix) or 0),
     )
 
     with patch(
@@ -101,3 +94,47 @@ def test_counts_isolates_errors_and_refreshes(monkeypatch):
     assert recomputed  # affected entity ids were refreshed
     assert "top_" in invalidated
     assert "browse" in invalidated
+
+
+def test_hourly_only_invalidates_browse(monkeypatch):
+    from core.tasks import tasks_post_import
+
+    monkeypatch.setattr("django.db.close_old_connections", lambda: None)
+
+    decision = DecisionFactory(ada="HR-RECOVERED")
+    DecisionEntityRelationshipFactory(decision=decision)
+
+    class FakeService:
+        def get_candidates(self, **kwargs):
+            return [decision]
+
+        def recover_decision(self, decision):
+            return {"status": "recovered", "method": "REGEX_OCR"}
+
+    monkeypatch.setattr(
+        "core.services.counterpart_recovery_service.CounterpartRecoveryService",
+        FakeService,
+    )
+    monkeypatch.setattr(
+        "core.services.afm_entity_stats_service.AFMEntityStatsService.compute_entities",
+        lambda self, ids: None,
+    )
+
+    invalidated = []
+    monkeypatch.setattr(
+        "core.services.response_cache_service.ResponseCacheService.invalidate_prefix",
+        staticmethod(lambda prefix: invalidated.append(prefix) or 0),
+    )
+
+    with patch(
+        "core.tasks.tasks_post_import.feature_flags.is_enabled",
+        side_effect=_enable_recovery,
+    ):
+        result = tasks_post_import.recover_self_counterparts(
+            reference_date_str="2026-11-08", tail_kind="hourly"
+        )
+
+    assert result["recovered"] == 1
+    # Hourly re-warms only today; dropping weekly/monthly/yearly analytics
+    # keys would leave them cold until the nightly run.
+    assert invalidated == ["browse"]

@@ -14,9 +14,10 @@ To add new post-import work:
 Execution order (via Celery chord — sequential, fail-fast):
   verify_high_value_amounts
       └─ chord: [verify_correct_decision_batch × N]  →  finalize_amount_verification
-      └─ chord body continues: compute_entity_rankings  →  invalidate_browse_cache
+      └─ chord body continues: recover_self_counterparts
+         →  compute_entity_rankings  →  invalidate_browse_cache
          →  warm_analytics_cache  →  trigger_check_all_subscriptions
-  (amount correction)                (DB snapshots)             (Redis cache)             (Notifications)
+  (amount correction)       (counterpart repair)       (DB snapshots)             (Redis cache)             (Notifications)
 
 DISPATCHED EXACTLY ONCE (2026-09-15 incident): the orchestrator queues ONLY
 ``verify_high_value_amounts``, and that task owns the tail
@@ -358,13 +359,22 @@ def _post_verification_tail_chain(
     the duplicate notification batches on 2026-09-15).
 
     Two shapes:
-      * ``"daily"`` — the full 4-task chain below.
-      * ``"hourly"`` — warm today's window + notifications only.  Rankings are
-        a stub; browse invalidation and weekly/monthly/yearly warming are
-        pointless intra-day (those frontend windows end at yesterday).
+      * ``"daily"`` — recovery + rankings + browse invalidation + all-window
+        warming + notifications.
+      * ``"hourly"`` — recovery (scoped to the hourly import window) + warm
+        today's window + notifications.  Rankings are a stub and
+        weekly/monthly/yearly warming is pointless intra-day (those frontend
+        windows end at yesterday), but today's cached totals must include any
+        counterpart recovered from a decision imported this hour.
     """
     if tail_kind == "hourly":
         return chain(
+            recover_self_counterparts.si(
+                reference_date_str=reference_date_str,
+                imported_since_str=imported_since_str,
+                imported_until_str=imported_until_str,
+                tail_kind="hourly",
+            ),
             warm_today_window.si(reference_date_str=reference_date_str),
             trigger_check_all_subscriptions.si(
                 reference_date_str=reference_date_str
@@ -1579,9 +1589,10 @@ def _discover_non_monetary_values(
 # ---------------------------------------------------------------------------
 # Counterpart recovery — self-as-counterpart decisions
 # ---------------------------------------------------------------------------
-# Runs in the post-verification tail on the DAILY path only: an hourly run
-# would pay OCR/AI cost repeatedly for the same decisions, and the next daily
-# run covers them anyway.
+# Runs in both the daily and hourly tails.  Hourly scopes candidates to the
+# import window (``imported_since`` → ``imported_until``), so each decision is
+# examined once, not once per hour; recovery runs before ``warm_today_window``
+# so intra-day cached totals include the repaired relationship.
 
 COUNTERPART_RECOVERY_CANDIDATE_LIMIT = int(
     os.environ.get("COUNTERPART_RECOVERY_LIMIT", "200")
@@ -1606,12 +1617,12 @@ def recover_self_counterparts(
     decision is isolated: one failure is counted, never raised.  When the
     feature flag is off this returns a ``skipped`` dict — the tail keeps going.
 
+    ``tail_kind`` is accepted for chain-signature compatibility; hourly runs
+    are window-scoped by the caller and intentionally behave the same here.
+
     Returns counts: candidates, recovered, needs_review, no_candidate,
     already_recovered, ai_calls, errors.
     """
-    if tail_kind == "hourly":
-        return {"status": "skipped", "reason": "hourly_tail"}
-
     if not feature_flags.is_enabled("COUNTERPART_RECOVERY_ENABLED"):
         logger.debug(
             "COUNTERPART_RECOVERY_ENABLED is disabled, skipping counterpart "
@@ -1704,13 +1715,28 @@ def recover_self_counterparts(
         try:
             from core.services.response_cache_service import response_cache
 
+            # Same contract as finalize_amount_verification: the hourly tail
+            # re-warms ONLY the (today, today) window, so dropping the
+            # weekly/monthly/yearly analytics keys would leave them cold until
+            # the nightly run.  Today's keys are overwritten by
+            # warm_today_window right after this task; the larger windows
+            # cannot contain a decision imported today unless its issue date is
+            # historical, which is the daily tail's job.
+            prefixes = ["browse"]
+            if tail_kind != "hourly":
+                prefixes = [
+                    "top_",
+                    "da_top_pairs",
+                    "explore_orgs",
+                    "browse",
+                ]
             invalidated = sum(
                 response_cache.invalidate_prefix(prefix)
-                for prefix in ("top_", "da_top_pairs", "explore_orgs", "browse")
+                for prefix in prefixes
             )
             logger.info(
                 f"Counterpart recovery changed entities — invalidated "
-                f"{invalidated} analytics/browse cache key(s)"
+                f"{invalidated} cache key(s) for {prefixes}"
             )
         except Exception:
             logger.exception(
