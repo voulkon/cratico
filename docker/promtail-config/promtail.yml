@@ -42,6 +42,12 @@ scrape_configs:
         target_label: 'service_name'
         regex: '/diavgeia_(.*)'
         replacement: 'diavgeia-${1}'
+      # Coolify names containers `<role>-<uuid>`; map both schemes so
+      # service_name is not empty in production.
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'service_name'
+        regex: '/(backend|worker|beat|flower|rabbitmq|redis|pgbouncer|nginx|grafana|prometheus|loki|promtail|autoheal)-.*'
+        replacement: '${1}'
 
       # Set component type for easier filtering
       - source_labels: ['__meta_docker_container_name']
@@ -69,9 +75,10 @@ scrape_configs:
         regex: '/diavgeia_nginx'
         replacement: 'webserver'
 
-      # Set environment
+      # Set environment from DEPLOY_ENV (requires -config.expand-env=true,
+      # set in the promtail compose command).  Defaults to production there.
       - target_label: 'environment'
-        replacement: 'development'
+        replacement: '${DEPLOY_ENV}'
 
     pipeline_stages:
       - docker: {}
