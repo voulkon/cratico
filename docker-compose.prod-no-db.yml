@@ -52,7 +52,9 @@ services:
       - ./docker/promtail-config/promtail.yml:/etc/promtail/config.yml
       - /var/run/docker.sock:/var/run/docker.sock
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
-    command: -config.file=/etc/promtail/config.yml
+    environment:
+      - DEPLOY_ENV=${DEPLOY_ENV:-production}
+    command: -config.file=/etc/promtail/config.yml -config.expand-env=true
     networks:
       - internal
     depends_on:
@@ -84,6 +86,7 @@ services:
     expose:
       - "5672"
       - "15672"
+      - "15692"   # rabbitmq_prometheus (queue depth / consumers)
     environment:
       - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-guest}
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-guest}
@@ -91,6 +94,8 @@ services:
       - internal
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+      - ./docker/rabbitmq-config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./docker/rabbitmq-config/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 30s
@@ -216,6 +221,11 @@ services:
         LIGHT_WORKER: ${LIGHT_WORKER:-false}
     container_name: diavgeia_worker
     restart: always
+    # A deploy must never hang waiting for an immortal OCR child.
+    stop_grace_period: 30s
+    # Backstop: a runaway can degrade but cannot take the host.
+    cpus: "3.0"
+    mem_limit: 4g
     command:  ["/bin/sh", "-c", "chmod +x /code/worker_entrypoint.sh && /code/worker_entrypoint.sh"]
     networks:
       - internal
@@ -236,9 +246,30 @@ services:
       # Needed so worker-generated notification emails link to the canonical host.
       - FRONTEND_DOMAINS=${FRONTEND_DOMAINS}
       - LIGHT_WORKER=${LIGHT_WORKER:-false}
+      # One core per Tesseract process; global OCR concurrency is capped in code.
+      - OMP_THREAD_LIMIT=1
+      - OCR_MAX_CONCURRENT=${OCR_MAX_CONCURRENT:-2}
+      - OCR_SLOT_TTL_SECONDS=${OCR_SLOT_TTL_SECONDS:-1800}
+      - OCR_PAGE_TIMEOUT_SECONDS=${OCR_PAGE_TIMEOUT_SECONDS:-60}
+      - OCR_MAX_SECONDS_PER_DOCUMENT=${OCR_MAX_SECONDS_PER_DOCUMENT:-300}
+      - OCR_MAX_PAGES=${OCR_MAX_PAGES:-20}
+      - OCR_MAX_PIXELS=${OCR_MAX_PIXELS:-12000000}
+      - OCR_MAX_NATIVE_CHARS=${OCR_MAX_NATIVE_CHARS:-50000}
+      - OCR_COMPUTE_CONFIDENCE=${OCR_COMPUTE_CONFIDENCE:-false}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME:-crati-backups}
+    # `restart: always` does NOT restart an unhealthy container.  The ping
+    # fails exactly when the consumer is dead (the 2026-11-10 failure mode);
+    # autoheal below watches the label.
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A diavgeia_project inspect ping -d celery@$$HOSTNAME --timeout 5 | grep -q pong"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    labels:
+      autoheal: "true"
   beat:
     build:
       context: .
@@ -277,6 +308,23 @@ services:
     environment:
       - CELERY_BROKER_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//
       - FLOWER_BASIC_AUTH=${FLOWER_BASIC_AUTH}
+
+  # ─────────────────── Autoheal (unhealthy) ──────────────────
+  # `restart: always` never restarts an unhealthy container.  autoheal
+  # restarts containers labelled `autoheal=true` when their healthcheck fails
+  # (i.e. when the Celery consumer is dead but the process is still Up).
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: diavgeia_autoheal
+    restart: always
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=autoheal
+      - AUTOHEAL_INTERVAL=30
+      - AUTOHEAL_START_PERIOD=120
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - internal
 
   # ───────────────────────── Front end ───────────────────────
   frontend:
