@@ -52,8 +52,10 @@ services:
       - ./docker/promtail-config/promtail.yml:/etc/promtail/config.yml
       - /var/run/docker.sock:/var/run/docker.sock
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
-    environment:
-      - DEPLOY_ENV=${DEPLOY_ENV:-production}
+    # NOTE: with `-config.expand-env=true`, every regex capture group in a
+    # relabel `replacement:` MUST be written as `$${1}` (otherwise env
+    # expansion turns `${1}` into an empty string, blanking container_name
+    # and service_name).  promtail.yml follows that convention.
     command: -config.file=/etc/promtail/config.yml -config.expand-env=true
     networks:
       - internal

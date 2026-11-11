@@ -19,11 +19,14 @@ scrape_configs:
             values: [running]
 
     relabel_configs:
-      # Capture container name (e.g., diavgeia_worker, diavgeia_backend)
+      # Capture container name (e.g., diavgeia_worker, diavgeia_backend).
+      # NOTE: promtail runs with -config.expand-env=true, so regex capture
+      # groups MUST be written as `$${1}`; a plain `${1}` is treated as an
+      # environment variable named "1" and expands to an empty string.
       - source_labels: ['__meta_docker_container_name']
         target_label: 'container_name'
         regex: '/(.*)'
-        replacement: '${1}'
+        replacement: '$${1}'
 
       # Map to standardized service_name (hyphenated, matching SERVICE_NAME env var)
       - source_labels: ['__meta_docker_container_name']
@@ -41,13 +44,14 @@ scrape_configs:
       - source_labels: ['__meta_docker_container_name']
         target_label: 'service_name'
         regex: '/diavgeia_(.*)'
-        replacement: 'diavgeia-${1}'
+        replacement: 'diavgeia-$${1}'
       # Coolify names containers `<role>-<uuid>`; map both schemes so
-      # service_name is not empty in production.
+      # service_name is not empty in production.  Keep the `diavgeia-<role>`
+      # form because the provisioned dashboards filter on it.
       - source_labels: ['__meta_docker_container_name']
         target_label: 'service_name'
-        regex: '/(backend|worker|beat|flower|rabbitmq|redis|pgbouncer|nginx|grafana|prometheus|loki|promtail|autoheal)-.*'
-        replacement: '${1}'
+        regex: '/(backend|worker|beat|flower|rabbitmq|redis|pgbouncer|db|postgres|nginx|grafana|prometheus|loki|promtail|autoheal)(-.*)?'
+        replacement: 'diavgeia-$${1}'
 
       # Set component type for easier filtering
       - source_labels: ['__meta_docker_container_name']
@@ -75,10 +79,39 @@ scrape_configs:
         regex: '/diavgeia_nginx'
         replacement: 'webserver'
 
-      # Set environment from DEPLOY_ENV (requires -config.expand-env=true,
-      # set in the promtail compose command).  Defaults to production there.
+      # Coolify `<role>-<uuid>` names: mirror the component mapping above so
+      # the `diavgeia-logs` dashboard (`component=~"django|celery|..."`) keeps
+      # working in production.
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'component'
+        regex: '/backend(-.*)?'
+        replacement: 'django'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'component'
+        regex: '/worker(-.*)?'
+        replacement: 'celery'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'component'
+        regex: '/beat(-.*)?'
+        replacement: 'celery-beat'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'component'
+        regex: '/redis(-.*)?'
+        replacement: 'cache'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'component'
+        regex: '/(db|postgres)(-.*)?'
+        replacement: 'database'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'component'
+        regex: '/(nginx|frontend)(-.*)?'
+        replacement: 'webserver'
+
+      # Keep this label value stable: the provisioned dashboards filter on
+      # `environment="development"`.  Do not switch this to DEPLOY_ENV without
+      # also parameterising the dashboards.
       - target_label: 'environment'
-        replacement: '${DEPLOY_ENV}'
+        replacement: 'development'
 
     pipeline_stages:
       - docker: {}
