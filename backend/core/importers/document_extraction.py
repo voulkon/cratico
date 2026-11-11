@@ -120,7 +120,12 @@ class DocumentExtractionImporter:
         # ExtractionResult (native char count, whether OCR ran and why).
         metadata_extra = {
             key: (result.metadata or {})[key]
-            for key in ("native_extraction", "ocr_fallback")
+            for key in (
+                "native_extraction",
+                "ocr_fallback",
+                "ocr_decision",
+                "ocr_skipped",
+            )
             if result.metadata and key in result.metadata
         }
         if metadata_extra:

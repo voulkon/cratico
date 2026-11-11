@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from core.services.extractors import tesseract as tesseract_module
 from core.services.extractors.tesseract import TesseractExtractor
 from core.services.text_processes.afm import AfmProcess
 
@@ -34,8 +35,13 @@ def _skip_unless_ocr_ready():
 
 
 @pytest.mark.django_db
-def test_extracts_final_boss_pdf():
+def test_extracts_final_boss_pdf(monkeypatch):
     _skip_unless_ocr_ready()
+    # Confidence is a second full-page OCR pass and is opt-in; this fixture
+    # verifies it still works when enabled.
+    monkeypatch.setattr(
+        tesseract_module, "OCR_COMPUTE_CONFIDENCE", True
+    )
 
     assert PDF.exists(), f"missing fixture PDF: {PDF}"
     result = TesseractExtractor().extract_text(str(PDF))

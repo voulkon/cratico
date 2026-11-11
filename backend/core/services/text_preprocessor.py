@@ -19,7 +19,11 @@ class TextPreprocessor:
         dictionary_path: Optional[Path] = None,
         char_validity_threshold: float = 0.7,
         detection_ratio_threshold: float = 0.05,  # Deprecated, kept for compatibility
-        coverage_ratio_threshold: float = 0.04,  # % of text words that must be recognizable (5% - lowered for technical documents)
+        # Coverage is measured over TOKENS (not unique words).  Normal Greek
+        # administrative text repeats function words heavily, so token
+        # coverage is well above 0.10; mojibake/gibberish stays near zero.
+        # Calibrate from a known-good/known-bad corpus before changing.
+        coverage_ratio_threshold: float = 0.10,
         verbose: bool = False,
     ):
 
@@ -403,6 +407,29 @@ class TextPreprocessor:
         text_word_count = len(text_words)
 
         if text_word_count == 0:
+            # `_extract_words` only matches Greek letters.  A Latin/mojibake
+            # document therefore yields zero tokens and used to be reported
+            # as "not corrupted" (false negative).  Flag substantial
+            # non-Greek alphabetic content instead.
+            latin_words = re.findall(r"[A-Za-z]{2,}", text)
+            if len(latin_words) >= 10:
+                self.performance_stats["word_detection"] = {
+                    "matched_words": 0,
+                    "text_word_count": 0,
+                    "unmatched_word_count": len(set(latin_words)),
+                    "word_coverage_ratio": 0.0,
+                    "min_matches_required": 0,
+                    "has_min_matches": False,
+                    "matched_by_category": {},
+                    "is_short_text": False,
+                    "non_greek_alphabetic_tokens": len(latin_words),
+                    "corruption_reasons": {"no_greek_words": True},
+                }
+                logger.warning(
+                    "Corruption detected: text contains no Greek words "
+                    f"({len(latin_words)} Latin tokens)"
+                )
+                return True, time.time() - start_time
             return False, time.time() - start_time
 
         # Build normalized detection word sets by category
@@ -454,16 +481,25 @@ class TextPreprocessor:
             if not matched:
                 matched_text_words["unmatched"].add(text_word)
 
-        # Calculate unique matched words (a word might be in multiple categories)
+        # Unique matched words are kept for diagnostics only (a word might be
+        # in multiple categories).
         unique_matched_words = set()
         for category in ["common_words", "stopwords", "administrative"]:
             unique_matched_words.update(matched_text_words[category])
 
-        matched_word_count = len(unique_matched_words)
+        unique_matched_word_count = len(unique_matched_words)
 
-        # PRIMARY METRIC: What % of text words are recognizable? (Coverage)
+        # PRIMARY METRIC: what fraction of the text's TOKENS are recognizable?
+        # The old code divided UNIQUE matched words by TOTAL tokens, which
+        # made any document longer than ~4,900 words fail unavoidably (the
+        # numerator is capped by the size of the detection vocabulary while
+        # the denominator grows with repetition).  Count matched tokens.
+        matched_token_count = sum(
+            1 for text_word in text_words if text_word in all_detection_words
+        )
+
         word_coverage_ratio = (
-            matched_word_count / text_word_count if text_word_count > 0 else 0
+            matched_token_count / text_word_count if text_word_count > 0 else 0
         )
 
         # SECONDARY METRIC: Minimum absolute count for very short texts
@@ -471,16 +507,16 @@ class TextPreprocessor:
         # For longer texts, coverage ratio is the primary and sufficient metric
         if text_word_count < 10:
             min_matches_required = 2
-            has_min_matches = matched_word_count >= min_matches_required
+            has_min_matches = matched_token_count >= min_matches_required
             # For very short texts, use minimum matches check
             is_corrupted = not has_min_matches
         else:
             # For normal/long texts, use coverage ratio exclusively
-            # If less than 10% of words are recognizable, it's corrupted
+            # If less than the threshold of tokens are recognizable, it's corrupted
             min_matches_required = int(
                 text_word_count * self.coverage_ratio_threshold
-            )  # 10% of text
-            has_min_matches = matched_word_count >= min_matches_required
+            )
+            has_min_matches = matched_token_count >= min_matches_required
             low_coverage = word_coverage_ratio < self.coverage_ratio_threshold
             is_corrupted = low_coverage
 
@@ -489,17 +525,20 @@ class TextPreprocessor:
         # Verbose logging
         if verbose:
             logger.debug("=== Word Detection Detailed Analysis ===")
-            logger.debug(f"Total unique words in text: {text_word_count}")
-            logger.debug(f"Matched (valid) words: {matched_word_count}")
-            logger.debug(f"Unmatched words: {len(matched_text_words['unmatched'])}")
+            logger.debug(f"Total tokens in text: {text_word_count}")
             logger.debug(
-                f"Coverage ratio: {word_coverage_ratio:.3f} ({word_coverage_ratio*100:.1f}% of text words are valid)"
+                f"Matched tokens: {matched_token_count} "
+                f"(unique matched words: {unique_matched_word_count})"
+            )
+            logger.debug(f"Unmatched unique words: {len(matched_text_words['unmatched'])}")
+            logger.debug(
+                f"Coverage ratio: {word_coverage_ratio:.3f} ({word_coverage_ratio*100:.1f}% of text tokens are valid)"
             )
             logger.debug(
                 f"Coverage threshold: {self.coverage_ratio_threshold} ({self.coverage_ratio_threshold*100:.1f}%)"
             )
             logger.debug(
-                f"Minimum matches required: {min_matches_required} (has {matched_word_count})"
+                f"Minimum matches required: {min_matches_required} (has {matched_token_count})"
             )
 
             for category in ["common_words", "stopwords", "administrative"]:
@@ -525,9 +564,13 @@ class TextPreprocessor:
                         f"  ... and {len(matched_text_words['unmatched']) - 30} more"
                     )
 
-        # Store detailed stats for debugging
+        # Store detailed stats for debugging.  `matched_words` is the
+        # token-based numerator used by the coverage ratio; the unique count
+        # is kept separately for diagnostics.
         self.performance_stats["word_detection"] = {
-            "matched_words": matched_word_count,
+            "matched_words": matched_token_count,
+            "matched_token_count": matched_token_count,
+            "unique_matched_words": unique_matched_word_count,
             "text_word_count": text_word_count,
             "unmatched_word_count": len(matched_text_words["unmatched"]),
             "word_coverage_ratio": word_coverage_ratio,
@@ -552,16 +595,16 @@ class TextPreprocessor:
         if is_corrupted:
             if text_word_count < 10:
                 logger.warning(
-                    f"Corruption detected (short text): insufficient matches ({matched_word_count} < {min_matches_required})"
+                    f"Corruption detected (short text): insufficient matches ({matched_token_count} < {min_matches_required})"
                 )
             else:
                 logger.warning(
                     f"Corruption detected: low coverage ({word_coverage_ratio:.3f} < {self.coverage_ratio_threshold}) "
-                    f"- only {matched_word_count}/{text_word_count} words matched"
+                    f"- only {matched_token_count}/{text_word_count} tokens matched"
                 )
         else:
             logger.debug(
-                f"Word detection passed. {matched_word_count}/{text_word_count} words matched "
+                f"Word detection passed. {matched_token_count}/{text_word_count} tokens matched "
                 f"(coverage: {word_coverage_ratio:.3f}, {word_coverage_ratio*100:.1f}%)"
             )
 
@@ -1049,6 +1092,8 @@ class TextPreprocessor:
             word_stats = self.performance_stats["word_detection"]
             indicators["word_analysis"] = {
                 "matched_words": word_stats.get("matched_words", 0),
+                "matched_token_count": word_stats.get("matched_token_count", 0),
+                "unique_matched_words": word_stats.get("unique_matched_words", 0),
                 "text_word_count": word_stats.get("text_word_count", 0),
                 "unmatched_word_count": word_stats.get("unmatched_word_count", 0),
                 "coverage_ratio": word_stats.get("word_coverage_ratio", 0),

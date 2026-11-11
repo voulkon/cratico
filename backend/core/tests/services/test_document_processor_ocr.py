@@ -28,6 +28,8 @@ from core.models.document_analysis import (
 from core.protocols.extraction_protocol import ExtractionResult
 from core.services.document_processor import TextExtractionProcessor
 from core.services.feature_flag_service import feature_flags
+from core.services.ocr_guard import OcrBusy
+from loguru import logger
 
 pytestmark = pytest.mark.django_db
 
@@ -238,6 +240,94 @@ class TestOcrFallback:
         extraction = DocumentExtraction.objects.get(decision=decision)
         assert extraction.raw_text == new_text
         assert extraction.extraction_status == ProcessingStatus.COMPLETED
+
+
+class TestOcrBudgets:
+    def test_large_native_text_skips_ocr(self, monkeypatch):
+        decision = _decision()
+        long_text = "ΑΦΜ 899972873 " + ("Α" * 60_000)
+        processor, _, ocr_extractor = _make_processor(
+            monkeypatch,
+            native=_native_result(long_text),
+            ocr=_ocr_result("x" * 100_000),
+        )
+        processor.text_preprocessor.preprocess = lambda text: SimpleNamespace(
+            processed_text=text,
+            is_corrupted=True,
+            corruption_indicators={},
+            confidence_score=0.7,
+            performance_stats={},
+        )
+
+        assert processor.process_document(decision) is True
+
+        assert ocr_extractor.calls == 0
+        extraction = DocumentExtraction.objects.get(decision=decision)
+        assert extraction.raw_text == long_text
+        assert extraction.preprocessing_metadata["ocr_skipped"] == "native_too_large"
+        assert (
+            extraction.preprocessing_metadata["ocr_fallback"]["reason"]
+            == "native_too_large"
+        )
+        assert (
+            extraction.preprocessing_metadata["ocr_decision"]["native_chars"]
+            == len(long_text)
+        )
+
+    def test_ocr_busy_keeps_native_text(self, monkeypatch):
+        decision = _decision()
+        processor, _, ocr_extractor = _make_processor(
+            monkeypatch,
+            native=_native_result(""),
+            ocr_error=OcrBusy("all OCR slots busy"),
+        )
+
+        assert processor.process_document(decision) is True
+
+        assert ocr_extractor.calls == 1
+        extraction = DocumentExtraction.objects.get(decision=decision)
+        assert extraction.extraction_status == ProcessingStatus.NEEDS_VISION
+        assert extraction.preprocessing_metadata["ocr_skipped"] == "busy"
+        assert extraction.preprocessing_metadata["ocr_fallback"]["reason"] == "busy"
+
+    def test_extractor_busy_metadata_kept(self, monkeypatch):
+        """The extractor swallows OcrBusy and returns an explicit skip result."""
+        decision = _decision()
+        busy = ExtractionResult(
+            text="",
+            page_count=0,
+            is_scanned=True,
+            metadata={"provider": "TESSERACT", "ocr_skipped": "busy"},
+            requires_vision=True,
+            ocr_applied=False,
+        )
+        processor, _, ocr_extractor = _make_processor(
+            monkeypatch, native=_native_result(""), ocr=busy
+        )
+
+        assert processor.process_document(decision) is True
+
+        assert ocr_extractor.calls == 1
+        extraction = DocumentExtraction.objects.get(decision=decision)
+        assert extraction.preprocessing_metadata["ocr_skipped"] == "busy"
+        assert extraction.preprocessing_metadata["ocr_fallback"]["reason"] == "busy"
+
+    def test_ocr_decision_logged(self, monkeypatch):
+        decision = _decision()
+        processor, _, _ = _make_processor(
+            monkeypatch, native=_native_result(""), ocr=_ocr_result()
+        )
+        messages = []
+        sink_id = logger.add(
+            lambda message: messages.append(message.record["message"]),
+            level="INFO",
+        )
+        try:
+            processor.process_document(decision)
+        finally:
+            logger.remove(sink_id)
+
+        assert "ocr_decision" in messages
 
 
 class TestImportStatusSemantics:

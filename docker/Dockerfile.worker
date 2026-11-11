@@ -52,6 +52,9 @@ ARG LIGHT_WORKER=true
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+# Prevent Tesseract/OpenMP from oversubscribing threads inside a Celery child
+# (the OCR cap already limits process concurrency; each process gets one core).
+ENV OMP_THREAD_LIMIT=1
 # Set environment variable to control extractor at runtime
 ENV LIGHT_WORKER=${LIGHT_WORKER}
 

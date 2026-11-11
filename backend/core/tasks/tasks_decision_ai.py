@@ -13,10 +13,23 @@ Two separate, composable tasks:
 Both are idempotent: re-requesting an already-completed step is a no-op.
 """
 
+import os
+
 from core.ai_services.summary_prompts import DECISION_ESSENCE_SYSTEM_PROMPT
 from loguru import logger
 
 from celery import shared_task
+
+
+# Extraction runs inline inside these parent tasks, so the parent owns the
+# wall-clock budget.  Hard limit must stay below RabbitMQ's consumer_timeout
+# (30 min) so a prefetched message can never reach the ack timeout.
+EXTRACTION_SOFT_TIME_LIMIT = int(
+    os.environ.get("EXTRACTION_SOFT_TIME_LIMIT_SECONDS", "1200")
+)
+EXTRACTION_TIME_LIMIT = int(
+    os.environ.get("EXTRACTION_TIME_LIMIT_SECONDS", "1500")
+)
 
 
 # ---------------------------------------------------------------------------
@@ -95,7 +108,14 @@ def _extract_pipeline_output(context, run) -> str | None:
 # Tasks
 # ---------------------------------------------------------------------------
 
-@shared_task(bind=True, max_retries=2)
+@shared_task(
+    bind=True,
+    max_retries=2,
+    task_soft_time_limit=EXTRACTION_SOFT_TIME_LIMIT,
+    task_time_limit=EXTRACTION_TIME_LIMIT,
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
+)
 def extract_decision_text(
     self,
     decision_id: int,
@@ -210,7 +230,14 @@ def extract_decision_text(
     }
 
 
-@shared_task(bind=True, max_retries=2)
+@shared_task(
+    bind=True,
+    max_retries=2,
+    task_soft_time_limit=EXTRACTION_SOFT_TIME_LIMIT,
+    task_time_limit=EXTRACTION_TIME_LIMIT,
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
+)
 def process_decision_ai(self, decision_id: int, user_id: int, provider: str = None, force: bool = False, model: str | None = None):
     """
     Run AI summarization on a single decision.
@@ -360,7 +387,14 @@ def process_decision_ai(self, decision_id: int, user_id: int, provider: str = No
         raise self.retry(exc=exc, countdown=60)
 
 
-@shared_task(bind=True, max_retries=2)
+@shared_task(
+    bind=True,
+    max_retries=2,
+    task_soft_time_limit=EXTRACTION_SOFT_TIME_LIMIT,
+    task_time_limit=EXTRACTION_TIME_LIMIT,
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
+)
 def generate_decision_one_liner(self, decision_id: int, user_id: int, force: bool = False):
     """
     Generate (or regenerate) the per-decision one-liner via the shared cache.

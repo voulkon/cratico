@@ -4,6 +4,15 @@ scrape_configs:
   - job_name: cadvisor
     static_configs:
       - targets: ["cadvisor:8080"]
-  - job_name: node-exporter   # optional: host-level metrics (RAM, disk, load)
+  # RabbitMQ management image ships rabbitmq_prometheus; it is enabled by
+  # docker/rabbitmq-config/enabled_plugins.  Queue depth/consumers drive the
+  # "consumer died silently" alerts.
+  - job_name: rabbitmq
     static_configs:
-      - targets: ["node-exporter:9100"]
+      - targets: ["rabbitmq:15692"]
+  # node-exporter is not part of docker-compose.prod-no-db.yml.  Add the
+  # service before re-enabling this job, otherwise Prometheus logs a down
+  # target forever.
+  # - job_name: node-exporter
+  #   static_configs:
+  #     - targets: ["node-exporter:9100"]

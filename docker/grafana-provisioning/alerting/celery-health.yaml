@@ -1,0 +1,358 @@
+# Grafana unified alerting — Celery / OCR health.
+#
+# The "Celery has no consumer" rule is the one that matters: it fires within
+# 3 minutes for the exact 2026-11-10 failure (worker process Up, consumer
+# gone, queue growing) regardless of why the consumer died.
+#
+# Contact points and notification policies are intentionally NOT provisioned
+# here: pick a channel (email/Slack/Telegram), configure it in Grafana, and
+# route the `severity` labels below to it.  Drill it once per release.
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: celery-health
+    folder: Cratico
+    interval: 1m
+    rules:
+      - uid: celery-no-consumers
+        title: CeleryQueueNoConsumers
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: rabbitmq_queue_consumers{queue="celery"}
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [1]
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 3m
+        annotations:
+          summary: "The Celery worker has no consumer on the `celery` queue"
+          description: >-
+            rabbitmq_queue_consumers{queue="celery"} == 0. The worker process
+            may still be Up while its consumer is dead (consumer_timeout /
+            unrecoverable error). Check queue depth and worker logs.
+        labels:
+          severity: critical
+
+      - uid: celery-backlog
+        title: CeleryQueueBacklog
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: rabbitmq_queue_messages{queue="celery"}
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [200]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 10m
+        annotations:
+          summary: "Celery backlog is growing"
+          description: "rabbitmq_queue_messages{queue=\"celery\"} > 200 for 10m."
+        labels:
+          severity: warning
+
+      - uid: celery-unacked-near-timeout
+        title: CeleryUnackedNearConsumerTimeout
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: max_over_time(rabbitmq_queue_messages_unacked{queue="celery"}[25m])
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 1m
+        annotations:
+          summary: "A Celery message has been unacked for ~25 minutes"
+          description: >-
+            The broker's consumer_timeout (30 min) will close the channel soon
+            and kill the consumer silently. Find the long-running task now.
+        labels:
+          severity: critical
+
+      - uid: worker-cpu-saturated
+        title: WorkerCpuSaturated
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: sum(rate(container_cpu_usage_seconds_total{name=~".*worker.*"}[5m]))
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [3.5]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 10m
+        annotations:
+          summary: "Worker CPU is saturated (~90% of a 4 vCPU box)"
+          description: >-
+            Sum of worker CPU rate > 3.5. Adjust the threshold to the host.
+            A saturated worker with OCR enabled usually means the OCR budgets
+            or the admission cap are not effective.
+        labels:
+          severity: warning
+
+      - uid: worker-unrecoverable-error
+        title: WorkerUnrecoverableError
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: loki
+            model:
+              editorMode: code
+              expr: count_over_time({container_name=~".*worker.*"} |= "Unrecoverable error" [5m])
+              queryType: range
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 0s
+        annotations:
+          summary: "Celery logged an unrecoverable error"
+          description: >-
+            Celery stopped consuming after an unrecoverable error. The worker
+            usually stays Up; check rabbitmq_queue_consumers.
+        labels:
+          severity: critical
+
+      - uid: worker-consumer-timeout-406
+        title: WorkerConsumerTimeout406
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: loki
+            model:
+              editorMode: code
+              expr: count_over_time({container_name=~".*worker.*"} |= "PRECONDITION_FAILED" [5m])
+              queryType: range
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 0s
+        annotations:
+          summary: "RabbitMQ closed the Celery channel (406 consumer timeout)"
+          description: >-
+            A task held a prefetched message longer than consumer_timeout.
+            The consumer is now gone; the worker process may still be Up.
+        labels:
+          severity: critical
+
+      - uid: ocr-admission-saturated
+        title: OcrAdmissionSaturated
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: loki
+            model:
+              editorMode: code
+              expr: count_over_time({container_name=~".*worker.*"} |= "ocr_admission_busy" [15m])
+              queryType: range
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [10]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 0s
+        annotations:
+          summary: "OCR is saturating its admission slots"
+          description: >-
+            More than 10 ocr_admission_busy events in 15m. OCR demand exceeds
+            OCR_MAX_CONCURRENT; the native text is being kept. Investigate the
+            OCR trigger or raise the cap deliberately.
+        labels:
+          severity: warning

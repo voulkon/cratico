@@ -115,6 +115,69 @@ def test_corrupted_text_detection(preprocessed_corrupted_text: PreprocessingResu
     assert result.performance_stats["total"] > 0
 
 
+def test_long_normal_greek_text_not_corrupted(preprocessor_service):
+    """Regression for the 2026-11-10 OCR incident.
+
+    The old metric divided UNIQUE matched words by TOTAL tokens, so any
+    document longer than ~4,900 words was *mathematically guaranteed* to be
+    flagged corrupted.  Token coverage must keep long, perfect Greek text
+    clean.
+    """
+    paragraph = (
+        "Η Ελληνική Δημοκρατία είναι κράτος που βρίσκεται στη νοτιοανατολική "
+        "Ευρώπη. Το Υπουργείο Εσωτερικών αποφασίζει την έγκριση της δαπάνης "
+        "και την ανάθεση της σύμβασης στον ανάδοχο, σύμφωνα με τις διατάξεις "
+        "του νόμου. "
+    )
+    long_but_perfect_greek = paragraph * 300  # ~50 k chars, well past 4,900 tokens
+
+    result = preprocessor_service.preprocess(long_but_perfect_greek)
+
+    assert result.is_corrupted is False
+    coverage = result.corruption_indicators["word_analysis"]["coverage_ratio"]
+    assert coverage > preprocessor_service.coverage_ratio_threshold
+
+
+def test_coverage_is_token_based(preprocessor_service):
+    """Coverage counts repeated tokens, not just unique matched words."""
+    preprocessor = TextPreprocessor(
+        strategy=CorruptionDetectionStrategy.COMMON_WORDS,
+        coverage_ratio_threshold=0.10,
+    )
+    # Isolate the detection vocabulary so the arithmetic is explicit.
+    preprocessor.common_greek_words = {"και"}
+    preprocessor.greek_stopwords = set()
+    preprocessor.administrative_indicators = set()
+
+    text = "και και και " + ("αβγδεζηθικλμν " * 7)
+    result = preprocessor.preprocess(text)
+
+    stats = result.corruption_indicators["word_analysis"]
+    assert stats["matched_words"] == 3          # 3 matched TOKENS
+    assert stats["unique_matched_words"] == 1   # 1 unique word
+    assert stats["coverage_ratio"] == pytest.approx(3 / 10)
+
+
+def test_long_gibberish_still_corrupted(preprocessor_service):
+    gibberish = "αβγδεζηθικλμν " * 3000  # ~42 k chars, no common Greek words
+
+    result = preprocessor_service.preprocess(gibberish)
+
+    assert result.is_corrupted is True
+
+
+def test_latin_only_text_no_false_negative(preprocessor_service):
+    """A Latin/mojibake document must not pass as "not corrupted"."""
+    latin = (
+        "Lorem ipsum dolor sit amet consectetur adipiscing elit sed do "
+        "eiusmod tempor incididunt ut labore et dolore magna aliqua. "
+    ) * 3
+
+    result = preprocessor_service.preprocess(latin)
+
+    assert result.is_corrupted is True
+
+
 def test_normal_text_not_detected_as_corrupted(preprocessor_service):
     """
     Test that normal Greek text is not detected as corrupted.
