@@ -18,6 +18,7 @@ from core.protocols.extraction_protocol import ExtractionResult
 from core.services.extractors.docling import DoclingExtractor
 from core.services.extractors.pymupdf import PyMuPDFExtractor
 from core.services.extractors.tesseract import TesseractExtractor
+from core.services.ocr_guard import OcrBusy
 from core.services.text_preprocessor import TextPreprocessor
 from loguru import logger
 from requests.exceptions import ConnectionError, RequestException, Timeout
@@ -110,6 +111,10 @@ class BaseDocumentProcessor:
 # treated as "not really extracted" and re-run through Tesseract.
 OCR_MIN_CHARS = int(os.environ.get("OCR_MIN_CHARS", "100"))
 OCR_MIN_CHARS_PER_PAGE = int(os.environ.get("OCR_MIN_CHARS_PER_PAGE", "100"))
+
+# Above this much native text, a full-document OCR pass is uneconomical and
+# can never improve the result enough to justify the CPU cost.
+OCR_MAX_NATIVE_CHARS = int(os.environ.get("OCR_MAX_NATIVE_CHARS", "50000"))
 
 
 class TextExtractionProcessor(BaseDocumentProcessor):
@@ -434,17 +439,45 @@ class TextExtractionProcessor(BaseDocumentProcessor):
             # the same temp PDF with Tesseract and keep whichever text is
             # longer.  Missing tesseract/Greek data must never crash the
             # worker — it degrades to NEEDS_VISION.
-            if (
+            text_too_short = self._text_too_short(result.text, result.page_count)
+            native_cap_exceeded = native_char_count > OCR_MAX_NATIVE_CHARS
+            ocr_requested = (
                 allow_ocr
                 and provider != ProcessingProvider.TESSERACT
-                and (
-                    self._text_too_short(result.text, result.page_count)
-                    or native_is_corrupted
-                )
-            ):
+                and (text_too_short or native_is_corrupted)
+            )
+
+            if ocr_requested:
                 from core.services.feature_flag_service import feature_flags
 
-                if feature_flags.is_enabled("DOCUMENT_OCR_ENABLED"):
+                ocr_flag_enabled = feature_flags.is_enabled(
+                    "DOCUMENT_OCR_ENABLED"
+                )
+                ocr_allowed = ocr_flag_enabled and not native_cap_exceeded
+
+                if native_cap_exceeded:
+                    skip_reason = "native_too_large"
+                elif not ocr_flag_enabled:
+                    skip_reason = "feature_flag_disabled"
+                else:
+                    skip_reason = None
+
+                ocr_decision = {
+                    "native_chars": native_char_count,
+                    "page_count": result.page_count,
+                    "too_short": text_too_short,
+                    "corrupted": native_is_corrupted,
+                    "native_cap": OCR_MAX_NATIVE_CHARS,
+                    "ocr_enabled": ocr_flag_enabled,
+                    "decision": "ocr" if ocr_allowed else "skip",
+                    "reason": skip_reason,
+                }
+                extraction_metadata["ocr_decision"] = dict(ocr_decision)
+                logger.bind(document_ada=decision.ada, **ocr_decision).info(
+                    "ocr_decision"
+                )
+
+                if ocr_allowed:
                     try:
                         logger.info(
                             f"Native extraction for {decision.ada} produced "
@@ -462,6 +495,7 @@ class TextExtractionProcessor(BaseDocumentProcessor):
                                 "char_count": native_char_count,
                                 "page_count": result.page_count,
                             }
+                            extraction_metadata["ocr_decision"] = dict(ocr_decision)
                             extraction_metadata["ocr_fallback"] = {
                                 "applied": True,
                                 "dpi": (ocr_result.metadata or {}).get("dpi"),
@@ -481,11 +515,36 @@ class TextExtractionProcessor(BaseDocumentProcessor):
                             # when there is nothing usable to keep.
                             if not (result.text or "").strip():
                                 requires_vision = True
-                            extraction_metadata["ocr_fallback"] = {
-                                "applied": False,
-                                "reason": "ocr_text_not_longer",
-                                "char_count": len(ocr_result.text or ""),
-                            }
+                            skipped_reason = (ocr_result.metadata or {}).get(
+                                "ocr_skipped"
+                            )
+                            if skipped_reason:
+                                extraction_metadata["ocr_skipped"] = skipped_reason
+                                extraction_metadata["ocr_fallback"] = {
+                                    "applied": False,
+                                    "reason": skipped_reason,
+                                }
+                            else:
+                                extraction_metadata["ocr_fallback"] = {
+                                    "applied": False,
+                                    "reason": "ocr_text_not_longer",
+                                    "char_count": len(ocr_result.text or ""),
+                                }
+                    except OcrBusy:
+                        # Global admission control is saturated (or Redis is
+                        # unavailable).  Keep the native text; failing open is
+                        # what melted the host during the incident.
+                        logger.bind(document_ada=decision.ada).warning(
+                            "ocr_skipped_busy"
+                        )
+                        extraction_metadata["ocr_skipped"] = "busy"
+                        extraction_metadata["ocr_fallback"] = {
+                            "applied": False,
+                            "reason": "busy",
+                        }
+                        requires_vision = requires_vision or not (
+                            result.text or ""
+                        ).strip()
                     except Exception as exc:
                         logger.error(
                             f"OCR fallback failed for {decision.ada}: {exc}"
@@ -501,14 +560,14 @@ class TextExtractionProcessor(BaseDocumentProcessor):
                         ).strip()
                 else:
                     logger.info(
-                        f"OCR fallback for {decision.ada} requested "
-                        f"(native text {'too short' if self._text_too_short(result.text, result.page_count) else 'flagged corrupted'}) "
-                        f"but DOCUMENT_OCR_ENABLED is off"
+                        f"OCR fallback for {decision.ada} skipped ({skip_reason})"
                     )
                     extraction_metadata["ocr_fallback"] = {
                         "applied": False,
-                        "reason": "feature_flag_disabled",
+                        "reason": skip_reason,
                     }
+                    if native_cap_exceeded:
+                        extraction_metadata["ocr_skipped"] = "native_too_large"
 
             raw_extracted_text = result.text
             processed_text = (
