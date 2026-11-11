@@ -94,8 +94,11 @@ services:
       - internal
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
-      - ./docker/rabbitmq-config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
-      - ./docker/rabbitmq-config/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+      # Mount the directory, never the individual files.  Docker creates a
+      # missing bind-mount source as a DIRECTORY; mounting `rabbitmq.conf` or
+      # `enabled_plugins` directly makes the deploy fail when the artifact
+      # later tries to copy those paths as files.
+      - ./docker/rabbitmq-config:/etc/rabbitmq:ro
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 30s
