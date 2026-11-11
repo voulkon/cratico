@@ -1007,7 +1007,12 @@ VERIFY_BATCH_SIZE = int(os.environ.get("VERIFY_AMOUNT_BATCH_SIZE", 30))
 VERIFY_CANDIDATE_LIMIT = 500
 
 
-@shared_task
+@shared_task(
+    task_soft_time_limit=1200,
+    task_time_limit=1500,
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
+)
 @log_task_run(swallow_errors=True)
 def verify_high_value_amounts(
     reference_date_str: str | None = None,
@@ -1217,6 +1222,10 @@ def verify_high_value_amounts(
     bind=True,
     max_retries=2,
     default_retry_delay=30,
+    task_soft_time_limit=1200,
+    task_time_limit=1500,
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
 )
 def verify_correct_decision_batch(self, decision_ids: list[int]) -> dict:
     """
@@ -1600,7 +1609,12 @@ COUNTERPART_RECOVERY_CANDIDATE_LIMIT = int(
 )
 
 
-@shared_task
+@shared_task(
+    task_soft_time_limit=1200,
+    task_time_limit=1500,
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
+)
 @log_task_run(swallow_errors=True)
 def recover_self_counterparts(
     reference_date_str: str | None = None,

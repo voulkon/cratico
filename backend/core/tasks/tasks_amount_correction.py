@@ -69,7 +69,9 @@ def _resolve_candidate_ids(job) -> list[int]:
 
 
 @shared_task(bind=True, max_retries=2, default_retry_delay=30,
-           name="amount_correction.correct_single")
+           name="amount_correction.correct_single",
+           task_soft_time_limit=1200, task_time_limit=1500,
+           task_acks_late=True, task_reject_on_worker_lost=True)
 def correct_single_decision(
     self,
     decision_id: int,
@@ -185,7 +187,9 @@ def _record_result(
     )
 
 
-@shared_task(bind=True, name="amount_correction.run_job")
+@shared_task(bind=True, name="amount_correction.run_job",
+           task_soft_time_limit=1200, task_time_limit=1500,
+           task_acks_late=True, task_reject_on_worker_lost=True)
 def run_amount_correction_job(self, job_id: str) -> dict[str, Any]:
     """
     Resolve the candidate pool for a job and fan out per-decision tasks.
