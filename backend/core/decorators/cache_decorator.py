@@ -66,7 +66,8 @@ def cached_view(
         should_cache_fn: Optional function that receives the request and returns
                         bool indicating whether to cache. Useful for skipping
                         cache on search queries or complex filters.
-        log_cache_operations: Whether to log cache hits/misses (default: True)
+        log_cache_operations: Whether to log routine cache operations
+                        (check/hit/miss/set) at DEBUG level (default: True).
         defer_on_miss: If True, on cache miss return 202 Accepted and dispatch
                       a background warmup task instead of executing the heavy
                       query synchronously.  The frontend polls until the cache
@@ -136,7 +137,7 @@ def cached_view(
             cache_key = response_cache.build_key(cache_prefix, **key_params)
 
             if log_cache_operations:
-                logger.info(
+                logger.debug(
                     f"[Cache Decorator] Checking cache for {cache_prefix} | "
                     f"key={cache_key}"
                 )
@@ -145,7 +146,7 @@ def cached_view(
             cached_response = response_cache.get(cache_key)
             if cached_response is not None:
                 if log_cache_operations:
-                    logger.info(
+                    logger.debug(
                         f"[Cache Decorator HIT] Returning cached data for {cache_prefix}"
                     )
 
@@ -158,7 +159,7 @@ def cached_view(
 
             # ── Cache MISS ────────────────────────────────────────────
             if log_cache_operations:
-                logger.info(
+                logger.debug(
                     f"[Cache Decorator MISS] No cache found for {cache_prefix}, "
                 )
 
@@ -182,7 +183,7 @@ def cached_view(
 
             # ── synchronous path (original behaviour) ─────────────────
             if log_cache_operations:
-                logger.info("executing view...")
+                logger.debug("executing view...")
 
             # Execute the view
             response = view_func(request, *args, **kwargs)
@@ -221,7 +222,7 @@ def cached_view(
 
             # Cache the response
             if log_cache_operations:
-                logger.info(
+                logger.debug(
                     f"[Cache Decorator SET] Caching response for {cache_prefix} | "
                     f"key={cache_key}"
                 )
@@ -287,7 +288,7 @@ def _handle_defer_on_miss(
         # under the exact key the frontend requested, so subsequent
         # requests get a cache hit.
         if log_cache_operations:
-            logger.info(
+            logger.warning(
                 f"[Cache Decorator DEFER] Warmup completed (ready) but no "
                 f"cache entry for THIS key {cache_prefix} | key={cache_key} "
                 f"— falling back to synchronous execution"

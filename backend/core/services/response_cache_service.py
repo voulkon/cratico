@@ -38,6 +38,7 @@ from api.redis_keys import (
     get_api_cache_key,
     get_warmup_status_key,
 )
+from core.services.cache_stats import record_cache_access
 from django.core.cache import cache
 from loguru import logger
 
@@ -83,7 +84,20 @@ class ResponseCacheService:
         Returns:
             Cached data dict, or None on cache miss
         """
-        return cache.get(cache_key)
+        try:
+            value = cache.get(cache_key)
+        except Exception:
+            # A cache backend failure should not take down the request: log the
+            # exception and fall through as a miss so the view computes the data
+            # synchronously.
+            logger.exception(
+                f"[ResponseCache GET] Cache lookup failed | key={cache_key}"
+            )
+            record_cache_access(cache_key, hit=False)
+            return None
+
+        record_cache_access(cache_key, hit=value is not None)
+        return value
 
     @staticmethod
     def set(
