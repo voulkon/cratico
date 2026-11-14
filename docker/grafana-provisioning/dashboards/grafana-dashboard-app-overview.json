@@ -4,6 +4,41 @@
     "tags": ["diavgeia", "application", "logs"],
     "style": "dark",
     "timezone": "browser",
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "selected": true,
+            "text": "production",
+            "value": "production"
+          },
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "definition": "label_values(environment)",
+          "hide": 0,
+          "includeAll": true,
+      "allValue": ".*",
+          "label": "Environment",
+          "multi": false,
+          "name": "environment",
+          "options": [
+            {
+              "selected": true,
+              "text": "production",
+              "value": "production"
+            }
+          ],
+          "query": "label_values(environment)",
+          "refresh": 2,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 1,
+          "type": "query"
+        }
+      ]
+    },
     "panels": [
       {
         "id": 1,
@@ -11,7 +46,7 @@
         "type": "stat",
         "targets": [
           {
-            "expr": "sum by (service_name) (rate({environment=\"development\"}[5m]))",
+            "expr": "sum by (service_name) (rate({environment=~\"$environment\"}[5m]))",
             "refId": "A"
           }
         ],
@@ -39,7 +74,7 @@
         "type": "logs",
         "targets": [
           {
-            "expr": "{environment=\"development\"} |= ``",
+            "expr": "{environment=~\"$environment\"} |= ``",
             "refId": "A"
           }
         ],
@@ -66,7 +101,7 @@
         "type": "logs",
         "targets": [
           {
-            "expr": "{service_name=\"diavgeia-backend\"} |= ``",
+            "expr": "{environment=~\"$environment\", service_name=\"diavgeia-backend\"} |= ``",
             "refId": "A"
           }
         ],
@@ -90,7 +125,7 @@
         "type": "logs",
         "targets": [
           {
-            "expr": "{service_name=\"diavgeia-worker\"} |= ``",
+            "expr": "{environment=~\"$environment\", service_name=\"diavgeia-worker\"} |= ``",
             "refId": "A"
           }
         ],
@@ -114,7 +149,7 @@
         "type": "logs",
         "targets": [
           {
-            "expr": "{environment=\"development\"} |~ \"ERROR|WARN|WARNING|Exception|Error\"",
+            "expr": "{environment=~\"$environment\"} |~ \"ERROR|WARN|WARNING|Exception|Error\"",
             "refId": "A"
           }
         ],

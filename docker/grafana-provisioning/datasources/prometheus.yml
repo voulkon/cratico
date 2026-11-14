@@ -1,8 +1,16 @@
 apiVersion: 1
+
+# Same UID-drift problem as Loki: the alert rules reference uid `prometheus`,
+# so recreate the row instead of trying to rename the existing datasource.
+deleteDatasources:
+  - name: Prometheus
+    orgId: 1
+
 datasources:
   - name: Prometheus
     type: prometheus
     access: proxy
+    orgId: 1
     url: http://prometheus:9090
     isDefault: false
     uid: prometheus

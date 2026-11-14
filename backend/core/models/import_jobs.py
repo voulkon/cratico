@@ -291,8 +291,7 @@ class ImportJob(models.Model):
         logger.info(f"ImportJob.cancel: Job #{self.id} cancelled. Actions: {result['actions']}")
         return result
 
-
-
+    def mark_chunk_failed(self, error_msg: str = None, decisions_count: int = 0):
         """Atomically increment failed chunk counter"""
         from django.db.models import F
 

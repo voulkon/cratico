@@ -103,7 +103,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (service_name) (rate({component=~\"django|celery|celery-beat|celery-monitor\"}[5m]))",
+          "expr": "sum by (service_name) (rate({environment=~\"$environment\", component=~\"django|celery|celery-beat|celery-monitor\"}[5m]))",
           "refId": "A"
         }
       ],
@@ -191,7 +191,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (service_name) (rate({component=~\"django|celery|celery-beat|celery-monitor\"} |~ \"ERROR|CRITICAL\"[5m]))",
+          "expr": "sum by (service_name) (rate({environment=~\"$environment\", component=~\"django|celery|celery-beat|celery-monitor\"} |~ \"ERROR|CRITICAL\"[5m]))",
           "refId": "A"
         }
       ],
@@ -244,7 +244,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{component=\"django\"} | json | endpoint != \"\" | stats count(*) as requests, avg(duration_ms) as avg_duration_ms, max(duration_ms) as max_duration_ms by endpoint",
+          "expr": "{environment=~\"$environment\", component=\"django\"} | json | endpoint != \"\" | stats count(*) as requests, avg(duration_ms) as avg_duration_ms, max(duration_ms) as max_duration_ms by endpoint",
           "refId": "A"
         }
       ],
@@ -297,7 +297,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{component=\"celery\"} | json | task_name != \"\" | stats count(*) as executions, avg(duration_s) as avg_duration_s, max(duration_s) as max_duration_s by task_name",
+          "expr": "{environment=~\"$environment\", component=\"celery\"} | json | task_name != \"\" | stats count(*) as executions, avg(duration_s) as avg_duration_s, max(duration_s) as max_duration_s by task_name",
           "refId": "A"
         }
       ],
@@ -356,7 +356,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{component=~\"django|celery|celery-beat|celery-monitor\"} |~ \"ERROR|CRITICAL\" | json | line_format \"{{.timestamp}} [{{.service_name}}] {{.message}}\"",
+          "expr": "{environment=~\"$environment\", component=~\"django|celery|celery-beat|celery-monitor\"} |~ \"ERROR|CRITICAL\" | json | line_format \"{{.timestamp}} [{{.service_name}}] {{.message}}\"",
           "refId": "A"
         }
       ],
@@ -414,7 +414,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{component=~\"django|celery|celery-beat|celery-monitor\"} | json | line_format \"{{.timestamp}} [{{.levelname}}] [{{.service_name}}] {{.message}}\"",
+          "expr": "{environment=~\"$environment\", component=~\"django|celery|celery-beat|celery-monitor\"} | json | line_format \"{{.timestamp}} [{{.levelname}}] [{{.service_name}}] {{.message}}\"",
           "refId": "A"
         }
       ],
@@ -433,6 +433,37 @@
     "list": [
       {
         "current": {
+          "selected": true,
+          "text": "production",
+          "value": "production"
+        },
+        "datasource": {
+          "type": "loki",
+          "uid": "loki"
+        },
+        "definition": "label_values(environment)",
+        "hide": 0,
+        "includeAll": true,
+      "allValue": ".*",
+        "label": "Environment",
+        "multi": false,
+        "name": "environment",
+        "options": [
+          {
+            "selected": true,
+            "text": "production",
+            "value": "production"
+          }
+        ],
+        "query": "label_values(environment)",
+        "refresh": 2,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
           "selected": false,
           "text": "All",
           "value": "$__all"
@@ -441,14 +472,14 @@
           "type": "loki",
           "uid": "loki"
         },
-        "definition": "label_values(service_name)",
+        "definition": "label_values({environment=~\"$environment\"}, service_name)",
         "hide": 0,
         "includeAll": true,
         "label": "Service",
         "multi": false,
         "name": "service",
         "options": [],
-        "query": "label_values(service_name)",
+        "query": "label_values({environment=~\"$environment\"}, service_name)",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
@@ -465,14 +496,14 @@
           "type": "loki",
           "uid": "loki"
         },
-        "definition": "label_values(component)",
+        "definition": "label_values({environment=~\"$environment\"}, component)",
         "hide": 0,
         "includeAll": true,
         "label": "Component",
         "multi": false,
         "name": "component",
         "options": [],
-        "query": "label_values(component)",
+        "query": "label_values({environment=~\"$environment\"}, component)",
         "refresh": 1,
         "regex": "",
         "skipUrlSync": false,

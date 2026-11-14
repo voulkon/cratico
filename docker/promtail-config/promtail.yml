@@ -19,11 +19,14 @@ scrape_configs:
             values: [running]
 
     relabel_configs:
-      # Capture container name (e.g., diavgeia_worker, diavgeia_backend)
+      # Capture container name (e.g., diavgeia_worker, diavgeia_backend).
+      # NOTE: promtail runs with -config.expand-env=true, so regex capture
+      # groups MUST be written as `$${1}`; a plain `${1}` is treated as an
+      # environment variable named "1" and expands to an empty string.
       - source_labels: ['__meta_docker_container_name']
         target_label: 'container_name'
         regex: '/(.*)'
-        replacement: '${1}'
+        replacement: '$${1}'
 
       # Map to standardized service_name (hyphenated, matching SERVICE_NAME env var)
       - source_labels: ['__meta_docker_container_name']
@@ -41,13 +44,14 @@ scrape_configs:
       - source_labels: ['__meta_docker_container_name']
         target_label: 'service_name'
         regex: '/diavgeia_(.*)'
-        replacement: 'diavgeia-${1}'
+        replacement: 'diavgeia-$${1}'
       # Coolify names containers `<role>-<uuid>`; map both schemes so
-      # service_name is not empty in production.
+      # service_name is not empty in production.  Keep the `diavgeia-<role>`
+      # form because the provisioned dashboards filter on it.
       - source_labels: ['__meta_docker_container_name']
         target_label: 'service_name'
-        regex: '/(backend|worker|beat|flower|rabbitmq|redis|pgbouncer|nginx|grafana|prometheus|loki|promtail|autoheal)-.*'
-        replacement: '${1}'
+        regex: '/(backend|worker|beat|flower|rabbitmq|redis|pgbouncer|db|postgres|nginx|grafana|prometheus|loki|promtail|autoheal)(-.*)?'
+        replacement: 'diavgeia-$${1}'
 
       # Set component type for easier filtering
       - source_labels: ['__meta_docker_container_name']
@@ -75,10 +79,60 @@ scrape_configs:
         regex: '/diavgeia_nginx'
         replacement: 'webserver'
 
-      # Set environment from DEPLOY_ENV (requires -config.expand-env=true,
-      # set in the promtail compose command).  Defaults to production there.
-      - target_label: 'environment'
-        replacement: '${DEPLOY_ENV}'
+      # Coolify `<role>-<uuid>` names: mirror the component mapping above so
+      # the `diavgeia-logs` dashboard (`component=~"django|celery|..."`) keeps
+      # working in production.
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'component'
+        regex: '/backend(-.*)?'
+        replacement: 'django'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'component'
+        regex: '/worker(-.*)?'
+        replacement: 'celery'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'component'
+        regex: '/beat(-.*)?'
+        replacement: 'celery-beat'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'component'
+        regex: '/redis(-.*)?'
+        replacement: 'cache'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'component'
+        regex: '/(db|postgres)(-.*)?'
+        replacement: 'database'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'component'
+        regex: '/(nginx|frontend)(-.*)?'
+        replacement: 'webserver'
+
+      # Short role label for convenient queries, e.g.
+      # {environment="development", service="worker"}
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'service'
+        regex: '/(backend|worker|beat|flower|rabbitmq|redis|pgbouncer|db|postgres|nginx|frontend|grafana|prometheus|loki|promtail|autoheal)(-.*)?'
+        replacement: '$${1}'
+
+      # Derive the environment from the Coolify app ID in the container name
+      # (`<service>-<app-id>`), e.g. worker-iwwc... vs worker-ossk....
+      # Both stacks share this host and this Promtail/Loki, so this label is
+      # what keeps their logs apart in dashboards and alerts.
+      # If a Coolify app is recreated with a new ID, update the regexes below.
+      # Default first; the two app-specific rules below override it (relabel
+      # rules run in order and later matches overwrite earlier ones).
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'environment'
+        regex: '.*'
+        replacement: 'unknown'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'environment'
+        regex: '.*-iwwc8cg4cwcc40css4w0k0o4$'
+        replacement: 'production'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'environment'
+        regex: '.*-ossk04go08goowgksgcsws00$'
+        replacement: 'development'
 
     pipeline_stages:
       - docker: {}

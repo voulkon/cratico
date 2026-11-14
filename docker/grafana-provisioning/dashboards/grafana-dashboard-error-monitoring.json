@@ -4,6 +4,41 @@
     "tags": ["diavgeia", "errors", "monitoring"],
     "style": "dark",
     "timezone": "browser",
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "selected": true,
+            "text": "production",
+            "value": "production"
+          },
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "definition": "label_values(environment)",
+          "hide": 0,
+          "includeAll": true,
+      "allValue": ".*",
+          "label": "Environment",
+          "multi": false,
+          "name": "environment",
+          "options": [
+            {
+              "selected": true,
+              "text": "production",
+              "value": "production"
+            }
+          ],
+          "query": "label_values(environment)",
+          "refresh": 2,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 1,
+          "type": "query"
+        }
+      ]
+    },
     "panels": [
       {
         "id": 1,
@@ -11,7 +46,7 @@
         "type": "stat",
         "targets": [
           {
-            "expr": "sum by (service_name) (rate({environment=\"development\"} |~ \"ERROR|Exception|Error\"[5m]))",
+            "expr": "sum by (service_name) (rate({environment=~\"$environment\"} |~ \"ERROR|Exception|Error\"[5m]))",
             "refId": "A"
           }
         ],
@@ -52,7 +87,7 @@
         "type": "stat",
         "targets": [
           {
-            "expr": "sum by (service_name) (rate({environment=\"development\"} |~ \"WARN|WARNING\"[5m]))",
+            "expr": "sum by (service_name) (rate({environment=~\"$environment\"} |~ \"WARN|WARNING\"[5m]))",
             "refId": "A"
           }
         ],
@@ -93,7 +128,7 @@
         "type": "logs",
         "targets": [
           {
-            "expr": "{environment=\"development\"} |~ \"ERROR|Exception|Error\"",
+            "expr": "{environment=~\"$environment\"} |~ \"ERROR|Exception|Error\"",
             "refId": "A"
           }
         ],
@@ -117,7 +152,7 @@
         "type": "logs",
         "targets": [
           {
-            "expr": "{environment=\"development\"} |~ \"WARN|WARNING\"",
+            "expr": "{environment=~\"$environment\"} |~ \"WARN|WARNING\"",
             "refId": "A"
           }
         ],

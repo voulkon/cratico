@@ -4,6 +4,41 @@
     "tags": ["diavgeia", "performance", "celery"],
     "style": "dark",
     "timezone": "browser",
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "selected": true,
+            "text": "production",
+            "value": "production"
+          },
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "definition": "label_values(environment)",
+          "hide": 0,
+          "includeAll": true,
+      "allValue": ".*",
+          "label": "Environment",
+          "multi": false,
+          "name": "environment",
+          "options": [
+            {
+              "selected": true,
+              "text": "production",
+              "value": "production"
+            }
+          ],
+          "query": "label_values(environment)",
+          "refresh": 2,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 1,
+          "type": "query"
+        }
+      ]
+    },
     "panels": [
       {
         "id": 1,
@@ -11,7 +46,7 @@
         "type": "logs",
         "targets": [
           {
-            "expr": "{service_name=\"diavgeia-worker\"} |~ \"Task|task\"",
+            "expr": "{environment=~\"$environment\", service_name=\"diavgeia-worker\"} |~ \"Task|task\"",
             "refId": "A"
           }
         ],
@@ -35,7 +70,7 @@
         "type": "logs",
         "targets": [
           {
-            "expr": "{service_name=\"diavgeia-backend\"} |~ \"GET|POST|PUT|DELETE|HTTP\"",
+            "expr": "{environment=~\"$environment\", service_name=\"diavgeia-backend\"} |~ \"GET|POST|PUT|DELETE|HTTP\"",
             "refId": "A"
           }
         ],
@@ -59,7 +94,7 @@
         "type": "logs",
         "targets": [
           {
-            "expr": "{service_name=\"diavgeia-backend\"} |~ \"SELECT|INSERT|UPDATE|DELETE|SQL\"",
+            "expr": "{environment=~\"$environment\", service_name=\"diavgeia-backend\"} |~ \"SELECT|INSERT|UPDATE|DELETE|SQL\"",
             "refId": "A"
           }
         ],
@@ -83,7 +118,7 @@
         "type": "logs",
         "targets": [
           {
-            "expr": "{environment=\"development\"} |~ \"opensearch|OpenSearch|elasticsearch|index\"",
+            "expr": "{environment=~\"$environment\"} |~ \"opensearch|OpenSearch|elasticsearch|index\"",
             "refId": "A"
           }
         ],
