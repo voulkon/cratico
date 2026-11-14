@@ -175,7 +175,7 @@ groups:
             datasourceUid: prometheus
             model:
               editorMode: code
-              expr: sum(rate(container_cpu_usage_seconds_total{name=~".*worker.*"}[5m]))
+              expr: sum(rate(container_cpu_usage_seconds_total{name=~"worker-iwwc.*"}[5m]))
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -226,7 +226,7 @@ groups:
             datasourceUid: loki
             model:
               editorMode: code
-              expr: count_over_time({container_name=~".*worker.*"} |= "Unrecoverable error" [5m])
+              expr: count_over_time({container_name=~".*worker.*", environment="production"} |= "Unrecoverable error" [5m])
               queryType: range
               refId: A
           - refId: C
@@ -273,7 +273,7 @@ groups:
             datasourceUid: loki
             model:
               editorMode: code
-              expr: count_over_time({container_name=~".*worker.*"} |= "PRECONDITION_FAILED" [5m])
+              expr: count_over_time({container_name=~".*worker.*", environment="production"} |= "PRECONDITION_FAILED" [5m])
               queryType: range
               refId: A
           - refId: C
@@ -320,7 +320,7 @@ groups:
             datasourceUid: loki
             model:
               editorMode: code
-              expr: count_over_time({container_name=~".*worker.*"} |= "ocr_admission_busy" [15m])
+              expr: count_over_time({container_name=~".*worker.*", environment="production"} |= "ocr_admission_busy" [15m])
               queryType: range
               refId: A
           - refId: C

@@ -107,10 +107,31 @@ scrape_configs:
         regex: '/(nginx|frontend)(-.*)?'
         replacement: 'webserver'
 
-      # Keep this label value stable: the provisioned dashboards filter on
-      # `environment="development"`.  Do not switch this to DEPLOY_ENV without
-      # also parameterising the dashboards.
-      - target_label: 'environment'
+      # Short role label for convenient queries, e.g.
+      # {environment="development", service="worker"}
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'service'
+        regex: '/(backend|worker|beat|flower|rabbitmq|redis|pgbouncer|db|postgres|nginx|frontend|grafana|prometheus|loki|promtail|autoheal)(-.*)?'
+        replacement: '$${1}'
+
+      # Derive the environment from the Coolify app ID in the container name
+      # (`<service>-<app-id>`), e.g. worker-iwwc... vs worker-ossk....
+      # Both stacks share this host and this Promtail/Loki, so this label is
+      # what keeps their logs apart in dashboards and alerts.
+      # If a Coolify app is recreated with a new ID, update the regexes below.
+      # Default first; the two app-specific rules below override it (relabel
+      # rules run in order and later matches overwrite earlier ones).
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'environment'
+        regex: '.*'
+        replacement: 'unknown'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'environment'
+        regex: '.*-iwwc8cg4cwcc40css4w0k0o4$'
+        replacement: 'production'
+      - source_labels: ['__meta_docker_container_name']
+        target_label: 'environment'
+        regex: '.*-ossk04go08goowgksgcsws00$'
         replacement: 'development'
 
     pipeline_stages:
