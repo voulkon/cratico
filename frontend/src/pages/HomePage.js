@@ -25,9 +25,9 @@ import './HomePage.css';
  * Renders a unified DashboardGrid with two columns:
  *
  *   [Featured: TopRelationshipPairs (full width)]
- *   [Most Active Organizations]    [Notable Recent Decisions]
  *   [Highest Payments]             [Highest Direct Assignments]
  *   [Repeat €30k–€38k Recipients]  [Repeat €30k–€38k Issuers]
+ *   [Most Active Organizations]    [Notable Recent Decisions]
  *
  * Each column has uniform appearance: card background, scrollable list,
  * section header with "See All" link.
@@ -50,16 +50,6 @@ const DashboardData = () => {
         />
       </DashboardGrid.Featured>
 
-      {/* Column 1 — Most Active Organizations (infinite scroll) */}
-      <OrganizationsSection
-        collapsible
-      />
-
-      {/* Column 2 — Notable Recent Decisions (infinite scroll) */}
-      <DecisionsSection
-        collapsible
-      />
-
       {/* Row 2, Column 1 — Highest Payment Decisions */}
       <TopPaymentsSection
         collapsible
@@ -80,6 +70,16 @@ const DashboardData = () => {
       <TopBandedDaGiversSection
         collapsible
         directOnly
+      />
+
+      {/* Last row, Column 1 — Most Active Organizations (infinite scroll) */}
+      <OrganizationsSection
+        collapsible
+      />
+
+      {/* Last row, Column 2 — Notable Recent Decisions (infinite scroll) */}
+      <DecisionsSection
+        collapsible
       />
     </DashboardGrid>
   );
@@ -169,7 +169,7 @@ const HomePage = () => {
   }
 
   return (
-    <DateRangeProvider defaultPeriod="week">
+    <DateRangeProvider defaultPeriod="today">
       <div className="homepage">
         <div className="homepage-container">
           {/* Hero Section */}

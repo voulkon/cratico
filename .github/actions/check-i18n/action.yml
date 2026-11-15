@@ -1,0 +1,57 @@
+name: 'Check i18n translations'
+description: >-
+  Verify that translation keys referenced in the frontend source exist in every
+  locale, and that the locale files stay in sync. Node-only: no npm install is
+  required. Missing keys and locale drift fail the job; stale keys are reported
+  in the job summary and as a single warning annotation. Set
+  fail-on-unused: true to fail on stale keys too. The calling job must check
+  out the repository first.
+inputs:
+  fail-on-unused:
+    description: 'Also fail when a locale JSON defines keys that no source file references'
+    required: false
+    default: 'false'
+  working-directory:
+    description: 'Directory containing scripts/check-i18n.js'
+    required: false
+    default: 'frontend'
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Node
+      uses: actions/setup-node@v5
+      with:
+        node-version: '20'
+
+    - name: Check translation coverage
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        set +e
+        report="$(mktemp)"
+        if [ "${{ inputs.fail-on-unused }}" = "true" ]; then
+          node scripts/check-i18n.js --fail-on-unused > "$report" 2>&1
+        else
+          node scripts/check-i18n.js > "$report" 2>&1
+        fi
+        status=$?
+        set -e
+
+        cat "$report"
+
+        summary_file="${GITHUB_STEP_SUMMARY:-/dev/null}"
+        {
+          echo "### Translation coverage"
+          echo ""
+          echo '```'
+          cat "$report"
+          echo '```'
+        } >> "$summary_file"
+
+        if [ "$status" -ne 0 ]; then
+          echo "::error title=Translation coverage::The translation check failed. See the job summary for details."
+        elif grep -q '^WARNINGS' "$report"; then
+          echo "::warning title=Translation coverage::Unused or inconsistent translation keys found. See the job summary for details."
+        fi
+
+        exit "$status"

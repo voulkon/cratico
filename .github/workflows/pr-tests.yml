@@ -66,6 +66,25 @@ jobs:
               - '.github/workflows/pr-tests.yml'
               - '.github/actions/**'
 
+  i18n:
+    name: Translation coverage
+    needs: changes
+    # Mirrors the frontend job: skip manual E2E runs and label-only events.
+    # Locale JSON and the checker script live under frontend/**, so the
+    # `frontend` path filter already covers them. Missing keys and locale drift
+    # fail the job; stale keys are reported in the job summary as warnings.
+    if: >-
+      github.event_name != 'workflow_dispatch' &&
+      github.event.action != 'labeled' &&
+      needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Check translations
+        uses: ./.github/actions/check-i18n
+
   backend:
     name: Backend tests + coverage diff
     needs: changes

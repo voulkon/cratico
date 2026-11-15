@@ -69,3 +69,16 @@ jobs:
           path: |
             *.log
           retention-days: 7
+
+  check-i18n:
+    runs-on: ubuntu-latest
+    name: Check translation coverage
+    # PRs and main pushes are already covered by pr-tests.yml; this job
+    # covers the dev branch, which pr-tests does not run on for pushes.
+    if: github.event_name == 'push' && github.ref_name == 'dev'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Check translations
+        uses: ./.github/actions/check-i18n

@@ -18,6 +18,7 @@ MIDDLEWARE = [
     "api.middleware.stealth.StealthModeMiddleware",  # Must be after AuthenticationMiddleware
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "api.middleware.cache_stats.CacheStatsMiddleware",  # Per-request hit/miss summary (must wrap the views)
     "api.middleware.rate_limit.RateLimitMiddleware",
     "api.middleware.security.SecurityMonitoringMiddleware",
     "api.middleware.security_monitoring.SecurityMonitoringResponseMiddleware",  # Response-side threat detection + forensic logging

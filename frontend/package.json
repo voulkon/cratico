@@ -28,7 +28,9 @@
     "eject": "react-scripts eject",
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",
-    "lint:css-vars": "node scripts/check-css-vars.js"
+    "lint:css-vars": "node scripts/check-css-vars.js",
+    "lint:i18n": "node scripts/check-i18n.js",
+    "lint:i18n:strict": "node scripts/check-i18n.js --fail-on-unused"
   },
   "eslintConfig": {
     "extends": [
