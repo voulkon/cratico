@@ -169,7 +169,7 @@ const HomePage = () => {
   }
 
   return (
-    <DateRangeProvider defaultPeriod="week">
+    <DateRangeProvider defaultPeriod="today">
       <div className="homepage">
         <div className="homepage-container">
           {/* Hero Section */}

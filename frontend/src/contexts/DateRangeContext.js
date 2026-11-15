@@ -62,7 +62,7 @@ export const calculateDateRange = (period) => {
   };
 };
 
-export const DateRangeProvider = ({ children, defaultPeriod = 'week' }) => {
+export const DateRangeProvider = ({ children, defaultPeriod = 'today' }) => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Read initial period from URL (?period=today) falling back to defaultPeriod
@@ -73,22 +73,15 @@ export const DateRangeProvider = ({ children, defaultPeriod = 'week' }) => {
   const [period, setPeriod] = useState(initialPeriod);
   const [customRange, setCustomRange] = useState(null);
 
-  // Keep URL in sync when period changes (so refresh preserves the selection)
+  // Keep URL in sync when period changes (so refresh preserves the selection).
+  // The period is always written to the URL, including the default, so the
+  // first view shows an explicit `?period=today` instead of an empty query.
   useEffect(() => {
     const current = searchParams.get('period');
-    if (period === defaultPeriod) {
-      // Don't pollute URL for the default period — remove the param
-      if (current) {
-        const next = new URLSearchParams(searchParams);
-        next.delete('period');
-        setSearchParams(next, { replace: true });
-      }
-    } else {
-      if (current !== period) {
-        const next = new URLSearchParams(searchParams);
-        next.set('period', period);
-        setSearchParams(next, { replace: true });
-      }
+    if (current !== period) {
+      const next = new URLSearchParams(searchParams);
+      next.set('period', period);
+      setSearchParams(next, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period]);
@@ -98,9 +91,6 @@ export const DateRangeProvider = ({ children, defaultPeriod = 'week' }) => {
     const p = searchParams.get('period');
     if (p && validPeriods.includes(p) && p !== period) {
       setPeriod(p);
-    } else if (!p && period !== defaultPeriod && validPeriods.includes(period)) {
-      // URL had its period removed — only reset if it's a plain default navigation
-      // (we don't want to clobber a custom range mid-edit, so leave state alone here)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
