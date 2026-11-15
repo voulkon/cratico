@@ -53,7 +53,9 @@
     "totalDecisions": "Total Decisions",
     "daysOfData": "Days of Data",
     "acrossOrganizations": "Across {count} organizations",
-    "loading": "Loading dashboard..."
+    "loading": "Loading dashboard...",
+    "signInRequired": "Sign In to Explore",
+    "signInMessage": "Please sign in to view trending organizations, recent decisions, and more."
   },
   "exploration": {
     "temporalExploration": "Temporal Exploration",
@@ -143,7 +145,16 @@
     "register" : "Register",
     "ai": "AI",
     "notSignedIn": "Not signed in",
-    "requestsRemaining": "Requests remaining today"
+    "requestsRemaining": "Requests remaining today",
+    "associatedCompanies": "Associated companies ({count})",
+    "confidence": "Confidence: {percentage}%",
+    "loadingMore": "Loading more...",
+    "noRelatedEntities": "No related entities found",
+    "noResults": "No results found",
+    "of": "of",
+    "recoveredFromDocument": "Recovered from document",
+    "recoveredFromDocumentHint": "This counterpart was recovered from the document text (Diavgeia recorded the issuing organization's own VAT number).",
+    "viewCompanyDetails": "View company details"
   },
   "decisionsToolbar": {
     "filterLabel": "Filter:",
@@ -175,6 +186,7 @@
     "errorTitle": "Error Loading Chart",
     "retry": "Retry",
     "errorLoadingChart": "Failed to load organization chart",
+    "failedToLoad": "Failed to load organization data: {message}",
     "unknownOrganization": "Unknown Organization",
     "backToEntityDetails": "View Entity Details",
     "totalNodes": "Total Nodes",
@@ -243,7 +255,8 @@
     "defaultModel": "Default",
     "expand": "Expand",
     "collapse": "Collapse",
-    "oneLiner": "AI Summary"
+    "oneLiner": "AI Summary",
+    "counterpartEntities": "Related entities"
   },
   "personPage": {
     "errorTitle": "Error Loading Person",
@@ -418,7 +431,15 @@
     "verifyAmount": "Verify amount",
     "verifying": "Verifying…",
     "verifyNoDiscrepancy": "No discrepancy found — amounts match the document.",
-    "verifyCorrected": "Corrected from document text."
+    "verifyCorrected": "Corrected from document text.",
+    "noOneLiners": "No one-liner attempts yet — generate one from a notification batch or with the button above.",
+    "oneLinerAttempts": "One-liner attempts",
+    "oneLinerDefault": "Current one-liner",
+    "oneLinerFailed": "One-liner generation failed",
+    "oneLinerRunning": "Generating one-liner…",
+    "regenerateOneLiner": "Regenerate one-liner",
+    "regenerateOneLinerHint": "Generates a fresh attempt under the current circumstances",
+    "viewEntityDetails": "View entity details"
   },
   "afmEntityDetail": {
     "loadingEntity": "Loading entity AFM {afm}...",
@@ -460,6 +481,7 @@
     "gemiCompanyInformation": "Company Information from Business Registry (GEMI)",
     "noDecisionsWithFilters": "No decisions found with current filters",
     "noDecisions": "No decisions found for this entity",
+    "noDataForAfm": "No data available for AFM {afm}.",
     "requestGemiFetch": "Request company data",
     "requestGemiFetchTitle": "Request GEMI Lookup",
     "requestGemiFetchDescription": "No company registry data available yet. Click to request a lookup from the Business Registry (GEMI).",
@@ -481,6 +503,8 @@
     "myLibrary": "My Library",
     "all": "All",
     "favorites": "Favorites",
+    "favorite": "Add to favorites",
+    "unfavorite": "Remove from favorites",
     "recent": "Recent",
     "folders": "Folders",
     "allBookmarks": "All Bookmarks",
@@ -596,7 +620,8 @@
   },
   "relationships": {
     "topPairs": "Top Organization × Entity Relationships",
-    "showingTopPairs": "Showing top {{count}} relationship pairs",
+    "showingTopPairs": "Showing top {count} relationship pairs",
+    "pairs": "pairs",
     "uidLabel": "UID",
     "afmLabel": "AFM"
   },
@@ -605,7 +630,7 @@
     "myNotifications": "Notifications",
     "close": "Close",
     "notifications": "Notifications",
-    "rules": "Rules",
+    "subscriptions": "Rules",
     "searchPlaceholder": "Search rules...",
     "allStatus": "All Status",
     "active": "Active",
@@ -621,13 +646,13 @@
     "alphabetical": "A-Z",
     "byType": "By Type",
     "byCount": "By Count",
-    "noMatchingRules": "No matching rules",
+    "noMatchingSubscriptions": "No matching rules",
     "tryAdjustingFilters": "Try adjusting your filters or search query.",
     "clearFilters": "Clear Filters",
-    "noRulesYet": "No rules yet",
+    "noSubscriptionsYet": "No rules yet",
     "subscribeToGetNotified": "Subscribe to organizations, entities, or relationships to get notified of new decisions.",
     "browseOrganizations": "Browse Organizations",
-    "loadingRules": "Loading rules...",
+    "loadingSubscriptions": "Loading rules...",
     "noNotificationsYet": "No notifications yet",
     "youllSeeNotifications": "You'll see notifications here when there are new decisions matching your subscriptions.",
     "loadingNotifications": "Loading notifications...",
@@ -797,7 +822,11 @@
     "clickToEdit": "Click to edit",
     "endBeforeStart" : "End date must be after start date",
     "startAfterEnd" : "Start date must be before end date",
-    "explore" : "Explore"
+    "explore" : "Explore",
+    "bothDatesRequired": "Both dates are required",
+    "exploreInDetail": "Explore this period in detail",
+    "invalidDate": "Please enter valid dates",
+    "openCalendar": "Open calendar"
   },
   "companyPersonsTable": {
     "sectionTitle": "Administration / Representatives",

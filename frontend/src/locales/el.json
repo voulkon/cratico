@@ -53,7 +53,9 @@
     "totalDecisions": "Συνολικές Αποφάσεις",
     "daysOfData": "Ημέρες Δεδομένων",
     "acrossOrganizations": "Σε {count} οργανισμούς",
-    "loading": "Φόρτωση πίνακα ελέγχου..."
+    "loading": "Φόρτωση πίνακα ελέγχου...",
+    "signInRequired": "Συνδεθείτε για να εξερευνήσετε",
+    "signInMessage": "Συνδεθείτε για να δείτε δημοφιλείς οργανισμούς, πρόσφατες αποφάσεις και άλλα."
   },
   "exploration": {
     "temporalExploration": "Χρονική Εξερεύνηση",
@@ -137,13 +139,22 @@
     "viewEntityDecisions": "Προβολή Αποφάσεων Οντότητας",
     "expand" : "Ανάπτυξη",
     "collapse" : "Σύμπτυξη",
-    "fiters" : "Φίλτρα",
+    "filters" : "Φίλτρα",
     "all": "Όλα",
     "loadMore": "Φόρτωση Περισσότερων",
     "register" : "Εγγραφή",
     "ai": "AI",
     "notSignedIn": "Δεν έχετε συνδεθεί",
-    "requestsRemaining": "Υπόλοιπα αιτήματα σήμερα"
+    "requestsRemaining": "Υπόλοιπα αιτήματα σήμερα",
+    "associatedCompanies": "Συνδεδεμένες επιχειρήσεις ({count})",
+    "confidence": "Βεβαιότητα: {percentage}%",
+    "loadingMore": "Φόρτωση περισσότερων...",
+    "noRelatedEntities": "Δεν βρέθηκαν σχετικές οντότητες",
+    "noResults": "Δεν βρέθηκαν αποτελέσματα",
+    "of": "από",
+    "recoveredFromDocument": "Ανακτήθηκε από το έγγραφο",
+    "recoveredFromDocumentHint": "Ο αντισυμβαλλόμενος ανακτήθηκε από το κείμενο του εγγράφου (η Διαύγεια κατέγραψε το ΑΦΜ του ίδιου του φορέα).",
+    "viewCompanyDetails": "Προβολή στοιχείων επιχείρησης"
   },
   "decisionsToolbar": {
     "filterLabel": "Φίλτρο:",
@@ -175,6 +186,7 @@
     "errorTitle": "Σφάλμα Φόρτωσης Διαγράμματος",
     "retry": "Επανάληψη",
     "errorLoadingChart": "Αποτυχία φόρτωσης οργανογράμματος",
+    "failedToLoad": "Αποτυχία φόρτωσης δεδομένων οργανισμού: {message}",
     "unknownOrganization": "Άγνωστος Οργανισμός",
     "backToEntityDetails": "Προβολή Στοιχείων Οντότητας",
     "totalNodes": "Συνολικοί Κόμβοι",
@@ -243,7 +255,8 @@
     "defaultModel": "Προεπιλεγμένο",
     "expand": "Ανάπτυξη",
     "collapse": "Σύμπτυξη",
-    "oneLiner": "Σύνοψη AI"
+    "oneLiner": "Σύνοψη AI",
+    "counterpartEntities": "Συνδεδεμένες οντότητες"
   },
   "personPage": {
     "errorTitle": "Σφάλμα Φόρτωσης Προσώπου",
@@ -418,7 +431,15 @@
     "verifyAmount": "Επαλήθευση ποσού",
     "verifying": "Επαλήθευση…",
     "verifyNoDiscrepancy": "Δεν βρέθηκε ασυμφωνία — τα ποσά συμφωνούν με το έγγραφο.",
-    "verifyCorrected": "Διορθώθηκε από το κείμενο του εγγράφου."
+    "verifyCorrected": "Διορθώθηκε από το κείμενο του εγγράφου.",
+    "noOneLiners": "Δεν υπάρχουν ακόμη προσπάθειες σύνοψης — δημιουργήστε μία από μια παρτίδα ειδοποίησης ή με το κουμπί παραπάνω.",
+    "oneLinerAttempts": "Προσπάθειες σύνοψης",
+    "oneLinerDefault": "Τρέχουσα σύνοψη",
+    "oneLinerFailed": "Η δημιουργία σύνοψης απέτυχε",
+    "oneLinerRunning": "Δημιουργία σύνοψης…",
+    "regenerateOneLiner": "Επαναδημιουργία σύνοψης",
+    "regenerateOneLinerHint": "Δημιουργεί μια νέα προσπάθεια υπό τις τρέχουσες συνθήκες",
+    "viewEntityDetails": "Προβολή στοιχείων οντότητας"
   },
   "afmEntityDetail": {
     "loadingEntity": "Φόρτωση οντότητας ΑΦΜ {afm}...",
@@ -460,6 +481,7 @@
     "gemiCompanyInformation": "Πληροφορίες Εταιρείας από το Μητρώο Επιχειρήσεων (ΓΕΜΗ)",
     "noDecisionsWithFilters": "Δεν βρέθηκαν αποφάσεις με τα τρέχοντα φίλτρα",
     "noDecisions": "Δεν βρέθηκαν αποφάσεις για αυτή την οντότητα",
+    "noDataForAfm": "Δεν υπάρχουν διαθέσιμα δεδομένα για το ΑΦΜ {afm}.",
     "requestGemiFetch": "Αίτηση στοιχείων εταιρείας",
     "requestGemiFetchTitle": "Αίτηση Αναζήτησης ΓΕΜΗ",
     "requestGemiFetchDescription": "Δεν υπάρχουν διαθέσιμα στοιχεία μητρώου εταιρειών. Κάντε κλικ για αναζήτηση στο Γενικό Εμπορικό Μητρώο (ΓΕΜΗ).",
@@ -481,6 +503,8 @@
     "myLibrary": "Η Βιβλιοθήκη μου",
     "all": "Όλα",
     "favorites": "Αγαπημένα",
+    "favorite": "Προσθήκη στα αγαπημένα",
+    "unfavorite": "Αφαίρεση από τα αγαπημένα",
     "recent": "Πρόσφατα",
     "folders": "Φάκελοι",
     "allBookmarks": "Όλοι οι Σελιδοδείκτες",
@@ -596,7 +620,8 @@
   },
   "relationships": {
     "topPairs": "Κορυφαίες Σχέσεις Οργανισμού × Οντότητας",
-    "showingTopPairs": "Εμφάνιση κορυφαίων {{count}} ζευγών σχέσεων",
+    "showingTopPairs": "Εμφάνιση κορυφαίων {count} ζευγών σχέσεων",
+    "pairs": "ζεύγη",
     "uidLabel": "UID",
     "afmLabel": "ΑΦΜ"
   },
@@ -795,7 +820,14 @@
     "clickToEdit": "Κάντε κλικ για επεξεργασία",
     "endBeforeStart" : "Η ημερομηνία λήξης πρέπει να είναι μετά την ημερομηνία έναρξης",
     "startAfterEnd" : "Η ημερομηνία έναρξης πρέπει να είναι πριν από την ημερομηνία λήξης",
-    "explore" : "Αναλυτικά"
+    "explore" : "Αναλυτικά",
+    "bothDatesRequired": "Και οι δύο ημερομηνίες είναι υποχρεωτικές",
+    "exploreInDetail": "Εξερευνήστε αυτή την περίοδο αναλυτικά",
+    "invalidDate": "Εισάγετε έγκυρες ημερομηνίες",
+    "openCalendar": "Άνοιγμα ημερολογίου",
+    "thisWeek": "Αυτή την Εβδομάδα",
+    "thisMonth": "Αυτόν τον Μήνα",
+    "thisYear": "Φέτος"
   },
   "companyPersonsTable": {
     "sectionTitle": "Διοίκηση / Εκπρόσωποι",
