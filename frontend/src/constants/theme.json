@@ -1,0 +1,23 @@
+{
+  "themeIds": ["system", "light", "solarized-light", "solarized-dark", "dark"],
+  "concreteThemeIds": ["light", "solarized-light", "solarized-dark", "dark"],
+  "defaultTheme": "light",
+  "defaultSystemBase": "light",
+  "defaultPalette": "blue",
+  "palettes": [
+    { "id": "orange", "name": "Orange", "color": "#f59e0b", "darkColor": "#fbbf24" },
+    { "id": "blue", "name": "Blue", "color": "#4299E1", "darkColor": "#63B3ED" },
+    { "id": "purple", "name": "Purple", "color": "#8b5cf6", "darkColor": "#a78bfa" },
+    { "id": "green", "name": "Green", "color": "#10b981", "darkColor": "#34d399" },
+    { "id": "red", "name": "Red", "color": "#ef4444", "darkColor": "#f87171" },
+    { "id": "pink", "name": "Pink", "color": "#ec4899", "darkColor": "#f472b6" }
+  ],
+  "darkCounterpart": {
+    "light": "dark",
+    "solarized-light": "solarized-dark"
+  },
+  "lightCounterpart": {
+    "dark": "light",
+    "solarized-dark": "solarized-light"
+  }
+}

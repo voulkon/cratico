@@ -13,8 +13,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
   <!-- Apply the stored theme before first paint (avoids a fallback flash).
-       Keep the id lists and resolution logic in sync with
-       src/contexts/ThemeContext.js. -->
+       Defaults and id lists live in src/constants/theme.json; this inline
+       copy is enforced by `npm run lint:theme` (also run on prebuild). -->
   <script>
     (function () {
       try {
@@ -43,8 +43,8 @@
             : (LIGHT_COUNTERPART[base] || base);
         }
 
-        var palette = localStorage.getItem('palette') || 'orange';
-        if (PALETTE_IDS.indexOf(palette) === -1) palette = 'orange';
+        var palette = localStorage.getItem('palette') || 'blue';
+        if (PALETTE_IDS.indexOf(palette) === -1) palette = 'blue';
 
         document.documentElement.setAttribute('data-theme', theme);
         document.documentElement.setAttribute('data-palette', palette);
