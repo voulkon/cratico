@@ -71,7 +71,8 @@ jobs:
     needs: changes
     # Mirrors the frontend job: skip manual E2E runs and label-only events.
     # Locale JSON and the checker script live under frontend/**, so the
-    # `frontend` path filter already covers them.
+    # `frontend` path filter already covers them. Missing keys and locale drift
+    # fail the job; stale keys are reported in the job summary as warnings.
     if: >-
       github.event_name != 'workflow_dispatch' &&
       github.event.action != 'labeled' &&
