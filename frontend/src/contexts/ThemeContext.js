@@ -1,12 +1,24 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Monitor, Sun, Sunrise, MoonStar, Moon } from 'lucide-react';
+import themeDefaults from '../constants/theme.json';
 
 const ThemeContext = createContext();
 
-// Keep these ids in sync with the pre-paint script in public/index.html.
-const THEME_IDS = ['system', 'light', 'solarized-light', 'solarized-dark', 'dark'];
-const CONCRETE_THEME_IDS = ['light', 'solarized-light', 'solarized-dark', 'dark'];
-const PALETTE_IDS = ['orange', 'blue', 'purple', 'green', 'red', 'pink'];
+// Single source of truth for theme/palette ids and defaults. The pre-paint
+// script in public/index.html mirrors these values; npm run lint:theme (also
+// run on prebuild) fails if the two ever diverge.
+const {
+  themeIds: THEME_IDS,
+  concreteThemeIds: CONCRETE_THEME_IDS,
+  defaultTheme: DEFAULT_THEME,
+  defaultSystemBase: DEFAULT_SYSTEM_BASE,
+  palettes: PALETTES,
+  defaultPalette: DEFAULT_PALETTE,
+  darkCounterpart: DARK_COUNTERPART,
+  lightCounterpart: LIGHT_COUNTERPART
+} = themeDefaults;
+
+const PALETTE_IDS = PALETTES.map((entry) => entry.id);
 
 // Older builds stored "auto" for System mode. Normalize it (and discard any
 // other unknown value) so a stale localStorage entry can never leave
@@ -19,39 +31,27 @@ const readStoredTheme = () => {
     return normalized;
   }
   if (stored) localStorage.removeItem('theme');
-  return 'light';
+  return DEFAULT_THEME;
 };
 
 const readStoredSystemBase = () => {
   const stored = localStorage.getItem('system-theme-base');
   if (CONCRETE_THEME_IDS.includes(stored)) return stored;
   if (stored) localStorage.removeItem('system-theme-base');
-  return 'light';
+  return DEFAULT_SYSTEM_BASE;
 };
 
 const readStoredPalette = () => {
   const stored = localStorage.getItem('palette');
   if (PALETTE_IDS.includes(stored)) return stored;
   if (stored) localStorage.removeItem('palette');
-  return 'orange';
+  return DEFAULT_PALETTE;
 };
 
 const prefersDarkQuery =
   typeof window !== 'undefined' && window.matchMedia
     ? window.matchMedia('(prefers-color-scheme: dark)')
     : null;
-
-// Light-family ↔ dark-family counterparts used when the "system" theme
-// follows the OS preference. Whatever family was active when the user
-// clicked "System" is preserved (plain light/dark or the solarized pair).
-const DARK_COUNTERPART = {
-  light: 'dark',
-  'solarized-light': 'solarized-dark'
-};
-const LIGHT_COUNTERPART = {
-  dark: 'light',
-  'solarized-dark': 'solarized-light'
-};
 
 export const useTheme = () => {
   const context = useContext(ThemeContext);
@@ -91,15 +91,6 @@ export const ThemeProvider = ({ children }) => {
     { id: 'dark', name: 'Dark', icon: Moon }
   ];
 
-  const palettes = [
-    { id: 'orange', name: 'Orange', color: '#f59e0b', darkColor: '#fbbf24' },
-    { id: 'blue', name: 'Blue', color: '#4299E1', darkColor: '#63B3ED' },
-    { id: 'purple', name: 'Purple', color: '#8b5cf6', darkColor: '#a78bfa' },
-    { id: 'green', name: 'Green', color: '#10b981', darkColor: '#34d399' },
-    { id: 'red', name: 'Red', color: '#ef4444', darkColor: '#f87171' },
-    { id: 'pink', name: 'Pink', color: '#ec4899', darkColor: '#f472b6' }
-  ];
-
   const changeTheme = (newTheme) => {
     // Entering "system": snapshot the current concrete theme as the pivot so
     // the solarized (or plain) family the user was on is kept afterwards.
@@ -135,7 +126,7 @@ export const ThemeProvider = ({ children }) => {
   };
 
   const getCurrentPaletteColor = () => {
-    const currentPalette = palettes.find(p => p.id === palette);
+    const currentPalette = PALETTES.find(p => p.id === palette);
     return isDark ? currentPalette?.darkColor : currentPalette?.color;
   };
 
@@ -160,7 +151,7 @@ export const ThemeProvider = ({ children }) => {
     systemBase,
     palette,
     themes,
-    palettes,
+    palettes: PALETTES,
     changeTheme,
     changePalette,
     toggleTheme,
@@ -168,7 +159,10 @@ export const ThemeProvider = ({ children }) => {
     isDark,
     isDarkMode: isDark,
     currentThemeName: themes.find(t => t.id === theme)?.name || 'Light',
-    currentPaletteName: palettes.find(p => p.id === palette)?.name || 'Orange'
+    currentPaletteName:
+      PALETTES.find(p => p.id === palette)?.name ||
+      PALETTES.find(p => p.id === DEFAULT_PALETTE)?.name ||
+      DEFAULT_PALETTE
   };
 
   return (

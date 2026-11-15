@@ -23,11 +23,14 @@
   },
   "scripts": {
     "start": "react-scripts start",
+    "prebuild": "npm run lint:theme",
     "build": "react-scripts build",
+    "pretest": "npm run lint:theme",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "e2e": "playwright test",
     "e2e:headed": "playwright test --headed",
+    "lint:theme": "node scripts/check-theme-defaults.js",
     "lint:css-vars": "node scripts/check-css-vars.js",
     "lint:i18n": "node scripts/check-i18n.js",
     "lint:i18n:strict": "node scripts/check-i18n.js --fail-on-unused"
