@@ -109,6 +109,31 @@ def init_celery_tracing(*args, **kwargs):
         logger.error(f"[Worker Child] Failed to re-initialize OpenTelemetry: {e}")
 
 
+@worker_process_init.connect(weak=False)
+def jitter_db_connection_lifetime(*args, **kwargs):
+    """Desynchronise child DB connection expiry after a fork.
+
+    All prefork children inherit the same ``CONN_MAX_AGE``.  After a long fetch
+    their connections expire together and every child re-dials in the same two
+    seconds — the connection storm that dropped 14 chunk tasks on 2026-11-17.
+    A per-child random reduction spreads the reconnects out.
+    """
+    import random
+
+    from django.db import connections
+
+    try:
+        connection = connections["default"]
+        base_age = connection.settings_dict.get("CONN_MAX_AGE") or 0
+        if base_age:
+            jitter = random.uniform(0, base_age * 0.25)
+            connection.settings_dict["CONN_MAX_AGE"] = max(1, int(base_age - jitter))
+    except Exception as e:  # never prevent the worker from booting
+        from loguru import logger
+
+        logger.warning(f"[Worker Child] Could not jitter DB connection lifetime: {e}")
+
+
 # Instrumentation is now handled via signals (worker_process_init, beat_init)
 # or conditionally at the top of the file for other processes.
 
@@ -303,6 +328,14 @@ app.conf.beat_schedule = {
     "reconcile-hourly-coverage": {
         "task": "core.tasks.tasks_auto_import.reconcile_hourly_coverage_task",
         "schedule": crontab(hour=1, minute=0),  # daily, after 00:30 daily import
+    },
+    # Import chunk watchdog — every 5 minutes, reconciles PROCESSING jobs whose
+    # chunk counters stopped advancing.  Redispatches surviving chunk payloads
+    # and closes jobs whose payloads are gone, so one lost task cannot wedge the
+    # single-slot import queue for hours.
+    "recover-stalled-import-jobs": {
+        "task": "core.tasks.tasks_auto_import.recover_stalled_import_jobs_task",
+        "schedule": crontab(minute="*/5"),
     },
     # Auto Company GEMI Import — virtuous-cycle recovery heartbeat (daily at 02:00)
     # The cycle is self-sustaining once started (chains itself via Celery link);

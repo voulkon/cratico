@@ -224,6 +224,17 @@ class FeatureFlagService:
             "requires_restart": True,
             "value_type": "string",
         },
+        "AUTO_REPAIR_COVERAGE_ENABLED": {
+            "name": "Auto-Repair Coverage Drift",
+            "description": "When the daily hourly-coverage reconciliation finds drift above "
+            "tolerance, enqueue a DAILY import for the affected date instead of only "
+            "logging a warning. Off by default; enable after validating the "
+            "reconciliation tolerance in production.",
+            "default": False,
+            "env_var": "AUTO_REPAIR_COVERAGE_ENABLED",
+            "category": "data_ingestion",
+            "requires_restart": False,
+        },
         "AUTO_BACKFILL_ENABLED": {
             "name": "Auto Backfill (Continuous Autofarming)",
             "description": "Continuously import historical data by finding the next oldest missing day. "

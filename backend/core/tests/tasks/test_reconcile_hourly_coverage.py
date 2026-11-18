@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from celery.schedules import crontab
 from core.models.decisions import Decision
+from core.models.import_jobs import ImportJobType
 from core.tasks.tasks_auto_import import (
     RECONCILE_WARNING_TOLERANCE_PCT,
     reconcile_hourly_coverage_task,
@@ -120,13 +121,40 @@ class TestReconcileHourlyCoverageTask:
             patch(FLAGS) as mock_flags,
             patch(OFFICIAL, return_value=111),
         ):
-            mock_flags.is_enabled.return_value = True
+            mock_flags.is_enabled.side_effect = (
+                lambda key, default=None: key == "AUTO_HOURLY_IMPORT_ENABLED"
+            )
 
             result = reconcile_hourly_coverage_task()
 
         assert result["status"] == "completed"
+        assert result["repair_attempted"] is False
         assert abs(result["percentage_diff"]) > RECONCILE_WARNING_TOLERANCE_PCT
         assert "drift" in loguru_capture.getvalue()
+
+    def test_repair_flag_enqueues_daily_import(self, loguru_capture):
+        yesterday = timezone.localdate() - timedelta(days=1)
+        _create_on(yesterday, 100)
+
+        with (
+            patch(FLAGS) as mock_flags,
+            patch(OFFICIAL, return_value=111),
+            patch("core.tasks.tasks_auto_import.ImportJobQueue") as mock_queue,
+        ):
+            mock_flags.is_enabled.side_effect = (
+                lambda key, default=None: key
+                in {"AUTO_HOURLY_IMPORT_ENABLED", "AUTO_REPAIR_COVERAGE_ENABLED"}
+            )
+            mock_queue.return_value.enqueue_job.return_value.id = 999
+
+            result = reconcile_hourly_coverage_task()
+
+        assert result["repair_attempted"] is True
+        kwargs = mock_queue.return_value.enqueue_job.call_args.kwargs
+        assert kwargs["target_date"] == yesterday
+        assert kwargs["import_type"] == ImportJobType.DAILY
+        assert kwargs["skip_duplicates"] is True
+        assert "repair enqueued" in loguru_capture.getvalue()
 
     def test_uses_publish_date_day_yesterday(self):
         yesterday = timezone.localdate() - timedelta(days=1)
@@ -164,3 +192,12 @@ def test_beat_entry_present():
 
 def test_task_is_registered():
     assert TASK_NAME in app.tasks
+
+
+def test_chunk_watchdog_beat_entry_present():
+    entry = app.conf.beat_schedule["recover-stalled-import-jobs"]
+    assert (
+        entry["task"]
+        == "core.tasks.tasks_auto_import.recover_stalled_import_jobs_task"
+    )
+    assert entry["schedule"]._orig_minute == "*/5"

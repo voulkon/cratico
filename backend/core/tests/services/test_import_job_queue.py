@@ -268,6 +268,47 @@ class TestEnqueueJob:
         assert job.unit_id == 456
         assert job.signer_id == 789
 
+    def test_dedupe_respects_import_type(
+        self, queue, sample_date, clear_import_queue
+    ):
+        """A stuck HOURLY job must not suppress a DAILY heal for the same date."""
+        hourly = ImportJob.objects.create(
+            start_date=sample_date,
+            end_date=sample_date,
+            status=ImportJobStatus.PROCESSING,
+            import_type=ImportJobType.HOURLY,
+        )
+
+        daily = queue.enqueue_job(
+            target_date=sample_date,
+            import_type=ImportJobType.DAILY,
+            auto_dispatch=False,
+            skip_duplicates=True,
+        )
+
+        assert daily.id != hourly.id
+        assert daily.import_type == ImportJobType.DAILY
+        assert daily.status == ImportJobStatus.PENDING
+
+    def test_dedupe_same_import_type_still_dedupes(
+        self, queue, sample_date, clear_import_queue
+    ):
+        hourly = ImportJob.objects.create(
+            start_date=sample_date,
+            end_date=sample_date,
+            status=ImportJobStatus.PROCESSING,
+            import_type=ImportJobType.HOURLY,
+        )
+
+        duplicate = queue.enqueue_job(
+            target_date=sample_date,
+            import_type=ImportJobType.HOURLY,
+            auto_dispatch=False,
+            skip_duplicates=True,
+        )
+
+        assert duplicate.id == hourly.id
+
 
 # ============================================================================
 # Test: Job Dispatching
@@ -732,6 +773,17 @@ class TestRedisIntegration:
         """Queue should use 'import_chunks' Redis connection (DB 2)"""
         # Verify the Redis client has the expected connection pool config
         assert queue.redis_client.connection_pool.connection_kwargs == {"db": 2}
+
+    def test_set_limit_persists_in_redis(self, queue, mock_redis, clear_import_queue):
+        """set-limit must be visible to worker processes, not just this one."""
+        queue.set_max_concurrent_jobs(3)
+
+        mock_redis.hset.assert_called_once_with(
+            ImportJobQueue.SETTINGS_KEY, "max_concurrent_jobs", 3
+        )
+
+        mock_redis.hget.return_value = b"3"
+        assert queue.MAX_CONCURRENT_JOBS == 3
 
 
 # ============================================================================
