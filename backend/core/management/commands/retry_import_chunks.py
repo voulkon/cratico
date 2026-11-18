@@ -6,18 +6,22 @@ Usage:
     python manage.py retry_import_chunks 849
 
     # Retry specific chunk IDs
-    python manage.py retry_import_chunks 849 --chunk-ids decision_chunk:2026-05-13_100_abc123 decision_chunk:2026-05-13_101_def456
+    python manage.py retry_import_chunks 849 --chunk-ids 849_chunk_100 849_chunk_101
 
     # Check which chunks are missing without retrying
     python manage.py retry_import_chunks 849 --dry-run
 """
 
+from api.redis_keys import get_import_chunk_scan_pattern
 from core.models.import_jobs import ImportJob
+from core.services.import_chunk_recovery import ImportChunkRecoveryService
+from core.services.redis_decision_cache import (
+    RedisDecisionCache,
+    parse_chunk_index,
+)
 from core.tasks.tasks_decisions_import import store_decisions_from_redis
-from diavgeia_project.settings.constants import IMPORT_CHUNKS_REDIS_DB_NAME
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
-from django_redis import get_redis_connection
 
 
 class Command(BaseCommand):
@@ -28,7 +32,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--chunk-ids",
             nargs="+",
-            help="Specific chunk IDs to retry (e.g., decision_chunk:2026-05-13_100_abc123)",
+            help="Specific chunk IDs to retry (e.g., 849_chunk_100)",
         )
         parser.add_argument(
             "--dry-run",
@@ -75,20 +79,18 @@ class Command(BaseCommand):
         self.stdout.write(f"Restored from Redis: {job.decisions_restored_from_redis}")
         self.stdout.write(f"Assigned to pipeline: {job.decisions_assigned_to_pipeline}")
 
-        # Find chunks in Redis
-        redis_client = get_redis_connection(IMPORT_CHUNKS_REDIS_DB_NAME)
-        date_str = job.start_date.isoformat()
-        pattern = f"decision_chunk:{date_str}_*"
+        # Discover chunks through the same helper the producer uses.  The old
+        # hand-written ``decision_chunk:<date>_*`` pattern scanned a namespace
+        # that no longer exists.
+        redis_cache = RedisDecisionCache()
+        recovery = ImportChunkRecoveryService(redis_cache)
+        snapshot = recovery.inspect_job(job)
+        redis_chunks = [f"{job.id}_chunk_{index}" for index in snapshot["recoverable"]]
 
         self.stdout.write(f"\n=== Redis Chunk Discovery ===")
-        self.stdout.write(f"Scanning Redis for pattern: {pattern}")
-
-        redis_chunks = []
-        for key in redis_client.scan_iter(match=pattern):
-            key_str = key.decode("utf-8") if isinstance(key, bytes) else key
-            redis_chunks.append(key_str)
-
-        self.stdout.write(f"Found {len(redis_chunks)} chunks in Redis")
+        self.stdout.write(f"Scanning pattern: {get_import_chunk_scan_pattern(job.id)}")
+        self.stdout.write(f"Recoverable chunks in Redis: {len(redis_chunks)}")
+        self.stdout.write(f"Lost chunks (no payload): {len(snapshot['lost'])}")
 
         # Determine which chunks to retry
         chunks_to_retry = []
@@ -118,6 +120,13 @@ class Command(BaseCommand):
                     f"or specify --chunk-ids to retry specific chunks"
                 )
             )
+            if snapshot["lost"]:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"{len(snapshot['lost'])} chunk(s) have no payload and cannot "
+                        f"be retried; run the watchdog or re-import the date."
+                    )
+                )
             return
 
         if dry_run:
@@ -138,14 +147,24 @@ class Command(BaseCommand):
 
         for i, chunk_id in enumerate(chunks_to_retry, 1):
             try:
+                chunk_index = parse_chunk_index(chunk_id)
+
                 # Verify chunk exists in Redis
-                if not redis_client.exists(chunk_id):
+                if not redis_cache.chunk_exists(chunk_id):
                     self.stdout.write(
                         self.style.WARNING(
                             f"  {i}/{len(chunks_to_retry)} SKIP: {chunk_id} (not in Redis)"
                         )
                     )
                     continue
+
+                # A previously failed chunk is already counted in
+                # chunks_failed.  Reopen it so the retry can count as
+                # completed instead of double-counting the job.
+                previous_state = redis_cache.get_chunk_state(job.id, chunk_index)
+                if previous_state == "failed":
+                    job.reopen_chunk_failure()
+                redis_cache.clear_chunk_state(job.id, chunk_index)
 
                 # Dispatch retry task with delay to avoid overwhelming the system
                 delay_seconds = i * 0.5  # Stagger by 0.5s each

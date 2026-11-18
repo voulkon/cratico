@@ -18,11 +18,11 @@ Usage:
 
 import random
 
-from api.redis_keys import IMPORT_CHUNK_PREFIX
+from api.redis_keys import get_import_chunk_scan_pattern
 from core.models.import_jobs import ImportJob, ImportJobStatus
-from diavgeia_project.settings.constants import IMPORT_CHUNKS_REDIS_DB_NAME
+from core.services.import_chunk_recovery import ImportChunkRecoveryService
+from core.services.redis_decision_cache import RedisDecisionCache
 from django.core.management.base import BaseCommand, CommandError
-from django_redis import get_redis_connection
 from loguru import logger
 
 
@@ -81,36 +81,37 @@ class Command(BaseCommand):
                 )
             )
 
-        # Scan Redis for remaining chunks
-        redis_client = get_redis_connection(IMPORT_CHUNKS_REDIS_DB_NAME)
-        pattern = f"{IMPORT_CHUNK_PREFIX}{job_id}_*"
-
-        self.stdout.write(f"Scanning Redis pattern: {pattern}")
-
-        chunk_keys = []
-        for key in redis_client.scan_iter(match=pattern, count=500):
-            key_str = key.decode("utf-8") if isinstance(key, bytes) else key
-            chunk_keys.append(key_str)
+        # Scan Redis for remaining chunks, through the producer's key helper.
+        cache = RedisDecisionCache()
+        snapshot = ImportChunkRecoveryService(cache).inspect_job(job)
+        chunk_ids = [f"{job.id}_chunk_{index}" for index in snapshot["recoverable"]]
 
         self.stdout.write(
-            self.style.SUCCESS(f"Found {len(chunk_keys)} chunks still in Redis\n")
+            f"Scanning Redis pattern: {get_import_chunk_scan_pattern(job.id)}"
         )
-
-        if not chunk_keys:
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Found {len(chunk_ids)} recoverable chunks still in Redis\n"
+            )
+        )
+        if snapshot["lost"]:
             self.stdout.write(
                 self.style.WARNING(
-                    "No chunks found in Redis. They may have already been processed "
-                    "or the 72h TTL has expired.\n"
-                    "If the job is stuck in PROCESSING, run:\n"
+                    f"{len(snapshot['lost'])} chunk(s) have no payload and cannot be "
+                    f"re-dispatched (the watchdog will account for them)\n"
+                )
+            )
+
+        if not chunk_ids:
+            self.stdout.write(
+                self.style.WARNING(
+                    "No recoverable chunks in Redis. They may have already been "
+                    "processed or the 72h TTL has expired.\n"
+                    "If the job is stuck in PROCESSING, run the chunk watchdog or:\n"
                     "  python manage.py import_queue clear-stale"
                 )
             )
             return
-
-        # Extract chunk_ids from Redis keys
-        # Key format: import:chunk:<chunk_id>  →  strip the prefix
-        prefix = IMPORT_CHUNK_PREFIX  # "import:chunk:"
-        chunk_ids = [k[len(prefix):] for k in chunk_keys]
 
         if limit > 0:
             chunk_ids = chunk_ids[:limit]

@@ -14,11 +14,11 @@ Usage:
 
 import json
 
+from api.redis_keys import get_import_chunk_scan_pattern
 from core.models.import_jobs import ImportFailure, ImportJob, ImportJobStatus
-from diavgeia_project.settings.constants import IMPORT_CHUNKS_REDIS_DB_NAME
+from core.services.redis_decision_cache import RedisDecisionCache
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
-from django_redis import get_redis_connection
 
 
 class Command(BaseCommand):
@@ -61,6 +61,8 @@ class Command(BaseCommand):
     def build_diagnostic_report(self, job, check_celery=False):
         """Build comprehensive diagnostic report"""
         age = timezone.now() - job.created_at
+        progress_at = job.last_progress_at or job.created_at
+        progress_age = timezone.now() - progress_at
 
         report = {
             "job_info": {
@@ -70,6 +72,10 @@ class Command(BaseCommand):
                 "created_at": job.created_at.isoformat(),
                 "age_hours": age.total_seconds() / 3600,
                 "age_human": f"{age.seconds//3600}h {(age.seconds%3600)//60}m",
+                "last_progress_at": job.last_progress_at.isoformat()
+                if job.last_progress_at
+                else None,
+                "progress_age_hours": progress_age.total_seconds() / 3600,
                 "celery_task_id": job.celery_task_id,
             },
             "pipeline_progress": {
@@ -109,19 +115,14 @@ class Command(BaseCommand):
             },
         }
 
-        # Check Redis for remaining chunks
-        redis_client = get_redis_connection(IMPORT_CHUNKS_REDIS_DB_NAME)
-        date_str = job.start_date.isoformat()
-        pattern = f"decision_chunk:{date_str}_*"
-
-        redis_chunks = []
-        for key in redis_client.scan_iter(match=pattern):
-            key_str = key.decode("utf-8") if isinstance(key, bytes) else key
-            redis_chunks.append(key_str)
+        # Check Redis for remaining chunks, via the producer's key helper.
+        cache = RedisDecisionCache()
+        redis_chunks = cache.list_job_chunk_ids(job.id)
 
         report["redis_status"] = {
             "chunks_remaining": len(redis_chunks),
             "sample_chunk_ids": redis_chunks[:10],
+            "scan_pattern": get_import_chunk_scan_pattern(job.id),
         }
 
         # Check for failures
@@ -133,7 +134,7 @@ class Command(BaseCommand):
                 "task_id": f.task_id,
                 "error_message": f.error_message[:200],
                 "created_at": f.created_at.isoformat(),
-                "retry_count": f.retry_count,
+                "resolved": f.resolved,
             }
             for f in failures
         ]
@@ -195,19 +196,22 @@ class Command(BaseCommand):
         pipeline_info = report["pipeline_progress"]
         redis_info = report["redis_status"]
         age_hours = report["job_info"]["age_hours"]
+        progress_age_hours = report["job_info"]["progress_age_hours"]
 
-        # Issue 1: Job stuck in active status for too long
+        # Issue 1: Job stuck in active status for too long.  Use the last
+        # progress timestamp: a 20-minute stall and a 31-hour outage must not
+        # look identical.
         if job.status in [
             ImportJobStatus.PROCESSING,
             ImportJobStatus.FETCHING,
             ImportJobStatus.SPLITTING,
         ]:
-            if age_hours > 2:
+            if progress_age_hours > 2:
                 issues.append(
                     {
                         "severity": "CRITICAL",
                         "type": "stuck_status",
-                        "message": f"Job has been in {job.status} status for {age_hours:.1f} hours",
+                        "message": f"Job has been in {job.status} status with no progress for {progress_age_hours:.1f} hours (age {age_hours:.1f}h)",
                     }
                 )
 
