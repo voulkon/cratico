@@ -9,9 +9,12 @@ Decision Import Tasks - Distributed Pipeline for Daily Decision Ingestion
    See: /docs/celery-countdown-bug-research.md for full investigation.
 
 Architecture:
-    1. fetch_daily_decisions_to_pickle: Fetches full day from API
-    2. Splits into chunks, dispatches store_decisions_from_pickle for each
+    1. fetch_daily_decisions_to_redis: Fetches full day from API
+    2. Splits into chunks, dispatches store_decisions_from_redis for each
     3. Each storage task sleeps before processing (prevents DB deadlocks)
+
+Retries (chunk and fetch tasks) use an in-task sleep followed by an immediate
+re-dispatch; ``self.retry(countdown=…)`` is avoided for the same reason.
 """
 
 import random
@@ -28,7 +31,11 @@ from core.models.import_jobs import (
     ImportJobStatus,
     ImportJobType,
 )
-from core.services.redis_decision_cache import RedisDecisionCache
+from core.services.redis_decision_cache import (
+    RedisDecisionCache,
+    parse_chunk_index,
+)
+from core.utils.db_retry import ensure_db_connection
 from diavgeia_api.models.decisions import Decision
 from django.utils import timezone
 from loguru import logger
@@ -78,13 +85,19 @@ def _log_import_progress(
     )
 
 
-@shared_task(bind=True, max_retries=3)
+@shared_task(
+    bind=True,
+    max_retries=3,
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
 def fetch_daily_decisions_to_redis(
     self,
     target_date_str: str,
     search_params: Optional[Dict[str, Any]] = None,
     chunk_size: int = 10,
     job_id: Optional[int] = None,
+    retry_attempt: int = 0,
 ):
     """
     Phase 1: Fetch ALL decisions for a full day and save to Redis with batch tracking.
@@ -109,6 +122,7 @@ def fetch_daily_decisions_to_redis(
     try:
         from datetime import datetime
 
+        ensure_db_connection()
         target_date = datetime.fromisoformat(target_date_str).date()
 
         # Get the ImportJob created by orchestrator
@@ -330,18 +344,40 @@ def fetch_daily_decisions_to_redis(
     except Exception as e:
         logger.error(f"Task {self.request.id}: Fetch failed: {str(e)}")
 
-        # Update job status if it exists
+        # In-task retry: ETA/countdown retries are silently lost on this
+        # RabbitMQ/Celery combination.  Sleep, then publish a fresh message.
+        request_retries = getattr(self.request, "retries", 0) or 0
+        attempt = max(retry_attempt, request_retries)
+        if attempt < self.max_retries:
+            delay = min(60 * (2**attempt), 600)
+            logger.warning(
+                f"Task {self.request.id}: Fetch redispatching in {delay}s "
+                f"(attempt {attempt + 1}/{self.max_retries})"
+            )
+            time.sleep(delay)
+            fetch_daily_decisions_to_redis.apply_async(
+                args=[target_date_str],
+                kwargs={
+                    "search_params": search_params,
+                    "chunk_size": chunk_size,
+                    "job_id": job_id,
+                    "retry_attempt": attempt + 1,
+                },
+            )
+            return {
+                "status": "retried",
+                "target_date": target_date_str,
+                "job_id": job_id,
+                "attempt": attempt + 1,
+            }
+
+        # Retries exhausted: close the job so it can never wedge the queue.
         try:
             import_job = (
                 ImportJob.objects.get(id=job_id)
                 if job_id
                 else ImportJob.objects.get(celery_task_id=self.request.id)
             )
-            import_job.status = ImportJobStatus.FAILED
-            import_job.error_details = str(e)
-            import_job.save(update_fields=["status", "error_details"])
-
-            # Record structured failure
             ImportFailure.objects.create(
                 import_job=import_job,
                 task_id=self.request.id,
@@ -353,15 +389,26 @@ def fetch_daily_decisions_to_redis(
                     "search_params": search_params,
                 },
             )
+            import_job.mark_chunks_abandoned(
+                f"Fetch failed after {self.max_retries} retries: {e}"
+            )
         except ImportJob.DoesNotExist:
             pass
+        except Exception:
+            logger.exception(
+                f"Task {self.request.id}: Could not record exhausted fetch failure"
+            )
 
-        # Celery retry with exponential backoff
-        raise self.retry(countdown=60 * (2**self.request.retries), exc=e)
+        raise
 
 
-@shared_task(bind=True, max_retries=3)
-def fetch_hourly_decisions_to_redis(self, job_id: int):
+@shared_task(
+    bind=True,
+    max_retries=3,
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
+def fetch_hourly_decisions_to_redis(self, job_id: int, retry_attempt: int = 0):
     """
     Phase 1 (hourly): Fetch decisions submitted in a rolling timestamp window
     and store them in Redis for distributed processing.
@@ -396,6 +443,8 @@ def fetch_hourly_decisions_to_redis(self, job_id: int):
     window_to: Optional[str] = None
 
     try:
+        ensure_db_connection()
+
         # 1. job_id is required — hourly jobs are always queue-created.
         try:
             import_job = ImportJob.objects.get(id=job_id)
@@ -570,13 +619,29 @@ def fetch_hourly_decisions_to_redis(self, job_id: int):
     except Exception as e:
         logger.error(f"Task {self.request.id}: Hourly fetch failed: {str(e)}")
 
-        # Update job status if it exists — do NOT advance the watermark.
+        # In-task retry (no ETA timers); watermark intentionally untouched.
+        request_retries = getattr(self.request, "retries", 0) or 0
+        attempt = max(retry_attempt, request_retries)
+        if attempt < self.max_retries:
+            delay = min(60 * (2**attempt), 600)
+            logger.warning(
+                f"Task {self.request.id}: Hourly fetch redispatching in {delay}s "
+                f"(attempt {attempt + 1}/{self.max_retries})"
+            )
+            time.sleep(delay)
+            fetch_hourly_decisions_to_redis.apply_async(
+                args=[job_id],
+                kwargs={"retry_attempt": attempt + 1},
+            )
+            return {
+                "status": "retried",
+                "job_id": job_id,
+                "attempt": attempt + 1,
+            }
+
+        # Retries exhausted: close the job so it can never wedge the queue.
         try:
             import_job = ImportJob.objects.get(id=job_id)
-            import_job.status = ImportJobStatus.FAILED
-            import_job.error_details = str(e)
-            import_job.save(update_fields=["status", "error_details"])
-
             ImportFailure.objects.create(
                 import_job=import_job,
                 task_id=self.request.id,
@@ -588,20 +653,32 @@ def fetch_hourly_decisions_to_redis(self, job_id: int):
                     "window_to": window_to,
                 },
             )
+            import_job.mark_chunks_abandoned(
+                f"Hourly fetch failed after {self.max_retries} retries: {e}"
+            )
         except ImportJob.DoesNotExist:
             pass
+        except Exception:
+            logger.exception(
+                f"Task {self.request.id}: Could not record exhausted hourly fetch failure"
+            )
 
-        # Celery retry with exponential backoff — watermark intentionally untouched.
-        raise self.retry(countdown=60 * (2**self.request.retries), exc=e)
+        raise
 
 
-@shared_task(bind=True, max_retries=5)
+@shared_task(
+    bind=True,
+    max_retries=5,
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
 def store_decisions_from_redis(
     self,
     chunk_id: str,
     job_id: int,
     skip_opensearch: bool = False,
     delay_seconds: float = 0,
+    retry_attempt: int = 0,
 ):
     """
     Phase 2: Load decisions from Redis and run through full pipeline with job tracking.
@@ -624,6 +701,7 @@ def store_decisions_from_redis(
         job_id: ImportJob ID for progress tracking
         skip_opensearch: Skip OpenSearch indexing to reduce infrastructure costs
         delay_seconds: Sleep this many seconds before processing (prevents race conditions)
+        retry_attempt: Internal counter for the in-task retry loop (avoid ETA timers)
     """
     # [WARN]️ BUG FIX (2026-01-04): Delay INSIDE task instead of countdown parameter
     if delay_seconds > 0:
@@ -637,13 +715,37 @@ def store_decisions_from_redis(
             f"Task {self.request.id}: Processing chunk {chunk_id} for job {job_id}"
         )
 
+        # Validate/reopen the pooled connection before the first DB access.
+        # The chunk wave starts after a long fetch, when CONN_MAX_AGE has
+        # usually expired for every child at once.
+        ensure_db_connection()
+
         # Initialize Redis cache
         redis_cache = RedisDecisionCache()
 
-        # Load decisions from Redis (auto-deletes after read)
-        chunk_data = redis_cache.get_chunk(chunk_id, delete_after_read=True)
+        # Load decisions from Redis WITHOUT consuming the payload. The payload
+        # is the only copy of the fetched decisions, so it is deleted only
+        # after the chunk's work has succeeded (P0.3).
+        chunk_data = redis_cache.get_chunk(chunk_id, delete_after_read=False)
 
         if not chunk_data:
+            chunk_index = parse_chunk_index(chunk_id)
+
+            # A redelivery of an already-finished chunk is a no-op, not a loss.
+            existing_state = redis_cache.get_chunk_state(job_id, chunk_index)
+            if existing_state in ("completed", "failed"):
+                logger.info(
+                    f"Task {self.request.id}: Chunk {chunk_id} already accounted "
+                    f"for ({existing_state}); duplicate delivery ignored"
+                )
+                return {
+                    "status": "success",
+                    "chunk_id": chunk_id,
+                    "job_id": job_id,
+                    "reason": "duplicate_delivery",
+                    "chunk_state": existing_state,
+                }
+
             # Chunk expired from Redis - no point retrying, it's gone forever
             error_msg = (
                 f"Chunk expired from Redis: {chunk_id}. "
@@ -652,21 +754,24 @@ def store_decisions_from_redis(
             )
             logger.error(f"Task {self.request.id}: {error_msg}")
 
-            # Mark chunk as failed without retry
-            try:
-                import_job = ImportJob.objects.get(id=job_id)
-                import_job.mark_chunk_failed(error_msg=error_msg)
+            # Record the failure at most once. ``mark_chunk_state`` is the
+            # idempotency guard: a redelivered message must not inflate
+            # chunks_failed (R12).
+            if redis_cache.mark_chunk_state(job_id, chunk_index, "failed"):
+                try:
+                    import_job = ImportJob.objects.get(id=job_id)
+                    import_job.mark_chunk_failed(error_msg=error_msg)
 
-                ImportFailure.objects.create(
-                    import_job=import_job,
-                    task_id=self.request.id,
-                    failure_type=ImportFailure.FailureType.CHUNK,
-                    error_message=error_msg,
-                    error_traceback="Chunk not found in Redis (likely expired)",
-                    data_snapshot={"chunk_id": chunk_id, "reason": "redis_expiration"},
-                )
-            except ImportJob.DoesNotExist:
-                logger.warning(f"ImportJob {job_id} not found")
+                    ImportFailure.objects.create(
+                        import_job=import_job,
+                        task_id=self.request.id,
+                        failure_type=ImportFailure.FailureType.CHUNK,
+                        error_message=error_msg,
+                        error_traceback="Chunk not found in Redis (likely expired)",
+                        data_snapshot={"chunk_id": chunk_id, "reason": "redis_expiration"},
+                    )
+                except ImportJob.DoesNotExist:
+                    logger.warning(f"ImportJob {job_id} not found")
 
             # Don't retry - chunk is gone forever
             return {
@@ -680,6 +785,27 @@ def store_decisions_from_redis(
         # Get decision dicts from Redis
         decision_dicts = chunk_data["decisions"]
         metadata = chunk_data.get("metadata", {})
+        chunk_index = metadata.get("chunk_index")
+        if chunk_index is None:
+            chunk_index = parse_chunk_index(chunk_id)
+
+        # Idempotency: at-least-once delivery means this task may run twice.
+        # The per-chunk accounting hash makes the second run a no-op.
+        existing_state = redis_cache.get_chunk_state(job_id, chunk_index)
+        if existing_state in ("completed", "failed"):
+            logger.info(
+                f"Task {self.request.id}: Chunk {chunk_id} already accounted "
+                f"for ({existing_state}); duplicate delivery ignored"
+            )
+            if existing_state == "completed":
+                redis_cache.delete_chunk(chunk_id)
+            return {
+                "status": "success",
+                "chunk_id": chunk_id,
+                "job_id": job_id,
+                "reason": "duplicate_delivery",
+                "chunk_state": existing_state,
+            }
 
         logger.debug(
             f"Task {self.request.id}: Loaded {len(decision_dicts)} decisions from Redis chunk {chunk_id}"
@@ -821,8 +947,15 @@ def store_decisions_from_redis(
                             ),
                         )
 
+        # Record the chunk's terminal outcome exactly once. At-least-once
+        # delivery may run this task twice; ``mark_chunk_state`` is the
+        # idempotency guard, so the counters cannot be incremented twice.
+        newly_accounted = redis_cache.mark_chunk_state(
+            job_id, chunk_index, "completed"
+        )
+
         # Update ImportJob progress
-        if import_job:
+        if import_job and newly_accounted:
             # Always track restored and assigned counts, even if some failed
             import_job.mark_chunk_completed(
                 decisions_restored=len(decision_dicts),  # How many we got from Redis
@@ -841,6 +974,14 @@ def store_decisions_from_redis(
                 import_job.refresh_from_db()
 
             _log_import_progress(import_job, redis_cache.redis_client, self.request.id)
+        elif import_job:
+            logger.info(
+                f"Task {self.request.id}: Chunk {chunk_id} was already accounted "
+                f"for by another delivery; counters left unchanged"
+            )
+
+        # The payload has served its purpose: delete it only now (P0.3).
+        redis_cache.delete_chunk(chunk_id)
 
         logger.debug(
             f"Task {self.request.id}: Processed chunk {chunk_id}, "
@@ -866,28 +1007,6 @@ def store_decisions_from_redis(
             f"Task {self.request.id}: Storage failed for chunk {chunk_id}: {str(e)}"
         )
 
-        # Update job with failure
-        try:
-            import_job = ImportJob.objects.get(id=job_id)
-            import_job.mark_chunk_failed(error_msg=str(e))
-
-            # Record structured failure for the chunk
-            # Try to get decision ADAs from the chunk if available
-            snapshot = {"chunk_id": chunk_id}
-            if "decision_dicts" in locals():
-                snapshot["decisions"] = decision_dicts
-
-            ImportFailure.objects.create(
-                import_job=import_job,
-                task_id=self.request.id,
-                failure_type=ImportFailure.FailureType.CHUNK,
-                error_message=str(e),
-                error_traceback=traceback.format_exc(),
-                data_snapshot=snapshot,
-            )
-        except ImportJob.DoesNotExist:
-            pass
-
         # Check for specific database errors
         is_deadlock = "deadlock detected" in error_msg
         is_aborted_transaction = "current transaction is aborted" in error_msg
@@ -896,36 +1015,97 @@ def store_decisions_from_redis(
             for keyword in ["deadlock", "lock", "transaction", "database", "connection"]
         )
 
-        have_we_got_any_db_errors = is_deadlock or is_aborted_transaction or is_db_error
-        have_we_reached_max_retries = self.request.retries < self.max_retries
+        # Retry first. A retry attempt must NOT increment chunks_failed (R12);
+        # the chunk payload is still in Redis because we only delete it after
+        # success, so the redelivery can do the work.
+        #
+        # Use an in-task sleep plus immediate re-dispatch instead of
+        # ``self.retry(countdown=…)``: ETA/countdown messages are silently
+        # lost on this RabbitMQ/Celery combination (see module header).
+        request_retries = getattr(self.request, "retries", 0) or 0
+        attempt = max(retry_attempt, request_retries)
+        if attempt < self.max_retries:
+            if is_deadlock or is_aborted_transaction or is_db_error:
+                # Aggressive backoff with jitter for database errors
+                base_delay = 20 * (3**attempt)  # 20s, 60s, 180s, 540s...
+                jitter = random.uniform(0, base_delay * 0.5)
+                delay = min(int(base_delay + jitter), 300)
+                logger.warning(
+                    f"Task {self.request.id}: Database error (deadlock:{is_deadlock}, "
+                    f"aborted:{is_aborted_transaction}), redispatching in {delay}s "
+                    f"(attempt {attempt + 1}/{self.max_retries})"
+                )
+            else:
+                delay = min(30 * (2**attempt), 300)
+                logger.info(
+                    f"Task {self.request.id}: Retrying after non-DB error in "
+                    f"{delay}s (attempt {attempt + 1}/{self.max_retries})"
+                )
 
-        if have_we_got_any_db_errors and have_we_reached_max_retries:
-            # For database errors, implement aggressive backoff with jitter
-            base_delay = 20 * (3**self.request.retries)  # 20s, 60s, 180s, 540s, 1620s
-            jitter = random.uniform(0, base_delay * 0.5)
-            delay = int(base_delay + jitter)
+            time.sleep(delay)
+            store_decisions_from_redis.apply_async(
+                args=[chunk_id, job_id],
+                kwargs={
+                    "skip_opensearch": skip_opensearch,
+                    "delay_seconds": 0,
+                    "retry_attempt": attempt + 1,
+                },
+            )
+            return {
+                "status": "retried",
+                "chunk_id": chunk_id,
+                "job_id": job_id,
+                "attempt": attempt + 1,
+            }
 
-            logger.warning(
-                f"Task {self.request.id}: Database error (deadlock:{is_deadlock}, "
-                f"aborted:{is_aborted_transaction}), retrying in {delay}s"
+        # Final attempt: record the failure at most once. Keeping the chunk
+        # key on failure lets a manual retry or the watchdog recover it.
+        try:
+            cache = locals().get("redis_cache") or RedisDecisionCache()
+            failure_chunk_index = locals().get("chunk_index")
+            if failure_chunk_index is None:
+                failure_chunk_index = parse_chunk_index(chunk_id)
+
+            if cache.mark_chunk_state(job_id, failure_chunk_index, "failed"):
+                import_job = ImportJob.objects.get(id=job_id)
+                import_job.mark_chunk_failed(error_msg=str(e))
+
+                # Record structured failure for the chunk
+                snapshot = {"chunk_id": chunk_id}
+                if "decision_dicts" in locals():
+                    snapshot["decisions"] = decision_dicts
+
+                ImportFailure.objects.create(
+                    import_job=import_job,
+                    task_id=self.request.id,
+                    failure_type=ImportFailure.FailureType.CHUNK,
+                    error_message=str(e),
+                    error_traceback=traceback.format_exc(),
+                    data_snapshot=snapshot,
+                )
+        except ImportJob.DoesNotExist:
+            pass
+        except Exception:
+            # If the DB is still down, never let this bookkeeping replace the
+            # original storage error.  The payload survives and the watchdog
+            # will reconcile the chunk later.
+            logger.exception(
+                f"Task {self.request.id}: Could not record final failure for chunk {chunk_id}"
             )
 
-            raise self.retry(countdown=delay, exc=e)
-
-        elif self.request.retries < self.max_retries:
-            # For non-database errors, standard retry
-            logger.info(f"Task {self.request.id}: Retrying after non-DB error")
-            raise self.retry(countdown=30 * (2**self.request.retries), exc=e)
-        else:
-            # Max retries reached - chunk will remain failed in batch
-            logger.error(
-                f"Task {self.request.id}: Max retries reached for chunk {chunk_id}"
-            )
-            raise
+        logger.error(
+            f"Task {self.request.id}: Max retries reached for chunk {chunk_id}"
+        )
+        raise
 
 
 # Legacy compatibility wrapper (for existing code that calls the old function)
-@shared_task(bind=True, max_retries=5)
+@shared_task(
+    bind=True,
+    max_retries=5,
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
 def store_decisions_from_pickle(self, pickle_file: str, **kwargs):
     """
     DEPRECATED: Legacy compatibility wrapper for code using pickle files.
@@ -942,7 +1122,7 @@ def store_decisions_from_pickle(self, pickle_file: str, **kwargs):
     )
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, acks_late=True, reject_on_worker_lost=True)
 def fetch_daily_decisions_distributed(
     self,
     target_date_str: str,

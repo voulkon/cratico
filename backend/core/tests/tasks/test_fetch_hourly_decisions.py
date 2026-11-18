@@ -155,7 +155,10 @@ class TestFetchHourlyDecisions:
             )
 
             with _direct_request(), pytest.raises((RuntimeError, Retry)):
-                fetch_hourly_decisions_to_redis.run(job_id=import_job.id)
+                fetch_hourly_decisions_to_redis.run(
+                    job_id=import_job.id,
+                    retry_attempt=fetch_hourly_decisions_to_redis.max_retries,
+                )
 
         assert SyncStatus.get_last_hourly_sync() == watermark
         import_job.refresh_from_db()
@@ -262,7 +265,10 @@ class TestFetchHourlyDecisions:
             mock_service.fetch_decisions_for_window.side_effect = RuntimeError("boom")
 
             with _direct_request(), pytest.raises((RuntimeError, Retry)):
-                fetch_hourly_decisions_to_redis.run(job_id=import_job.id)
+                fetch_hourly_decisions_to_redis.run(
+                    job_id=import_job.id,
+                    retry_attempt=fetch_hourly_decisions_to_redis.max_retries,
+                )
 
         failure = ImportFailure.objects.get(import_job=import_job)
         assert failure.failure_type == ImportFailure.FailureType.FETCH

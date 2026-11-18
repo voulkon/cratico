@@ -155,7 +155,9 @@ class TestHourlyCatchupWindow:
             ),
         ):
             with pytest.raises((Retry, RuntimeError)):
-                fetch_hourly_decisions_to_redis.run(job.id)
+                fetch_hourly_decisions_to_redis.run(
+                    job.id, retry_attempt=fetch_hourly_decisions_to_redis.max_retries
+                )
 
         watermark_row = SyncStatus.objects.get(sync_type=HOURLY_IMPORT_SYNC_TYPE)
         assert watermark_row.last_sync_timestamp == old_watermark
