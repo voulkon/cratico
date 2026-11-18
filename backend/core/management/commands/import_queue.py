@@ -213,16 +213,25 @@ class Command(BaseCommand):
                 ImportJobStatus.PROCESSING,
                 ImportJobStatus.SPLITTING,
             ]
-        ).order_by("start_date", "organization", "unit", "signer", "created_at")
+        ).order_by(
+            "start_date",
+            "import_type",
+            "organization",
+            "unit",
+            "signer",
+            "created_at",
+        )
 
         # Track unique combinations and their first job
         seen = {}
 
         for job in pending_and_active:
-            # Create a unique key for this job's parameters
+            # Create a unique key for this job's parameters. import_type is
+            # part of the identity: DAILY heals HOURLY, they are not duplicates.
             key = (
                 job.start_date,
                 job.end_date,
+                job.import_type,
                 job.organization_id,
                 job.unit_id,
                 job.signer_id,
@@ -302,16 +311,19 @@ class Command(BaseCommand):
             )
 
     def set_limit(self, limit: int):
-        """Set max concurrent jobs (runtime override)"""
+        """Set max concurrent jobs, persisted in Redis for all processes"""
         from django.conf import settings
 
-        old_limit = settings.IMPORT_MAX_CONCURRENT_JOBS
+        queue = ImportJobQueue()
+        old_limit = queue.MAX_CONCURRENT_JOBS
         settings.IMPORT_MAX_CONCURRENT_JOBS = limit
+        queue.set_max_concurrent_jobs(limit)
 
         self.stdout.write(
             self.style.SUCCESS(
                 f"\n[OK] Updated max concurrent jobs: {old_limit} → {limit}\n"
-                f"  Note: This is a runtime override. Set IMPORT_MAX_CONCURRENT_JOBS "
-                f"environment variable for persistent change."
+                f"  Persisted in Redis ({queue.SETTINGS_KEY}); worker processes "
+                f"read it on their next capacity check.\n"
+                f"  Set IMPORT_MAX_CONCURRENT_JOBS for a durable default."
             )
         )

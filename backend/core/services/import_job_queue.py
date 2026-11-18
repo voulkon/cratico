@@ -30,6 +30,7 @@ from api.redis_keys import (
     IMPORT_JOB_QUEUE_ACTIVE,
     IMPORT_JOB_QUEUE_LOCK,
     IMPORT_JOB_QUEUE_PENDING,
+    IMPORT_JOB_QUEUE_SETTINGS,
 )
 from core.models.import_jobs import ImportJob, ImportJobStatus, ImportJobType
 from diavgeia_project.settings.constants import IMPORT_CHUNKS_REDIS_DB_NAME
@@ -50,9 +51,31 @@ class ImportJobQueue:
     QUEUE_KEY = IMPORT_JOB_QUEUE_PENDING
     ACTIVE_KEY = IMPORT_JOB_QUEUE_ACTIVE
     LOCK_KEY = IMPORT_JOB_QUEUE_LOCK
+    SETTINGS_KEY = IMPORT_JOB_QUEUE_SETTINGS
 
-    # Maximum concurrent import jobs (configurable via Django settings)
-    MAX_CONCURRENT_JOBS = getattr(settings, "IMPORT_MAX_CONCURRENT_JOBS", 1)
+    # Maximum concurrent import jobs.
+    #
+    # Read at call time (not import time) from a Redis-persisted override so
+    # ``import_queue set-limit`` affects every worker process, not just the
+    # process that ran the command.  Falls back to Django settings.
+    @property
+    def MAX_CONCURRENT_JOBS(self) -> int:
+        try:
+            value = self.redis_client.hget(
+                self.SETTINGS_KEY, "max_concurrent_jobs"
+            )
+            if value is not None:
+                return max(1, int(value))
+        except Exception:
+            # Redis unavailable: behave like the static setting.
+            pass
+        return getattr(settings, "IMPORT_MAX_CONCURRENT_JOBS", 1)
+
+    def set_max_concurrent_jobs(self, limit: int) -> None:
+        """Persist a runtime concurrency limit for all worker processes."""
+        self.redis_client.hset(
+            self.SETTINGS_KEY, "max_concurrent_jobs", int(limit)
+        )
 
     # Lock timeout (seconds) - prevents stale locks if worker crashes
     LOCK_TIMEOUT = 300  # 5 minutes
@@ -179,7 +202,9 @@ class ImportJobQueue:
         Returns:
             Created or existing ImportJob instance
         """
-        # Check for duplicate jobs (same date + filters, not yet completed/failed)
+        # Check for duplicate jobs (same date + filters + import type, not yet
+        # completed/failed).  Import type is part of the identity: a stuck
+        # HOURLY job must never suppress the DAILY heal for the same date.
         if skip_duplicates:
             existing_job = ImportJob.objects.filter(
                 start_date=target_date,
@@ -187,6 +212,7 @@ class ImportJobQueue:
                 organization_id=organization_id,
                 unit_id=unit_id,
                 signer_id=signer_id,
+                import_type=import_type,
                 status__in=[
                     ImportJobStatus.PENDING,
                     ImportJobStatus.RUNNING,
@@ -199,7 +225,8 @@ class ImportJobQueue:
             if existing_job:
                 logger.info(
                     f"ImportJobQueue: Skipping duplicate - Job #{existing_job.id} "
-                    f"already exists for {target_date} (status: {existing_job.status})"
+                    f"already exists for {target_date} "
+                    f"(type: {import_type}, status: {existing_job.status})"
                 )
                 return existing_job
 

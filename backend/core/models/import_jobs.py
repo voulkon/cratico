@@ -72,6 +72,15 @@ class ImportJob(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+    last_progress_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name=_("Last Progress At"),
+        help_text=_(
+            "Last time a chunk reported completion/failure. Stall detection "
+            "must use this, not created_at."
+        ),
+    )
 
     # Results
     total_decisions = models.IntegerField(
@@ -170,6 +179,7 @@ class ImportJob(models.Model):
 
         update_dict = {
             "chunks_completed": F("chunks_completed") + 1,
+            "last_progress_at": timezone.now(),
         }
         if decisions_restored > 0:
             update_dict["decisions_restored_from_redis"] = (
@@ -184,37 +194,90 @@ class ImportJob(models.Model):
         self.refresh_from_db()
 
         # Auto-complete if all chunks done.
-        # Use an atomic conditional UPDATE (WHERE status='processing') so that
-        # when multiple workers finish their last chunks near-simultaneously,
-        # only ONE of them transitions the status and fires on_job_completed.
-        # Without this guard, every worker that sees is_complete==True would
-        # call on_job_completed, spawning duplicate trigger_next_backfill tasks.
-        if self.is_complete and self.status == ImportJobStatus.PROCESSING:
-            terminal_status = (
-                ImportJobStatus.COMPLETED
-                if self.chunks_failed == 0
-                else ImportJobStatus.PARTIALLY_COMPLETED
+        self._finalize_if_complete()
+
+    def touch_progress(self) -> None:
+        """Record liveness without changing counters (used before redispatch)."""
+        now = timezone.now()
+        ImportJob.objects.filter(pk=self.pk).update(last_progress_at=now)
+        self.last_progress_at = now
+
+    def _finalize_if_complete(self) -> None:
+        """Transition to a terminal status exactly once when all chunks report.
+
+        Use an atomic conditional UPDATE (WHERE status='processing') so that
+        when multiple workers finish their last chunks near-simultaneously,
+        only ONE of them transitions the status and fires on_job_completed.
+        Without this guard, every worker that sees is_complete==True would
+        call on_job_completed, spawning duplicate trigger_next_backfill tasks.
+        """
+        if not self.is_complete or self.status != ImportJobStatus.PROCESSING:
+            return
+
+        if self.chunks_failed == 0:
+            terminal_status = ImportJobStatus.COMPLETED
+        elif self.chunks_completed == 0:
+            terminal_status = ImportJobStatus.FAILED
+        else:
+            terminal_status = ImportJobStatus.PARTIALLY_COMPLETED
+        rows_updated = ImportJob.objects.filter(
+            pk=self.pk,
+            status=ImportJobStatus.PROCESSING,  # guard: only one worker wins
+        ).update(status=terminal_status, completed_at=timezone.now())
+
+        if rows_updated != 1:
+            return
+
+        self.refresh_from_db()
+        # Notify queue to dispatch next job
+        from core.services.import_job_queue import ImportJobQueue
+
+        try:
+            queue = ImportJobQueue()
+            queue.on_job_completed(self.id)
+        except Exception as e:
+            # Don't fail the job if queue notification fails
+            import logging
+
+            logging.getLogger(__name__).warning(
+                f"Failed to notify queue of job completion: {e}"
             )
-            rows_updated = ImportJob.objects.filter(
-                pk=self.pk,
-                status=ImportJobStatus.PROCESSING,  # guard: only one worker wins
-            ).update(status=terminal_status, completed_at=timezone.now())
 
-            if rows_updated == 1:
-                self.refresh_from_db()
-                # Notify queue to dispatch next job
-                from core.services.import_job_queue import ImportJobQueue
+    def reconcile_chunk_counters(self, completed: int, failed: int) -> bool:
+        """Raise the DB counters to match recorded per-chunk outcomes.
 
-                try:
-                    queue = ImportJobQueue()
-                    queue.on_job_completed(self.id)
-                except Exception as e:
-                    # Don't fail the job if queue notification fails
-                    import logging
+        Used by the watchdog when a worker recorded chunk outcomes in Redis but
+        died before (or while) incrementing the two DB counters.  Counters are
+        never lowered, so this is safe against partial state hashes.
 
-                    logging.getLogger(__name__).warning(
-                        f"Failed to notify queue of job completion: {e}"
-                    )
+        Returns True when a counter was changed.
+        """
+        new_completed = max(self.chunks_completed, completed)
+        new_failed = max(self.chunks_failed, failed)
+
+        # Never let the two counters exceed total_chunks.  A deploy that
+        # changes how outcomes are recorded can otherwise produce records such
+        # as 146/80.  Allocate to completed first, then failed.
+        total = self.total_chunks or 0
+        if total > 0:
+            new_completed = min(new_completed, total)
+            new_failed = min(new_failed, max(0, total - new_completed))
+
+        if (
+            new_completed == self.chunks_completed
+            and new_failed == self.chunks_failed
+        ):
+            self._finalize_if_complete()
+            return False
+
+        ImportJob.objects.filter(pk=self.pk).update(
+            chunks_completed=new_completed,
+            chunks_failed=new_failed,
+            last_progress_at=timezone.now(),
+        )
+        self.refresh_from_db()
+        self._finalize_if_complete()
+        return True
 
     def cancel(
         self,
@@ -298,6 +361,7 @@ class ImportJob(models.Model):
         ImportJob.objects.filter(pk=self.pk).update(
             chunks_failed=F("chunks_failed") + 1,
             error_count=F("error_count") + decisions_count,
+            last_progress_at=timezone.now(),
         )
         self.refresh_from_db()
 
@@ -309,32 +373,83 @@ class ImportJob(models.Model):
             self.save(update_fields=["error_details"])
 
         # Auto-complete/fail if all chunks done (same atomic guard as mark_chunk_completed)
-        if self.is_complete and self.status == ImportJobStatus.PROCESSING:
-            terminal_status = (
-                ImportJobStatus.FAILED
-                if self.chunks_completed == 0
-                else ImportJobStatus.PARTIALLY_COMPLETED
+        self._finalize_if_complete()
+
+    def reopen_chunk_failure(self) -> bool:
+        """Move one failed chunk back to 'missing' before a manual retry.
+
+        The retry will increment ``chunks_completed``; without decrementing
+        ``chunks_failed`` first, the two counters would exceed ``total_chunks``.
+        A partially-completed job is reopened so the retry can finalise it
+        again instead of leaving the status terminal.
+        """
+        from django.db.models import F
+
+        update_fields = {
+            "chunks_failed": F("chunks_failed") - 1,
+            "last_progress_at": timezone.now(),
+        }
+        if self.status in (
+            ImportJobStatus.PARTIALLY_COMPLETED,
+            ImportJobStatus.FAILED,
+        ):
+            update_fields["status"] = ImportJobStatus.PROCESSING
+            update_fields["completed_at"] = None
+
+        rows_updated = ImportJob.objects.filter(
+            pk=self.pk, chunks_failed__gt=0
+        ).update(**update_fields)
+        if rows_updated:
+            self.refresh_from_db()
+        return bool(rows_updated)
+
+    def mark_chunks_abandoned(self, reason: str) -> str:
+        """Close a wedged job whose missing chunks have no recoverable payload.
+
+        Marks FAILED when nothing completed, otherwise PARTIALLY_COMPLETED, and
+        notifies the queue so MAX_CONCURRENT_JOBS does not stay blocked.
+
+        Returns the terminal status that was applied (or the current status if
+        the job already moved on).
+        """
+        terminal_status = (
+            ImportJobStatus.FAILED
+            if self.chunks_completed == 0
+            else ImportJobStatus.PARTIALLY_COMPLETED
+        )
+        error_line = f"\n[{timezone.now().isoformat()}] {reason}"
+        rows_updated = ImportJob.objects.filter(
+            pk=self.pk,
+            status__in=[
+                ImportJobStatus.RUNNING,
+                ImportJobStatus.FETCHING,
+                ImportJobStatus.SPLITTING,
+                ImportJobStatus.PROCESSING,
+            ],
+        ).update(
+            status=terminal_status,
+            completed_at=timezone.now(),
+            last_progress_at=timezone.now(),
+            error_details=(self.error_details or "") + error_line,
+        )
+
+        if rows_updated != 1:
+            self.refresh_from_db()
+            return self.status
+
+        self.refresh_from_db()
+        from core.services.import_job_queue import ImportJobQueue
+
+        try:
+            ImportJobQueue().on_job_completed(self.id)
+        except Exception as e:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                f"Failed to notify queue of abandoned job: {e}"
             )
-            rows_updated = ImportJob.objects.filter(
-                pk=self.pk,
-                status=ImportJobStatus.PROCESSING,
-            ).update(status=terminal_status, completed_at=timezone.now())
 
-            if rows_updated == 1:
-                self.refresh_from_db()
-                # Notify queue to dispatch next job
-                from core.services.import_job_queue import ImportJobQueue
-
-                try:
-                    queue = ImportJobQueue()
-                    queue.on_job_completed(self.id)
-                except Exception as e:
-                    # Don't fail the job if queue notification fails
-                    import logging
-
-                    logging.getLogger(__name__).warning(
-                        f"Failed to notify queue of job completion: {e}"
-                    )
+        return terminal_status
 
 
 class ImportFailure(models.Model):

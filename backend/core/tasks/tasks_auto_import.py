@@ -40,6 +40,108 @@ from loguru import logger
 # create small day-level noise; calibrate against the first weeks of real data.
 RECONCILE_WARNING_TOLERANCE_PCT = 2.0
 
+# A PROCESSING job whose chunk counters have not moved for this long is treated
+# as stalled by the watchdog.  Long enough to leave normal Docling pipelines
+# alone, short enough that one lost message no longer means a multi-hour outage.
+IMPORT_CHUNK_STALL_MINUTES = 15
+
+# Upper bound on jobs repaired per watchdog run (keeps a backlog from turning
+# one beat tick into an unbounded burst).
+IMPORT_CHUNK_WATCHDOG_BATCH = 50
+
+# A FETCHING/RUNNING job has no chunk payloads to recover.  Re-dispatch it
+# after this long without progress; abandon it after the longer threshold so a
+# dead fetch can never wedge the single-slot import queue forever.
+IMPORT_FETCH_STALL_MINUTES = 90
+IMPORT_FETCH_ABANDON_MINUTES = 360
+
+
+def _recover_stalled_fetch_jobs(now):
+    """Re-dispatch or abandon import jobs stuck before chunking (G1)."""
+    from django.db.models import Q
+
+    from core.tasks.tasks_decisions_import import (
+        fetch_daily_decisions_distributed,
+        fetch_hourly_decisions_to_redis,
+    )
+
+    stall_cutoff = now - timedelta(minutes=IMPORT_FETCH_STALL_MINUTES)
+    abandon_cutoff = now - timedelta(minutes=IMPORT_FETCH_ABANDON_MINUTES)
+
+    stalled = (
+        ImportJob.objects.filter(
+            status__in=[
+                ImportJobStatus.RUNNING,
+                ImportJobStatus.FETCHING,
+            ],
+            total_chunks=0,
+        )
+        .filter(
+            Q(last_progress_at__lt=stall_cutoff)
+            | Q(last_progress_at__isnull=True, created_at__lt=stall_cutoff)
+        )
+        .order_by("created_at")[:IMPORT_CHUNK_WATCHDOG_BATCH]
+    )
+
+    results = []
+    for job in stalled:
+        if job.created_at < abandon_cutoff:
+            status = job.mark_chunks_abandoned(
+                "Fetch never completed (chunk watchdog)"
+            )
+            logger.error(
+                f"IMPORT_ALERT Import watchdog abandoned fetch job #{job.id} "
+                f"as {status} after {IMPORT_FETCH_ABANDON_MINUTES} minutes"
+            )
+            results.append(
+                {
+                    "job_id": job.id,
+                    "status": "abandoned",
+                    "terminal_status": status,
+                }
+            )
+            continue
+
+        try:
+            search_params = job.search_params or {}
+            if job.import_type == ImportJobType.HOURLY:
+                async_result = fetch_hourly_decisions_to_redis.delay(job_id=job.id)
+            else:
+                async_result = fetch_daily_decisions_distributed.delay(
+                    target_date_str=job.start_date.isoformat(),
+                    chunk_size=10,
+                    force=search_params.get("force", False),
+                    job_id=job.id,
+                    search_params=search_params,
+                )
+
+            job.status = ImportJobStatus.FETCHING
+            job.last_progress_at = now
+            job.celery_task_id = async_result.id
+            job.save(
+                update_fields=["status", "last_progress_at", "celery_task_id"]
+            )
+            logger.warning(
+                f"IMPORT_ALERT Import watchdog redispatched stalled fetch "
+                f"job #{job.id} (task {async_result.id})"
+            )
+            results.append(
+                {
+                    "job_id": job.id,
+                    "status": "redispatched",
+                    "task_id": async_result.id,
+                }
+            )
+        except Exception as e:
+            logger.error(
+                f"Import watchdog could not redispatch fetch job #{job.id}: {e}"
+            )
+            results.append(
+                {"job_id": job.id, "status": "error", "error": str(e)}
+            )
+
+    return results
+
 
 @shared_task
 def auto_daily_import_task():
@@ -159,9 +261,10 @@ def reconcile_hourly_coverage_task():
     Daily production safety net for the hourly import (report-only).
 
     Compares our ``publish_date_day`` count for yesterday against the official
-    Diavgeia submission-date count.  This *detects* drift; it never repairs.
-    Recent DAILY imports fetch by submission date, so the 00:30 daily run is
-    the path that heals yesterday's hourly misses.
+    Diavgeia submission-date count.  Detection is report-only by default;
+    when drift exceeds tolerance *and* ``AUTO_REPAIR_COVERAGE_ENABLED`` is on,
+    it enqueues a DAILY import for the affected date (the path that refetches
+    the whole submission day).
 
     Only runs if AUTO_HOURLY_IMPORT_ENABLED is true.
     """
@@ -195,12 +298,38 @@ def reconcile_hourly_coverage_task():
         f"diff={difference} ({percentage_diff:.2f}%)"
     )
 
+    repair_attempted = False
+
     if abs(percentage_diff) > RECONCILE_WARNING_TOLERANCE_PCT:
         logger.warning(
-            f"Hourly coverage drift for {yesterday}: our={our_count}, "
+            f"IMPORT_ALERT Hourly coverage drift for {yesterday}: our={our_count}, "
             f"official={official}, diff={difference} ({percentage_diff:.2f}%) "
             f"exceeds {RECONCILE_WARNING_TOLERANCE_PCT}% tolerance"
         )
+
+        repair_attempted = feature_flags.is_enabled(
+            "AUTO_REPAIR_COVERAGE_ENABLED"
+        )
+        if repair_attempted:
+            # A DAILY import within SUBMISSION_DATE_MAX_AGE_DAYS fetches the
+            # whole calendar day by submission date, which is the only path
+            # that can refill a hole left by a lost hourly window.
+            try:
+                repair_job = ImportJobQueue().enqueue_job(
+                    target_date=yesterday,
+                    search_params={"force": False},
+                    auto_dispatch=True,
+                    skip_duplicates=True,
+                    import_type=ImportJobType.DAILY,
+                )
+                logger.warning(
+                    f"IMPORT_ALERT Hourly coverage repair enqueued DAILY import "
+                    f"#{repair_job.id} for {yesterday} (status={repair_job.status})"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Hourly coverage repair failed for {yesterday}: {e}"
+                )
 
     return {
         "status": "completed",
@@ -209,6 +338,85 @@ def reconcile_hourly_coverage_task():
         "official_count": official,
         "difference": difference,
         "percentage_diff": percentage_diff,
+        "repair_attempted": repair_attempted,
+    }
+
+
+@shared_task
+@log_task_run(swallow_errors=True)
+def recover_stalled_import_jobs_task():
+    """Chunk watchdog: repair jobs whose chunk counters stopped advancing.
+
+    Runs every few minutes.  A lost chunk task leaves a job in PROCESSING with
+    ``chunks_completed + chunks_failed < total_chunks`` and no progress.  This
+    task:
+
+    1. finds such jobs (stall measured from ``last_progress_at``, not
+       ``created_at``),
+    2. redispatches chunks whose Redis payload still exists,
+    3. records chunks whose payload is gone as failed, and
+    4. closes jobs that cannot be completed so ``MAX_CONCURRENT_JOBS`` does
+       not stay permanently blocked.
+
+    This is the reconciliation pass that turns a lost message from an
+    unbounded outage into a transient error.
+    """
+    from django.db.models import F, Q
+
+    from core.services.import_chunk_recovery import ImportChunkRecoveryService
+
+    cutoff = timezone.now() - timedelta(minutes=IMPORT_CHUNK_STALL_MINUTES)
+
+    stalled_jobs = (
+        ImportJob.objects.filter(
+            status__in=[
+                ImportJobStatus.PROCESSING,
+                ImportJobStatus.SPLITTING,
+            ],
+            total_chunks__gt=0,
+        )
+        .annotate(accounted=F("chunks_completed") + F("chunks_failed"))
+        .filter(accounted__lt=F("total_chunks"))
+        .filter(
+            Q(last_progress_at__lt=cutoff)
+            | Q(last_progress_at__isnull=True, created_at__lt=cutoff)
+        )
+        .order_by("created_at")[:IMPORT_CHUNK_WATCHDOG_BATCH]
+    )
+
+    service = ImportChunkRecoveryService()
+    summaries = []
+
+    for job in stalled_jobs:
+        try:
+            summary = service.recover_job(job)
+            summaries.append(summary)
+        except Exception as e:
+            logger.error(
+                f"Import chunk watchdog failed for job #{job.id}: {e}"
+            )
+            summaries.append({"job_id": job.id, "status": "error", "error": str(e)})
+
+    fetch_results = _recover_stalled_fetch_jobs(timezone.now())
+
+    if summaries:
+        logger.warning(
+            f"IMPORT_ALERT Import chunk watchdog examined {len(summaries)} "
+            f"stalled job(s): {summaries}"
+        )
+    if fetch_results:
+        logger.warning(
+            f"IMPORT_ALERT Import fetch watchdog handled {len(fetch_results)} "
+            f"job(s): {fetch_results}"
+        )
+    if not summaries and not fetch_results:
+        logger.debug("Import chunk watchdog: no stalled jobs")
+
+    return {
+        "status": "completed",
+        "examined": len(summaries),
+        "results": summaries,
+        "fetch_results": fetch_results,
     }
 
 

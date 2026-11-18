@@ -31,11 +31,20 @@ IMPORT_JOB_METADATA_PREFIX = f"{IMPORT_CHUNKS_NS}:job:"  # import:job:<job_id>
 IMPORT_PROGRESS_PREFIX = (
     f"{IMPORT_CHUNKS_NS}:progress:"  # import:progress:<job_id>:<milestone>
 )
+# Per-chunk accounting hash: field=chunk_index, value=completed|failed.
+# Makes chunk completion idempotent (a redelivered task is a no-op) and lets
+# the watchdog distinguish "already accounted for" from "payload lost".
+IMPORT_CHUNK_STATE_PREFIX = (
+    f"{IMPORT_CHUNKS_NS}:chunk_state:"  # import:chunk_state:<job_id>
+)
 
 #  Import job queue keys
 IMPORT_JOB_QUEUE_PENDING = f"{IMPORT_JOB_QUEUE_NS}:pending"
 IMPORT_JOB_QUEUE_ACTIVE = f"{IMPORT_JOB_QUEUE_NS}:active"
 IMPORT_JOB_QUEUE_LOCK = f"{IMPORT_JOB_QUEUE_NS}:lock"
+IMPORT_JOB_QUEUE_SETTINGS = (
+    f"{IMPORT_JOB_QUEUE_NS}:settings"  # persisted runtime overrides
+)
 
 # Default expiration times (in seconds)
 STATS_EXPIRE = 60 * 60 * 24 * 30  # 30 days
@@ -207,6 +216,20 @@ def get_import_progress_key(job_id: int, milestone: int) -> str:
     10% progress milestone exactly once.
     """
     return f"{IMPORT_PROGRESS_PREFIX}{job_id}:{milestone}"
+
+
+def get_import_chunk_state_key(job_id: int) -> str:
+    """Generate Redis key for the per-chunk accounting hash of an import job."""
+    return f"{IMPORT_CHUNK_STATE_PREFIX}{job_id}"
+
+
+def get_import_chunk_scan_pattern(job_id: int) -> str:
+    """Glob pattern matching every chunk payload key belonging to a job.
+
+    Always derive the pattern from :func:`get_import_chunk_key`; hand-written
+    patterns are how the old diagnostics drifted onto the wrong namespace.
+    """
+    return f"{get_import_chunk_key(f'{job_id}_chunk_')}*"
 
 
 # [SCAN] Search history key helpers

@@ -23,8 +23,11 @@ from typing import Any, Dict, List, Optional
 
 # Import centralized Redis key functions
 from api.redis_keys import (
+    IMPORT_CHUNK_PREFIX,
     IMPORT_CHUNKS_EXPIRE,
     get_import_chunk_key,
+    get_import_chunk_scan_pattern,
+    get_import_chunk_state_key,
     get_import_job_metadata_key,
 )
 from diavgeia_project.settings.constants import IMPORT_CHUNKS_REDIS_DB_NAME
@@ -41,6 +44,22 @@ class DateTimeEncoder(json.JSONEncoder):
         if isinstance(obj, Decimal):
             return float(obj)
         return super().default(obj)
+
+
+def parse_chunk_index(chunk_id: str) -> Optional[int]:
+    """Extract ``N`` from a chunk ID formatted as ``<job_id>_chunk_<N>``."""
+    _, separator, index = chunk_id.rpartition("_chunk_")
+    if not separator:
+        return None
+    try:
+        return int(index)
+    except ValueError:
+        return None
+
+
+def _chunk_index_sort_key(chunk_id: str):
+    index = parse_chunk_index(chunk_id)
+    return (index is None, index if index is not None else 0, chunk_id)
 
 
 class RedisDecisionCache:
@@ -112,14 +131,16 @@ class RedisDecisionCache:
             raise
 
     def get_chunk(
-        self, chunk_id: str, delete_after_read: bool = True
+        self, chunk_id: str, delete_after_read: bool = False
     ) -> Optional[Dict[str, Any]]:
         """
         Retrieve a chunk of decisions from Redis using centralized key format.
 
         Args:
             chunk_id: Unique identifier for the chunk
-            delete_after_read: If True, delete the key after reading (default: True)
+            delete_after_read: If True, delete the key after reading.  The
+                import task must NOT do this before the work succeeds: the
+                chunk payload is the only copy of the fetched decisions.
 
         Returns:
             Dict with 'decisions' and 'metadata', or None if not found
@@ -167,6 +188,85 @@ class RedisDecisionCache:
         deleted = self.redis_client.delete(key)
         return bool(deleted)
 
+    # ── Per-chunk accounting ─────────────────────────────────────────
+    # Completion is recorded independently of the two DB counters.  This
+    # makes redelivery idempotent and lets the watchdog know which chunks are
+    # genuinely missing rather than merely unreported.
+    def mark_chunk_state(
+        self, job_id: int, chunk_index: Optional[int], outcome: str = "completed"
+    ) -> bool:
+        """Record a chunk's terminal outcome.
+
+        Returns True the first time this ``(job_id, chunk_index)`` pair is
+        recorded, False when the chunk was already accounted for (i.e. this is
+        a duplicate delivery and the caller must not increment a counter).
+        """
+        if chunk_index is None:
+            # Legacy payload without a chunk_index: cannot de-duplicate.
+            return True
+
+        key = get_import_chunk_state_key(job_id)
+        try:
+            added = self.redis_client.hsetnx(key, str(chunk_index), outcome)
+            self.redis_client.expire(key, IMPORT_CHUNKS_EXPIRE)
+            return bool(added)
+        except Exception as e:
+            logger.error(f"[ERROR] Failed to record chunk state {job_id}/{chunk_index}: {e}")
+            # Fail open: better to risk a duplicate counter than lose a chunk.
+            return True
+
+    def get_chunk_state(self, job_id: int, chunk_index: Optional[int]) -> Optional[str]:
+        """Return ``completed``/``failed`` for a chunk, or None if unknown."""
+        if chunk_index is None:
+            return None
+        key = get_import_chunk_state_key(job_id)
+        value = self.redis_client.hget(key, str(chunk_index))
+        if value is None:
+            return None
+        return value.decode("utf-8") if isinstance(value, bytes) else value
+
+    def get_job_chunk_states(self, job_id: int) -> Dict[int, str]:
+        """Return ``{chunk_index: outcome}`` for every accounted chunk."""
+        key = get_import_chunk_state_key(job_id)
+        raw = self.redis_client.hgetall(key) or {}
+        states: Dict[int, str] = {}
+        for field, value in raw.items():
+            try:
+                index = int(field.decode("utf-8") if isinstance(field, bytes) else field)
+            except (TypeError, ValueError):
+                continue
+            states[index] = value.decode("utf-8") if isinstance(value, bytes) else value
+        return states
+
+    def clear_chunk_state(self, job_id: int, chunk_index: Optional[int]) -> None:
+        """Forget a chunk's outcome so a manual retry can record it again."""
+        if chunk_index is None:
+            return
+        self.redis_client.hdel(get_import_chunk_state_key(job_id), str(chunk_index))
+
+    def list_job_chunk_ids(self, job_id: int) -> List[str]:
+        """List the chunk IDs (without the Redis prefix) still stored for a job.
+
+        The pattern always comes from :func:`api.redis_keys.get_import_chunk_key`
+        via :func:`get_import_chunk_scan_pattern`, so diagnostics can never
+        drift onto a stale namespace.
+        """
+        pattern = get_import_chunk_scan_pattern(job_id)
+        cursor = 0
+        chunk_ids: List[str] = []
+
+        while True:
+            cursor, keys = self.redis_client.scan(
+                cursor=cursor, match=pattern, count=100
+            )
+            for key in keys:
+                key_str = key.decode("utf-8") if isinstance(key, bytes) else key
+                chunk_ids.append(key_str[len(IMPORT_CHUNK_PREFIX) :])
+            if cursor == 0:
+                break
+
+        return sorted(chunk_ids, key=_chunk_index_sort_key)
+
     def store_job_metadata(
         self,
         job_id: int,
@@ -212,10 +312,12 @@ class RedisDecisionCache:
         job_key = get_import_job_metadata_key(job_id)
         self.redis_client.delete(job_key)
 
+        # Delete per-chunk accounting state
+        self.redis_client.delete(get_import_chunk_state_key(job_id))
+
         # Find and delete all chunk keys for this job
         # Pattern: import:chunk:{job_id}_chunk_*
-        base_pattern = get_import_chunk_key(f"{job_id}_chunk_")
-        pattern = f"{base_pattern}*"
+        pattern = get_import_chunk_scan_pattern(job_id)
         cursor = 0
         deleted_count = 0
 
@@ -240,8 +342,7 @@ class RedisDecisionCache:
         Returns:
             Dict with counts of stored chunks
         """
-        base_pattern = get_import_chunk_key(f"{job_id}_chunk_")
-        pattern = f"{base_pattern}*"
+        pattern = get_import_chunk_scan_pattern(job_id)
         cursor = 0
         chunk_count = 0
 
@@ -287,8 +388,7 @@ class RedisDecisionCache:
         Returns:
             Dict with min/max/avg TTL remaining in seconds
         """
-        base_pattern = get_import_chunk_key(f"{job_id}_chunk_")
-        pattern = f"{base_pattern}*"
+        pattern = get_import_chunk_scan_pattern(job_id)
 
         # Scan for chunk keys
         cursor, keys = self.redis_client.scan(

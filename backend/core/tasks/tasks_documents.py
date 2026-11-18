@@ -11,7 +11,12 @@ from .tasks_opensearch import index_recent_documents
 # ============================================================================
 
 
-@shared_task(bind=True, max_retries=3)
+@shared_task(
+    bind=True,
+    max_retries=3,
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
 def run_decision_pipeline_task(
     self, ada: str, force_reprocess: bool = False, skip_opensearch: bool = False
 ):
@@ -55,6 +60,10 @@ def run_decision_pipeline_task(
     ):
         try:
             logger.debug("Starting FULL pipeline for decision")
+
+            from core.utils.db_retry import ensure_db_connection
+
+            ensure_db_connection()
 
             orchestrator = DecisionPipelineOrchestrator()
             health_check = orchestrator.run_pipeline(
