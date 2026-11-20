@@ -82,7 +82,7 @@ const TimeRangeSection = ({
         {hasDateRange && (
           <div className="summary-count-row">
             <span className="summary-count">
-              {summaryPrefix && <>{summaryPrefix} — </>}
+              {summaryPrefix && <>{summaryPrefix} · </>}
               {t('exploration.availableDataShort', {
                 days: dateRange.span_days,
               })}

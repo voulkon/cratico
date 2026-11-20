@@ -59,9 +59,9 @@ export function getCurrentPageBookmarkData() {
   const search = window.location.search;
   const fullUrl = path + search;
 
-  // Use the page title set by useDocumentTitle, stripping the " — CratiCo" suffix.
+  // Use the page title set by useDocumentTitle, stripping the " | CratiCo" suffix.
   // Fall back to "Bookmarked Page" if no page-specific title has been set yet.
-  const currentTitle = document.title.replace(/ — CratiCo$/, '');
+  const currentTitle = document.title.replace(/ \| CratiCo$/, '');
   const defaultTitle = currentTitle !== 'CratiCo' ? currentTitle : 'Bookmarked Page';
 
   // Determine view type

@@ -61,14 +61,14 @@ const SubscriptionMetadataHeader = ({
 
   const displayTitle = title || t('notifications.subscriptionHistory');
 
-  // ── Build subtitle (organization / entity target) ──────────────
+ // Build subtitle (organization / entity target)
   const subtitle = organization_label
-    ? <> — {organization_label}</>
+    ? <> · {organization_label}</>
     : entity_name
-      ? <> — {entity_name}</>
+      ? <> · {entity_name}</>
       : null;
 
-  // ── Build badge (frequency pill) ──────────────────────────────
+ // Build badge (frequency pill)
   const badge = check_frequency ? (
     <span className="subscription-metadata-summary-frequency">{check_frequency}</span>
   ) : null;

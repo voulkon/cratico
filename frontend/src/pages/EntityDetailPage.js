@@ -266,7 +266,7 @@ const EntityDetailPage = () => {
     }
   }, [explorationMode, entityType, entityId, timeRange, t, requiresManualStatistics]);
 
-  // ── Unified decisions list hook ────────────────────────────────────────
+ // Unified decisions list hook
   const decisionsEndpoint = '/decisions/unified/';
 
   const decisionsParams = {
@@ -402,7 +402,7 @@ const EntityDetailPage = () => {
     });
   };
 
-  // ── Sync the date window back into the URL ──────────────────────────────
+ // Sync the date window back into the URL
   // Entity mode only: the temporal mode's window is already encoded in the
   // path.  Keeping it in the URL makes the page shareable and survives a
   // reload; updateUrl() preserves it across subsequent sort/filter changes.
@@ -552,7 +552,7 @@ const EntityDetailPage = () => {
                       </button>
                       {orgData.decision_count && (
                         <span className="decision-count">
-                          — {t('entityDetail.decisionsCount', { count: orgData.decision_count })}
+                          · {t('entityDetail.decisionsCount', { count: orgData.decision_count })}
                         </span>
                       )}
                     </div>

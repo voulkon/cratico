@@ -43,7 +43,7 @@ const AISummaryCard = ({ summary, onGenerate, triggering }) => {
               <span className="ai-summary-item-subject">
                 {item.subject || item.ada}
               </span>
-              {' — '}
+              {' · '}
               <span className="ai-summary-item-text">{item.one_liner}</span>
             </li>
           ))}
