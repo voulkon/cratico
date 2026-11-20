@@ -62,7 +62,7 @@
 /* Hero Action Bar (search + browse button) */
 .hero-action-bar {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   gap: var(--spacing-md);
   margin-bottom: var(--spacing-xxl);
   width: 100%;
@@ -91,7 +91,6 @@
   white-space: nowrap;
   transition: var(--transition-fast);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  height: 52px; /* match SuperSearch input height */
 }
 
 .hero-action-bar .homepage-browse-btn:hover {
@@ -205,6 +204,8 @@
   .hero-action-bar .homepage-browse-btn {
     width: 100%;
     justify-content: center;
+    padding: var(--spacing-md) var(--spacing-lg);
+    font-size: var(--font-md);
   }
 
   .hero-search-enhanced .super-search-container {
