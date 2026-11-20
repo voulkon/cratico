@@ -14,7 +14,7 @@
   margin: 0 auto;
 }
 
-/* ── Top-bar title (rendered via TopBarSlot portal) ── */
+/* Top-bar title (rendered via TopBarSlot portal) */
 .ai-settings-topbar {
   display: flex;
   flex-wrap: wrap;
@@ -31,7 +31,7 @@
 .ai-settings-title-topbar {
   font-size: 1rem;
   font-weight: var(--font-bold, 700);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -91,7 +91,7 @@
 
 .ai-settings-interactions-link:hover {
   background: var(--palette-bg-subtle);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 /* -------------------------------------------------------------------
@@ -460,7 +460,7 @@
 
 .ai-model-preference-badge {
   font-size: 0.8rem;
-  color: var(--accent-color);
+  color: var(--accent-text, var(--palette-primary));
   background: var(--palette-bg-subtle);
   padding: 0.25rem 0.6rem;
   border-radius: 4px;

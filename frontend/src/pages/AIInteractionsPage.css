@@ -10,7 +10,7 @@
   margin: 0 auto;
 }
 
-/* ── Top-bar title (rendered via TopBarSlot portal) ── */
+/* Top-bar title (rendered via TopBarSlot portal) */
 .ai-interactions-topbar {
   display: flex;
   flex-wrap: wrap;
@@ -27,7 +27,7 @@
 .ai-interactions-title-topbar {
   font-size: 1rem;
   font-weight: var(--font-bold, 700);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

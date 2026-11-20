@@ -76,12 +76,12 @@
 
 .language-option.active {
   background: var(--palette-primary-light);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 .check-mark {
   margin-left: auto;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   font-weight: var(--font-bold);
 }
 

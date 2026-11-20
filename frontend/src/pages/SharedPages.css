@@ -27,7 +27,7 @@
 
 .shared-spinner {
   animation: spin 1s linear infinite;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 @keyframes spin {
@@ -35,7 +35,7 @@
   to { transform: rotate(360deg); }
 }
 
-/* ── Error state ─────────────────────────────── */
+/* Error state */
 
 .shared-error-card {
   text-align: center;
@@ -78,7 +78,7 @@
   background-color: var(--palette-secondary);
 }
 
-/* ── Card layout ─────────────────────────────── */
+/* Card layout */
 
 .shared-card {
   width: 100%;
@@ -98,7 +98,7 @@
   overflow: hidden;
 }
 
-/* ── Header ──────────────────────────────────── */
+/* Header */
 
 .shared-header {
   display: flex;
@@ -108,13 +108,13 @@
 }
 
 .shared-icon {
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 .shared-badge {
   font-size: var(--font-xs);
   font-weight: var(--font-medium);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   background-color: color-mix(in srgb, var(--palette-primary) 10%, transparent);
   padding: 2px var(--spacing-sm);
   border-radius: var(--radius-sm);
@@ -122,7 +122,7 @@
   letter-spacing: 0.5px;
 }
 
-/* ── Title & content ─────────────────────────── */
+/* Title & content */
 
 .shared-title {
   margin: 0 0 var(--spacing-md);
@@ -139,7 +139,7 @@
   white-space: pre-wrap;
 }
 
-/* ── Meta ────────────────────────────────────── */
+/* Meta */
 
 .shared-meta {
   display: flex;
@@ -163,7 +163,7 @@
   font-style: italic;
 }
 
-/* ── Actions ─────────────────────────────────── */
+/* Actions */
 
 .shared-actions {
   display: flex;
@@ -209,7 +209,7 @@
   border-color: var(--palette-primary);
 }
 
-/* ── Footer ──────────────────────────────────── */
+/* Footer */
 
 .shared-footer {
   padding-top: var(--spacing-lg);
@@ -225,10 +225,10 @@
 }
 
 .shared-powered-by:hover {
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
-/* ── Folder-specific styles ──────────────────── */
+/* Folder-specific styles */
 
 .shared-folder-header {
   padding: var(--spacing-xxxl) var(--spacing-xxxl) var(--spacing-lg);
@@ -259,7 +259,7 @@
   line-height: 1.5;
 }
 
-/* ── Bookmarks list ──────────────────────────── */
+/* Bookmarks list */
 
 .shared-bookmarks-list {
   padding: var(--spacing-lg) var(--spacing-xxxl);
@@ -354,7 +354,7 @@
   font-style: italic;
 }
 
-/* ── Responsive ──────────────────────────────── */
+/* Responsive */
 
 @media (max-width: 640px) {
   .shared-page {

@@ -56,7 +56,7 @@
 .capital-value {
   font-size: var(--font-xl);
   font-weight: var(--font-bold);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   font-family: monospace;
 }
 

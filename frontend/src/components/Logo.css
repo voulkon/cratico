@@ -8,7 +8,6 @@
   padding: var(--spacing-xs) var(--spacing-sm);
   border-radius: var(--radius-md);
   background-color: transparent;
-  backdrop-filter: blur(10px);
   box-shadow: 0 2px 8px var(--shadow);
   height: var(--top-controls-height);
   min-width: var(--top-controls-height);

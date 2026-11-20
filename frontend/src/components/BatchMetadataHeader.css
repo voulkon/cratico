@@ -1,7 +1,7 @@
 /* Import centralized StatCard styles */
 @import './StatCard.css';
 
-/* ── BatchMetadataHeader ─────────────────────────────────────────
+/* BatchMetadataHeader
  *
  * Card chrome (shadow, border-radius, summary row, chevron, content
  * divider) is now owned by CollapsibleCard.  This file only contains
@@ -13,12 +13,12 @@
   margin-bottom: 2rem;
 }
 
-/* ── Collapsible content area ──────────────────────────────────── */
+/* Collapsible content area */
 .batch-metadata-content {
   padding: 0 2rem 2rem;
 }
 
-/* ── Legacy title (removed from summary, kept for compat) ──────── */
+/* Legacy title (removed from summary, kept for compat) */
 
 /* Subscription Info */
 .subscription-info {
@@ -101,7 +101,7 @@
 .metadata-value.highlight {
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 .date-range {

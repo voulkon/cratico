@@ -86,7 +86,7 @@
 
 .btn-outline {
   background: transparent;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   border: 1px solid var(--palette-primary);
 }
 
@@ -100,7 +100,7 @@
   cursor: not-allowed;
 }
 
-/* ── Reset-request feedback ──────────────────────────────── */
+/* Reset-request feedback */
 
 .reset-request-confirmation {
   background: var(--success-bg);

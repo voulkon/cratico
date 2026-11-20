@@ -20,7 +20,7 @@
 
 .value-badge {
   background-color: var(--palette-bg-subtle);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   padding: var(--spacing-xs) var(--spacing-md);
   border-radius: var(--radius-full);
   font-weight: var(--font-semibold);
@@ -81,7 +81,7 @@
 
 .zoom-button:hover:not(:disabled) {
   background-color: var(--hover-bg);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 .zoom-button:active:not(:disabled) {
@@ -213,7 +213,6 @@
   pointer-events: none;
   z-index: 1000;
   white-space: nowrap;
-  backdrop-filter: blur(10px);
 }
 
 .slider-tooltip.enhanced {
@@ -223,7 +222,7 @@
 
 .tooltip-time {
   font-weight: var(--font-bold);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   margin-bottom: var(--spacing-xs);
   text-align: center;
 }

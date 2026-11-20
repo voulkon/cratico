@@ -7,7 +7,7 @@
   min-height: 100vh;
 }
 
-/* ── Top-bar entity header (rendered via TopBarSlot portal) ── */
+/* Top-bar entity header (rendered via TopBarSlot portal) */
 .entity-header-topbar {
   display: flex;
   flex-wrap: wrap;
@@ -33,7 +33,7 @@
 .entity-title-topbar {
   font-size: 1rem;
   font-weight: var(--font-bold);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -81,7 +81,7 @@
   font-size: var(--font-xxl);
   margin: var(--spacing-md) 0;
   line-height: 1.3;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 .entity-title-row .entity-title {
@@ -176,7 +176,7 @@
 .org-chart-button-icon {
   padding: var(--spacing-xs);
   background: transparent;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   border: 1px solid var(--palette-primary);
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -273,7 +273,7 @@
 .org-name.clickable-entity {
   font-size: var(--font-sm);
   font-weight: var(--font-semibold);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   text-decoration: none;
   display: flex;
   align-items: center;
@@ -291,7 +291,7 @@
   font-weight: var(--font-medium);
 }
 
-/* ── Section content (used inside CollapsibleCard for signer-org section) ── */
+/* Section content (used inside CollapsibleCard for signer-org section) */
 .section-content {
   padding: var(--spacing-xl);
 }

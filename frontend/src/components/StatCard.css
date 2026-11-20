@@ -44,7 +44,7 @@
 }
 
 .stat-icon {
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   flex-shrink: 0;
 }
 
@@ -61,7 +61,7 @@
 .stat-title {
   margin: 0;
   font-size: var(--font-md, 1rem);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   font-weight: var(--font-semibold, 600);
   line-height: 1.2;
 }
@@ -141,7 +141,7 @@
 .most-frequent-org {
   background: var(--bg-selected);
   border: 1px solid var(--palette-primary);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   padding: var(--spacing-xs, 0.25rem) var(--spacing-sm, 0.5rem);
   border-radius: var(--radius-sm, 4px);
   cursor: pointer;

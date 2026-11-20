@@ -41,7 +41,6 @@
   cursor: pointer;
   transition: var(--transition-fast);
   box-shadow: 0 2px 8px var(--shadow);
-  backdrop-filter: blur(10px);
   min-width: 90px;
   font-size: var(--font-sm);
   font-weight: var(--font-medium);
@@ -71,7 +70,6 @@
   cursor: pointer;
   transition: var(--transition-fast);
   box-shadow: 0 2px 8px var(--shadow);
-  backdrop-filter: blur(10px);
   min-width: 90px;
   font-size: var(--font-sm);
   font-weight: var(--font-medium);
@@ -100,7 +98,6 @@
   cursor: pointer;
   transition: var(--transition-fast);
   box-shadow: 0 2px 8px var(--shadow);
-  backdrop-filter: blur(10px);
   min-width: 200px;
   text-align: left;
 }
@@ -188,7 +185,6 @@
   padding: var(--spacing-md);
   z-index: 1000;
   min-width: 280px;
-  backdrop-filter: blur(20px);
   animation: dropdownFadeIn 0.2s ease-out;
 }
 

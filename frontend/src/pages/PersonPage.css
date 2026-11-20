@@ -7,7 +7,7 @@
   min-height: 100vh;
 }
 
-/* ── Top-bar person header (rendered via TopBarSlot portal) ── */
+/* Top-bar person header (rendered via TopBarSlot portal) */
 .person-header-topbar {
   display: flex;
   align-items: center;
@@ -20,7 +20,7 @@
 .person-title-topbar {
   font-size: 1rem;
   font-weight: var(--font-bold);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -43,7 +43,7 @@
 .breadcrumb-link {
   background: none;
   border: none;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   cursor: pointer;
   padding: var(--spacing-xs) var(--spacing-sm);
   border-radius: var(--radius-sm);
@@ -86,7 +86,7 @@
 }
 
 .person-google-search:hover {
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 .google-search-label {
@@ -131,7 +131,7 @@
 }
 
 .person-company-name:hover {
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   text-decoration: underline;
 }
 
@@ -165,7 +165,7 @@
 .person-role-badge {
   display: inline-block;
   background-color: var(--bg-selected);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   padding: 3px var(--spacing-sm);
   border-radius: var(--radius-sm);
   font-size: var(--font-xs);

@@ -1,11 +1,11 @@
-/* ── TimeRangeSection — slider & metadata content ───────────────────────
+/* TimeRangeSection: slider & metadata content
  *
  * Card chrome (shadow, border-radius, summary row, chevron, content
  * divider) is now owned by CollapsibleCard.  This file only contains
  * TimeRangeSection-specific content styles.
  */
 
-/* ── Date-span info ───────────────────────────────────────────────────── */
+/* Date-span info */
 
 .time-range-header {
   margin-bottom: var(--spacing-md);
@@ -24,7 +24,7 @@
   word-break: break-word;
 }
 
-/* ── Summary count badge (centered below the slider) ─────────────────── */
+/* Summary count badge (centered below the slider) */
 .summary-count-row {
   display: flex;
   justify-content: center;
@@ -35,7 +35,7 @@
   display: inline-flex;
   align-items: center;
   font-size: var(--font-xs);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   background-color: var(--palette-bg-subtle);
   padding: var(--spacing-xs) var(--spacing-sm);
   border: none;

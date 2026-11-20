@@ -9,7 +9,7 @@
   background: var(--bg-color);
 }
 
-/* ── Top bar (rendered inside the fixed header via TopBarSlot) ── */
+/* Top bar (rendered inside the fixed header via TopBarSlot) */
 .browse-top-bar-inline {
   display: flex;
   align-items: center;
@@ -43,7 +43,7 @@
   flex-shrink: 0;
 }
 
-/* ── Desktop / mobile visibility swaps ──────────────────────────── */
+/* Desktop / mobile visibility swaps */
 .browse-tabs-desktop {
   display: flex;
   flex: 1;
@@ -60,7 +60,7 @@
   display: none;
 }
 
-/* ── Top bar (original in-flow, kept for reference, no longer used) ── */
+/* Top bar (original in-flow, kept for reference, no longer used) */
 .browse-top-bar {
   display: none;
 }
@@ -78,7 +78,7 @@
   flex-shrink: 0;
 }
 
-/* ── Search input ───────────────────────────────────────────────── */
+/* Search input */
 .browse-search-wrapper {
   position: relative;
   display: flex;
@@ -136,7 +136,7 @@
   color: var(--text-color);
 }
 
-/* ── Search loading spinner ─────────────────────────────────────── */
+/* Search loading spinner */
 .browse-search-spinner {
   position: absolute;
   right: 28px;
@@ -155,7 +155,7 @@
   }
 }
 
-/* ── Sort toggle button ─────────────────────────────────────────── */
+/* Sort toggle button */
 .browse-sort-btn {
   padding: 6px 10px;
   border: 1px solid var(--border-color);
@@ -174,7 +174,7 @@
   color: var(--text-color);
 }
 
-/* ── Main layout: sidebar + content ─────────────────────────────── */
+/* Main layout: sidebar + content */
 .browse-layout {
   display: flex;
   flex: 1;
@@ -187,7 +187,7 @@
   -webkit-overflow-scrolling: touch;
 }
 
-/* ── Active filter chips ────────────────────────────────────────── */
+/* Active filter chips */
 .browse-active-filters {
   display: flex;
   flex-wrap: wrap;
@@ -227,7 +227,7 @@
   opacity: 1;
 }
 
-/* ── Keyboard hint ──────────────────────────────────────────────── */
+/* Keyboard hint */
 .browse-keyboard-hint {
   position: fixed;
   bottom: 16px;
@@ -266,7 +266,7 @@
   }
 }
 
-/* ── Intermediate widths: drop tab labels, keep icons only ───────
+/* Intermediate widths: drop tab labels, keep icons only
    Between the 700px mobile breakpoint and ~1000px there isn't enough
    room for all tabs with labels. Show icons only so the ribbon stays
    compact; tabs still scroll horizontally if needed.
@@ -285,7 +285,7 @@
   }
 }
 
-/* ── Narrow screens: move tabs & search into the content area ──── */
+/* Narrow screens: move tabs & search into the content area */
 @media (max-width: 700px) {
   /* Top ribbon: remove the left padding that reserved space for
      desktop tabs — only the logo remains on the left now. */
@@ -362,7 +362,7 @@
   }
 }
 
-/* ── Responsive ─────────────────────────────────────────────────── */
+/* Responsive */
 @media (max-width: 768px) {
   .browse-top-bar {
     flex-direction: column;

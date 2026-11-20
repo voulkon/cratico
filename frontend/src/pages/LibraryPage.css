@@ -137,7 +137,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   flex-shrink: 0;
 }
 
@@ -685,7 +685,6 @@
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(4px);
 }
 
 .library-modal {

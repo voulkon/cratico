@@ -1,6 +1,6 @@
 .homepage {
   min-height: 100vh;
-  background: linear-gradient(135deg, var(--bg-color) 0%, var(--hover-bg) 100%);
+  background: var(--bg-color);
   color: var(--text-color);
   /* Offset driven by --top-controls-offset; logo is hidden on homepage but controls still occupy space */
   padding-top: var(--top-controls-offset);
@@ -28,7 +28,7 @@
   column-gap: var(--spacing-md);
   margin-bottom: var(--spacing-lg);
   /* Feeds the LogoGlyph SVG's currentColor so it tracks the palette */
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 /* Anchor the logo glyph to the left edge of the centered wordmark.
@@ -42,10 +42,7 @@
   font-size: 3.5rem;
   font-weight: var(--font-bold);
   margin-bottom: var(--spacing-lg);
-  background: linear-gradient(135deg, var(--palette-primary), var(--palette-secondary));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--text-color);
 }
 
 .hero-subtitle {
@@ -62,7 +59,7 @@
   margin-bottom: var(--spacing-xxl);
 }
 
-/* ── Hero Action Bar (search + browse button) ────────────────────── */
+/* Hero Action Bar (search + browse button) */
 .hero-action-bar {
   display: flex;
   align-items: flex-start;
@@ -99,8 +96,8 @@
 
 .hero-action-bar .homepage-browse-btn:hover {
   border-color: var(--palette-primary);
-  color: var(--palette-primary);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  color: var(--accent-text, var(--palette-primary));
+  box-shadow: 0 0 0 3px var(--palette-bg-subtle);
 }
 
 .hero-stats {
@@ -118,7 +115,7 @@
   display: block;
   font-size: 2.5rem;
   font-weight: var(--font-black);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   margin-bottom: var(--spacing-sm);
 }
 
@@ -129,7 +126,7 @@
   letter-spacing: 0.5px;
 }
 
-/* ── Shared data-section card (used by DashboardGrid columns) ──── */
+/* Shared data-section card (used by DashboardGrid columns) */
 .data-section {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
@@ -141,7 +138,7 @@
   overflow: hidden;
 }
 
-/* ── Section header (used by TopRelationshipPairs internally) ──── */
+/* Section header (used by TopRelationshipPairs internally) */
 .section-header {
   display: flex;
   justify-content: space-between;
@@ -159,7 +156,7 @@
   white-space: nowrap;
 }
 
-/* ── Loading State ─────────────────────────────────────────────── */
+/* Loading State */
 .homepage-loading {
   display: flex;
   flex-direction: column;
@@ -183,7 +180,7 @@
   100% { transform: rotate(360deg); }
 }
 
-/* ── Responsive Design ──────────────────────────────────────────── */
+/* Responsive Design */
 @media (max-width: 768px) {
   /* Collapse the huge right padding — main-area already reserves space
      for the controls column, so the container only needs a small gutter. */

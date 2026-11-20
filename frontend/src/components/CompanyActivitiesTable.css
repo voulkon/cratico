@@ -120,7 +120,7 @@
 
 .activity-type-badge.primary {
   background-color: var(--bg-selected);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 .activity-type-badge.secondary {

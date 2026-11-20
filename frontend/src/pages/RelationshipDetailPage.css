@@ -19,7 +19,7 @@
 .breadcrumb-link {
   background: none;
   border: none;
-  color: var(--accent-color);
+  color: var(--accent-text, var(--palette-primary));
   cursor: pointer;
   text-decoration: underline;
 }
@@ -106,7 +106,7 @@
   }
 }
 
-/* ── Top-bar entity cards (rendered via TopBarSlot portal) ── */
+/* Top-bar entity cards (rendered via TopBarSlot portal) */
 
 /* Override the default slot truncation: these cards need to breathe
    but must stay within the top bar bounds (no bleeding into logo/page).
@@ -197,7 +197,7 @@
   line-height: 1;
 }
 
-/* ── Tiny screens: cards get priority, connector shrinks, IDs hide ── */
+/* Tiny screens: cards get priority, connector shrinks, IDs hide */
 @media (max-width: 400px) {
   .relationship-entities-topbar .entity-card-topbar {
     padding: 1px 2px;
@@ -284,7 +284,7 @@
 
 .connector-icon {
   font-size: 1.5rem;
-  color: var(--accent-color);
+  color: var(--accent-text, var(--palette-primary));
   font-weight: bold;
 }
 
@@ -362,13 +362,13 @@
   transition: all 0.2s ease;
 }
 
-/* ── Collapsible sections — now provided by CollapsibleCard ────── */
+/* Collapsible sections: now provided by CollapsibleCard */
 
 .section-content {
   padding: var(--spacing-xl);
 }
 
-/* ── Responsive ────────────────────────────────────────────────────── */
+/* Responsive */
 @media (max-width: 768px) {
   /* The top bar is not used on mobile (the inline header above takes over),
      but neutralise the legacy column-stacking so nothing overlaps if it ever

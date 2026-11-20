@@ -32,7 +32,7 @@
   display: none;
 }
 
-/* ── Scroll arrows ────────────────────────────────────────────────
+/* Scroll arrows
    Arrows are ALWAYS rendered (even when disabled) so the affordance
    is perceptible. Disabled arrows are dimmed; enabled arrows are
    prominent and carry a gradient fade that makes clipped tabs appear
@@ -106,7 +106,7 @@
   );
 }
 
-/* ── One-time attention pulse when overflow first appears ──────────
+/* One-time attention pulse when overflow first appears
    Draws the eye to the arrows the first time tabs overflow, so users
    discover the scroll affordance without being nagged on every render. */
 .sct-arrow.sct-pulse:not(:disabled) {

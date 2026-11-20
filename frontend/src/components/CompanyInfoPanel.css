@@ -36,7 +36,7 @@
   padding: var(--spacing-xs) var(--spacing-md);
   border: 1px solid var(--palette-primary);
   border-radius: var(--radius-sm);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   font-size: var(--font-xs);
   font-weight: var(--font-bold);
   text-decoration: none;
@@ -103,7 +103,7 @@
 }
 
 .info-link {
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   text-decoration: none;
 }
 
@@ -138,7 +138,7 @@
 .objective-toggle {
   background: none;
   border: none;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   cursor: pointer;
   font-size: var(--font-sm);
   font-weight: var(--font-bold);
@@ -167,5 +167,5 @@
 
 .section-toggle.inline:hover {
   border-color: var(--palette-primary);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }

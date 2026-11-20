@@ -31,7 +31,7 @@
   padding: 8px 16px;
   border: 1px solid var(--palette-primary);
   background: transparent;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   border-radius: 8px;
   cursor: pointer;
   font-size: 14px;
@@ -52,7 +52,7 @@
 
 .explore-button:disabled:hover {
   background: transparent;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 .period-button {

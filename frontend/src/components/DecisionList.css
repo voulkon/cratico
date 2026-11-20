@@ -10,7 +10,7 @@
   color: var(--color-error);
 }
 
-/* ── Header / Count Badge (shared with page-level headers) ── */
+/* Header / Count Badge (shared with page-level headers) */
 
 .decisions-header {
   display: flex;
@@ -82,7 +82,7 @@
   color: var(--muted-text);
 }
 
-/* ── Existing styles ── */
+/* Existing styles */
 
 .no-decisions-message {
   text-align: center;
@@ -137,7 +137,7 @@
   opacity: 0.7;
 }
 
-/* ── Infinite-scroll sentinel ── */
+/* Infinite-scroll sentinel */
 .scroll-sentinel {
   height: 1px;
   width: 100%;

@@ -83,7 +83,7 @@
 
 .notification-title-icon {
   font-size: var(--font-xl);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 .notification-close {

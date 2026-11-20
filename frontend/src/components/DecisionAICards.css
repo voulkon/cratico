@@ -67,7 +67,7 @@
   margin-top: var(--spacing-sm);
 }
 
-/* ── Multi-model AI summary items ─────────────────────────────── */
+/* Multi-model AI summary items */
 
 .ai-analysis-count {
   font-size: var(--font-xs);
@@ -131,7 +131,7 @@
 .ai-model-badge {
   font-size: var(--font-xs);
   font-weight: 600;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   background: var(--palette-primary-bg, color-mix(in srgb, var(--palette-primary) 10%, transparent));
   padding: 2px 10px;
   border-radius: 10px;

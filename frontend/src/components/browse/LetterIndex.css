@@ -59,7 +59,7 @@
   color: #fff;
 }
 
-/* ── Mobile: horizontal strip ──────────────────────────────────── */
+/* Mobile: horizontal strip */
 @media (max-width: 768px) {
   .letter-index {
     width: 100%;

@@ -1,4 +1,4 @@
-/* ── AISummaryCard ──────────────────────────────────────────────
+/* AISummaryCard
  *
  * AI summary card for notification batch detail.
  * Uses CSS variables exclusively — no hard-coded colors.
@@ -19,7 +19,7 @@
   color: var(--text-color);
 }
 
-/* ── Completed state ─────────────────────────────────────────── */
+/* Completed state */
 
 .ai-summary-text {
   font-size: 0.9rem;
@@ -34,7 +34,7 @@
   margin-bottom: 0.75rem;
 }
 
-/* ── Buttons ─────────────────────────────────────────────────── */
+/* Buttons */
 
 .ai-summary-btn {
   padding: 0.4rem 1rem;
@@ -66,7 +66,7 @@
   cursor: not-allowed;
 }
 
-/* ── Running state ───────────────────────────────────────────── */
+/* Running state */
 
 .ai-summary-running {
   display: flex;
@@ -92,7 +92,7 @@
   }
 }
 
-/* ── Pending / Failed / Skipped states ───────────────────────── */
+/* Pending / Failed / Skipped states */
 
 .ai-summary-pending,
 .ai-summary-skipped {
@@ -110,7 +110,7 @@
   margin-bottom: 0.75rem;
 }
 
-/* ── Shared / partial per-decision items ─────────────────────── */
+/* Shared / partial per-decision items */
 
 .ai-summary-items {
   margin: 0.75rem 0;

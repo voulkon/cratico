@@ -5,7 +5,7 @@
  * TopCounterparts-specific content styles.
  */
 
-/* ── Collapsible card shell (<details>) ────────────────────────── */
+/* Collapsible card shell (<details>) */
 .top-counterparts-section {
   /* Override CollapsibleCard's default --spacing-xl margins */
   margin: 24px 0;
@@ -17,7 +17,7 @@
   height: 100%;
 }
 
-/* ── Collapsible content area ──────────────────────────────────── */
+/* Collapsible content area */
 .top-counterparts-content {
   padding: 0 24px 24px;
   display: flex;
@@ -26,7 +26,7 @@
   max-height: 560px;
 }
 
-/* ── Legacy section-header (kept for loading state) ────────────── */
+/* Legacy section-header (kept for loading state) */
 .section-header {
   display: flex;
   justify-content: space-between;
@@ -177,7 +177,7 @@
 .expand-toggle:hover {
   background: var(--hover-bg);
   border-color: var(--palette-primary);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 /* See All Button */
@@ -188,7 +188,7 @@
   background: none;
   border: 1px dashed var(--border-color);
   border-radius: 6px;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
@@ -260,11 +260,11 @@
 
 .counterpart-rank {
   background: var(--palette-bg-subtle);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   font-weight: 700;
   font-size: 0.7rem;
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   min-width: 24px;
   text-align: center;
   flex-shrink: 0;
@@ -302,7 +302,7 @@
 
 .entity-type-badge {
   background: var(--palette-bg-subtle);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   padding: var(--spacing-xs) var(--spacing-sm);
   border-radius: var(--radius-md);
   font-size: var(--font-xs);
@@ -338,7 +338,7 @@
   justify-content: center;
   padding: var(--spacing-xs) var(--spacing-md);
   background-color: var(--palette-bg-subtle);
-  border-radius: 999px;
+  border-radius: var(--radius-md);
   font-size: var(--font-xl, 2.5em);
   font-weight: var(--font-bold);
   color: var(--palette-secondary);
@@ -406,7 +406,7 @@
 
 .pair-icon {
   flex-shrink: 0;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 .pair-id {
@@ -436,7 +436,7 @@
   display: inline-block;
   font-size: var(--font-xs);
   font-weight: var(--font-medium);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   background: var(--palette-bg-subtle);
   padding: var(--spacing-xs) var(--spacing-sm);
   border-radius: var(--radius-md);

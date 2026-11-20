@@ -44,7 +44,7 @@
 
 .period-nav-button:hover:not(:disabled) {
   border-color: var(--accent-color);
-  color: var(--accent-color);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 .period-nav-button:disabled {
