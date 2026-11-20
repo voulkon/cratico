@@ -3,6 +3,19 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { getFullSearchResults } from '../api/searchApi';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import SuperSearch from '../components/SuperSearch';
+import {
+  OrganizationIcon,
+  UserIcon,
+  LandmarkIcon,
+  CompanyIcon,
+  CompanyPersonIcon,
+  DocumentTypeIcon,
+  ClipboardListIcon,
+  CalendarIcon,
+  FinancialIcon,
+  PenIcon,
+  LinkIcon
+} from '../components/Icons';
 import './SearchResults.css';
 
 const SearchResults = () => {
@@ -70,16 +83,17 @@ const SearchResults = () => {
     }
   };
 
-  const getItemIcon = (type) => {
+  const getItemIcon = (type, size = 18) => {
     const icons = {
-      organization: '🏢',
-      signer: '👤',
-      unit: '🏛️',
-      company: '🏪',
-      company_person: '👨‍💼',
-      document: '📄'
+      organization: OrganizationIcon,
+      signer: UserIcon,
+      unit: LandmarkIcon,
+      company: CompanyIcon,
+      company_person: CompanyPersonIcon,
+      document: DocumentTypeIcon
     };
-    return icons[type] || '📋';
+    const Icon = icons[type] || ClipboardListIcon;
+    return <Icon size={size} aria-hidden="true" />;
   };
 
   const getCategoryName = (category) => {
@@ -128,7 +142,7 @@ const SearchResults = () => {
 
     if (item.details.issue_date) {
       metadata.push({
-        icon: '📅',
+        icon: <CalendarIcon size={14} aria-hidden="true" />,
         label: 'Date',
         text: new Date(item.details.issue_date).toLocaleDateString()
       });
@@ -136,7 +150,7 @@ const SearchResults = () => {
 
     if (item.details.amount && item.details.currency) {
       metadata.push({
-        icon: '💰',
+        icon: <FinancialIcon size={14} aria-hidden="true" />,
         label: 'Amount',
         text: `${item.details.amount} ${item.details.currency}`
       });
@@ -144,7 +158,7 @@ const SearchResults = () => {
 
     if (item.details.signers?.length > 0) {
       metadata.push({
-        icon: '✍️',
+        icon: <PenIcon size={14} aria-hidden="true" />,
         label: 'Signers',
         text: item.details.signers.join(', ')
       });
@@ -152,7 +166,7 @@ const SearchResults = () => {
 
     if (item.details.ada) {
       metadata.push({
-        icon: '🔗',
+        icon: <LinkIcon size={14} aria-hidden="true" />,
         label: 'ADA',
         text: item.details.ada
       });

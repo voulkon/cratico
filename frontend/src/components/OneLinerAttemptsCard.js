@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import { useTranslation } from '../contexts/TranslationContext';
 import { formatDate } from '../utils/dateUtils';
 import CollapsibleCard from './CollapsibleCard';
-import { AlertIcon, LoaderIcon, SparklesIcon } from './Icons';
+import { AlertIcon, LoaderIcon, QuoteIcon } from './Icons';
 import './DecisionAICards.css';
 
 /**
@@ -38,7 +38,7 @@ const OneLinerAttemptsCard = ({
     <CollapsibleCard
       title={
         <span className="ai-analysis-title">
-          <SparklesIcon size={16} /> {t('decisionDetail.oneLinerAttempts', 'One-liner attempts')}
+          <QuoteIcon size={16} /> {t('decisionDetail.oneLinerAttempts', 'One-liner attempts')}
           {attempts.length > 0 && (
             <span className="ai-analysis-count"> ({attempts.length})</span>
           )}
@@ -66,7 +66,7 @@ const OneLinerAttemptsCard = ({
           disabled={requesting}
           title={t('decisionDetail.regenerateOneLinerHint', 'Generates a fresh attempt under the current circumstances')}
         >
-          {requesting ? <LoaderIcon className="spinner" size={14} /> : <SparklesIcon size={14} />}
+          {requesting ? <LoaderIcon className="spinner" size={14} /> : <QuoteIcon size={14} />}
           {' '}{t('decisionDetail.regenerateOneLiner', 'Regenerate one-liner')}
         </button>
       </div>
@@ -126,8 +126,8 @@ const OneLinerAttemptsCard = ({
       {/* No attempts yet */}
       {attempts.length === 0 && (
         <div className="ai-summary-placeholder">
-          <SparklesIcon size={20} />
-          <p>{t('decisionDetail.noOneLiners', 'No one-liner attempts yet — generate one from a notification batch or with the button above.')}</p>
+          <QuoteIcon size={20} />
+          <p>{t('decisionDetail.noOneLiners', 'No one-liner attempts yet. Generate one from a notification batch or with the button above.')}</p>
         </div>
       )}
     </CollapsibleCard>

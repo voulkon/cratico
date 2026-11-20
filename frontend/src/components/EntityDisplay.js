@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
+import { LocationIcon } from './Icons';
 import './EntityDisplay.css';
 
 const EntityDisplay = ({
@@ -108,7 +109,11 @@ const EntityDisplay = ({
                     <div className="company-name">{company.co_name_el || company.co_names_en?.[0]}</div>
                     <div className="company-details">
                       {company.legal_type_name && <span className="company-type">{company.legal_type_name}</span>}
-                      {company.city && <span className="company-location">📍 {company.city}</span>}
+                      {company.city && (
+                        <span className="company-location">
+                          <LocationIcon size={12} aria-hidden="true" /> {company.city}
+                        </span>
+                      )}
                       {company.status_name && <span className="company-status">({company.status_name})</span>}
                     </div>
                   </button>

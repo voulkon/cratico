@@ -45,7 +45,19 @@ export {
     Copy as CopyIcon,
     Forward as ForwardIcon,
     Info as InfoIcon,
-    Sparkles as SparklesIcon
+    FileSearch as FileSearchIcon,
+    Quote as QuoteIcon,
+    Play as PlayIcon,
+    Lock as LockIcon,
+    KeyRound as KeyIcon,
+    Landmark as LandmarkIcon,
+    UserRound as CompanyPersonIcon,
+    MapPin as LocationIcon,
+    HeartPulse as HealthIcon,
+    Waves as IslandIcon,
+    Leaf as EnvironmentIcon,
+    ClipboardList as ClipboardListIcon,
+    SlidersHorizontal as SlidersIcon
 } from 'lucide-react';
 
 // export const OrganizationIcon = () => (

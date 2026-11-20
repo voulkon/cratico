@@ -7,7 +7,7 @@ import { DateRangeProvider, useDateRange } from '../contexts/DateRangeContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import SuperSearch from '../components/SuperSearch';
 import LogoGlyph from '../components/LogoGlyph';
-import { GlobeIcon } from '../components/Icons';
+import { GlobeIcon, LockIcon } from '../components/Icons';
 import TopRelationshipPairs from '../components/TopRelationshipPairs';
 import DateRangeSelector from '../components/DateRangeSelector';
 import DashboardGrid from '../components/DashboardGrid';
@@ -153,7 +153,9 @@ const HomePage = () => {
                 maxWidth: '600px',
                 margin: '48px auto 0'
               }}>
-                <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔐</div>
+                <div style={{ marginBottom: '16px', color: 'var(--palette-primary)' }}>
+                  <LockIcon size={48} aria-hidden="true" />
+                </div>
                 <h2 style={{ marginBottom: '12px' }}>
                   {t('homepage.signInRequired') || 'Sign In to Explore'}
                 </h2>

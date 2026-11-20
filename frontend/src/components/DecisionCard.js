@@ -9,7 +9,7 @@ import ModelDropdown from './ModelDropdown';
 import CollapsibleCard from './CollapsibleCard';
 import './DecisionCard.css';
 
-import {OrganizationIcon, PenIcon, CalendarIcon, EyeIcon, DownloadIcon, ExternalLinkIcon, BookOpenIcon, LoaderIcon, ChevronDown, ChevronUp, SparklesIcon, AlertIcon} from './Icons.js';
+import {OrganizationIcon, PenIcon, CalendarIcon, EyeIcon, DownloadIcon, ExternalLinkIcon, BookOpenIcon, LoaderIcon, ChevronDown, ChevronUp, FileSearchIcon, AlertIcon} from './Icons.js';
 
 import EntityDisplay from './EntityDisplay';
 import { getMainRecipient, getTotalAmount, groupEntityRelationships, getCounterpartEntities } from '../utils/decisionUtils';
@@ -21,14 +21,14 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  // ── Document content (self-contained) ──────────────────────────────
+ // Document content (self-contained)
   const [docContent, setDocContent] = useState(null);
   const [docStatus, setDocStatus] = useState(null);
   const [docMeta, setDocMeta] = useState(null);
   const [docLoading, setDocLoading] = useState(false);
   const docPollRef = useRef(null);
 
-  // ── AI summary (multi-model) ────────────────────────────────────
+ // AI summary (multi-model)
   const [aiAnalyses, setAiAnalyses] = useState([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiRequesting, setAiRequesting] = useState(false);
@@ -48,7 +48,7 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
     setExpandedSummaries(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // ── Fetch document content ─────────────────────────────────────────
+ // Fetch document content
   const fetchDocumentContent = useCallback(async () => {
     try {
       setDocLoading(true);
@@ -74,7 +74,7 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
     }
   }, [decision.id]);
 
-  // ── Fetch AI analyses ──────────────────────────────────────────
+ // Fetch AI analyses
   const fetchAIAnalyses = useCallback(async () => {
     try {
       setAiLoading(true);
@@ -129,7 +129,7 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
     || decision.main_recipient !== undefined
     || decision.entities !== undefined;
 
-  // ── Request AI summary with optional model ─────────────────────
+ // Request AI summary with optional model
   const handleRequestAISummary = async (model = null) => {
     try {
       setAiRequesting(true);
@@ -145,7 +145,7 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
     }
   };
 
-  // ── Request extraction (reuse parent callback or direct call) ──────
+ // Request extraction (reuse parent callback or direct call)
   const handleRequestContent = async () => {
     try {
       await apiClient.post(`/ai/decisions/${decision.id}/extract/`);
@@ -388,7 +388,7 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
         )}
       </div>
 
-      {/* ── Document Content (collapsible) ─────────────────────────── */}
+ {/* Document Content (collapsible) */}
       <CollapsibleCard
         title={
           <span className="dc-collapsible-title">
@@ -436,11 +436,11 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
         ) : null}
       </CollapsibleCard>
 
-      {/* ── AI Summaries (multi-model, collapsible) ──────────────── */}
+ {/* AI Summaries (multi-model, collapsible) */}
       <CollapsibleCard
         title={
           <span className="dc-collapsible-title">
-            <SparklesIcon size={14} /> {t('decisionCard.aiSummary')}
+            <FileSearchIcon size={14} /> {t('decisionCard.aiSummary')}
             {aiAnalyses.filter(a => a.status === 'COMPLETED').length > 0 && (
               <span className="dc-ai-count">
                 {' '}({aiAnalyses.filter(a => a.status === 'COMPLETED').length})
@@ -472,7 +472,7 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
             onClick={() => handleRequestAISummary(selectedModel || null)}
             disabled={aiRequesting}
           >
-            {aiRequesting ? <LoaderIcon className="spinner" size={14} /> : <SparklesIcon size={14} />}
+            {aiRequesting ? <LoaderIcon className="spinner" size={14} /> : <FileSearchIcon size={14} />}
             {' '}{t('decisionCard.requestAISummary')}
           </button>
         </div>
@@ -531,7 +531,7 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
         {/* No summaries yet */}
         {!aiLoading && aiAnalyses.length === 0 && (
           <div className="dc-collapsible-placeholder">
-            <SparklesIcon size={20} />
+            <FileSearchIcon size={20} />
             <p>{t('decisionCard.noAISummary')}</p>
           </div>
         )}

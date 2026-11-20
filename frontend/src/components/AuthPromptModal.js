@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useTheme } from '../contexts/ThemeContext';
 import AuthModal from './AuthModal';
+import { LockIcon } from './Icons';
 
 /**
  * Modal that prompts users to sign in when they try to access protected features
@@ -60,7 +61,7 @@ function AuthPromptModal() {
   // Don't render if modal is not open
   if (!isOpen) return null;
 
-  // ── Django auth: self-contained login/register/reset modal ──
+ // Django auth: self-contained login/register/reset modal
   // "django" is always in auth_methods, so the form is always reachable.
   if (showAuthForm) {
     return (
@@ -72,7 +73,7 @@ function AuthPromptModal() {
     );
   }
 
-  // ── Explanation screen (shown for both Clerk and Django before auth form) ──
+ // Explanation screen (shown for both Clerk and Django before auth form)
   return (
     <div style={{
       position: 'fixed',
@@ -98,10 +99,10 @@ function AuthPromptModal() {
         textAlign: 'center'
       }}>
         <div style={{
-          fontSize: '48px',
-          marginBottom: '16px'
+          marginBottom: '16px',
+          color: 'var(--palette-primary)'
         }}>
-          🔐
+          <LockIcon size={48} aria-hidden="true" />
         </div>
 
         <h2 style={{

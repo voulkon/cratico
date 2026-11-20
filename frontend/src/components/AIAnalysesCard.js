@@ -6,7 +6,7 @@ import { useTranslation } from '../contexts/TranslationContext';
 import { formatDate } from '../utils/dateUtils';
 import CollapsibleCard from './CollapsibleCard';
 import ModelDropdown from './ModelDropdown';
-import { AlertIcon, LoaderIcon, SparklesIcon } from './Icons';
+import { AlertIcon, LoaderIcon, FileSearchIcon } from './Icons';
 import './DecisionAICards.css';
 
 /**
@@ -47,7 +47,7 @@ const AIAnalysesCard = ({
     <CollapsibleCard
       title={
         <span className="ai-analysis-title">
-          <SparklesIcon size={16} /> {t('decisionDetail.aiAnalysis')}
+          <FileSearchIcon size={16} /> {t('decisionDetail.aiAnalysis')}
           {completed.length > 0 && (
             <span className="ai-analysis-count"> ({completed.length})</span>
           )}
@@ -82,7 +82,7 @@ const AIAnalysesCard = ({
           onClick={() => onRequestSummary(selectedModel || null)}
           disabled={requesting}
         >
-          {requesting ? <LoaderIcon className="spinner" size={14} /> : <SparklesIcon size={14} />}
+          {requesting ? <LoaderIcon className="spinner" size={14} /> : <FileSearchIcon size={14} />}
           {' '}{t('decisionDetail.requestAISummary')}
         </button>
       </div>
@@ -141,7 +141,7 @@ const AIAnalysesCard = ({
       {/* No summaries yet */}
       {analyses.length === 0 && (
         <div className="ai-summary-placeholder">
-          <SparklesIcon size={28} />
+          <FileSearchIcon size={28} />
           <p>{t('decisionDetail.aiAnalysisDescription')}</p>
         </div>
       )}
