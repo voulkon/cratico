@@ -11,7 +11,6 @@
   align-items: center;
   justify-content: center;
   z-index: 10000;
-  backdrop-filter: blur(4px);
 }
 
 .django-login-modal {
@@ -172,7 +171,7 @@
 .django-login-switch {
   background: none;
   border: none;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   font-weight: var(--font-medium);
   cursor: pointer;
   padding: 0;
@@ -199,7 +198,7 @@
 .django-login-forgot-link {
   background: none;
   border: none;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   font-size: var(--font-sm);
   cursor: pointer;
   padding: 0;

@@ -8,7 +8,7 @@
   min-height: 100vh;
 }
 
-/* ── Top-bar batch header (rendered via TopBarSlot portal) ── */
+/* Top-bar batch header (rendered via TopBarSlot portal) */
 .batch-header-topbar {
   display: flex;
   flex-wrap: wrap;
@@ -27,7 +27,7 @@
 .batch-title-topbar {
   font-size: 1rem;
   font-weight: var(--font-bold);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -66,7 +66,7 @@
 .breadcrumb-link {
   background: none;
   border: none;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   cursor: pointer;
   padding: 0;
   font-size: inherit;

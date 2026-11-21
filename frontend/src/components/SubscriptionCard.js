@@ -26,7 +26,6 @@ import {
     BarChart3,
     Mail,
     MailX,
-    Sparkles,
     ChevronDown
 } from 'lucide-react';
 import './SubscriptionCard.css';
@@ -470,7 +469,7 @@ export default function SubscriptionCard({
                     onClick={handleToggleAISummary}
                     title={subscription.ai_summary_enabled ? t('notifications.aiSummaryEnabled') : t('notifications.aiSummaryDisabled')}
                 >
-                    <Sparkles size={14} className="metadata-icon" />
+                    <FileText size={14} className="metadata-icon" />
                     <span className="metadata-text">
                         {subscription.ai_summary_enabled ? t('notifications.aiOn') : t('notifications.aiOff')}
                     </span>

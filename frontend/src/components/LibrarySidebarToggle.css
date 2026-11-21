@@ -12,7 +12,6 @@
   gap: var(--spacing-xs);
   font-size: var(--font-lg);
   transition: all var(--transition-fast);
-  backdrop-filter: none;
   box-shadow: none;
   min-width: 44px;
   height: 44px;

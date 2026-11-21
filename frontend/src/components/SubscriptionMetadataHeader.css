@@ -1,7 +1,7 @@
 /* Import centralized StatCard styles */
 @import './StatCard.css';
 
-/* ── SubscriptionMetadataHeader ──────────────────────────────────
+/* SubscriptionMetadataHeader
  *
  * Card chrome (shadow, border-radius, summary row, chevron, content
  * divider, accent border) is now owned by CollapsibleCard.  This
@@ -15,7 +15,7 @@
   margin-bottom: var(--spacing-xxxl);
 }
 
-/* ── Frequency badge (rendered inside CollapsibleCard's badge slot) ─── */
+/* Frequency badge (rendered inside CollapsibleCard's badge slot) */
 .subscription-metadata-summary-frequency {
   background: var(--palette-primary);
   color: white;
@@ -26,12 +26,12 @@
   white-space: nowrap;
 }
 
-/* ── Collapsible content area ──────────────────────────────────── */
+/* Collapsible content area */
 .subscription-metadata-content {
   padding: 0 var(--spacing-xxxxl) var(--spacing-xxxxl);
 }
 
-/* ── Legacy title (kept for compat) ────────────────────────────── */
+/* Legacy title (kept for compat) */
 .subscription-title {
   font-size: var(--font-xl);
   font-weight: var(--font-bold);
@@ -99,7 +99,7 @@
   font-size: var(--font-lg);
   font-weight: var(--font-medium);
   margin: 0 0 var(--spacing-lg) 0;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 .filters-grid {
@@ -139,7 +139,7 @@
 .keyword-badge,
 .type-badge {
   background: var(--bg-selected);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   padding: var(--spacing-xs) var(--spacing-md);
   border-radius: var(--radius-lg);
   font-size: var(--font-xs);
@@ -162,7 +162,7 @@
   font-size: var(--font-lg);
   font-weight: var(--font-medium);
   margin: 0 0 var(--spacing-lg) 0;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 .stats-grid {

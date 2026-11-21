@@ -7,6 +7,18 @@ import organizationApi from '../api/organizationApi';
 import apiClient from '../api/client';
 import TopCounterparts from '../components/TopCounterparts';
 import OrgChartViewer from '../components/org-chart';
+import {
+  OrganizationIcon,
+  UserIcon,
+  LocationIcon,
+  HealthIcon,
+  FinancialIcon,
+  LandmarkIcon,
+  IslandIcon,
+  BookOpenIcon,
+  EnvironmentIcon,
+  LoaderIcon
+} from '../components/Icons';
 import './OrganizationsPage.css';
 
 const OrganizationsPage = () => {
@@ -195,7 +207,11 @@ const OrganizationsPage = () => {
               onKeyPress={handleKeyPress}
               className="search-input"
             />
-            {searchLoading && <div className="search-spinner">⏳</div>}
+            {searchLoading && (
+              <div className="search-spinner">
+                <LoaderIcon className="spinner" size={16} aria-hidden="true" />
+              </div>
+            )}
             {orgUid && (
               <button onClick={handleClear} className="clear-search-button">
                 {t('organizations.clear')}
@@ -216,13 +232,17 @@ const OrganizationsPage = () => {
                     <span className="org-label">{item.text}</span>
                     <div className="search-result-meta">
                       <span className={`item-type-badge ${item.type}`}>
-                        {item.type === 'organization' ? '🏛️ Οργανισμός' : '👤 Υπογράφων'}
+                        {item.type === 'organization' ? (
+                          <><OrganizationIcon size={12} aria-hidden="true" /> Οργανισμός</>
+                        ) : (
+                          <><UserIcon size={12} aria-hidden="true" /> Υπογράφων</>
+                        )}
                       </span>
                       <span className="org-uid">ID: {item.id}</span>
                     </div>
                     {item.type === 'signer' && item.organization_name && (
                       <div className="parent-org">
-                        📍 {item.organization_name}
+                        <LocationIcon size={12} aria-hidden="true" /> {item.organization_name}
                       </div>
                     )}
                   </div>
@@ -297,37 +317,37 @@ const OrganizationsPage = () => {
                     onClick={() => handlePopularOrgSelect({ uid: '100010899', label: 'ΥΠΟΥΡΓΕΙΟ ΥΓΕΙΑΣ ΚΑΙ ΚΟΙΝΩΝΙΚΩΝ ΑΣΦΑΛΙΣΕΩΝ' })}
                     className="popular-org-button"
                   >
-                    🏥 ΥΠΟΥΡΓΕΙΟ ΥΓΕΙΑΣ
+                    <HealthIcon size={16} aria-hidden="true" /> ΥΠΟΥΡΓΕΙΟ ΥΓΕΙΑΣ
                   </button>
                   <button
                     onClick={() => handlePopularOrgSelect({ uid: '15', label: 'ΥΠΟΥΡΓΕΙΟ ΟΙΚΟΝΟΜΙΚΩΝ' })}
                     className="popular-org-button"
                   >
-                    💰 ΥΠΟΥΡΓΕΙΟ ΟΙΚΟΝΟΜΙΚΩΝ
+                    <FinancialIcon size={16} aria-hidden="true" /> ΥΠΟΥΡΓΕΙΟ ΟΙΚΟΝΟΜΙΚΩΝ
                   </button>
                   <button
                     onClick={() => handlePopularOrgSelect({ uid: '100054492', label: 'ΥΠΟΥΡΓΕΙΟ ΕΣΩΤΕΡΙΚΩΝ' })}
                     className="popular-org-button"
                   >
-                    🏛️ ΥΠΟΥΡΓΕΙΟ ΕΣΩΤΕΡΙΚΩΝ
+                    <LandmarkIcon size={16} aria-hidden="true" /> ΥΠΟΥΡΓΕΙΟ ΕΣΩΤΕΡΙΚΩΝ
                   </button>
                   <button
                     onClick={() => handlePopularOrgSelect({ uid: '6174', label: 'ΔΗΜΟΣ ΛΗΜΝΟΥ' })}
                     className="popular-org-button"
                   >
-                    🏖️ ΔΗΜΟΣ ΛΗΜΝΟΥ
+                    <IslandIcon size={16} aria-hidden="true" /> ΔΗΜΟΣ ΛΗΜΝΟΥ
                   </button>
                   <button
                     onClick={() => handlePopularOrgSelect({ uid: '3', label: 'ΥΠΟΥΡΓΕΙΟ ΠΑΙΔΕΙΑΣ ΚΑΙ ΘΡΗΣΚΕΥΜΑΤΩΝ' })}
                     className="popular-org-button"
                   >
-                    📚 ΥΠΟΥΡΓΕΙΟ ΠΑΙΔΕΙΑΣ
+                    <BookOpenIcon size={16} aria-hidden="true" /> ΥΠΟΥΡΓΕΙΟ ΠΑΙΔΕΙΑΣ
                   </button>
                   <button
                     onClick={() => handlePopularOrgSelect({ uid: '100012329', label: 'ΥΠΟΥΡΓΕΙΟ ΠΕΡΙΒΑΛΛΟΝΤΟΣ ΚΑΙ ΕΝΕΡΓΕΙΑΣ' })}
                     className="popular-org-button"
                   >
-                    🌱 ΥΠΟΥΡΓΕΙΟ ΠΕΡΙΒΑΛΛΟΝΤΟΣ
+                    <EnvironmentIcon size={16} aria-hidden="true" /> ΥΠΟΥΡΓΕΙΟ ΠΕΡΙΒΑΛΛΟΝΤΟΣ
                   </button>
                 </div>
                 <p className="popular-note">{t('organizations.popularNote')}</p>

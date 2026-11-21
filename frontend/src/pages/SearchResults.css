@@ -186,7 +186,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   font-size: var(--font-xl);
   border: 1px solid var(--border-color);
 }

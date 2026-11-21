@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { LockIcon } from './Icons';
 
 /**
  * Access Denied component for stealth mode allowlist
@@ -29,7 +30,9 @@ function AccessDenied() {
         borderRadius: '12px',
         boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
       }}>
-        <div style={{ fontSize: '64px', marginBottom: '20px' }}>🔒</div>
+        <div style={{ marginBottom: '20px', color: 'var(--palette-primary)' }}>
+          <LockIcon size={64} aria-hidden="true" />
+        </div>
 
         <h1 style={{
           fontSize: '28px',

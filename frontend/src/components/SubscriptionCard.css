@@ -38,7 +38,7 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-xs);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   font-size: var(--font-xs);
   font-weight: var(--font-bold);
 }
@@ -207,7 +207,7 @@
 }
 
 .subscription-target-name.clickable {
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   cursor: pointer;
   text-decoration: underline;
   text-decoration-style: dotted;
@@ -288,7 +288,7 @@
 }
 
 .metadata-email-toggle.email-on {
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 .metadata-email-toggle.email-off {
@@ -443,7 +443,7 @@
 }
 
 .subscription-lookback-item-custom {
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   font-weight: var(--font-medium);
 }
 
@@ -522,7 +522,7 @@
 .subscription-btn-secondary:hover:not(:disabled) {
   background-color: var(--hover-bg);
   border-color: var(--palette-primary);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 .subscription-btn-danger {

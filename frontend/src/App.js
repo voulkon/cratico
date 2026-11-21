@@ -205,7 +205,7 @@ function AuthenticatedApp({ controlsLayout }) {
         {/* Top spacer clears the fixed logo on non-home pages */}
         {!isHomePage && !isAuthPage && <div style={{ height: 'var(--top-controls-offset)', flexShrink: 0 }} />}
 
-        <div style={{ flex: 1 }}>
+        <main style={{ flex: 1 }}>
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
@@ -240,7 +240,7 @@ function AuthenticatedApp({ controlsLayout }) {
             <Route path="/reset-password" element={<PasswordResetPage />} />
             <Route path="/legal/:type" element={<LegalPage />} />
           </Routes>
-        </div>
+        </main>
 
         {!isAuthPage && <Footer />}
       </div>

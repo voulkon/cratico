@@ -34,7 +34,7 @@ import {
   SearchIcon,
   EyeIcon,
   DownloadIcon,
-  SparklesIcon,
+  PlayIcon,
   InfoIcon,
   LoaderIcon,
   AlertIcon
@@ -52,7 +52,7 @@ const DecisionDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // ── Document content (inline) ──────────────────────────────────────
+ // Document content (inline)
   const [docContent, setDocContent] = useState(null);       // raw_text when COMPLETED
   const [docStatus, setDocStatus] = useState(null);          // PENDING | PROCESSING | COMPLETED | FAILED | NOT_FOUND
   const [docMeta, setDocMeta] = useState(null);              // { character_count, page_count, extraction_provider, ... }
@@ -231,7 +231,7 @@ const DecisionDetailPage = () => {
     }
   };
 
-  // ── Amount verification ──────────────────────────────────────────
+ // Amount verification
   const [verifyingAmount, setVerifyingAmount] = useState(false);
   const [verifyResult, setVerifyResult] = useState(null); // 'corrected' | 'ok' | null
 
@@ -267,7 +267,7 @@ const DecisionDetailPage = () => {
     }
   };
 
-  // ── Compute main recipient from entity relationships ──────────
+ // Compute main recipient from entity relationships
   // Roles that mark the entity actually receiving funds (as opposed to a
   // generic counterparty). Ranked: listed roles first, then by amount desc.
   const MAIN_RECIPIENT_ROLES = ['sponsor', 'creditor'];
@@ -340,7 +340,7 @@ const DecisionDetailPage = () => {
   const selfCounterpartNote = decision.has_self_counterpart ? (
     <p className="amount-invalid-explanation self-counterpart-note">
       {t('decisionDetail.selfCounterpartNote', {
-        value: decision.self_counterpart_afm || '—',
+        value: decision.self_counterpart_afm || 'N/A',
       })}
     </p>
   ) : null;
@@ -349,14 +349,14 @@ const DecisionDetailPage = () => {
     recovery.status === 'APPLIED' ? (
       <p className="amount-invalid-explanation counterpart-recovery-note">
         {t('decisionDetail.counterpartRecoveredNote', {
-          recovered: recovery.recovered_afm || '—',
-          original: recovery.original_afm || '—',
+          recovered: recovery.recovered_afm || 'N/A',
+          original: recovery.original_afm || 'N/A',
         })}
         {recovery.confidence != null && (
           <span className="counterpart-recovery-meta">
             {' '}
             {t('decisionDetail.counterpartRecoveredConfidence', {
-              method: recovery.method || '—',
+              method: recovery.method || 'N/A',
               percentage: Math.round(recovery.confidence * 100),
             })}
           </span>
@@ -385,11 +385,11 @@ const DecisionDetailPage = () => {
   const invalidExplanation =
     invalidReason === 'afm_as_amount'
       ? t('decisionDetail.amountInvalidAfm', {
-          value: decision.invalid_amount_value || '—',
+          value: decision.invalid_amount_value || 'N/A',
         })
       : invalidReason === 'kae_as_amount'
         ? t('decisionDetail.amountInvalidKae', {
-            value: decision.invalid_amount_value || '—',
+            value: decision.invalid_amount_value || 'N/A',
           })
         : t('decisionDetail.amountNotInText');
   const invalidRecorded =
@@ -440,7 +440,7 @@ const DecisionDetailPage = () => {
               )}
               <div className="metadata-row">
                 <span className="metadata-key">{t('decisionDetail.versionId')}</span>
-                <span className="metadata-value">{decision.version_id || '—'}</span>
+                <span className="metadata-value">{decision.version_id || 'N/A'}</span>
               </div>
               <div className="metadata-row">
                 <span className="metadata-key">{t('decisionDetail.statusLabel')}</span>
@@ -516,10 +516,10 @@ const DecisionDetailPage = () => {
             <p className="amount-invalid-explanation amount-invalid-note">
               {decision.invalid_amount_reason === 'afm_as_amount'
                 ? t('decisionDetail.amountInvalidAfm', {
-                    value: decision.invalid_amount_value || '—',
+                    value: decision.invalid_amount_value || 'N/A',
                   })
                 : t('decisionDetail.amountInvalidKae', {
-                    value: decision.invalid_amount_value || '—',
+                    value: decision.invalid_amount_value || 'N/A',
                   })}
             </p>
           )}
@@ -617,7 +617,7 @@ const DecisionDetailPage = () => {
         )}
       </div>
 
-      {/* ── Document Content (collapsible, with polling) ──────────────── */}
+ {/* Document Content (collapsible, with polling) */}
       <CollapsibleCard
         title={
           <span className="doc-content-title">
@@ -707,7 +707,7 @@ const DecisionDetailPage = () => {
                         <span className="process-toggle-spinner" />
                       ) : !hasRun ? (
                         <span className="process-toggle-run" title={`Run ${p.name}`}>
-                          <SparklesIcon size={10} />
+                          <PlayIcon size={10} />
                         </span>
                       ) : null}
                     </button>
@@ -778,9 +778,9 @@ const DecisionDetailPage = () => {
         )}
       </CollapsibleCard>
 
-      {/* ── AI Analyses (multi-model, collapsible, with polling) —
+ {/* AI Analyses (multi-model, collapsible, with polling) —
           rendered directly below the document content so the summary
-          follows the raw text ──── */}
+ follows the raw text */}
       <AIAnalysesCard
         analyses={aiAnalyses}
         models={models}
@@ -790,7 +790,7 @@ const DecisionDetailPage = () => {
         requesting={aiRequesting}
       />
 
-      {/* ── One-liner attempts (cache history) ───────────────────── */}
+ {/* One-liner attempts (cache history) */}
       <OneLinerAttemptsCard
         attempts={oneLinerAttempts}
         defaultOneLinerId={decision.default_one_liner?.id}

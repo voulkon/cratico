@@ -2,7 +2,7 @@
    DashboardGrid — Unified grid layout for dashboard data sections
    ================================================================ */
 
-/* ── Grid container ───────────────────────────────────────────── */
+/* Grid container */
 .dashboard-grid {
   display: flex;
   flex-direction: column;
@@ -15,7 +15,7 @@
   overflow: hidden;       /* clip children to border-radius */
 }
 
-/* ── Header area (DateRangeSelector lives here) ───────────────── */
+/* Header area (DateRangeSelector lives here) */
 .dashboard-grid-header {
   padding: var(--spacing-lg, 16px) var(--spacing-xl);
   border-bottom: 1px solid var(--border-color);
@@ -34,7 +34,7 @@
   overflow: hidden;
 }
 
-/* ── Grid content (the inner grid of sections) ────────────────── */
+/* Grid content (the inner grid of sections) */
 .dashboard-grid-content {
   display: grid;
   gap: var(--spacing-xl);
@@ -50,7 +50,7 @@
   grid-template-columns: 1fr 1fr 1fr;
 }
 
-/* ── Individual section wrapper ───────────────────────────────── */
+/* Individual section wrapper */
 .dashboard-grid-section {
   display: flex;
   flex-direction: column;
@@ -60,13 +60,13 @@
   overflow: hidden;       /* contain children */
 }
 
-/* ── Featured section — spans full grid width ─────────────────── */
+/* Featured section: spans full grid width */
 .dashboard-grid-section--featured {
   grid-column: 1 / -1;
   max-height: 620px;      /* slightly taller when spanning full width */
 }
 
-/* ── Section header (title + controls) ────────────────────────── */
+/* Section header (title + controls) */
 .dashboard-section-header {
   display: flex;
   justify-content: space-between;
@@ -95,7 +95,7 @@
 .dashboard-see-all-button {
   background: none;
   border: none;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   font-size: var(--font-sm, 0.85rem);
   cursor: pointer;
   font-weight: var(--font-medium, 500);
@@ -107,7 +107,7 @@
   color: var(--palette-secondary);
 }
 
-/* ── Section info bar (count, etc.) ───────────────────────────── */
+/* Section info bar (count, etc.) */
 .dashboard-section-info {
   display: flex;
   gap: var(--spacing-md);
@@ -117,7 +117,7 @@
   flex-shrink: 0;
 }
 
-/* ── Scrollable list area ─────────────────────────────────────── */
+/* Scrollable list area */
 .dashboard-section-scroll {
   flex: 1;
   overflow-y: auto;
@@ -144,7 +144,7 @@
   background: var(--muted-text);
 }
 
-/* ── Item card (shared across all section types) ──────────────── */
+/* Item card (shared across all section types) */
 .dashboard-item-card {
   display: flex;
   align-items: center;
@@ -178,11 +178,11 @@
   margin-top: var(--spacing-sm);
 }
 
-/* ── Rank badge ────────────────────────────────────────────────── */
+/* Rank badge */
 .dashboard-rank {
   font-size: var(--font-sm, 0.85rem);
   font-weight: var(--font-bold, 700);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   background: var(--hover-bg);
   padding: 4px 8px;
   border-radius: var(--radius-sm, 4px);
@@ -191,7 +191,7 @@
   flex-shrink: 0;
 }
 
-/* ── Item body ────────────────────────────────────────────────── */
+/* Item body */
 .dashboard-item-body {
   flex: 1;
   min-width: 0;
@@ -213,7 +213,7 @@
   overflow-wrap: anywhere;
 }
 
-/* ── Left rail — rank ─────────────────────────────────────────── */
+/* Left rail: rank */
 .dashboard-item-left {
   display: flex;
   flex-direction: column;
@@ -233,12 +233,12 @@
 .dashboard-item-amount {
   font-size: var(--font-sm, 0.85rem);
   font-weight: var(--font-bold, 700);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   white-space: nowrap;
   flex-shrink: 0;
 }
 
-/* ── "Load more" button ───────────────────────────────────────── */
+/* "Load more" button */
 .dashboard-load-more {
   width: 100%;
   margin-top: var(--spacing-sm);
@@ -246,7 +246,7 @@
   background: none;
   border: 1px dashed var(--border-color);
   border-radius: 6px;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
@@ -264,7 +264,7 @@
   cursor: not-allowed;
 }
 
-/* ── Loading skeleton ─────────────────────────────────────────── */
+/* Loading skeleton */
 .dashboard-section-loading {
   display: flex;
   flex-direction: column;
@@ -293,7 +293,7 @@
   font-size: var(--font-sm, 0.85rem);
 }
 
-/* ── Loading-more indicator ───────────────────────────────────── */
+/* Loading-more indicator */
 .dashboard-loading-more {
   display: flex;
   align-items: center;
@@ -313,13 +313,13 @@
   animation: dashboard-spin 0.8s linear infinite;
 }
 
-/* ── Infinite-scroll sentinel ──────────────────────────────────── */
+/* Infinite-scroll sentinel */
 .dashboard-scroll-sentinel {
   height: 20px;
   margin: 10px 0;
 }
 
-/* ── Empty state ──────────────────────────────────────────────── */
+/* Empty state */
 .dashboard-empty {
   text-align: center;
   color: var(--muted-text);
@@ -327,11 +327,7 @@
   padding: var(--spacing-lg);
 }
 
-/* ════════════════════════════════════════════════════════════════
-   Collapse / Fold — grid-level and section-level toggles
-   ════════════════════════════════════════════════════════════════ */
-
-/* ── OS‑style collapse toggle (top‑left corner) ───────────────── */
+/* Collapse / Fold — grid-level and section-level toggles *//* OS‑style collapse toggle (top‑left corner) */
 .dashboard-grid-collapse-toggle {
   position: absolute;
   top: 10px;
@@ -353,7 +349,7 @@
 .dashboard-grid-collapse-toggle:hover {
   background: var(--hover-bg);
   border-color: var(--palette-primary);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 /* Larger chevron inside the OS‑style button */
@@ -363,7 +359,7 @@
   height: 7px;
 }
 
-/* ── Collapsed grid state ─────────────────────────────────────── */
+/* Collapsed grid state */
 .dashboard-grid--collapsed {
   min-height: 48px;       /* just enough to show the toggle */
 }
@@ -375,7 +371,7 @@
   margin: 10px auto 10px 12px;
 }
 
-/* ── Section collapse toggle (in header) ──────────────────────── */
+/* Section collapse toggle (in header) */
 .dashboard-section-header-left {
   display: flex;
   align-items: center;
@@ -402,10 +398,10 @@
 .dashboard-section-collapse-toggle:hover {
   background: var(--hover-bg);
   border-color: var(--palette-primary);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
-/* ── Shared chevron icon (CSS-only, no icon lib needed) ───────── */
+/* Shared chevron icon (CSS-only, no icon lib needed) */
 .dashboard-collapse-chevron {
   display: inline-block;
   width: 10px;
@@ -421,7 +417,7 @@
   transform: rotate(-135deg);  /* ▼ pointing down when collapsed → click expands */
 }
 
-/* ── Section collapse body (animate in/out) ───────────────────── */
+/* Section collapse body (animate in/out) */
 .dashboard-section-collapse-body {
   display: flex;
   flex-direction: column;
@@ -430,7 +426,7 @@
   overflow: hidden;
 }
 
-/* ── CollapsibleCard inside a dashboard grid section ──────────── */
+/* CollapsibleCard inside a dashboard grid section */
 /* Establish the flex chain so the scrollable list body works.
    CollapsibleCard renders as a <div> in this context (tag="div")
    so flex layout is reliable (unlike <details> which has browser
@@ -455,7 +451,7 @@
   overflow: hidden;
 }
 
-/* ── Responsive ────────────────────────────────────────────────── */
+/* Responsive */
 @media (max-width: 1100px) {
   .dashboard-grid--cols-3 .dashboard-grid-content {
     grid-template-columns: 1fr 1fr;

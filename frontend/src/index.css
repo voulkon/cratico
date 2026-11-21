@@ -11,7 +11,7 @@
   --spacing-xxxxl: 40px;
   --spacing-xxs: 2px;
 
-  /* ── Top band — single knob for the entire top strip ──
+  /* Top band: single knob for the entire top strip
      Change --top-band-height and everything adjusts:
      spacer, logo height, toggle height, split-button heights.
      The button/logo/toggle height is the band minus the top+bottom margins
@@ -71,7 +71,7 @@
   --font-serif: 'DM Serif Display', 'Playfair Display', Georgia, serif;
   --font-sans: 'DM Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
-  /* ── Aliases & derived tokens ──────────────────────────────
+  /* Aliases & derived tokens
      Resolve to themed values at runtime via var() indirection.
      Per-palette overrides for RGB values live in palette blocks below. */
   --accent-color: var(--palette-primary);
@@ -170,7 +170,7 @@ html {
   --neo-divider-width: 2px;        /* content divider thickness */
   --neo-accent-width: 5px;         /* left accent stripe width */
 
-  /* ── Annotation span tokens (AnnotatedText) ────────────────
+  /* Annotation span tokens (AnnotatedText)
      Translucent so they read on both light and dark canvases.
      Each span type has a bg + underline-accent pair. */
   --annot-amount-bg: rgba(255, 213, 79, 0.35);
@@ -756,7 +756,7 @@ code {
   animation: spin 1s linear infinite;
 }
 
-/* ── Responsive control heights ───────────────────────────── */
+/* Responsive control heights */
 @media (max-width: 768px) {
   :root {
     --top-band-height: 48px;
@@ -791,4 +791,81 @@ code {
   padding: var(--spacing-lg);
   margin: var(--spacing-lg) 0;
   color: var(--error-text);
+}
+
+/* Text-safe accents for palettes whose primary fails AA on its surface.
+   Fills keep --palette-primary; text uses --accent-text. */
+:root:not([data-theme])[data-palette="blue"],
+[data-theme="light"][data-palette="blue"] {
+  --accent-text: #3d6b8c;
+}
+
+:root:not([data-theme])[data-palette="orange"],
+[data-theme="light"][data-palette="orange"] {
+  --accent-text: #a04420;
+}
+
+:root:not([data-palette]) {
+  --accent-text: #35617f;
+}
+
+[data-theme="dark"][data-palette="red"] {
+  --accent-text: #dd9090;
+}
+
+[data-theme="solarized-light"][data-palette="blue"] {
+  --accent-text: #1f6c9e;
+}
+
+[data-theme="solarized-light"][data-palette="purple"] {
+  --accent-text: #4f54a8;
+}
+
+[data-theme="solarized-light"][data-palette="green"] {
+  --accent-text: #5f6f00;
+}
+
+[data-theme="solarized-light"][data-palette="orange"] {
+  --accent-text: #8f3208;
+}
+
+[data-theme="solarized-light"][data-palette="red"] {
+  --accent-text: #a82422;
+}
+
+[data-theme="solarized-light"][data-palette="pink"] {
+  --accent-text: #a01f60;
+}
+
+[data-theme="solarized-dark"][data-palette="blue"] {
+  --accent-text: #5aa9e6;
+}
+
+[data-theme="solarized-dark"][data-palette="purple"] {
+  --accent-text: #9a9ee0;
+}
+
+[data-theme="solarized-dark"][data-palette="green"] {
+  --accent-text: #a3b800;
+}
+
+[data-theme="solarized-dark"][data-palette="orange"] {
+  --accent-text: #e8834f;
+}
+
+[data-theme="solarized-dark"][data-palette="red"] {
+  --accent-text: #f27876;
+}
+
+[data-theme="solarized-dark"][data-palette="pink"] {
+  --accent-text: #e87ab0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

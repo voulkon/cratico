@@ -1,6 +1,5 @@
-/* ═══════════════════════════════════════════════════════════
+/*
    SPLIT BUTTON - Reusable component for consistent UI
-   ═══════════════════════════════════════════════════════════
 
    This defines the base styling for all split buttons in the app.
    Components can customize by:
@@ -10,9 +9,9 @@
 
    Note: Overlay is now managed centrally at the App level.
 
-   ═══════════════════════════════════════════════════════════ */
+ */
 
-/* ── Wrapper ───────────────────────────────────────────────── */
+/* Wrapper */
 .split-button {
   position: relative;
   display: inline-flex;
@@ -20,7 +19,6 @@
   border-radius: var(--radius-md);
   overflow: hidden;
   box-shadow: 0 2px 8px var(--shadow);
-  backdrop-filter: blur(10px);
   z-index: auto;
 }
 
@@ -28,7 +26,7 @@
   z-index: 1003; /* Above unified overlay (1002) when open */
 }
 
-/* ── Main button (left half) ──────────────────────────────── */
+/* Main button (left half) */
 .split-button-main {
   position: relative;
   background-color: transparent;
@@ -43,7 +41,6 @@
   justify-content: center;
   font-size: var(--font-lg);
   transition: all var(--transition-fast);
-  backdrop-filter: none;
   box-shadow: none;
   min-width: 50px;
   /* Responsive height via CSS variable — overridable by media queries & parent components */
@@ -74,7 +71,7 @@
   opacity: 0.5;
 }
 
-/* ── Chevron button (right half) ──────────────────────────── */
+/* Chevron button (right half) */
 .split-button-chevron {
   position: relative;
   background-color: transparent;
@@ -103,7 +100,7 @@
   border-color: var(--palette-primary);
 }
 
-/* ── Responsive ───────────────────────────────────────────────── */
+/* Responsive */
 @media (max-width: 768px) {
   .split-button {
     /* Responsive: inherits --top-controls-height which uses clamp() on mobile */
@@ -139,7 +136,7 @@
   justify-content: center;
 }
 
-/* ── Badge (for unread counts, etc.) ──────────────────────── */
+/* Badge (for unread counts, etc.) */
 .split-button-badge {
   position: absolute;
   top: 4px;
@@ -156,19 +153,9 @@
   justify-content: center;
   padding: 0 4px;
   box-shadow: 0 2px 4px var(--shadow-focus);
-  animation: badgePulse 2s ease-in-out infinite;
 }
 
-@keyframes badgePulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.1);
-  }
-}
-
-/* ── Loading state ─────────────────────────────────────────── */
+/* Loading state */
 .split-button-main.loading,
 .split-button-chevron.loading {
   animation: pulse 1.5s ease-in-out infinite;

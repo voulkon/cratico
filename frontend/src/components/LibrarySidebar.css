@@ -169,7 +169,7 @@
   border-bottom: none;
 }
 
-/* ── Tree scroll area ────────────────────────────────────────────── */
+/* Tree scroll area */
 .library-tree-scroll {
   flex: 1;
   overflow-y: auto;
@@ -212,7 +212,7 @@
   filter: brightness(1.1);
 }
 
-/* ── Root section (drop target for removing from folders) ──────────── */
+/* Root section (drop target for removing from folders) */
 .library-root-section {
   padding: var(--spacing-sm) var(--spacing-md);
   border-radius: var(--radius-md);
@@ -228,7 +228,7 @@
   outline-offset: -2px;
 }
 
-/* ── Folder tree nodes ───────────────────────────────────────────── */
+/* Folder tree nodes */
 .library-folder-tree-node {
   margin: var(--spacing-xs) 0;
 }
@@ -293,7 +293,7 @@
   flex-shrink: 0;
 }
 
-/* ── Old folder styles (now used within tree nodes) ──────────────── */
+/* Old folder styles (now used within tree nodes) */
 
 .folder-icon {
   font-size: var(--font-lg);
@@ -373,7 +373,7 @@
 
 .empty-hint {
   font-size: var(--font-sm);
-  color: var(--light-text);
+  color: var(--muted-text);
 }
 
 .library-bookmark-item {
@@ -512,7 +512,7 @@
 
 .bookmark-url {
   font-size: var(--font-xs);
-  color: var(--light-text);
+  color: var(--muted-text);
   margin-bottom: var(--spacing-xs);
   overflow: hidden;
   text-overflow: ellipsis;

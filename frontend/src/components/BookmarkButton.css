@@ -1,11 +1,10 @@
-/* ═══════════════════════════════════════════════════════════
+/*
    BOOKMARK BUTTON - Component-specific styles
-   ═══════════════════════════════════════════════════════════
 
    Extends SplitButton base styles with bookmark-specific
    styling. Base split button behavior is handled by SplitButton.css.
 
-   ═══════════════════════════════════════════════════════════ */
+ */
 
 /* Import base split button styles */
 @import './SplitButton.css';
@@ -44,7 +43,6 @@
   animation: slideDown var(--transition-normal);
   font-size: var(--font-sm);
   font-weight: var(--font-medium);
-  backdrop-filter: blur(10px);
 }
 
 @keyframes slideDown {

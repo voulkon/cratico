@@ -1,4 +1,4 @@
-/* ── DecisionsToolbar ────────────────────────────────────────────────────
+/* DecisionsToolbar
  * Unified toolbar for the decisions section across all detail pages.
  * All colors use theme variables — no hardcoded white/#fff/#333 etc.
  *
@@ -15,12 +15,12 @@
   margin-bottom: var(--spacing-lg);
 }
 
-/* ── Content area ─────────────────────────────────────────────────────── */
+/* Content area */
 .decisions-toolbar-content {
   padding: var(--spacing-xl);
 }
 
-/* ── Header row: title + controls ─────────────────────────────────────── */
+/* Header row: title + controls */
 .decisions-toolbar-header {
   display: flex;
   justify-content: space-between;
@@ -51,7 +51,7 @@
   cursor: pointer;
 }
 
-/* ── Viewed filter dropdown (notification pages) ──────────────────────── */
+/* Viewed filter dropdown (notification pages) */
 .decisions-toolbar-viewed-filter {
   display: flex;
   align-items: center;
@@ -79,7 +79,7 @@
   box-shadow: 0 0 0 2px var(--palette-bg-subtle);
 }
 
-/* ── Filter panel contents (self-contained) ───────────────────────────── */
+/* Filter panel contents (self-contained) */
 .decisions-toolbar .filter-group {
   margin-bottom: var(--spacing-xl);
 }
@@ -167,7 +167,7 @@
   padding: var(--spacing-sm);
 }
 
-/* ── Active filter chips ──────────────────────────────────────────────── */
+/* Active filter chips */
 .decisions-toolbar .active-filters {
   display: flex;
   align-items: center;
@@ -214,7 +214,7 @@
   background-color: var(--bg-selected);
 }
 
-/* ── Search results info ──────────────────────────────────────────────── */
+/* Search results info */
 .decisions-toolbar .search-results-info {
   background-color: var(--bg-info);
   color: var(--color-text-info);
@@ -233,7 +233,7 @@
   opacity: 0.8;
 }
 
-/* ── Responsive ───────────────────────────────────────────────────────── */
+/* Responsive */
 @media (max-width: 768px) {
   .decisions-toolbar-header {
     flex-direction: column;

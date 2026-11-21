@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { streamSearch, getDefaultSuggestions, searchCategories, trackSearchSelection, getRecentlyVisited, clearSearchHistory, deleteSingleHistoryItem } from '../api/searchApi';
-import { TimerIcon, TrashIcon, SearchIcon } from './Icons.js';
+import { TimerIcon, TrashIcon, SearchIcon, CalendarIcon, FinancialIcon, PenIcon } from './Icons.js';
 import CategoryTabs from './CategoryTabs';
 import { getCategoryIcon, getCategoryLabel } from '../constants/categoryDefinitions';
 import { useAuthConfig } from '../contexts/AuthConfigContext';
@@ -775,21 +775,21 @@ const SuperSearch = ({
 
     if (item.details.issue_date) {
       metadata.push({
-        icon: '📅',
+        icon: <CalendarIcon size={14} aria-hidden="true" />,
         text: new Date(item.details.issue_date).toLocaleDateString()
       });
     }
 
     if (item.details.amount && item.details.currency) {
       metadata.push({
-        icon: '💰',
+        icon: <FinancialIcon size={14} aria-hidden="true" />,
         text: `${item.details.amount} ${item.details.currency}`
       });
     }
 
     if (item.details.signers?.length > 0) {
       metadata.push({
-        icon: '✍️',
+        icon: <PenIcon size={14} aria-hidden="true" />,
         text: item.details.signers.join(', ')
       });
     }

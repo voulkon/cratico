@@ -1,4 +1,4 @@
-/* ── Shared Chevron ──────────────────────────────────────────────────────
+/* Shared Chevron
  * Base styles for the <Chevron> component.  These are the ONLY chevron
  * styles that should exist in the codebase — parent CSS files should scope
  * their positioning overrides under a parent selector.

@@ -33,7 +33,7 @@
 .entity-title-topbar {
   font-size: 1rem;
   font-weight: var(--font-bold);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   /* Single-line ellipsis: the fixed top band is only
      --top-band-height tall (40-64px) and #top-bar-slot clips
      overflow, so multi-line content gets cut off. The full
@@ -82,7 +82,7 @@
 .breadcrumb-link {
   background: none;
   border: none;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   cursor: pointer;
   padding: var(--spacing-xs) var(--spacing-sm);
   border-radius: var(--radius-sm);
@@ -132,7 +132,7 @@
 
 .metadata-info:hover,
 .metadata-info:focus-visible {
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   border-color: var(--palette-primary);
 }
 
@@ -402,7 +402,7 @@
   background: none;
   border: none;
   padding: 0;
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   cursor: pointer;
   font: inherit;
   font-weight: var(--font-medium);
@@ -437,7 +437,7 @@
 }
 
 .org-chart-link:hover {
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   border-color: var(--palette-primary);
 }
 
@@ -452,7 +452,7 @@
   gap: var(--spacing-sm);
   font-size: var(--font-lg);
   margin-bottom: var(--spacing-md);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   border-bottom: 2px solid var(--palette-primary);
   padding-bottom: var(--spacing-xs);
 }
@@ -481,7 +481,7 @@
   border: var(--neo-border-width) solid var(--border-color);
   border-radius: var(--radius-md);
   background-color: var(--card-bg);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   font: inherit;
   font-size: var(--font-sm);
   font-weight: var(--font-medium);
@@ -550,7 +550,7 @@
 }
 
 .attachment-link {
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   text-decoration: none;
   cursor: pointer;
   transition: var(--transition-fast);
@@ -642,7 +642,7 @@
 .related-ada {
   font-family: monospace;
   font-weight: var(--font-bold);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   font-size: var(--font-sm);
 }
 
@@ -684,7 +684,7 @@
 .loading-container h2,
 .error-container h2,
 .not-found-container h2 {
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   margin-bottom: var(--spacing-md);
 }
 
@@ -767,7 +767,7 @@
 .document-content-body h3 {
   margin-top: var(--spacing-md);
   margin-bottom: var(--spacing-sm);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 .document-content-body h1 { font-size: var(--font-xl); }

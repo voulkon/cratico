@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../contexts/TranslationContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { Moon, Sun, LogOut, LogIn, Sparkles, Check, Monitor, Bell } from 'lucide-react';
+import { Moon, Sun, LogOut, LogIn, SlidersHorizontal, Check, Monitor, Bell } from 'lucide-react';
 // Static import is safe: <SignOutButton> is only RENDERED when a Clerk
 // session exists (isClerkAuth), which implies ClerkProvider is mounted in
 // index.js. Sign-in goes through the unified DjangoLoginForm modal instead,
@@ -241,7 +241,7 @@ const UserMenuDropdown = ({ onClose, onShowLogin }) => {
                 navigate('/ai/settings');
               }}
             >
-              <Sparkles size={16} /> {t('common.ai')}
+              <SlidersHorizontal size={16} /> {t('common.ai')}
             </button>
           </div>
         </>

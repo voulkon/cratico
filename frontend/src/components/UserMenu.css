@@ -1,11 +1,10 @@
-/* ═══════════════════════════════════════════════════════════
+/*
    USER MENU - Component-specific styles
-   ═══════════════════════════════════════════════════════════
 
    Extends SplitButton base styles with user menu-specific
    styling. Base split button behavior is handled by SplitButton.css.
 
-   ═══════════════════════════════════════════════════════════ */
+ */
 
 /* Import base split button styles */
 @import './SplitButton.css';
@@ -204,7 +203,7 @@
 
 .menu-option.active {
   background: var(--palette-primary-light);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 .option-flag,
@@ -220,7 +219,7 @@
 }
 
 .option-check {
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   font-weight: var(--font-bold);
 }
 
@@ -374,7 +373,7 @@
 }
 
 .theme-system-toggle.active {
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   font-weight: var(--font-medium);
 }
 
@@ -518,7 +517,7 @@
 
 .current-theme-value {
   font-weight: var(--font-bold);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 /* Responsive adjustments */
@@ -538,11 +537,7 @@
   }
 }
 
-/* ═══════════════════════════════════════════════════════════
-   CONTROLS LAYOUT PICKER
-   ═══════════════════════════════════════════════════════════ */
-
-.layout-options-grid {
+/* CONTROLS LAYOUT PICKER */.layout-options-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--spacing-sm);

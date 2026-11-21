@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAuthConfig } from '../contexts/AuthConfigContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { KeyIcon } from './Icons';
 import './DjangoLoginForm.css';
 
 /**
@@ -63,7 +64,7 @@ function DjangoPasswordReset({ token, onCancel, onSuccess }) {
     <div className={`django-login-overlay ${isDarkMode ? 'dark' : 'light'}`}>
       <div className="django-login-modal">
         <div className="django-login-header">
-          <h2>🔑 Set New Password</h2>
+          <h2><KeyIcon size={20} aria-hidden="true" /> Set New Password</h2>
           <button
             className="django-login-close"
             onClick={onCancel}

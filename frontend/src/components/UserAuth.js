@@ -7,6 +7,7 @@ import AuthModal from './AuthModal';
 // Sign-in goes through the unified AuthModal (which offers Clerk
 // when active), so SignInButton is no longer needed here.
 import { UserButton } from '@clerk/clerk-react';
+import { KeyRound, UserPlus, LogOut } from 'lucide-react';
 import './UserAuth.css';
 
 const UserAuth = () => {
@@ -72,7 +73,7 @@ const UserAuth = () => {
               onClick={() => setAuthView('login')}
               style={{ borderLeft: `3px solid ${getCurrentPaletteColor()}` }}
             >
-              <span className="auth-icon">🔑</span>
+              <span className="auth-icon"><KeyRound size={16} aria-hidden="true" /></span>
               <span className="auth-text">Sign In</span>
             </button>
             <button
@@ -83,7 +84,7 @@ const UserAuth = () => {
                 borderLeft: `3px solid ${getCurrentPaletteColor()}`
               }}
             >
-              <span className="auth-icon">✨</span>
+              <span className="auth-icon"><UserPlus size={16} aria-hidden="true" /></span>
               <span className="auth-text">Sign Up</span>
             </button>
           </div>
@@ -143,7 +144,7 @@ const UserAuth = () => {
                 setShowDropdown(false);
               }}
             >
-              <span className="item-icon">🚪</span>
+              <span className="item-icon"><LogOut size={16} aria-hidden="true" /></span>
               <span className="item-text">Sign Out</span>
             </button>
           </div>

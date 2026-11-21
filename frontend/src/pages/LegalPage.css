@@ -23,7 +23,7 @@
 }
 
 .legal-back-link {
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   text-decoration: none;
   font-size: var(--font-md);
 }
@@ -76,7 +76,7 @@
 }
 
 .legal-content a {
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   text-decoration: underline;
 }
 

@@ -27,7 +27,7 @@
 
 .verify-status .icon {
   margin-bottom: var(--spacing-md);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 .verify-status.success .icon {

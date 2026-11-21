@@ -270,7 +270,7 @@ const AISettingsPage = () => {
 
   return (
     <div className="ai-settings-page">
-      {/* ── Title rendered into the fixed top bar via portal ──── */}
+ {/* Title rendered into the fixed top bar via portal */}
       <TopBarSlot>
         <div className="ai-settings-topbar">
           <span className="ai-settings-title-topbar">{t('aiSettings.title')}</span>
@@ -591,7 +591,7 @@ const KeyForm = ({ form, setForm, models, testResult, testing, onTest, onSave, o
         {testResult && (
           <div className={`ai-settings-test-result ${testResult.is_valid ? 'valid' : 'invalid'}`}>
             {testResult.is_valid
-              ? `${t('aiSettings.keyValid')}${testResult.limit_total != null ? ` — ${t('aiSettings.credits', { remaining: testResult.limit_remaining, total: testResult.limit_total })}` : ''}`
+              ? `${t('aiSettings.keyValid')}${testResult.limit_total != null ? ` · ${t('aiSettings.credits', { remaining: testResult.limit_remaining, total: testResult.limit_total })}` : ''}`
               : `${t('aiSettings.keyInvalid')}`}
           </div>
         )}

@@ -1,4 +1,4 @@
-/* ── Annotated text container ────────────────────────────────────────── */
+/* Annotated text container */
 .annotated-text-content {
   white-space: pre-wrap;
   word-break: break-word;
@@ -11,7 +11,7 @@
   color: var(--text-color);
 }
 
-/* ── Legend ──────────────────────────────────────────────────────────── */
+/* Legend */
 .text-span-legend {
   display: flex;
   flex-wrap: wrap;
@@ -36,7 +36,7 @@
   flex-shrink: 0;
 }
 
-/* ── Span structural styles (colors are inline via style prop) ────────── */
+/* Span structural styles (colors are inline via style prop) */
 .annot-mark {
   border-radius: 3px;
   padding: 0 1px;
@@ -52,7 +52,7 @@
   cursor: help;
 }
 
-/* ── Process toggle buttons ───────────────────────────────────────────── */
+/* Process toggle buttons */
 .process-controls {
   display: flex;
   align-items: center;
@@ -109,7 +109,7 @@
   transition: color var(--transition-fast), background var(--transition-fast);
 }
 .process-toggle-run:hover {
-  color: var(--accent-color);
+  color: var(--accent-text, var(--palette-primary));
   background: var(--hover-bg);
 }
 .process-toggle-run:disabled {

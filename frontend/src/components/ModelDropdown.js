@@ -115,9 +115,9 @@ const ModelDropdown = ({ models, value, onChange, disabled, placeholder, t }) =>
             onClick={() => { onChange(''); setOpen(false); }}
           >
             <span className="ai-model-col ai-model-col--name">{placeholder || t('aiSettings.usePipelineDefault')}</span>
-            <span className="ai-model-col ai-model-col--context">—</span>
-            <span className="ai-model-col ai-model-col--price">—</span>
-            <span className="ai-model-col ai-model-col--price">—</span>
+            <span className="ai-model-col ai-model-col--context">n/a</span>
+            <span className="ai-model-col ai-model-col--price">n/a</span>
+            <span className="ai-model-col ai-model-col--price">n/a</span>
           </div>
           {sorted.map((m) => (
             <div

@@ -1,15 +1,15 @@
-/* ── Container ───────────────────────────────────────── */
+/* Container */
 .org-chart-container {
   width: 100%;
   height: 100%;
 }
 
-/* ── Node handles ────────────────────────────────────── */
+/* Node handles */
 .org-chart-handle {
   background: var(--muted-text);
 }
 
-/* ── Signer node ─────────────────────────────────────── */
+/* Signer node */
 .signer-node {
   padding: var(--spacing-sm);
   border-radius: var(--radius-sm);
@@ -30,7 +30,7 @@
   color: var(--muted-text);
 }
 
-/* ── Unit node ───────────────────────────────────────── */
+/* Unit node */
 .unit-node {
   padding: var(--spacing-sm);
   border-radius: var(--radius-sm);
@@ -51,7 +51,7 @@
   font-size: 11px;
 }
 
-/* ── Org node ────────────────────────────────────────── */
+/* Org node */
 .org-node {
   padding: var(--spacing-md);
   border-radius: var(--radius-sm);
@@ -72,7 +72,7 @@
   font-size: var(--font-xs);
 }
 
-/* ── Layout options panel ────────────────────────────── */
+/* Layout options panel */
 .org-chart-panel {
   position: absolute;
   top: 10px;

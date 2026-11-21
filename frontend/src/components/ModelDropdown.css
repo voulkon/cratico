@@ -89,7 +89,7 @@
 
 .ai-model-dropdown-option--selected {
   background: var(--palette-bg-subtle);
-  color: var(--accent-color);
+  color: var(--accent-text, var(--palette-primary));
   font-weight: 600;
 }
 
@@ -110,7 +110,7 @@
 }
 
 .ai-model-col--sortable:hover {
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 /* ---- stacked sort triangles ---- */
@@ -129,7 +129,7 @@
 }
 
 .ai-sort-arrow--active {
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 .ai-model-col--name {

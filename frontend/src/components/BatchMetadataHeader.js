@@ -41,7 +41,7 @@ const BatchMetadataHeader = ({
 
   const displayTitle = title || t('notifications.notificationBatch');
   const subtitle = match_count > 0
-    ? <> — {match_count} {t('notifications.totalMatches').toLowerCase()}</>
+    ? <> · {match_count} {t('notifications.totalMatches').toLowerCase()}</>
     : null;
 
   return (

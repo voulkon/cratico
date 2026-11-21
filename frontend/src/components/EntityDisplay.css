@@ -142,7 +142,7 @@
 
 .companies-label {
   font-size: var(--font-sm);  /* Slightly larger for visibility */
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   margin-bottom: var(--spacing-sm);
   font-weight: var(--font-bold);
 }

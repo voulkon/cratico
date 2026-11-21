@@ -88,7 +88,7 @@
 }
 
 .person-name-link:hover {
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   text-decoration: underline;
 }
 
@@ -125,7 +125,7 @@
 
 .repr-badge.common {
   background-color: var(--bg-selected);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 .repr-none {

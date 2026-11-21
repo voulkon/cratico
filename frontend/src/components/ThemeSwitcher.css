@@ -160,7 +160,7 @@
 
 .preview-header {
   font-weight: var(--font-bold);
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
   margin-bottom: var(--spacing-sm);
   font-size: var(--font-sm);
 }
@@ -212,7 +212,6 @@
   transition: var(--transition-fast);
   white-space: nowrap;
   box-shadow: 0 2px 8px var(--shadow);
-  backdrop-filter: blur(10px);
   min-width: 90px;
   justify-content: space-between;
 }
@@ -253,7 +252,6 @@
   padding: var(--spacing-lg);
   z-index: 1000;
   min-width: 280px;
-  backdrop-filter: blur(20px);
   animation: dropdownFadeIn 0.2s ease-out;
 }
 
@@ -412,7 +410,7 @@
 }
 
 .current-selection strong {
-  color: var(--palette-primary);
+  color: var(--accent-text, var(--palette-primary));
 }
 
 /* Enhanced responsive design for compact version */
@@ -450,33 +448,7 @@
   }
 }
 
-/* Add a subtle pulse animation for the theme button */
-@keyframes themePulse {
-  0%, 100% {
-    box-shadow: 0 2px 8px var(--shadow);
-  }
-  50% {
-    box-shadow: 0 2px 8px var(--shadow), 0 0 0 4px var(--bg-selected);
-  }
-}
-
-.theme-toggle-button:focus {
-  outline: none;
-  animation: themePulse 1.5s ease-in-out;
-}
-
-/* Beautiful gradient border for active palette */
-.theme-dropdown .palette-button.active::before {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  background: linear-gradient(45deg, var(--palette-primary), var(--palette-secondary), var(--palette-primary));
-  border-radius: var(--radius-md);
-  z-index: -1;
-  animation: gradientRotate 3s linear infinite;
-}
-
-@keyframes gradientRotate {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+.theme-toggle-button:focus-visible {
+  outline: 2px solid var(--focus-color);
+  outline-offset: 2px;
 }
