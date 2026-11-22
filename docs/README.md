@@ -20,6 +20,7 @@ Complete documentation for developers, system administrators, and users.
 - **[Deployment Guide](en/DEPLOYMENT.md)** - Installation and deployment
 - **[Environment Variables](en/ENVIRONMENT_VARIABLES.md)** - Configuration reference
 - **[Component Details](en/components/)** - Technical deep dives
+- **[Performance](performance/)** - Baselines, query profiles, and optimization notes
 
 ### Getting Started
 1. [Quick Start](../README.en.md#quick-start)
