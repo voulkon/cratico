@@ -54,3 +54,13 @@ detail requests and 5 content requests per visit.
 organization uid in the key. On the cold load all three miss (as expected);
 on the reload all three hit and their 170.7 / 49.2 / 59.8 / 25.1 / 43.1 ms
 queries disappear.
+
+**The paginator count skips the amount join.** This landed after the logs
+above. `view=decisions` now builds its total from
+`apply_decision_facets(..., count_only=True)`, so `COUNT(*)` no longer
+inherits the `calculated_amount` annotation, its LEFT JOIN to
+`core_decisionamountfield`, or the forced `GROUP BY`; an amount filter still
+keeps the annotation. `EXPLAIN ANALYZE` on organization 100054489 (1,410
+rows): 202.9 ms → 52.1 ms cold, and the live count 47.0 ms → 32.3 ms warm.
+`test_decision_list_count.py` and `test_unified_decisions_count.py` pin the
+SQL shape and the totals.**

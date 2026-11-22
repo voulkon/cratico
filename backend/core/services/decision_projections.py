@@ -265,6 +265,7 @@ def paginate_decisions(
     serialize_fn=None,
     only_fields: Optional[tuple[str, ...]] = None,
     filters: Optional[Dict[str, Any]] = None,
+    count_qs: Optional[QuerySet] = None,
     search_log_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
@@ -286,6 +287,10 @@ def paginate_decisions(
                      custom ``serialize_fn`` to load every column.
         filters: Optional dict of applied filters to echo back to the
                  frontend (search_query, status, dates, sort, etc.).
+        count_qs: Optional queryset for the paginator total.  Pass a
+                  queryset with the same filters but built with
+                  ``apply_decision_facets(..., count_only=True)`` so the
+                  COUNT does not join the amount table.  Defaults to ``qs``.
         search_log_id: Optional search-analytics log ID for click tracking.
 
     Returns a dict with ``results``, ``pagination``, ``filters``, and
@@ -299,8 +304,10 @@ def paginate_decisions(
             only_fields = DEFAULT_LIST_ONLY_FIELDS
 
     # Count before the list annotation: the paginator's COUNT(*) would
-    # otherwise evaluate has_document_content for every row.
-    total_count = qs.count()
+    # otherwise evaluate has_document_content for every row.  ``count_qs``
+    # additionally keeps calculated_amount (and its amount-table join) out
+    # of the count.
+    total_count = (count_qs if count_qs is not None else qs).count()
 
     # ``text_extraction`` is not joined: the page carries ``has_document_content``
     # instead, keeping the wide raw_text / search_vector columns off the SELECT.

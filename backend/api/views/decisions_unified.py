@@ -388,11 +388,19 @@ def decisions_unified_api(request):
                 "status": request.GET.get("status", ""),
             }
 
+            count_qs = apply_decision_facets(
+                source_qs,
+                start_dt=start_dt,
+                end_dt=end_dt,
+                request=request,
+                count_only=True,
+            )
             result = paginate_decisions(
                 qs,
                 page=page,
                 page_size=page_size,
                 filters=filters,
+                count_qs=count_qs,
             )
 
             # ── Log search completion ───────────────────────────────
