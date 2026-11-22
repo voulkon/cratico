@@ -1,7 +1,8 @@
+from django.db import models
+
 from core.models.decisions import Decision
 from core.models.entities import AFMEntity
 from core.models.organizations import Organization, Signer, SignerUnit, Unit
-from django.db import models
 
 
 def get_entity_decisions_queryset(entity_type, entity_id):
@@ -216,9 +217,12 @@ def serialize_decision_with_content_info(decision):
             (float(kae_total) - primary_amount) / primary_amount * 100
         )
 
-    # Check if document content exists
+    # List queries annotate ``has_document_content``; the detail path (no
+    # annotation) falls back to the joined extraction row.
     has_document_content = False
-    if hasattr(decision, "text_extraction") and decision.text_extraction:
+    if hasattr(decision, "has_document_content"):
+        has_document_content = bool(decision.has_document_content)
+    elif hasattr(decision, "text_extraction") and decision.text_extraction:
         has_document_content = (
             decision.text_extraction.extraction_status == "COMPLETED"
             and bool(decision.text_extraction.raw_text)
