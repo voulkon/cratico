@@ -88,6 +88,13 @@ reset-db:
 	@echo "TODO: implement DB reset with sample data"
 	@exit 1
 
+# ───────────────────────── Log analysis ─────────────────────────
+
+FILE ?= org_loading
+
+sql-report: ## Readable SQL report from a Django log (FILE=..., ARGS="...")
+	python3 scripts/analyze_sql_log.py $(FILE) $(ARGS)
+
 # ───────────────────────── Code Quality ─────────────────────────
 
 quality: quality-report
