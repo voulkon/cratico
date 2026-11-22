@@ -202,9 +202,10 @@ The simplest way to contribute is using Docker, which sets up everything you nee
 
 2. **Create environment file**
    ```bash
-   cp .env_files/.env.local.secrets.example .env_files/.env.local.secrets
-   # Edit the file if needed, but defaults work for development
+   DEV_MODE=true scripts/ci/create_env_file.sh .env_files/.env.local.secrets
    ```
+   The script fills every required variable with safe local values and turns
+   `DEBUG` on. It never needs a committed example file.
 
 3. **Start all services**
    ```bash
@@ -226,16 +227,113 @@ The simplest way to contribute is using Docker, which sets up everything you nee
    - Backend API: http://localhost:8000
    - Admin panel: http://localhost:8000/admin
 
+7. **Fill the database with real data**
+
+   A fresh stack has the schema and the feature flags, but no decisions.
+   Dashboards, search, entities, and analytics stay empty until decisions are
+   imported.
+
+   The fastest useful dataset is one recent low-volume day imported through
+   the real pipeline:
+
+   ```bash
+   docker-compose -f docker/docker-compose.yml \
+     --env-file=.env_files/.env.local.secrets \
+     exec backend python manage.py seed_quickstart
+   ```
+
+   `seed_quickstart`:
+
+   1. Reads the official daily counts for the last month.
+   2. Picks the most recent completed day with 100 to 1,000 decisions. Recent
+      weekdays usually carry 25,000 or more, so this normally selects a weekend
+      or holiday. Override it with `--min-count`, `--max-count`, or
+      `--date YYYY-MM-DD`.
+   3. Enables `POST_IMPORT_ORCHESTRATOR_ENABLED` and
+      `ANALYTICS_WARMUP_ENABLED` in the feature flag table. Amount verification
+      is on by default once the orchestrator runs.
+   4. Queues a normal global `DAILY` ImportJob.
+
+   The `worker` service does the rest: fetch, Redis chunking,
+   `DecisionImporter` (which creates missing organizations, units, signers, and
+   act types on demand), the `DecisionPipelineOrchestrator` stages, then
+   post-import cache warming and amount verification.
+
+   Watch progress at http://localhost/admin/core/importjob/ or in Flower at
+   http://localhost:5555. A day of 1,000 decisions becomes about 100 chunks, so
+   expect several minutes.
+
+   `--dry-run` resolves the date without queueing anything.
+   `--no-post-import` leaves the feature flags alone. `make sample-data` runs
+   the same command, and `make sample-data ARGS="--max-count 500"` keeps the
+   slice smaller.
+
+   `seed_quickstart` does not preload dictionaries or the full organization
+   list. The importer creates only what the imported decisions reference. Add
+   reference data when you need filter dropdowns and the organization browser:
+
+   ```bash
+   docker-compose ... exec backend python manage.py seed_data --dictionaries
+   docker-compose ... exec backend python manage.py seed_data --dictionary-items
+   docker-compose ... exec backend python manage.py seed_data --types
+   docker-compose ... exec backend python manage.py seed_data --organizations --lite 100
+   ```
+
+   `seed_data --types` makes one API call per act type and is slow. Run it only
+   when you need the full type list.
+
+   `seed_data --decisions` is not part of this path. It imports decisions with
+   `DecisionImporter` directly, so it skips the orchestrator and never starts
+   the post-import work.
+
+   For more history, import individual days with
+   `python manage.py import_decisions_daily --date YYYY-MM-DD`, or enable
+   `AUTO_BACKFILL_ENABLED` in the Django admin feature flag page. With backfill
+   on, each completed import queues the next oldest missing day.
+
+   OpenSearch is off in the default dev environment
+   (`INDEX_THE_OPENSEARCH=false`), so search uses PostgreSQL. That is expected.
+   The generated env also keeps `LIGHT_WORKER=true`, which uses PyMuPDF for
+   text extraction and keeps the worker image small.
+
+   #### Reset the database
+
+   `seed_quickstart` is safe to rerun. It queues another import for the chosen
+   day. To start from an empty database, remove the compose volumes and boot
+   again. This deletes all local data:
+
+   ```bash
+   docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets down -v
+   make stack-up
+   make sample-data
+   ```
+
+   Back up PostgreSQL first if you want to return to the current state. Redis,
+   RabbitMQ, and OpenSearch hold rebuildable state, so the database dump is the
+   only one worth keeping:
+
+   ```bash
+   docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets exec -T db \
+     sh -c 'pg_dump --clean --if-exists -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+     | gzip > crati-backup.sql.gz
+
+   gunzip -c crati-backup.sql.gz | docker-compose -f docker/docker-compose.yml \
+     --env-file=.env_files/.env.local.secrets exec -T db \
+     sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"'
+   ```
+
 ### Minimal Setup (Pocket Version)
 
 For contributors focusing on specific features, you can run a minimal setup:
 
 ```bash
-# Start only essential services
-docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets up backend db redis
+# Start only essential services. worker runs imports; beat runs scheduled ones.
+docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets up \
+  backend db redis worker beat
 ```
 
-This starts only the backend, database, and Redis - enough for API development and testing.
+This starts only the backend, database, Redis, the import worker, and the
+scheduler. It is enough for API development, tests, and `seed_quickstart`.
 
 ### Running Tests
 

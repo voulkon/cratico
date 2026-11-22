@@ -14,6 +14,11 @@
 #   scripts/ci/create_env_file.sh [output_path]   # default: .env_files/.env.ci
 #
 # Then: make stack-up ENV_FILE=.env_files/.env.ci
+#
+# For a local development stack:
+#   DEV_MODE=true scripts/ci/create_env_file.sh .env_files/.env.local.secrets
+# DEV_MODE turns DEBUG on and disables OpenSearch indexing. Everything else
+# stays safe for local use.
 set -euo pipefail
 
 OUT="${1:-.env_files/.env.ci}"
@@ -43,7 +48,12 @@ BRANCH="${GITHUB_BASE_REF:-${GITHUB_REF_NAME:-$(git branch --show-current 2>/dev
 
 # ── Django core ───────────────────────────────────────────────────────────
 secret_or DJANGO_SECRET_KEY 'ci-django-secret-not-real'
-fixed     DEBUG             'False'
+if [ "${DEV_MODE:-false}" = "true" ]; then
+  fixed   DEBUG             'True'
+  fixed   INDEX_THE_OPENSEARCH 'false'
+else
+  fixed   DEBUG             'False'
+fi
 fixed     ALLOWED_HOSTS     '*'
 fixed     ENABLE_SILK       'False'
 

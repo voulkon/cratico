@@ -57,29 +57,13 @@ cd crati
 ### 2. Create Environment File
 
 ```bash
-cp .env_files/.env.local.secrets.example .env_files/.env.local.secrets
+DEV_MODE=true scripts/ci/create_env_file.sh .env_files/.env.local.secrets
 ```
 
-Edit `.env_files/.env.local.secrets` with your configuration:
-
-```bash
-# Minimal development configuration
-POSTGRES_USER=local_user
-POSTGRES_PASSWORD=local_pass
-POSTGRES_DB=local_diavgia
-
-DJANGO_SECRET_KEY=$(openssl rand -hex 32)
-DEBUG=true
-ALLOWED_HOSTS=localhost,127.0.0.1
-
-RABBITMQ_USER=guest
-RABBITMQ_PASSWORD=guest
-
-# Optional: Disable non-essential services for faster startup
-INDEX_THE_OPENSEARCH=false
-TRANSMIT_TO_JAEGER=false
-EXTRACT_THE_DOCS_FROM_PDFS=false
-```
+The script fills every required variable with safe local values and turns
+`DEBUG` on. It also keeps `INDEX_THE_OPENSEARCH=false` and
+`LIGHT_WORKER=true`, so the stack starts without the search profile or the
+Docling worker layer.
 
 ### 3. Start Services
 
@@ -118,7 +102,28 @@ Only when started with `--profile observability`:
 - **Grafana**: http://localhost:3001
 - **Jaeger**: http://localhost:16686
 
-### 7. Stop Services
+### 7. Load Sample Data
+
+The database starts empty. Import one recent low-volume day through the real
+pipeline:
+
+```bash
+docker-compose exec backend python manage.py seed_quickstart
+```
+
+The command picks the most recent completed day with 100 to 1,000 decisions,
+enables the post-import work, and queues a global `DAILY` import. Recent
+weekdays usually carry 25,000 or more decisions, so this normally selects a
+weekend or holiday. The worker creates the decisions, organizations, units,
+signers, and act types, then post-import warms the cache and verifies
+high-value amounts.
+
+Monitor progress at http://localhost/admin/core/importjob/ or Flower on port
+5555. Use `--date YYYY-MM-DD` to pin a day, `--max-count` to change the slice,
+or `--dry-run` to resolve the date without queueing. `make sample-data` runs
+the same command against the configured stack.
+
+### 8. Stop Services
 
 ```bash
 # Minimal stack

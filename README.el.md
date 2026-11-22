@@ -54,23 +54,12 @@ cd crati
 2. **Δημιουργία αρχείου περιβάλλοντος**
 
 ```bash
-cp .env_files/.env.local.secrets.example .env_files/.env.local.secrets
+DEV_MODE=true scripts/ci/create_env_file.sh .env_files/.env.local.secrets
 ```
 
-Επεξεργαστείτε το `.env_files/.env.local.secrets`:
-
-```bash
-# Ελάχιστη διαμόρφωση για γρήγορη εκκίνηση
-POSTGRES_USER=local_user
-POSTGRES_PASSWORD=local_pass
-POSTGRES_DB=local_diavgia
-DJANGO_SECRET_KEY=$(openssl rand -hex 32)
-DEBUG=true
-
-# Απενεργοποίηση προαιρετικών υπηρεσιών για ταχύτερη εκκίνηση (προαιρετικό)
-INDEX_THE_OPENSEARCH=false
-TRANSMIT_TO_JAEGER=false
-```
+Το script συμπληρώνει όλες τις απαιτούμενες μεταβλητές με ασφαλείς τοπικές
+τιμές και ενεργοποιεί το `DEBUG`. Δεν χρειάζεται να επεξεργαστείτε το αρχείο
+για τοπική στοίβα.
 
 3. **Εκκίνηση του συστήματος**
 
@@ -101,6 +90,27 @@ docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.sec
 
 - **Grafana**: http://localhost:3001
 - **Jaeger**: http://localhost:16686
+
+5. **Γέμισμα της βάσης με δεδομένα**
+
+Η στοίβα ξεκινά με άδεια βάση. Εισαγάγετε μία πρόσφατη ημέρα με λίγες
+αποφάσεις μέσω του πραγματικού pipeline:
+
+```bash
+docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets exec backend \
+  python manage.py seed_quickstart
+```
+
+Επιλέγει την πιο πρόσφατη ολοκληρωμένη ημέρα με 100 έως 1.000 αποφάσεις,
+ενεργοποιεί το post-import και βάζει το import στην ουρά. Ο worker δημιουργεί
+αποφάσεις, οργανισμούς, μονάδες, υπογράφοντες και τύπους πράξεων, και το
+post-import γεμίζει την cache και επαληθεύει τα ποσά υψηλής αξίας.
+Χρησιμοποιήστε `--date YYYY-MM-DD`, `--max-count` ή `--dry-run`. Το
+`make sample-data` τρέχει την ίδια εντολή.
+
+Παρακολούθηση: http://localhost/admin/core/importjob/ ή
+http://localhost:5555 (Flower). Δείτε το [CONTRIBUTING.md](CONTRIBUTING.md)
+για reference data και backfill.
 
 ## 📚 Τεκμηρίωση
 

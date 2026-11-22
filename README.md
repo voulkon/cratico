@@ -43,11 +43,17 @@ A modern, scalable platform for processing and analyzing Greek government transp
 git clone https://github.com/voulkon/crati.git
 cd crati
 
-# Copy environment file / Αντιγράψτε το αρχείο περιβάλλοντος
-cp .env_files/.env.local.secrets.example .env_files/.env.local.secrets
+# Generate environment file / Δημιουργήστε το αρχείο περιβάλλοντος
+DEV_MODE=true scripts/ci/create_env_file.sh .env_files/.env.local.secrets
 
 # Start services (minimal) / Εκκινήστε τις υπηρεσίες (ελαχιστοποιημένο σύστημα)
 docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets up -d
+
+# Wait for the API / Περιμένετε το API
+make wait-for-api
+
+# Import one recent low-volume day / Εισαγάγετε μία πρόσφατη ημέρα με λίγες αποφάσεις
+make sample-data
 
 # Full stack with observability / Πλήρες σύστημα με πλήρη ορατότητα
 docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets --profile observability up -d
