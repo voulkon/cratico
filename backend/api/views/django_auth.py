@@ -26,6 +26,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
+from api.authentication import invalidate_user_token_cache
+
 User = get_user_model()
 
 
@@ -277,6 +279,10 @@ def logout(request):
         )
 
     user_email = request.user.email
+
+    # Drop the cached token -> user pair before deleting the row, otherwise the
+    # old token keeps authenticating until the cache TTL expires.
+    invalidate_user_token_cache(request.user)
 
     # Delete the DRF token
     try:
@@ -575,7 +581,9 @@ def reset_password(request):
             except Exception as e:
                 logger.warning(f"Failed to send password changed notification: {e}")
 
-        # Create new DRF token for automatic login
+        # Create new DRF token for automatic login. Invalidate the old cached
+        # pair first: password change must not leave a working cached token.
+        invalidate_user_token_cache(user)
         Token.objects.filter(user=user).delete()  # Delete old token
         token = Token.objects.create(user=user)
 

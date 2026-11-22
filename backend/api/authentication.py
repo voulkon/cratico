@@ -1,9 +1,13 @@
 import jwt
-from diavgeia_project.security_tracing import get_client_ip, security_tracer
 from django.conf import settings
+from django.core.cache import cache
 from django.db import IntegrityError, transaction
 from loguru import logger
 from rest_framework import authentication, exceptions
+from rest_framework.authtoken.models import Token
+
+from api.redis_keys import TOKEN_AUTH_CACHE_TTL, get_token_auth_cache_key
+from diavgeia_project.security_tracing import get_client_ip, security_tracer
 from users.models import CustomUser
 
 
@@ -71,14 +75,20 @@ def _resolve_clerk_user(clerk_id: str, payload: dict) -> CustomUser:
         try:
             with transaction.atomic():
                 if CustomUser.objects.filter(username=username).exists():
-                    username = f"{username}_{clerk_id[-8:]}" if attempt == 0 else f"{username}_{attempt}"
+                    username = (
+                        f"{username}_{clerk_id[-8:]}"
+                        if attempt == 0
+                        else f"{username}_{attempt}"
+                    )
                 user = CustomUser.objects.create(
                     username=username,
                     email=email,
                     clerk_id=clerk_id,
                     email_verified=email_verified,
                 )
-                logger.info(f"Provisioned new user {user.pk} from Clerk identity {clerk_id}")
+                logger.info(
+                    f"Provisioned new user {user.pk} from Clerk identity {clerk_id}"
+                )
                 return user
         except IntegrityError:
             # Concurrent login created the row first — re-resolve and return.
@@ -109,6 +119,83 @@ class CsrfExemptSessionAuthentication(authentication.SessionAuthentication):
     def enforce_csrf(self, request):
         # Skip CSRF check
         return
+
+
+def _token_cache_ttl() -> int:
+    return int(getattr(settings, "TOKEN_AUTH_CACHE_TTL", TOKEN_AUTH_CACHE_TTL))
+
+
+def _cache_get(key: str):
+    """Read from cache, treating an unavailable cache as a miss."""
+    try:
+        return cache.get(key)
+    except Exception as exc:
+        # Auth must keep working when Redis is down; the DB remains the source
+        # of truth. Never log the token (only this generic error is logged).
+        logger.debug(f"Token auth cache read failed, falling back to DB: {exc}")
+        return None
+
+
+def _cache_set(key: str, value, ttl: int) -> None:
+    try:
+        cache.set(key, value, ttl)
+    except Exception as exc:
+        logger.debug(f"Token auth cache write failed: {exc}")
+
+
+def _cache_delete(key: str) -> None:
+    try:
+        cache.delete(key)
+    except Exception as exc:
+        logger.debug(f"Token auth cache delete failed: {exc}")
+
+
+def invalidate_token_cache(token_key: str | None) -> None:
+    """Drop the cached auth pair for a raw DRF token key."""
+    if not token_key:
+        return
+    _cache_delete(get_token_auth_cache_key(token_key))
+
+
+def invalidate_user_token_cache(user) -> None:
+    """Drop the cached auth pair for every token belonging to ``user``."""
+    try:
+        token_keys = list(Token.objects.filter(user=user).values_list("key", flat=True))
+    except Exception as exc:
+        logger.debug(f"Token auth cache user lookup failed: {exc}")
+        return
+
+    for token_key in token_keys:
+        invalidate_token_cache(token_key)
+
+
+class CachedTokenAuthentication(authentication.TokenAuthentication):
+    """
+    TokenAuthentication with a short-lived token -> (user, token) cache.
+
+    DRF's TokenAuthentication joins ``authtoken_token`` to ``users_customuser``
+    on every request. A page visit fires dozens of requests with the same
+    token, so that repeated lookup dominates auth DB time. Cache the resolved
+    pair (already ``select_related("user")`` via the parent implementation)
+    under the token's SHA-256 for ``TOKEN_AUTH_CACHE_TTL`` seconds.
+
+    Staleness is bounded by the TTL, and ``is_active`` is still checked on the
+    cached user before it is returned. Logout, token rotation and password
+    reset invalidate eagerly.
+    """
+
+    def authenticate_credentials(self, key):
+        cache_key = get_token_auth_cache_key(key)
+        cached = _cache_get(cache_key)
+        if isinstance(cached, tuple) and len(cached) == 2:
+            user, token = cached
+            if not user.is_active:
+                raise exceptions.AuthenticationFailed("User inactive or deleted.")
+            return (user, token)
+
+        user, token = super().authenticate_credentials(key)
+        _cache_set(cache_key, (user, token), _token_cache_ttl())
+        return (user, token)
 
 
 class ClerkAuthentication(authentication.BaseAuthentication):
