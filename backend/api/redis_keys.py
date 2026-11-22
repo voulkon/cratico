@@ -112,6 +112,26 @@ API_CACHE_EXPIRE_HISTORICAL = 60 * 60 * 24  # 24 hours (past data won't change)
 API_CACHE_EXPIRE_CURRENT = 60 * 5  # 5 minutes (current data may update)
 API_CACHE_EXPIRE_STATS = 60 * 10  # 10 minutes (stats change slowly)
 
+# Query params that change the unified endpoint's aggregate projections
+# (date_range, decision_types).  Shared by the @cached_view on
+# decisions_unified_api and warm_unified_window so a pre-warmed key always
+# matches the key the view looks up.
+UNIFIED_AGGREGATE_CACHE_PARAMS = (
+    "source",
+    "view",
+    "start_date",
+    "end_date",
+    "entity_type",
+    "entity_id",
+    "direct_assignments_only",
+    "q",
+    "decision_types",
+    "organization_ids",
+    "min_amount",
+    "max_amount",
+    "status",
+)
+
 # Warmup status tracking (defer_on_miss)
 WARMUP_STATUS_PREFIX = "warmup:"
 WARMUP_STATUS_TTL = 120  # 2 min — if warmup takes longer, something is wrong

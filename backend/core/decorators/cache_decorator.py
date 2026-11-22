@@ -27,18 +27,28 @@ Key features:
 
 from datetime import datetime
 from functools import wraps
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, List, Optional, Union
 
-from core.services.response_cache_service import response_cache
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 from loguru import logger
 from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 
+from core.services.response_cache_service import response_cache
+
 # ── Defer-on-miss status constants ──────────────────────────────────────
 WARMUP_STATUS_IN_PROGRESS = "in_progress"
 WARMUP_STATUS_READY = "ready"
+
+
+def _resolve_path_param(name, kwargs):
+    """Return a named URL path argument's value for the cache key.
+
+    Django's named URL converters (``<str:uid>``) reach DRF views as keyword
+    arguments, so the path value is in ``kwargs``.
+    """
+    return kwargs.get(name, "")
 
 
 def cached_view(
@@ -49,9 +59,11 @@ def cached_view(
     should_cache_fn: Optional[Callable[[Any], bool]] = None,
     log_cache_operations: bool = True,
     # ── NEW: defer-on-miss ──────────────────────────────────────────
-    defer_on_miss: bool = False,
+    defer_on_miss: Union[bool, Callable[[Any], bool]] = False,
     defer_retry_after: int = 30,
     defer_warmup_task: Optional[Callable] = None,
+    cache_path_params: Optional[List[str]] = None,
+    ttl_fn: Optional[Callable[[Any], Optional[int]]] = None,
 ):
     """
     Decorator to automatically cache API view responses.
@@ -68,8 +80,9 @@ def cached_view(
                         cache on search queries or complex filters.
         log_cache_operations: Whether to log routine cache operations
                         (check/hit/miss/set) at DEBUG level (default: True).
-        defer_on_miss: If True, on cache miss return 202 Accepted and dispatch
-                      a background warmup task instead of executing the heavy
+        defer_on_miss: If True (or a callable returning True for the request),
+                      on cache miss return 202 Accepted and dispatch a
+                      background warmup task instead of executing the heavy
                       query synchronously.  The frontend polls until the cache
                       is populated. (default: False)
         defer_retry_after: Seconds to tell the frontend to wait before retrying
@@ -78,6 +91,16 @@ def cached_view(
                           Receives (cache_key, request) and must trigger the
                           background compute+cache.  If None, the default
                           ``warm_single_window`` Celery task is used.
+        cache_path_params: Path-argument names to include in the cache key.
+                          Named URL converters reach DRF views as kwargs, so
+                          ``cache_path_params=["organization_uid"]`` keeps one
+                          resource's cached response from being served for
+                          another.  Query params are keyed via *cache_params*.
+        ttl_fn: Optional callable ``(request) -> Optional[int]`` that overrides
+                          the TTL per request.  Return a number of seconds to
+                          use it, or None to fall back to *ttl* / *end_date_param*.
+                          Useful when one view caches sources with different
+                          freshness requirements.
 
     Example:
         @cached_view(
@@ -134,6 +157,10 @@ def cached_view(
                 # Only include specified params
                 key_params = {k: request.GET.get(k, "") for k in cache_params}
 
+            if cache_path_params:
+                for name in cache_path_params:
+                    key_params[name] = _resolve_path_param(name, kwargs)
+
             cache_key = response_cache.build_key(cache_prefix, **key_params)
 
             if log_cache_operations:
@@ -164,7 +191,10 @@ def cached_view(
                 )
 
             # ── defer_on_miss path ────────────────────────────────────
-            if defer_on_miss:
+            defer_enabled = (
+                defer_on_miss(request) if callable(defer_on_miss) else defer_on_miss
+            )
+            if defer_enabled:
                 defer_response = _handle_defer_on_miss(
                     request=request,
                     cache_key=cache_key,
@@ -204,9 +234,12 @@ def cached_view(
                 # Already a dict or other serializable type
                 response_data = response
 
+            # Determine TTL: ttl_fn overrides the static ttl / smart end_date TTL.
+            effective_ttl = ttl_fn(request) if ttl_fn is not None else ttl
+
             # Determine end_date for smart TTL
             end_date = None
-            if end_date_param and ttl is None:
+            if effective_ttl is None and end_date_param:
                 end_date_str = request.GET.get(end_date_param)
                 if end_date_str:
                     try:
@@ -227,7 +260,9 @@ def cached_view(
                     f"key={cache_key}"
                 )
 
-            response_cache.set(cache_key, response_data, end_date=end_date, timeout=ttl)
+            response_cache.set(
+                cache_key, response_data, end_date=end_date, timeout=effective_ttl
+            )
 
             return response
 

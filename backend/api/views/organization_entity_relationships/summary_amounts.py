@@ -11,18 +11,21 @@ Key use cases:
 - Financial breakdowns by entity
 """
 
-from api.utils.date_utils import _parse_and_validate_date_range, _validate_temporal_span
-from core.models.entities import AFMEntity
-from core.models.organizations import Organization
-from core.services.financial_calculation_service import financial_service
-from core.utils.performance_monitoring import monitor_query_performance
 from django.conf import settings
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from loguru import logger
 from rest_framework.decorators import api_view, permission_classes
-from api.permissions import PublicReadOnly
 from rest_framework.response import Response
+
+from api.permissions import PublicReadOnly
+from api.utils.date_utils import _parse_and_validate_date_range, _validate_temporal_span
+from core.decorators.cache_decorator import cached_view
+from core.models.entities import AFMEntity
+from core.models.organizations import Organization
+from core.services.financial_calculation_service import financial_service
+from core.utils.performance_monitoring import monitor_query_performance
+
 
 @swagger_auto_schema(
     method="get",
@@ -70,6 +73,14 @@ from rest_framework.response import Response
 )
 @api_view(["GET"])
 @permission_classes([PublicReadOnly])
+@cached_view(
+    # "top_" keeps this under the post-import invalidation prefix.
+    cache_prefix="top_org_counterparts",
+    cache_params=["start_date", "end_date", "limit", "offset", "q"],
+    cache_path_params=["organization_uid"],
+    end_date_param="end_date",
+    log_cache_operations=True,
+)
 @monitor_query_performance(operation="organization_top_counterparts")
 def organization_top_counterparts_api(
     request, organization_uid
