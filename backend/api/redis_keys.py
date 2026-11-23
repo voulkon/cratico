@@ -2,6 +2,8 @@
 Central registry of Redis keys used throughout the application.
 """
 
+import hashlib
+
 # Key namespaces
 STATS_NS = "stats"
 RATELIMIT_NS = "ratelimit"
@@ -110,15 +112,42 @@ API_CACHE_EXPIRE_HISTORICAL = 60 * 60 * 24  # 24 hours (past data won't change)
 API_CACHE_EXPIRE_CURRENT = 60 * 5  # 5 minutes (current data may update)
 API_CACHE_EXPIRE_STATS = 60 * 10  # 10 minutes (stats change slowly)
 
+# Query params that change the unified endpoint's aggregate projections
+# (date_range, decision_types).  Shared by the @cached_view on
+# decisions_unified_api and warm_unified_window so a pre-warmed key always
+# matches the key the view looks up.
+UNIFIED_AGGREGATE_CACHE_PARAMS = (
+    "source",
+    "view",
+    "start_date",
+    "end_date",
+    "entity_type",
+    "entity_id",
+    "direct_assignments_only",
+    "q",
+    "decision_types",
+    "organization_ids",
+    "min_amount",
+    "max_amount",
+    "status",
+)
+
 # Warmup status tracking (defer_on_miss)
 WARMUP_STATUS_PREFIX = "warmup:"
 WARMUP_STATUS_TTL = 120  # 2 min — if warmup takes longer, something is wrong
 
 FEATURE_FLAG_PREFIX = "feature_flag"
 
+# DRF token authentication cache (token hash -> resolved (user, token) pair)
+TOKEN_AUTH_NS = "auth"
+TOKEN_AUTH_TOKEN_PREFIX = f"{TOKEN_AUTH_NS}:token:"  # auth:token:<sha256>
+TOKEN_AUTH_CACHE_TTL = 60  # seconds; short so is_active/deletions stay bounded
+
 # Browse API (alphabetical entity browsing)
 BROWSE_NS = "browse"
-BROWSE_AVAILABLE_LETTERS_PREFIX = f"{BROWSE_NS}:available_letters:"  # browse:available_letters:<entity_type>
+BROWSE_AVAILABLE_LETTERS_PREFIX = (
+    f"{BROWSE_NS}:available_letters:"  # browse:available_letters:<entity_type>
+)
 BROWSE_CACHE_TIMEOUT = 300  # 5 minutes
 
 # ── Security / Threat Detection ──────────────────────────────────────
@@ -149,6 +178,7 @@ ADMIN_FEEDBACK_POOL_AMOUNT_ISSUE_DECISIONS_KEY = (
     "admin:feedback_pool:amount_issue_decisions:v2"
 )
 
+
 def get_velocity_key(ip: str) -> str:
     """Redis key for per-IP request velocity (rolling window)."""
     return f"{SECURITY_VELOCITY_PREFIX}{ip}"
@@ -167,6 +197,7 @@ def get_errors_key(ip: str) -> str:
 def get_scan_key(ip: str) -> str:
     """Redis key for per-IP distinct-endpoint set (scan detection)."""
     return f"{SECURITY_SCAN_PREFIX}{ip}"
+
 
 def get_endpoint_key(endpoint):
     """Get the Redis key for endpoint stats"""
@@ -261,6 +292,17 @@ def get_api_cache_key(view_name: str, **params) -> str:
     for key, value in sorted(params.items()):
         parts.append(f"{key}={value}")
     return ":".join(parts)
+
+
+def get_token_auth_cache_key(token: str | bytes) -> str:
+    """
+    Generate the cache key for a raw DRF token.
+
+    The raw token never becomes part of a Redis key (or a log line): only its
+    SHA-256 digest does, so leaked key listings cannot be replayed as tokens.
+    """
+    raw = token.encode("utf-8") if isinstance(token, str) else token
+    return f"{TOKEN_AUTH_TOKEN_PREFIX}{hashlib.sha256(raw).hexdigest()}"
 
 
 def get_warmup_status_key(cache_key: str) -> str:

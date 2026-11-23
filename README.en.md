@@ -118,23 +118,11 @@ cd crati
 2. **Create environment file**
 
 ```bash
-cp .env_files/.env.local.secrets.example .env_files/.env.local.secrets
+DEV_MODE=true scripts/ci/create_env_file.sh .env_files/.env.local.secrets
 ```
 
-Edit `.env_files/.env.local.secrets`:
-
-```bash
-# Minimal configuration for quick start
-POSTGRES_USER=local_user
-POSTGRES_PASSWORD=local_pass
-POSTGRES_DB=local_diavgia
-DJANGO_SECRET_KEY=$(openssl rand -hex 32)
-DEBUG=true
-
-# Disable optional services for faster startup (optional)
-INDEX_THE_OPENSEARCH=false
-TRANSMIT_TO_JAEGER=false
-```
+The script fills every required variable with safe local values and turns
+`DEBUG` on. Nothing else needs to be edited for a local stack.
 
 3. **Start the stack**
 
@@ -165,6 +153,29 @@ Only when started with `--profile observability`:
 
 - **Grafana**: http://localhost:3001
 - **Jaeger**: http://localhost:16686
+
+5. **Fill the database**
+
+The stack starts with an empty database. Import one recent low-volume day
+through the real pipeline:
+
+```bash
+docker-compose -f docker/docker-compose.yml --env-file=.env_files/.env.local.secrets exec backend \
+  python manage.py seed_quickstart
+```
+
+It picks the most recent completed day with 100 to 1,000 decisions, enables
+the post-import work, and queues the import. Recent weekdays usually carry
+25,000 or more decisions, so this normally selects a weekend or holiday. The
+worker then creates decisions, organizations, units, signers, and act types,
+and post-import fills the cache and verifies high-value amounts. Pass
+`--date YYYY-MM-DD` to pin a day, `--max-count` to change the size, or
+`--dry-run` to resolve the date without queueing. `make sample-data` runs the
+same command.
+
+Monitor at http://localhost/admin/core/importjob/ or http://localhost:5555
+(Flower). See [CONTRIBUTING.md](CONTRIBUTING.md#development-setup) for
+reference data and full-history backfill.
 
 ## Documentation
 

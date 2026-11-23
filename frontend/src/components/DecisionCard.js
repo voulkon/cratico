@@ -29,13 +29,20 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
   const docPollRef = useRef(null);
 
  // AI summary (multi-model)
-  const [aiAnalyses, setAiAnalyses] = useState([]);
+  // Seeded from the list payload (completed analyses are embedded per row),
+  // so the summary count renders without a per-card detail request.
+  const [aiAnalyses, setAiAnalyses] = useState(decision.ai_analyses || []);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiRequesting, setAiRequesting] = useState(false);
   const aiPollRef = useRef(null);
   // Model selection for requesting a new summary
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState('');
+
+  // Detail/content are fetched only when their collapsible section opens.
+  const [detailLoaded, setDetailLoaded] = useState(false);
+  const [docOpen, setDocOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
 
   const [entityRelationships, setEntityRelationships] = useState(null);
   const [showEntities, setShowEntities] = useState(false);
@@ -74,7 +81,8 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
     }
   }, [decision.id]);
 
- // Fetch AI analyses
+  // Fetch the full detail row: running/failed analyses and one-liner
+  // history are not in the list payload.
   const fetchAIAnalyses = useCallback(async () => {
     try {
       setAiLoading(true);
@@ -83,6 +91,7 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
       // Support both old ai_analysis (single) and new ai_analyses (array)
       const analyses = data?.ai_analyses || (data?.ai_analysis ? [data.ai_analysis] : []);
       setAiAnalyses(analyses);
+      setDetailLoaded(true);
     } catch {
       // silently fail
     } finally {
@@ -90,11 +99,21 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
     }
   }, [decision.id]);
 
-  // Initial fetch on mount
-  useEffect(() => {
-    if (decision.has_document_content) fetchDocumentContent();
-    fetchAIAnalyses();
-  }, [decision.has_document_content, fetchDocumentContent, fetchAIAnalyses]);
+  // Load detail/content lazily: a collapsed card must not fan out one
+  // request per list row.
+  const handleDocumentToggle = (open) => {
+    setDocOpen(open);
+    if (open && decision.has_document_content && docStatus === null && !docLoading) {
+      fetchDocumentContent();
+    }
+  };
+
+  const handleAIToggle = (open) => {
+    setAiOpen(open);
+    if (open && !detailLoaded && !aiLoading) {
+      fetchAIAnalyses();
+    }
+  };
 
   // Fetch available models for the dropdown
   useEffect(() => {
@@ -404,7 +423,8 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
             </span>
           ) : null
         }
-        defaultOpen={false}
+        open={docOpen}
+        onToggle={handleDocumentToggle}
         className="dc-collapsible dc-content-collapsible"
       >
         {docStatus === 'COMPLETED' && docContent ? (
@@ -453,7 +473,8 @@ const DecisionCard = ({ decision, formatAmount, index, isLastItem, onViewDocumen
             <span className="dc-collapsible-subtitle">{t('decisionCard.aiSummaryRunning')}</span>
           ) : null
         }
-        defaultOpen={false}
+        open={aiOpen}
+        onToggle={handleAIToggle}
         className="dc-collapsible dc-ai-collapsible"
       >
         {/* Model picker + single summarize button — always visible */}

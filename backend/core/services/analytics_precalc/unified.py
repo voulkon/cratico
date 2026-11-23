@@ -9,6 +9,7 @@ from datetime import date
 
 from loguru import logger
 
+from api.redis_keys import UNIFIED_AGGREGATE_CACHE_PARAMS
 from core.models.decisions import Decision
 from core.services.decision_projections import (
     aggregate_decision_types,
@@ -16,9 +17,26 @@ from core.services.decision_projections import (
     compute_statistics,
 )
 
-from ._helpers import _make_aware_start, _make_aware_end, parse_date, response_cache
+from ._helpers import _make_aware_end, _make_aware_start, parse_date, response_cache
 
 __all__ = ["warm_unified_window"]
+
+
+def _unified_cache_key_params(view_name, start_date_str, end_date_str):
+    """Cache-key params matching @cached_view on the unified endpoint.
+
+    The decorator keys every entry with all query params in
+    ``UNIFIED_AGGREGATE_CACHE_PARAMS`` (missing ones as ``""``), so the
+    warmup must do the same or it writes keys the view never looks up.
+    """
+    params = {name: "" for name in UNIFIED_AGGREGATE_CACHE_PARAMS}
+    params.update(
+        source="temporal",
+        view=view_name,
+        start_date=start_date_str,
+        end_date=end_date_str,
+    )
+    return params
 
 
 def warm_unified_window(
@@ -37,11 +55,12 @@ def warm_unified_window(
     and explore-decision-types calls hit Redis instead of running heavy DB
     aggregations on the first user request.
 
-    Cache keys built::
+    Cache keys built (one per projection, using the same param set as
+    ``@cached_view``; entity/filter params are empty for temporal windows)::
 
-        unified:source=temporal:view=date_range:start_date=…:end_date=…
-        unified:source=temporal:view=statistics:start_date=…:end_date=…
-        unified:source=temporal:view=decision_types:start_date=…:end_date=…
+        unified:source=temporal:view=date_range:...:start_date=…:end_date=…
+        unified:source=temporal:view=statistics:...:start_date=…:end_date=…
+        unified:source=temporal:view=decision_types:...:start_date=…:end_date=…
     """
     start_parsed = parse_date(start_date_str)
     end_parsed = parse_date(end_date_str)
@@ -66,20 +85,14 @@ def warm_unified_window(
         data = compute_fn()
         cache_key = response_cache.build_key(
             "unified",
-            source="temporal",
-            view=view_name,
-            start_date=start_date_str,
-            end_date=end_date_str,
+            **_unified_cache_key_params(view_name, start_date_str, end_date_str),
         )
         response_cache.set(cache_key, data, end_date=end_date)
 
     # Constant part of the warmed keys (everything except ``view``).
-    base_key = response_cache.build_key(
-        "unified",
-        source="temporal",
-        start_date=start_date_str,
-        end_date=end_date_str,
-    )
+    base_params = _unified_cache_key_params("date_range", start_date_str, end_date_str)
+    base_params.pop("view")
+    base_key = response_cache.build_key("unified", **base_params)
     logger.info(
         f"[AnalyticsPrecalc] Warmed unified endpoint "
         f"[{start_date_str} → {end_date_str}] base={base_key} | "

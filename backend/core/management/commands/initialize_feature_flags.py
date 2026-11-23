@@ -45,6 +45,7 @@ class Command(BaseCommand):
 
         created_count = 0
         updated_count = 0
+        backfilled_count = 0
         skipped_count = 0
 
         try:
@@ -86,6 +87,9 @@ class Command(BaseCommand):
                             defaults["list_value"] = flag_data.get("default", [])
                         elif value_type == "string":
                             defaults["string_value"] = flag_data.get("default", "")
+                        elif value_type == "integer":
+                            # Integers are stored in string_value as text.
+                            defaults["string_value"] = str(flag_data.get("default", 0))
 
                         flag, created = FeatureFlag.objects.get_or_create(
                             key=flag_key, defaults=defaults
@@ -144,13 +148,27 @@ class Command(BaseCommand):
                                 + f' - {flag_data["name"]}'
                             )
                         else:
-                            skipped_count += 1
-                            current_status = (
-                                "[RUNNING] ON" if flag.enabled else "[PENDING] OFF"
-                            )
-                            self.stdout.write(
-                                f'  - Exists: {flag_key} = {current_status} - {flag_data["name"]}'
-                            )
+                            if value_type == "integer" and not flag.string_value:
+                                # Rows created before the integer branch existed have a
+                                # blank string_value, so get_value() returns None.
+                                flag.string_value = str(flag_data.get("default", 0))
+                                if not dry_run:
+                                    flag.save(update_fields=["string_value"])
+                                backfilled_count += 1
+                                self.stdout.write(
+                                    self.style.WARNING(
+                                        f"  ↻ Backfilled: {flag_key} = {flag.string_value}"
+                                    )
+                                    + f' - {flag_data["name"]}'
+                                )
+                            else:
+                                skipped_count += 1
+                                current_status = (
+                                    "[RUNNING] ON" if flag.enabled else "[PENDING] OFF"
+                                )
+                                self.stdout.write(
+                                    f'  - Exists: {flag_key} = {current_status} - {flag_data["name"]}'
+                                )
 
                     except Exception as e:
                         self.stdout.write(
@@ -178,6 +196,11 @@ class Command(BaseCommand):
 
         if updated_count > 0:
             self.stdout.write(self.style.WARNING(f"  Updated: {updated_count} flag(s)"))
+
+        if backfilled_count > 0:
+            self.stdout.write(
+                self.style.SUCCESS(f"  Backfilled: {backfilled_count} flag(s)")
+            )
 
         if skipped_count > 0:
             self.stdout.write(f"  Skipped: {skipped_count} flag(s) (already exist)")

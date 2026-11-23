@@ -651,7 +651,11 @@ class FeatureFlagService:
 
         # Use KNOWN_FLAGS default
         if flag_key in self.KNOWN_FLAGS:
-            return self.KNOWN_FLAGS[flag_key]["default"]
+            known_default = self.KNOWN_FLAGS[flag_key]["default"]
+            # Blank integer rows and missing rows resolve to None; cache the
+            # default so each lookup is not another database round trip.
+            cache.set(cache_key, known_default, self.CACHE_TIMEOUT)
+            return known_default
 
         # Type-appropriate default
         logger.warning(

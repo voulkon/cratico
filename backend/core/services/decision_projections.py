@@ -19,17 +19,33 @@ Projections:
 
 from __future__ import annotations
 
-from datetime import date as date_type, datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from django.core.paginator import Paginator
 from django.db import models
-from django.db.models import QuerySet
+from django.db.models import Exists, OuterRef, Prefetch, QuerySet
+from django.utils.functional import cached_property
 
 from core.services.decision_facets import (
     amount_sum_excluding_kae,
     effective_amount_max,
     effective_linked_amount_sum,
+)
+
+# Columns the default card serializer reads; ``.only()`` keeps the wide
+# DocumentExtraction columns off the list query.
+DEFAULT_LIST_ONLY_FIELDS = (
+    "id",
+    "ada",
+    "subject",
+    "issue_date_day",
+    "amount",
+    "status",
+    "document_url",
+    "decision_type__uid",
+    "decision_type__label",
+    "organization__uid",
+    "organization__label",
 )
 
 
@@ -175,19 +191,89 @@ def build_shareable_one_liners_by_decision(decision_ids):
 # paginate_decisions  (view=decisions)
 # ---------------------------------------------------------------------------
 
+def annotate_has_document_content(qs: QuerySet) -> QuerySet:
+    """
+    Annotate ``has_document_content`` without joining the extraction row.
+
+    The serializer only needs ``bool(raw_text)``.  An ``Exists`` subquery
+    returns the same value without pulling the wide ``raw_text`` /
+    ``search_vector`` columns for every list row.
+    """
+    from core.models.document_analysis import DocumentExtraction, ProcessingStatus
+
+    if "has_document_content" in qs.query.annotations:
+        return qs
+
+    has_content = (
+        DocumentExtraction.objects.filter(
+            decision=OuterRef("pk"),
+            extraction_status=ProcessingStatus.COMPLETED,
+        )
+        .exclude(raw_text__isnull=True)
+        .exclude(raw_text="")
+    )
+    return qs.annotate(has_document_content=Exists(has_content))
+
+
+class _PrecountedPaginator(Paginator):
+    """Paginator that uses a precomputed total.
+
+    Counting the optimized list queryset would evaluate the
+    ``has_document_content`` ``Exists`` subquery for every row, which cost
+    about 274 ms on the organization page.  Count the unannotated queryset
+    once and reuse it.
+    """
+
+    def __init__(self, object_list, per_page, total_count):
+        super().__init__(object_list, per_page)
+        self._total_count = total_count
+
+    @cached_property
+    def count(self):
+        return self._total_count
+
+
+def _prefetch_list_relations(qs: QuerySet) -> QuerySet:
+    """Prefetch the per-card relations the list serializer reads.
+
+    ``ai_analyses`` is limited to completed rows with a summary, the only
+    rows the card renders, so the page costs one bounded query.  Newest
+    first.
+    """
+    from core.models.decision_ai_analysis import (
+        AnalysisStatus,
+        DecisionAIAnalysis,
+    )
+
+    completed_analyses = (
+        DecisionAIAnalysis.objects.filter(status=AnalysisStatus.COMPLETED)
+        .exclude(summary="")
+        .order_by("-created_at", "-id")
+    )
+    return qs.prefetch_related(
+        "kae_amounts",
+        "signers",
+        Prefetch("ai_analyses", queryset=completed_analyses),
+    )
+
+
 def paginate_decisions(
     qs: QuerySet,
     page: int = 1,
     page_size: int = 20,
     *,
     serialize_fn=None,
+    only_fields: Optional[tuple[str, ...]] = None,
     filters: Optional[Dict[str, Any]] = None,
+    count_qs: Optional[QuerySet] = None,
     search_log_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Paginate a Decision queryset and return a standardised response dict.
 
-    Includes batched entity-relationship fetching to avoid N+1 queries.
+    Includes batched entity-relationship, one-liner, amount-field, and
+    AI-analysis fetching, so the page costs a constant number of queries
+    regardless of page size.
 
     Args:
         qs: Filtered & sorted Decision queryset.
@@ -195,8 +281,16 @@ def paginate_decisions(
         page_size: Items per page.
         serialize_fn: Optional callable(decision, entity_rels) → dict.
                       Defaults to ``serialize_decision_with_entities``.
+        only_fields: Optional model-field paths to ``.only()`` on the page
+                     query.  Defaults to ``DEFAULT_LIST_ONLY_FIELDS`` when
+                     the default serializer is used; pass ``None`` with a
+                     custom ``serialize_fn`` to load every column.
         filters: Optional dict of applied filters to echo back to the
                  frontend (search_query, status, dates, sort, etc.).
+        count_qs: Optional queryset for the paginator total.  Pass a
+                  queryset with the same filters but built with
+                  ``apply_decision_facets(..., count_only=True)`` so the
+                  COUNT does not join the amount table.  Defaults to ``qs``.
         search_log_id: Optional search-analytics log ID for click tracking.
 
     Returns a dict with ``results``, ``pagination``, ``filters``, and
@@ -206,11 +300,22 @@ def paginate_decisions(
 
     if serialize_fn is None:
         serialize_fn = serialize_decision_with_entities
+        if only_fields is None:
+            only_fields = DEFAULT_LIST_ONLY_FIELDS
 
-    # Optimise
-    qs = qs.select_related(
-        "decision_type", "organization", "text_extraction"
-    ).prefetch_related("kae_amounts", "signers")
+    # Count before the list annotation: the paginator's COUNT(*) would
+    # otherwise evaluate has_document_content for every row.  ``count_qs``
+    # additionally keeps calculated_amount (and its amount-table join) out
+    # of the count.
+    total_count = (count_qs if count_qs is not None else qs).count()
+
+    # ``text_extraction`` is not joined: the page carries ``has_document_content``
+    # instead, keeping the wide raw_text / search_vector columns off the SELECT.
+    qs = qs.select_related("decision_type", "organization")
+    qs = annotate_has_document_content(qs)
+    qs = _prefetch_list_relations(qs)
+    if only_fields:
+        qs = qs.only(*only_fields)
 
     # Ensure the queryset has deterministic ordering (Django Paginator warns
     # on unordered querysets).  Callers should have already applied a sort
@@ -218,7 +323,7 @@ def paginate_decisions(
     if not qs.query.order_by:
         qs = qs.order_by("-issue_date_day")
 
-    paginator = Paginator(qs, page_size)
+    paginator = _PrecountedPaginator(qs, page_size, total_count)
     page_obj = paginator.get_page(page)
 
     # ── Batch-fetch entity relationships (eliminates N+1) ──────────

@@ -76,15 +76,24 @@ lint:
 lint-install:
 	pip install pre-commit && pre-commit install
 
-# ───────────────────────── Data Management (TODO) ─────────────────────────
+# ───────────────────────── Data Management ─────────────────────────
 
-sample-data:
-	@echo "TODO: implement sample data generation"
-	@exit 1
+# Import a recent low-volume day through the real pipeline. Override the
+# defaults with ARGS, e.g. make sample-data ARGS="--max-count 500"
+sample-data: ## Import a recent low-volume day through the real pipeline
+	docker compose -f $(COMPOSE_FILE) --env-file=$(ENV_FILE) exec -T backend \
+	  python manage.py seed_quickstart $(ARGS)
 
 reset-db:
 	@echo "TODO: implement DB reset with sample data"
 	@exit 1
+
+# ───────────────────────── Log analysis ─────────────────────────
+
+FILE ?= org_loading
+
+sql-report: ## Readable SQL report from a Django log (FILE=..., ARGS="...")
+	python3 scripts/analyze_sql_log.py $(FILE) $(ARGS)
 
 # ───────────────────────── Code Quality ─────────────────────────
 

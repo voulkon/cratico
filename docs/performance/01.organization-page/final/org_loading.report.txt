@@ -1,0 +1,257 @@
+Parsed 56 lines: 46 queries, 7 requests, 3 skipped
+DB time  527.2ms across 46 queries
+Window   01:07:44.033 → 01:07:45.498 (wall 1.47s)
+
+1.  1×  170.7ms total  (170.7ms avg, 170.7ms max, 32.4%)
+    SELECT MIN(__col1), MAX(__col1), COUNT(__col2), SUM(COALESCE(__col3, __col4)) FILTER (WHERE (NOT
+    (__col5::text LIKE ? AND __col5 IS NOT NULL) AND NOT (__col6 IS NOT NULL)))
+    FROM (SELECT core_decision.issue_date_day AS __col1, core_decision.id AS __col2,
+    core_decisionamountfield.verified_amount AS __col3, core_decisionamountfield.amount AS __col4,
+    core_decisionamountfield.parent_key_path AS __col5,
+    core_decisionamountfield.invalid_amount_reason AS __col6 FROM core_decision LEFT OUTER JOIN
+    core_decisionamountfield ON (core_decision.id = core_decisionamountfield.decision_id) WHERE
+    core_decision.organization_id = ? GROUP BY ?, ?, ?, ?, ?) subquery
+    params: amountWithKae%
+
+2.  1×  110.0ms total  (110.0ms avg, 110.0ms max, 20.9%)
+    SELECT COUNT(*)
+    FROM (SELECT core_decision.id AS col1 FROM core_decision LEFT OUTER JOIN
+    core_decisionamountfield ON (core_decision.id = core_decisionamountfield.decision_id) INNER JOIN
+    core_decisionclassification ON (core_decision.id = core_decisionclassification.decision_id)
+    WHERE (core_decision.organization_id = ? AND core_decision.issue_date_day >= ?::date AND
+    core_decision.issue_date_day <= ?::date AND core_decisionclassification.is_direct_assignment)
+    GROUP BY ?) subquery
+    params: 100054489
+
+3.  1×  59.8ms total  (59.8ms avg, 59.8ms max, 11.4%)
+    SELECT core_afmentity.afm AS entity__afm, core_afmentity.name AS entity__name,
+    core_afmentity.entity_type AS entity__entity_type,
+    SUM(COALESCE(core_decisionamountfield.verified_amount, core_decisionamountfield.amount)) FILTER
+    (WHERE NOT (core_decisionamountfield.invalid_amount_reason IS NOT NULL)) AS total_amount,
+    COUNT(DISTINCT core_decisionentityrelationship.decision_id) AS decision_count,
+    AVG(COALESCE(core_decisionamountfield.verified_amount, core_decisionamountfield.amount)) FILTER
+    (WHERE NOT (core_decisionamountfield.invalid_amount_reason IS NOT NULL)) AS avg_amount,
+    MAX(COALESCE(core_decisionamountfield.verified_amount, core_decisionamountfield.amount)) FILTER
+    (WHERE NOT (core_decisionamountfield.invalid_amount_reason IS NOT NULL)) AS max_amount,
+    MIN(COALESCE(core_decisionamountfield.verified_amount, core_decisionamountfield.amount)) FILTER
+    (WHERE NOT (core_decisionamountfield.invalid_amount_reason IS NOT NULL)) AS min_amount
+    FROM core_decisionentityrelationship
+    INNER JOIN core_decision ON (core_decisionentityrelationship.decision_id = core_decision.id)
+    INNER JOIN core_afmentity ON (core_decisionentityrelationship.entity_id = core_afmentity.id)
+    LEFT OUTER JOIN core_decisionamountfield ON (core_decisionentityrelationship.id =
+    core_decisionamountfield.associated_relationship_id)
+    WHERE (core_decision.issue_date_day >= ?::date AND core_decision.issue_date_day <= ?::date AND
+    core_decision.organization_id = ? AND core_decisionentityrelationship.role IN (?))
+    GROUP BY ?, ?, ?
+    HAVING SUM(COALESCE(core_decisionamountfield.verified_amount, core_decisionamountfield.amount))
+    FILTER (WHERE NOT (core_decisionamountfield.invalid_amount_reason IS NOT NULL)) > ?
+    ORDER BY ? DESC
+    LIMIT ?
+    params: 2025-11-01
+
+4.  1×  49.2ms total  (49.2ms avg, 49.2ms max, 9.3%)
+    SELECT core_decision.decision_type_id AS decision_type__uid, COUNT(core_decision.id) AS count,
+    SUM(COALESCE(core_decisionamountfield.verified_amount, core_decisionamountfield.amount)) FILTER
+    (WHERE (NOT (core_decisionamountfield.parent_key_path::text LIKE ? AND
+    core_decisionamountfield.parent_key_path IS NOT NULL) AND NOT
+    (core_decisionamountfield.invalid_amount_reason IS NOT NULL))) AS total_amount,
+    MAX(COALESCE(core_decisionamountfield.verified_amount, core_decisionamountfield.amount)) FILTER
+    (WHERE NOT (core_decisionamountfield.invalid_amount_reason IS NOT NULL)) AS max_amount,
+    MAX(core_acttype.label) AS label
+    FROM core_decision
+    LEFT OUTER JOIN core_decisionamountfield ON (core_decision.id =
+    core_decisionamountfield.decision_id)
+    INNER JOIN core_acttype ON (core_decision.decision_type_id = core_acttype.uid)
+    WHERE (core_decision.organization_id = ? AND core_decision.issue_date_day >= ?::date AND
+    core_decision.issue_date_day <= ?::date AND core_decision.decision_type_id IS NOT NULL)
+    GROUP BY ?
+    ORDER BY ? DESC
+    params: amountWithKae%
+
+5.  1×  43.3ms total  (43.3ms avg, 43.3ms max, 8.2%)
+    SELECT core_decision.id, core_decision.ada, core_decision.subject,
+    core_decision.organization_id, core_decision.decision_type_id, core_decision.status,
+    core_decision.document_url, core_decision.amount, … (+4 more)
+    FROM core_documentextraction U0
+    WHERE (U0.decision_id = (core_decision.id) AND U0.extraction_status = ? AND NOT (U0.raw_text IS
+    NULL) AND NOT (U0.raw_text = ? AND U0.raw_text IS NOT NULL))
+    LIMIT ?) AS has_document_content, core_organization.uid, core_organization.label,
+    core_acttype.uid, core_acttype.label
+    FROM core_decision
+    INNER JOIN core_organization ON (core_decision.organization_id = core_organization.uid)
+    LEFT OUTER JOIN core_decisionamountfield ON (core_decision.id =
+    core_decisionamountfield.decision_id)
+    INNER JOIN core_decisionclassification ON (core_decision.id =
+    core_decisionclassification.decision_id)
+    LEFT OUTER JOIN core_acttype ON (core_decision.decision_type_id = core_acttype.uid)
+    WHERE (core_decision.organization_id = ? AND core_decision.issue_date_day >= ?::date AND
+    core_decision.issue_date_day <= ?::date AND core_decisionclassification.is_direct_assignment)
+    GROUP BY core_decision.id, core_organization.uid, core_acttype.uid
+    ORDER BY ? DESC, core_decision.issue_date_day DESC
+    LIMIT ?
+    params: amountWithKae%
+
+6.  1×  43.1ms total  (43.1ms avg, 43.1ms max, 8.2%)
+    SELECT core_decision.issue_date_year AS period, COUNT(core_decision.id) AS count,
+    SUM(COALESCE(core_decisionamountfield.verified_amount, core_decisionamountfield.amount)) FILTER
+    (WHERE (NOT (core_decisionamountfield.parent_key_path::text LIKE ? AND
+    core_decisionamountfield.parent_key_path IS NOT NULL) AND NOT
+    (core_decisionamountfield.invalid_amount_reason IS NOT NULL))) AS total_amount
+    FROM core_decision
+    LEFT OUTER JOIN core_decisionamountfield ON (core_decision.id =
+    core_decisionamountfield.decision_id)
+    WHERE core_decision.organization_id = ?
+    GROUP BY ?
+    ORDER BY ? ASC
+    params: amountWithKae%
+
+7.  1×  25.1ms total  (25.1ms avg, 25.1ms max, 4.8%)
+    SELECT COUNT(*)
+    FROM (SELECT DISTINCT core_decisionentityrelationship.entity_id AS entity FROM
+    core_decisionentityrelationship INNER JOIN core_decision ON
+    (core_decisionentityrelationship.decision_id = core_decision.id) WHERE
+    (core_decision.issue_date_day >= ?::date AND core_decision.issue_date_day <= ?::date AND
+    core_decision.organization_id = ? AND core_decisionentityrelationship.role IN (?))) subquery
+    params: 2025-11-01
+
+8.  2×  6.7ms total  (3.3ms avg, 4.4ms max, 1.3%)
+    SELECT core_organization.uid, core_organization.latin_name, core_organization.abbreviation,
+    core_organization.label, core_organization.status, core_organization.category,
+    core_organization.vat_number, core_organization.fek_number, … (+6 more)
+    FROM core_organization
+    WHERE core_organization.uid = ?
+    LIMIT ?
+    params: 100054489
+
+9.  3×  4.5ms total  (1.5ms avg, 4.2ms max, 0.8%)
+    SELECT core_legaldocument.id, core_legaldocument.type, core_legaldocument.title,
+    core_legaldocument.language, core_legaldocument.content, core_legaldocument.updated_at,
+    core_legaldocument.updated_by_id
+    FROM core_legaldocument
+    WHERE (core_legaldocument.language = ? AND core_legaldocument.type = ?)
+    LIMIT ?
+    params: el
+
+10.  9×  3.7ms total  (0.4ms avg, 1.7ms max, 0.7%)
+    UPDATE core_feature_flags SET last_checked_at = ?::timestamptz
+    WHERE core_feature_flags.id = ?
+    params: 2026-11-23T13:07:44.034075+00:00, 2026-11-23T13:07:44.039516+00:00,
+    2026-11-23T13:07:44.041062+00:00, 2026-11-23T13:07:44.043369+00:00,
+    2026-11-23T13:07:44.044624+00:00
+
+11.  1×  2.9ms total  (2.9ms avg, 2.9ms max, 0.6%)
+    SELECT core_decisionentityrelationship.id, core_decisionentityrelationship.decision_id,
+    core_decisionentityrelationship.entity_id, core_decisionentityrelationship.role,
+    core_decisionentityrelationship.parent_key_path,
+    core_decisionentityrelationship.source_field_name, core_decisionentityrelationship.raw_context,
+    core_decisionentityrelationship.extracted_at, … (+19 more)
+    FROM core_decisionentityrelationship
+    LEFT OUTER JOIN core_decisionamountfield ON (core_decisionentityrelationship.id =
+    core_decisionamountfield.associated_relationship_id)
+    INNER JOIN core_afmentity ON (core_decisionentityrelationship.entity_id = core_afmentity.id)
+    WHERE core_decisionentityrelationship.decision_id IN (?)
+    GROUP BY core_decisionentityrelationship.id, core_afmentity.id
+    params: 88089
+
+12.  9×  2.2ms total  (0.2ms avg, 1.1ms max, 0.4%)
+    SELECT core_feature_flags.id, core_feature_flags.key, core_feature_flags.enabled,
+    core_feature_flags.value_type, core_feature_flags.list_value, core_feature_flags.string_value,
+    core_feature_flags.category, core_feature_flags.name, … (+9 more)
+    FROM core_feature_flags
+    WHERE (core_feature_flags.is_active AND core_feature_flags.key = ?)
+    ORDER BY core_feature_flags.category ASC, core_feature_flags.key ASC
+    LIMIT ?
+    params: SECURITY_MONITORING_ENABLED, SEARCH_DEBOUNCE_MS, DOCUMENT_SEARCH_ENABLED,
+    SECURITY_AUTO_BAN_ENABLED, SECURITY_VELOCITY_THRESHOLD
+
+13.  1×  1.6ms total  (1.6ms avg, 1.6ms max, 0.3%)
+    SELECT (core_decision_signers.decision_id) AS _prefetch_related_val_decision_id,
+    core_signer.uid, core_signer.first_name, core_signer.last_name, core_signer.active,
+    core_signer.active_from, core_signer.active_until, core_signer.organization_id, … (+3 more)
+    FROM core_signer
+    INNER JOIN core_decision_signers ON (core_signer.uid = core_decision_signers.signer_id)
+    WHERE core_decision_signers.decision_id IN (?)
+    params: 88089
+
+14.  1×  1.5ms total  (1.5ms avg, 1.5ms max, 0.3%)
+    SELECT core_decisiononeliner.id, core_decisiononeliner.decision_id,
+    core_decisiononeliner.extraction_id, core_decisiononeliner.config_id,
+    core_decisiononeliner.attempt, core_decisiononeliner.one_liner, core_decisiononeliner.status,
+    core_decisiononeliner.error_message, … (+39 more)
+    FROM core_decisiononeliner
+    LEFT OUTER JOIN core_documentextraction ON (core_decisiononeliner.extraction_id =
+    core_documentextraction.id)
+    INNER JOIN core_onelinerconfig ON (core_decisiononeliner.config_id = core_onelinerconfig.id)
+    WHERE (core_decisiononeliner.decision_id IN (?) AND core_decisiononeliner.one_liner IS NOT NULL
+    AND core_decisiononeliner.status = ? AND NOT (core_decisiononeliner.one_liner = ? AND
+    core_decisiononeliner.one_liner IS NOT NULL))
+    ORDER BY core_decisiononeliner.decision_id ASC, core_decisiononeliner.completed_at DESC,
+    core_decisiononeliner.attempt DESC, core_decisiononeliner.id DESC
+    params: 88089
+
+15.  9×  1.0ms total  (0.1ms avg, 0.1ms max, 0.2%)
+    SELECT core_feature_flags.id, core_feature_flags.key, core_feature_flags.enabled,
+    core_feature_flags.value_type, core_feature_flags.list_value, core_feature_flags.string_value,
+    core_feature_flags.category, core_feature_flags.name, … (+9 more)
+    FROM core_feature_flags
+    WHERE core_feature_flags.id = ?
+    LIMIT ?
+    params: 56, 65, 69, 58, 59
+
+16.  1×  0.8ms total  (0.8ms avg, 0.8ms max, 0.2%)
+    SELECT core_decisionaianalysis.id, core_decisionaianalysis.decision_id,
+    core_decisionaianalysis.pipeline_run_id, core_decisionaianalysis.status,
+    core_decisionaianalysis.summary, core_decisionaianalysis.cost_usd,
+    core_decisionaianalysis.input_tokens, core_decisionaianalysis.output_tokens, … (+5 more)
+    FROM core_decisionaianalysis
+    WHERE (core_decisionaianalysis.status = ? AND NOT (core_decisionaianalysis.summary = ? AND
+    core_decisionaianalysis.summary IS NOT NULL) AND core_decisionaianalysis.decision_id IN (?))
+    ORDER BY core_decisionaianalysis.created_at DESC, core_decisionaianalysis.id DESC
+    params: COMPLETED
+
+17.  1×  0.5ms total  (0.5ms avg, 0.5ms max, 0.1%)
+    SELECT core_decisionamountkae.id, core_decisionamountkae.decision_id,
+    core_decisionamountkae.kae, core_decisionamountkae.amount
+    FROM core_decisionamountkae
+    WHERE core_decisionamountkae.decision_id IN (?)
+    params: 88089
+
+18.  1×  0.3ms total  (0.3ms avg, 0.3ms max, 0.1%)
+    SELECT core_decisionamountfield.decision_id AS decision_id
+    FROM core_decisionamountfield
+    WHERE (core_decisionamountfield.decision_id IN (?) AND
+    core_decisionamountfield.invalid_amount_reason IS NOT NULL)
+    params: 88089
+
+19.  1×  0.3ms total  (0.3ms avg, 0.3ms max, 0.1%)
+    SELECT core_legaldocument.id, core_legaldocument.type, core_legaldocument.title,
+    core_legaldocument.language, core_legaldocument.content, core_legaldocument.updated_at,
+    core_legaldocument.updated_by_id
+    FROM core_legaldocument
+    WHERE (core_legaldocument.language = ? AND NOT (core_legaldocument.type = ?))
+    ORDER BY core_legaldocument.type ASC
+    params: el
+
+Slowest individual queries (top 10)
+    170.7ms  01:07:44.820  SELECT MIN(__col1), MAX(__col1), COUNT(__col2), SUM(COALESCE(__col3, …
+    110.0ms  01:07:45.137  SELECT COUNT(*) FROM (SELECT core_decision.id AS col1 FROM …
+     59.8ms  01:07:45.086  SELECT core_afmentity.afm AS entity__afm, core_afmentity.name AS …
+     49.2ms  01:07:45.076  SELECT core_decision.decision_type_id AS decision_type__uid, …
+     43.3ms  01:07:45.182  SELECT core_decision.id, core_decision.ada, core_decision.subject, …
+     43.1ms  01:07:44.865  SELECT core_decision.issue_date_year AS period, …
+     25.1ms  01:07:45.112  SELECT COUNT(*) FROM (SELECT DISTINCT …
+      4.4ms  01:07:45.024  SELECT core_organization.uid, core_organization.latin_name, …
+      4.2ms  01:07:44.649  SELECT core_legaldocument.id, core_legaldocument.type, …
+      2.9ms  01:07:45.193  SELECT core_decisionentityrelationship.id, …
+
+Per-request (queries attributed to the next completed request)
+COUNT  DB TIME  STATUS  METHOD  PATH
+-----  -------  ------  ------  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+   27    6.9ms     200  GET     /api/system/config/auth/
+    4    4.7ms     200  GET     /api/system/legal/?language=el
+    3  216.1ms     200  GET     /api/decisions/unified/?source=entity&entity_type=organization&entity_id=100054489&view=date_range
+    2   53.5ms     200  GET     /api/decisions/unified/?start_date=2025-11-01&end_date=2026-10-31&source=entity&entity_type=organization&entity_id=100054489&view=decision_types
+    2   85.0ms     200  GET     /api/organizations/100054489/top-counterparts/?start_date=2025-11-01&end_date=2026-10-31&limit=5
+    8  161.0ms     200  GET     /api/decisions/unified/?source=entity&view=decisions&entity_type=organization&entity_id=100054489&sort_by=amount_desc&start_date=2025-11-01&end_date=2026-10-31&direct_assignments_only=true&page=1&page_size=20
+    0    0.0ms     200  GET     /api/ai/models/
+Note: concurrent requests are interleaved, so this split is approximate.

@@ -16,9 +16,9 @@ request and returns the user the API view will see (or ``None``).
 
 Cost: for requests without credentials every authenticator short-circuits
 before touching the database, so plain anonymous traffic pays almost nothing.
-Token requests cost one ``authtoken_token`` lookup here plus DRF's own lookup
-in the view — a token→user cache can be layered on later if measurements show
-it matters.
+Token requests share ``CachedTokenAuthentication``'s token→user cache, so the
+middleware pass and DRF's own view lookup normally cost at most one
+``authtoken_token`` query per TTL window, not one per request.
 """
 
 from typing import Any, Dict, Optional, Tuple
@@ -68,7 +68,9 @@ def authenticate_request(request) -> Optional[Any]:
     from rest_framework.request import Request as DRFRequest
 
     rest_config = getattr(settings, "REST_FRAMEWORK", None) or {}
-    auth_class_paths = tuple(rest_config.get("DEFAULT_AUTHENTICATION_CLASSES", []) or [])
+    auth_class_paths = tuple(
+        rest_config.get("DEFAULT_AUTHENTICATION_CLASSES", []) or []
+    )
     if not auth_class_paths:
         return None
 

@@ -10,11 +10,16 @@ import os
 # Keys may be set in env even when Clerk is intentionally disabled.
 USE_CLERK_AUTH = os.getenv("USE_CLERK_AUTH", "False").lower() == "true"
 
+# How long a resolved DRF token -> user pair stays cached (seconds).
+# Short enough that is_active/token deletions converge quickly.
+TOKEN_AUTH_CACHE_TTL = int(os.getenv("TOKEN_AUTH_CACHE_TTL", "60"))
+
 # Build authentication classes list.
 # TokenAuthentication is first so an explicit Bearer token always wins
 # over a residual session cookie (avoids stale-session cross-user issues).
 AUTH_CLASSES = [
-    "rest_framework.authentication.TokenAuthentication",
+    # Caches the token -> user lookup for TOKEN_AUTH_CACHE_TTL seconds.
+    "api.authentication.CachedTokenAuthentication",
     # CSRF-exempt session auth: fallback for browsable API / same-origin requests
     "api.authentication.CsrfExemptSessionAuthentication",
     "rest_framework.authentication.BasicAuthentication",

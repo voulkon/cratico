@@ -19,7 +19,6 @@ Usage:
 
 from __future__ import annotations
 
-from datetime import date as date_type
 from datetime import datetime
 from typing import Optional, Tuple
 
@@ -574,6 +573,7 @@ def apply_decision_facets(
     status_filter: str = "",
     amount_field: str = "calculated_amount",
     date_field: str = "issue_date_day",
+    count_only: bool = False,
 ) -> QuerySet:
     """
     Apply the complete set of standard facets to a Decision queryset.
@@ -581,11 +581,16 @@ def apply_decision_facets(
     Can be called with explicit keyword arguments OR by passing *request*
     (in which case all params are parsed from request.GET).
 
-    Always annotates ``calculated_amount`` (the sum of all linked
+    Annotates ``calculated_amount`` (the sum of all linked
     ``DecisionAmountField.amount`` rows) so that filtering, sorting and
     display all use the same accurate value.  The denormalised
     ``Decision.amount`` field is deliberately NOT used — it may be NULL
     even when linked amount fields contain real data.
+
+    Set ``count_only=True`` when the queryset is only used for a paginator
+    total: the annotation and the sort are skipped so ``COUNT(*)`` does not
+    join the amount table.  An amount filter still forces the annotation,
+    because the filter needs it.
 
     Returns the filtered + sorted queryset.
     """
@@ -630,15 +635,13 @@ def apply_decision_facets(
     qs = apply_organization_filter(qs, organization_ids)
 
     # ── Annotate calculated_amount *before* amount-range filtering ──
-    # Always annotate calculated_amount (sum of ALL linked
-    # DecisionAmountField.amount rows) so that filtering, sorting and
-    # display all use the same accurate value.  The denormalised
-    # Decision.amount field is deliberately ignored — it may be NULL
-    # even when linked amount fields contain real data.
-    if "calculated_amount" not in qs.query.annotations:
-        qs = qs.annotate(
-            calculated_amount=amount_sum_excluding_kae()
-        )
+    # The page query needs the sum for display and sorting.  The count
+    # path does not: skipping it keeps the amount-table LEFT JOIN and the
+    # GROUP BY out of ``COUNT(*)``.  An amount filter still needs it.
+    needs_amount = min_amount is not None or max_amount is not None
+    if not count_only or needs_amount:
+        if "calculated_amount" not in qs.query.annotations:
+            qs = qs.annotate(calculated_amount=amount_sum_excluding_kae())
     amount_field = "calculated_amount"
 
     # 6. Amount range
@@ -650,7 +653,8 @@ def apply_decision_facets(
     # 8. Viewed (no-op for non-batch sources)
     qs = apply_viewed(qs, viewed)
 
-    # 9. Sort
-    qs = apply_sort(qs, sort_by, amount_field=amount_field, date_field=date_field)
+    # 9. Sort (irrelevant for a count-only queryset)
+    if not count_only:
+        qs = apply_sort(qs, sort_by, amount_field=amount_field, date_field=date_field)
 
     return qs

@@ -27,14 +27,14 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from loguru import logger
 from rest_framework.decorators import api_view, permission_classes
-from api.permissions import PublicReadOnly
 from rest_framework.response import Response
 
+from api.permissions import PublicReadOnly
+from api.redis_keys import API_CACHE_EXPIRE_CURRENT, UNIFIED_AGGREGATE_CACHE_PARAMS
 from api.views.search.base import get_entity_info
 from core.decorators.cache_decorator import cached_view
 from core.services.decision_facets import (
     apply_decision_facets,
-    parse_amount_range,
     parse_date_range_from_request,
     parse_sort_by,
 )
@@ -159,21 +159,50 @@ _VIEWED_PARAM = openapi.Parameter(
 # Caching helper
 # ---------------------------------------------------------------------------
 
-def _should_cache_unified(request) -> bool:
-    """Only cache temporal-source projections that are cacheable.
 
-    - view=date_range: global date boundaries rarely change (1h TTL)
-    - view=statistics, view=decision_types: expensive aggregations that
-      benefit from caching; cache key includes date range.
-    - view=decisions is NOT cached (pagination + search queries vary).
-    - Non-temporal sources (entity, afm, relationship, batch, subscription)
-      are NOT cached (dynamic data, per-user scoping).
+def _should_cache_unified(request) -> bool:
+    """Cache the expensive aggregate projections.
+
+    - temporal source: ``date_range``, ``statistics``, ``decision_types`` are
+      global aggregates that only change when data is imported.
+    - entity source: ``date_range`` and ``decision_types`` are recomputed on
+      every organization/signer/unit/AFM page load; cache them with a short
+      TTL (see :func:`_unified_ttl`) so imports appear without invalidation.
+    - ``view=decisions`` is NOT cached (pagination + search queries vary).
+    - Other sources (afm, relationship, batch, subscription) are NOT cached
+      (per-user scoping / narrow dynamic queries).
     """
     source = (request.GET.get("source") or "").strip().lower()
     view_name = (request.GET.get("view") or "decisions").strip().lower()
-    if source != "temporal":
-        return False
-    return view_name in ("date_range", "statistics", "decision_types")
+
+    if source == "temporal":
+        return view_name in ("date_range", "statistics", "decision_types")
+    if source == "entity":
+        return view_name in ("date_range", "decision_types")
+    return False
+
+
+def _unified_ttl(request):
+    """Per-source TTL: entity aggregates get a short 5-minute window.
+
+    Entity data is refreshed by imports, so a short TTL keeps it fresh
+    without wiring invalidation into every import path.  Temporal projections
+    keep the smart end_date TTL (24h for historical windows).
+    """
+    source = (request.GET.get("source") or "").strip().lower()
+    if source == "entity":
+        return API_CACHE_EXPIRE_CURRENT
+    return None
+
+
+def _should_defer_unified(request) -> bool:
+    """Only temporal projections use async (defer-on-miss) warmup.
+
+    ``warm_single_window`` warms temporal windows, and the entity page expects
+    a synchronous 200 response; a 202 polling contract would break it.
+    """
+    source = (request.GET.get("source") or "").strip().lower()
+    return source == "temporal"
 
 
 # ---------------------------------------------------------------------------
@@ -241,11 +270,12 @@ def _should_cache_unified(request) -> bool:
 @permission_classes([PublicReadOnly])
 @cached_view(
     cache_prefix="unified",
-    cache_params=["source", "view", "start_date", "end_date"],
+    cache_params=list(UNIFIED_AGGREGATE_CACHE_PARAMS),
     end_date_param="end_date",
+    ttl_fn=_unified_ttl,
     should_cache_fn=_should_cache_unified,
     log_cache_operations=True,
-    defer_on_miss=True,
+    defer_on_miss=_should_defer_unified,
     defer_retry_after=30,
 )
 def decisions_unified_api(request):
@@ -358,11 +388,19 @@ def decisions_unified_api(request):
                 "status": request.GET.get("status", ""),
             }
 
+            count_qs = apply_decision_facets(
+                source_qs,
+                start_dt=start_dt,
+                end_dt=end_dt,
+                request=request,
+                count_only=True,
+            )
             result = paginate_decisions(
                 qs,
                 page=page,
                 page_size=page_size,
                 filters=filters,
+                count_qs=count_qs,
             )
 
             # ── Log search completion ───────────────────────────────
