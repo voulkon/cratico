@@ -1,0 +1,411 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Request Profiler{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+    .profiler-wrap {
+        max-width: 1400px;
+        padding: 20px;
+    }
+    .profiler-intro {
+        color: var(--body-quiet-color);
+        max-width: 900px;
+        line-height: 1.55;
+    }
+    .profiler-warning {
+        background: var(--message-warning-bg);
+        border: 1px solid var(--border-color);
+        color: var(--body-fg);
+        border-radius: 4px;
+        padding: 12px 14px;
+        margin: 18px 0;
+        max-width: 900px;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+    .profiler-form {
+        background: var(--body-bg);
+        border: 1px solid var(--hairline-color);
+        border-radius: 4px;
+        padding: 18px;
+        margin: 18px 0 26px;
+        max-width: 1000px;
+    }
+    .profiler-form label {
+        display: block;
+        font-weight: 600;
+        margin: 10px 0 4px;
+    }
+    .profiler-form textarea {
+        width: 100%;
+        min-height: 90px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 13px;
+        padding: 8px;
+        box-sizing: border-box;
+    }
+    .profiler-form .row {
+        display: flex;
+        gap: 28px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin-top: 12px;
+    }
+    .profiler-form .row label {
+        font-weight: normal;
+        margin: 0;
+    }
+    .profiler-form input[type="number"] {
+        width: 90px;
+        padding: 4px 6px;
+    }
+    .profiler-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 16px;
+        align-items: center;
+    }
+    .profiler-actions .helptext {
+        color: var(--body-quiet-color);
+        font-size: 12px;
+    }
+    .error-list {
+        background: var(--message-error-bg);
+        border: 1px solid var(--error-fg);
+        color: var(--body-fg);
+        border-radius: 4px;
+        padding: 12px 14px;
+        margin: 12px 0 20px;
+    }
+    .db-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+        gap: 10px;
+        margin: 12px 0 20px;
+    }
+    .db-grid .item {
+        background: var(--darkened-bg);
+        border: 1px solid var(--hairline-color);
+        border-radius: 4px;
+        padding: 8px 10px;
+        font-size: 12px;
+    }
+    .db-grid .item b {
+        display: block;
+        color: var(--body-quiet-color);
+        font-weight: normal;
+        margin-bottom: 2px;
+    }
+    .targets {
+        margin: 8px 0 22px;
+        padding-left: 22px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.7;
+        word-break: break-all;
+    }
+    .req-card {
+        background: var(--body-bg);
+        border: 1px solid var(--hairline-color);
+        border-radius: 4px;
+        margin-bottom: 18px;
+        overflow: hidden;
+    }
+    .req-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 10px 14px;
+        background: var(--darkened-bg);
+        border-bottom: 1px solid var(--hairline-color);
+        font-size: 12px;
+    }
+    .req-head code {
+        word-break: break-all;
+        font-size: 12px;
+    }
+    .pill {
+        display: inline-block;
+        border-radius: 10px;
+        padding: 1px 8px;
+        font-size: 11px;
+        font-weight: 600;
+        background: var(--selected-bg);
+        color: var(--body-fg);
+    }
+    .pill.ok {
+        background: var(--message-success-bg);
+        color: var(--body-fg);
+    }
+    .pill.bad {
+        background: var(--message-error-bg);
+        color: var(--body-fg);
+    }
+    .pill.warn {
+        background: var(--message-warning-bg);
+        color: var(--body-fg);
+    }
+    .metrics {
+        display: flex;
+        gap: 26px;
+        flex-wrap: wrap;
+        padding: 12px 14px;
+    }
+    .metrics .metric b {
+        display: block;
+        font-size: 17px;
+    }
+    .metrics .metric span {
+        color: var(--body-quiet-color);
+        font-size: 11px;
+    }
+    .cache-line {
+        padding: 2px 14px;
+        color: var(--body-quiet-color);
+        font-size: 12px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .req-card table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+    }
+    .req-card th,
+    .req-card td {
+        border-top: 1px solid var(--hairline-color);
+        padding: 7px 10px;
+        text-align: left;
+        vertical-align: top;
+    }
+    .req-card th {
+        font-weight: 600;
+        color: var(--body-quiet-color);
+        white-space: nowrap;
+    }
+    .req-card pre,
+    .req-card details pre {
+        margin: 0;
+        padding: 10px;
+        background: var(--darkened-bg);
+        border-radius: 3px;
+        overflow-x: auto;
+        font-size: 11px;
+        line-height: 1.45;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+    .req-card details {
+        padding: 8px 14px;
+    }
+    .req-card summary {
+        cursor: pointer;
+        color: var(--link-fg);
+        font-size: 12px;
+    }
+    .empty-state {
+        color: var(--body-quiet-color);
+        padding: 18px 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="profiler-wrap">
+    <h1>Request Profiler</h1>
+    <p class="profiler-intro">
+        Paste page URLs, API paths, <strong>cURL commands</strong> or a
+        <strong>HAR</strong> network export. Page URLs expand to the requests
+        the frontend makes; cURL/HAR input is reduced to the GET
+        <code>/api/...</code> calls the browser actually made. The host is
+        ignored; paths are profiled against this deployment.
+    </p>
+
+    <div class="profiler-warning">
+        <strong>EXPLAIN ANALYZE re-executes SELECTs.</strong> Leave the plan
+        option off during peak traffic. The profiler runs in the web process,
+        so a very slow profile can hit the gunicorn timeout; use the
+        <code>profile_request</code> management command for long runs.
+    </div>
+
+    <form method="post" enctype="multipart/form-data" class="profiler-form">
+        {% csrf_token %}
+        <label for="urls">Page URLs, API paths, cURL commands, or HAR JSON</label>
+        <textarea id="urls" name="urls" placeholder="/entity/organization/100054489?start_date=2025-11-01&amp;end_date=2026-10-31&#10;/explore/temporal/2026-10-24/2026-11-24?sort=amount_desc&#10;or paste DevTools &quot;Copy all as cURL&quot; / a HAR JSON here">{{ form.urls }}</textarea>
+
+        <label for="har_file">Or upload a HAR file</label>
+        <input type="file" id="har_file" name="har_file" accept=".har,application/json">
+
+        <div class="row">
+            <label>
+                Passes
+                <input type="number" name="repeat" min="1" max="5" value="{{ form.repeat }}">
+            </label>
+            <label>
+                EXPLAIN min ms
+                <input type="number" name="explain_min_ms" min="0" max="60000" value="{{ form.explain_min_ms|floatformat:0 }}">
+            </label>
+            <label><input type="checkbox" name="explain" {% if form.explain %}checked{% endif %}> EXPLAIN plans</label>
+            <label><input type="checkbox" name="db_info" {% if form.db_info %}checked{% endif %}> Database info</label>
+            <label><input type="checkbox" name="bust_cache" {% if form.bust_cache %}checked{% endif %}> Bust cache first</label>
+            <label><input type="checkbox" name="authenticated" {% if form.authenticated %}checked{% endif %}> Run as me</label>
+        </div>
+
+        <div class="profiler-actions">
+            <button type="submit" class="button default">Profile</button>
+            <button type="submit" class="button" name="format" value="json">Download JSON</button>
+            <span class="helptext">
+                Only GET <code>/api/</code> calls are profiled, up to 50. Without
+                start/end dates, the list, types and counterparts use the last 365 days.
+            </span>
+        </div>
+    </form>
+
+    {% if errors %}
+        <div class="error-list">
+            {% for error in errors %}<div>{{ error }}</div>{% endfor %}
+        </div>
+    {% endif %}
+
+    {% if expanded and not result %}
+        <h2>Requests that would run</h2>
+        <ol class="targets">
+            {% for target in expanded %}<li>{{ target }}</li>{% endfor %}
+        </ol>
+    {% endif %}
+
+    {% if result %}
+        {% if result.db %}
+            <h2>Database</h2>
+            {% if result.db.error %}
+                <div class="error-list">{{ result.db.error }}</div>
+            {% endif %}
+            <div class="db-grid">
+                <div class="item"><b>Server</b>{{ result.db.server_addr }}</div>
+                <div class="item"><b>Database</b>{{ result.db.database_name }}</div>
+                <div class="item"><b>Version</b>{{ result.db.server_version }}</div>
+                <div class="item"><b>Size</b>{{ result.db.database_size }}</div>
+                <div class="item"><b>shared_buffers</b>{{ result.db.shared_buffers }}</div>
+                <div class="item"><b>effective_cache_size</b>{{ result.db.effective_cache_size }}</div>
+                <div class="item"><b>work_mem</b>{{ result.db.work_mem }}</div>
+                <div class="item"><b>random_page_cost</b>{{ result.db.random_page_cost }}</div>
+                <div class="item"><b>effective_io_concurrency</b>{{ result.db.effective_io_concurrency }}</div>
+                <div class="item"><b>max_parallel_workers</b>{{ result.db.max_parallel_workers_per_gather }}</div>
+            </div>
+            {% if result.db.largest_tables %}
+                <details>
+                    <summary>Largest tables</summary>
+                    <ul>
+                        {% for table in result.db.largest_tables %}
+                            <li><code>{{ table.table }}</code> — {{ table.size }}</li>
+                        {% endfor %}
+                    </ul>
+                </details>
+            {% endif %}
+        {% endif %}
+
+        {% if result.cache_busted %}
+            <p class="profiler-intro">
+                Deleted {{ result.cache_busted|length }} cache key(s) before profiling:
+            </p>
+            <ul class="targets">
+                {% for key in result.cache_busted %}<li>{{ key }}</li>{% endfor %}
+            </ul>
+        {% endif %}
+
+        <h2>Requests</h2>
+        <ol class="targets">
+            {% for target in result.targets %}<li>{{ target }}</li>{% endfor %}
+        </ol>
+
+        {% for req in result.requests %}
+            <div class="req-card">
+                <div class="req-head">
+                    <span class="pill {% if req.status == 200 %}ok{% elif req.status == 202 %}warn{% elif req.status == 'exception' %}bad{% endif %}">{{ req.status }}</span>
+                    <code>{{ req.method }} {{ req.path }}</code>
+                    <span>pass {{ req.iteration }}</span>
+                </div>
+
+                <div class="metrics">
+                    <div class="metric"><b>{{ req.wall_ms|floatformat:1 }} ms</b><span>wall</span></div>
+                    <div class="metric"><b>{{ req.db_ms|floatformat:1 }} ms</b><span>DB ({{ req.db_pct|floatformat:1 }}%)</span></div>
+                    <div class="metric"><b>{{ req.query_count }}</b><span>queries</span></div>
+                    <div class="metric"><b>{{ req.response_bytes|filesizeformat }}</b><span>response</span></div>
+                </div>
+
+                {% for line in req.cache.summary %}<div class="cache-line">{{ line }}</div>{% endfor %}
+                {% for line in req.cache.defer %}<div class="cache-line">{{ line }}</div>{% endfor %}
+
+                {% if req.defer %}
+                    <div class="profiler-warning" style="margin: 8px 14px;">
+                        <strong>202 warming.</strong>
+                        {% if req.defer.retry_after %}The frontend retries after {{ req.defer.retry_after }}s (up to 5 times).{% else %}The frontend retries on the next poll.{% endif %}
+                        The query runs in the background warmup task, so its DB time is not in this response.
+                    </div>
+                {% endif %}
+
+                {% if req.error %}
+                    <details open>
+                        <summary>Exception</summary>
+                        <pre>{{ req.error }}</pre>
+                    </details>
+                {% endif %}
+                {% if req.body_preview %}
+                    <details>
+                        <summary>Response body</summary>
+                        <pre>{{ req.body_preview }}</pre>
+                    </details>
+                {% endif %}
+
+                {% if req.queries.groups %}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Total ms</th>
+                                <th>Count</th>
+                                <th>Max ms</th>
+                                <th>Tables</th>
+                                <th>SQL</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for group in req.queries.groups %}
+                                <tr>
+                                    <td>{{ group.total_ms|floatformat:1 }}</td>
+                                    <td>{{ group.count }}</td>
+                                    <td>{{ group.max_ms|floatformat:1 }}</td>
+                                    <td>{{ group.tables|join:", " }}</td>
+                                    <td>
+                                        <details>
+                                            <summary>View SQL</summary>
+                                            <pre>{{ group.sql }}</pre>
+                                        </details>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <div class="cache-line">No SQL queries (cache hit or no database work).</div>
+                {% endif %}
+
+                {% for plan in req.explain %}
+                    <details>
+                        <summary>
+                            EXPLAIN ANALYZE ({{ plan.duration_ms|floatformat:1 }} ms observed)
+                            {% if plan.tables %}[{{ plan.tables|join:", " }}]{% endif %}
+                        </summary>
+                        <pre>{% for line in plan.plan %}{{ line }}
+{% endfor %}</pre>
+                    </details>
+                {% endfor %}
+            </div>
+        {% endfor %}
+    {% elif not errors %}
+        <p class="empty-state">Paste a URL and press Profile.</p>
+    {% endif %}
+</div>
+{% endblock %}
