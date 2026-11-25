@@ -159,6 +159,15 @@ class Command(BaseCommand):
             help="statement_timeout for EXPLAIN ANALYZE (default: 30000).",
         )
         parser.add_argument(
+            "--statement-timeout-ms",
+            type=int,
+            default=0,
+            help=(
+                "Override the session statement_timeout for the profiled "
+                "requests (0 keeps the database default)."
+            ),
+        )
+        parser.add_argument(
             "--db-info",
             action="store_true",
             help="Print database size and planner/memory settings.",
@@ -213,6 +222,7 @@ class Command(BaseCommand):
             include_db_info=options["db_info"],
             client_ip=options["client_ip"],
             bust_cache=options["bust_cache"],
+            statement_timeout_ms=options["statement_timeout_ms"] or None,
         )
 
         if options["json"]:
@@ -244,6 +254,7 @@ class Command(BaseCommand):
             "random_page_cost",
             "effective_io_concurrency",
             "max_parallel_workers_per_gather",
+            "statement_timeout",
         ):
             if key in info:
                 self.stdout.write(f"  {key}: {info[key]}")

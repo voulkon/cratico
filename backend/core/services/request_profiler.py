@@ -600,6 +600,7 @@ def _measure(
         "method": method,
         "path": path,
         "status": response.status_code if response is not None else "exception",
+        "is_error": response is not None and response.status_code >= 400,
         "error": error,
         "defer": defer,
         "wall_ms": wall_ms,
@@ -719,6 +720,7 @@ def db_info() -> Dict[str, Any]:
                     current_setting('random_page_cost'),
                     current_setting('effective_io_concurrency'),
                     current_setting('max_parallel_workers_per_gather'),
+                    current_setting('statement_timeout'),
                     current_setting('server_version')
                 """
             )
@@ -731,6 +733,7 @@ def db_info() -> Dict[str, Any]:
                 "random_page_cost",
                 "effective_io_concurrency",
                 "max_parallel_workers_per_gather",
+                "statement_timeout",
                 "server_version",
             )
             info.update(dict(zip(keys, row)))
@@ -795,6 +798,8 @@ def profile_requests(
     include_db_info: bool = False,
     client_ip: str = "127.0.0.1",
     bust_cache: bool = False,
+    statement_timeout_ms: int | None = None,
+    progress=None,
 ) -> Dict[str, Any]:
     """
     Run each path and return the profiling payload.
@@ -813,6 +818,11 @@ def profile_requests(
     db_logger = logging.getLogger("django.db.backends")
     previous_level = db_logger.level
     db_logger.setLevel(logging.WARNING)
+    timeout_override = None
+    if statement_timeout_ms:
+        timeout_override = max(1, int(statement_timeout_ms))
+        with connection.cursor() as cursor:
+            cursor.execute(f"SET statement_timeout = {timeout_override}")
     try:
         return _profile_requests(
             paths,
@@ -832,8 +842,15 @@ def profile_requests(
             include_db_info=include_db_info,
             client_ip=client_ip,
             bust_cache=bust_cache,
+            progress=progress,
         )
     finally:
+        if timeout_override is not None:
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute("RESET statement_timeout")
+            except Exception:  # noqa: BLE001 - restore is best effort
+                pass
         db_logger.setLevel(previous_level)
 
 
@@ -856,6 +873,7 @@ def _profile_requests(
     include_db_info: bool,
     client_ip: str,
     bust_cache: bool,
+    progress=None,
 ) -> Dict[str, Any]:
     client = _build_client(user)
     request_kwargs = _request_kwargs(
@@ -892,5 +910,12 @@ def _profile_requests(
                 explain_timeout_ms=explain_timeout_ms,
             )
             payload["requests"].append(result)
+            if progress is not None:
+                try:
+                    progress(payload)
+                except Exception:  # noqa: BLE001 - progress must not stop profiling
+                    logging.getLogger(__name__).exception(
+                        "Request profiler progress callback failed"
+                    )
 
     return payload
