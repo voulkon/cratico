@@ -1,0 +1,229 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Compare Profiles{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+    .profiler-wrap {
+        max-width: 1600px;
+        padding: 20px;
+    }
+    .profiler-intro {
+        color: var(--body-quiet-color);
+        max-width: 1000px;
+        line-height: 1.55;
+    }
+    .profiler-form {
+        background: var(--body-bg);
+        border: 1px solid var(--hairline-color);
+        border-radius: 4px;
+        padding: 18px;
+        margin: 18px 0 26px;
+        max-width: 1200px;
+    }
+    .profiler-form .row {
+        display: flex;
+        gap: 18px;
+        flex-wrap: wrap;
+        align-items: end;
+    }
+    .profiler-form label {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-weight: 600;
+    }
+    .profiler-form select {
+        min-width: 380px;
+        max-width: 520px;
+        padding: 6px;
+    }
+    .profiler-actions {
+        display: flex;
+        gap: 24px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin: 12px 0 22px;
+        font-size: 13px;
+    }
+    .error-list {
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+        border-radius: 4px;
+        padding: 12px 14px;
+        margin: 12px 0 20px;
+    }
+    .compare-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--body-bg);
+        border: 1px solid var(--hairline-color);
+        border-radius: 4px;
+        font-size: 12px;
+        margin-bottom: 28px;
+    }
+    .compare-table th,
+    .compare-table td {
+        border-top: 1px solid var(--hairline-color);
+        padding: 7px 10px;
+        text-align: left;
+        vertical-align: top;
+    }
+    .compare-table th {
+        font-weight: 600;
+        color: var(--body-quiet-color);
+        white-space: nowrap;
+        background: var(--darkened-bg);
+    }
+    .compare-table td.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+    .compare-table td.target {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        word-break: break-all;
+        max-width: 520px;
+    }
+    .compare-table .better {
+        color: #155724;
+        font-weight: 600;
+    }
+    .compare-table .worse {
+        color: #721c24;
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="profiler-wrap">
+    <h1>Compare Profiles</h1>
+    <p class="profiler-intro">
+        Current run vs baseline. Negative deltas are improvements. The same
+        target and pass are matched; missing targets show an em dash. Deltas
+        are <strong>current - baseline</strong>.
+    </p>
+
+    {% if errors %}
+        <div class="error-list">
+            {% for error in errors %}<pre style="white-space: pre-wrap; margin: 4px 0;">{{ error }}</pre>{% endfor %}
+        </div>
+    {% endif %}
+
+    <form method="get" class="profiler-form">
+        <div class="row">
+            <label>
+                Current run
+                <select name="a">
+                    {% for run in runs %}
+                        {% if run.status == 'SUCCESS' %}
+                            <option value="{{ run.id }}" {% if current and run.id == current.id %}selected{% endif %}>
+                                {{ run.created_at|date:"Y-m-d H:i" }} — {{ run.label|default:"no label" }}
+                            </option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            </label>
+            <label>
+                Baseline run
+                <select name="b">
+                    <option value="">Previous completed run with the same targets</option>
+                    {% for run in runs %}
+                        {% if run.status == 'SUCCESS' %}
+                            <option value="{{ run.id }}" {% if baseline and run.id == baseline.id %}selected{% endif %}>
+                                {{ run.created_at|date:"Y-m-d H:i" }} — {{ run.label|default:"no label" }}
+                            </option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            </label>
+            <button type="submit" class="button default">Compare</button>
+        </div>
+    </form>
+
+    {% if current and baseline %}
+        <div class="profiler-actions">
+            <span>
+                Current:
+                <a href="{% url 'admin:request_profiler' %}?job={{ current.id }}">
+                    {{ current.created_at|date:"Y-m-d H:i" }} — {{ current.label|default:"no label" }}
+                </a>
+            </span>
+            <span>
+                Baseline:
+                <a href="{% url 'admin:request_profiler' %}?job={{ baseline.id }}">
+                    {{ baseline.created_at|date:"Y-m-d H:i" }} — {{ baseline.label|default:"no label" }}
+                </a>
+            </span>
+        </div>
+
+        <h2>Totals</h2>
+        <table class="compare-table">
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th>Baseline</th>
+                    <th>Current</th>
+                    <th>Delta</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Wall time (all requests)</td>
+                    <td class="num">{{ totals.baseline_wall_display }} ms</td>
+                    <td class="num">{{ totals.current_wall_display }} ms</td>
+                    <td class="num {{ totals.wall_class }}">{{ totals.wall_delta_display }} ms</td>
+                </tr>
+                <tr>
+                    <td>Database time (all requests)</td>
+                    <td class="num">{{ totals.baseline_db_display }} ms</td>
+                    <td class="num">{{ totals.current_db_display }} ms</td>
+                    <td class="num {{ totals.db_class }}">{{ totals.db_delta_display }} ms</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Per request</h2>
+        <table class="compare-table">
+            <thead>
+                <tr>
+                    <th>Target</th>
+                    <th>Pass</th>
+                    <th>Baseline wall</th>
+                    <th>Current wall</th>
+                    <th>Δ wall</th>
+                    <th>Baseline DB</th>
+                    <th>Current DB</th>
+                    <th>Δ DB</th>
+                    <th>Baseline Q</th>
+                    <th>Current Q</th>
+                    <th>Δ Q</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                    <tr>
+                        <td class="target">{{ row.path }}</td>
+                        <td class="num">{{ row.iteration }}</td>
+                        <td class="num">{{ row.baseline_wall_display }}</td>
+                        <td class="num">{{ row.current_wall_display }}</td>
+                        <td class="num {{ row.wall_class }}">{{ row.wall_delta_display }}</td>
+                        <td class="num">{{ row.baseline_db_display }}</td>
+                        <td class="num">{{ row.current_db_display }}</td>
+                        <td class="num {{ row.db_class }}">{{ row.db_delta_display }}</td>
+                        <td class="num">{{ row.baseline_queries_display }}</td>
+                        <td class="num">{{ row.current_queries_display }}</td>
+                        <td class="num {{ row.query_class }}">{{ row.query_delta_display }}</td>
+                        <td>{{ row.baseline_status }} → {{ row.current_status }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+</div>
+{% endblock %}

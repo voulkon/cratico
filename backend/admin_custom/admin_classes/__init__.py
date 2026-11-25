@@ -43,6 +43,7 @@ from .notifications import (
     NotificationSubscriptionAdmin,
 )
 from .recovery import CounterpartRecoveryAttemptAdmin
+from .request_profiler import RequestProfileRunAdmin
 from .users import CustomUserAdmin, SubscriptionAdmin
 
 __all__ = [
@@ -94,4 +95,6 @@ __all__ = [
     "ClassificationJobAdmin",
     # Counterpart recovery admin classes
     "CounterpartRecoveryAttemptAdmin",
+    # Request profiler admin classes
+    "RequestProfileRunAdmin",
 ]

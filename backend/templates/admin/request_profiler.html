@@ -239,6 +239,9 @@
         <label for="har_file">Or upload a HAR file</label>
         <input type="file" id="har_file" name="har_file" accept=".har,application/json">
 
+        <label for="label">Run label (optional)</label>
+        <input type="text" id="label" name="label" maxlength="200" value="{{ form.label }}" placeholder="e.g. before cache TTL change" style="width: 100%; max-width: 520px; padding: 6px 8px;">
+
         <div class="row">
             <label>
                 Passes
@@ -247,6 +250,10 @@
             <label>
                 EXPLAIN min ms
                 <input type="number" name="explain_min_ms" min="0" max="60000" value="{{ form.explain_min_ms|floatformat:0 }}">
+            </label>
+            <label>
+                Statement timeout ms
+                <input type="number" name="statement_timeout_ms" min="0" max="600000" value="{{ form.statement_timeout_ms }}">
             </label>
             <label><input type="checkbox" name="explain" {% if form.explain %}checked{% endif %}> EXPLAIN plans</label>
             <label><input type="checkbox" name="db_info" {% if form.db_info %}checked{% endif %}> Database info</label>
@@ -259,13 +266,14 @@
             <span class="helptext">
                 Runs in a Celery worker; this page polls until the result is ready.
                 Only GET <code>/api/</code> calls are profiled, up to 50.
+                Statement timeout 0 uses the database default (30s).
             </span>
         </div>
     </form>
 
     {% if errors %}
         <div class="error-list">
-            {% for error in errors %}<div>{{ error }}</div>{% endfor %}
+            {% for error in errors %}<pre style="white-space: pre-wrap; margin: 4px 0;">{{ error }}</pre>{% endfor %}
         </div>
     {% endif %}
 
@@ -275,12 +283,19 @@
             Job <code>{{ job_id }}</code>.
             State: <strong id="profiler-state">{{ job_state|default:"PENDING" }}</strong>
             <span id="profiler-status"></span>
+            <span id="profiler-progress"></span>
             <noscript>Reload this page to check again.</noscript>
             <div style="margin-top: 8px; font-size: 12px;">
                 If this stays PENDING for more than a few minutes, check that the
                 Celery worker is running and has registered
                 <code>admin.profile_request</code>.
             </div>
+            <form method="post" style="margin-top: 12px;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="revoke">
+                <input type="hidden" name="run_id" value="{{ job_id }}">
+                <button type="submit" class="button">Revoke run</button>
+            </form>
         </div>
         <script>
             (function () {
@@ -288,7 +303,8 @@
                 const statusUrl = "{% url 'admin:request_profiler_status' job_id=job_id %}";
                 const stateEl = document.getElementById("profiler-state");
                 const statusEl = document.getElementById("profiler-status");
-                const terminal = new Set(["SUCCESS", "FAILURE", "REVOKED"]);
+                const progressEl = document.getElementById("profiler-progress");
+                const terminal = new Set(["SUCCESS", "FAILURE", "REVOKED", "NOT_FOUND"]);
                 async function poll() {
                     try {
                         const response = await fetch(statusUrl, {
@@ -297,6 +313,13 @@
                         const data = await response.json();
                         if (data.state) stateEl.textContent = data.state;
                         if (data.status) statusEl.textContent = data.status;
+                        if (data.planned) {
+                            progressEl.textContent = " (" + (data.requests_done || 0)
+                                + "/" + data.planned + " requests)";
+                        }
+                        if (data.stale) {
+                            progressEl.textContent += " - no progress for 15m; check the worker or revoke.";
+                        }
                         if (terminal.has(data.state)) {
                             window.location.href = window.location.pathname
                                 + "?job=" + encodeURIComponent(jobId);
@@ -321,8 +344,17 @@
 
     {% if result %}
         <div class="profiler-actions" style="margin: 0 0 18px;">
-            <span class="pill ok">completed</span>
+            <span class="pill {% if run.status == 'SUCCESS' %}ok{% elif run.status == 'FAILURE' or run.status == 'REVOKED' %}bad{% endif %}">
+                {{ run.get_status_display|default:"Completed" }}
+            </span>
+            {% if run and run.status != 'SUCCESS' %}
+                <span class="helptext">Partial results are shown below.</span>
+            {% endif %}
+            {% if run.label %}<span class="helptext">{{ run.label }}</span>{% endif %}
             <span class="helptext">Job <code>{{ job_id }}</code></span>
+            {% if compare_id %}
+                <a class="button" href="{% url 'admin:request_profiler_compare' %}?a={{ job_id }}&b={{ compare_id }}">Compare with previous</a>
+            {% endif %}
             {% if download_url %}
                 <a class="button" href="{{ download_url }}">Download JSON</a>
             {% endif %}
@@ -345,6 +377,7 @@
                 <div class="item"><b>random_page_cost</b>{{ result.db.random_page_cost }}</div>
                 <div class="item"><b>effective_io_concurrency</b>{{ result.db.effective_io_concurrency }}</div>
                 <div class="item"><b>max_parallel_workers</b>{{ result.db.max_parallel_workers_per_gather }}</div>
+                <div class="item"><b>statement_timeout</b>{{ result.db.statement_timeout }}</div>
             </div>
             {% if result.db.largest_tables %}
                 <details>
@@ -375,7 +408,7 @@
         {% for req in result.requests %}
             <div class="req-card">
                 <div class="req-head">
-                    <span class="pill {% if req.status == 200 %}ok{% elif req.status == 202 %}warn{% elif req.status == 'exception' %}bad{% endif %}">{{ req.status }}</span>
+                    <span class="pill {% if req.is_error or req.status == 'exception' %}bad{% elif req.status == 202 %}warn{% elif req.status == 200 %}ok{% endif %}">{{ req.status }}</span>
                     <code>{{ req.method }} {{ req.path }}</code>
                     <span>pass {{ req.iteration }}</span>
                 </div>
@@ -403,6 +436,11 @@
                         <summary>Exception</summary>
                         <pre>{{ req.error }}</pre>
                     </details>
+                {% endif %}
+                {% if req.is_error %}
+                    <div class="profiler-warning" style="margin: 8px 14px;">
+                        This API call failed. Inspect the response body and the worker log.
+                    </div>
                 {% endif %}
                 {% if req.body_preview %}
                     <details>
@@ -457,6 +495,49 @@
         {% endfor %}
     {% elif not errors %}
         <p class="empty-state">Paste a URL and press Profile.</p>
+    {% endif %}
+
+    {% if runs %}
+        <h2>Recent runs</h2>
+        <div class="req-card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>When</th>
+                        <th>Label</th>
+                        <th>Status</th>
+                        <th>Targets</th>
+                        <th>Wall</th>
+                        <th>DB</th>
+                        <th>User</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for history_run in runs %}
+                        <tr>
+                            <td>{{ history_run.created_at|date:"Y-m-d H:i" }}</td>
+                            <td>{{ history_run.label|default:"—" }}</td>
+                            <td>
+                                <span class="pill {% if history_run.status == 'SUCCESS' %}ok{% elif history_run.status == 'FAILURE' or history_run.status == 'REVOKED' %}bad{% elif history_run.status == 'STARTED' %}warn{% endif %}">
+                                    {{ history_run.status }}
+                                </span>
+                            </td>
+                            <td>{{ history_run.target_count }}</td>
+                            <td>{{ history_run.total_wall_ms|floatformat:1 }} ms</td>
+                            <td>{{ history_run.total_db_ms|floatformat:1 }} ms</td>
+                            <td>{% if history_run.user %}{{ history_run.user.username }}{% else %}—{% endif %}</td>
+                            <td>
+                                <a href="{% url 'admin:request_profiler' %}?job={{ history_run.id }}">Open</a>
+                                {% if history_run.status == 'SUCCESS' %}
+                                    | <a href="{% url 'admin:request_profiler_compare' %}?a={{ history_run.id }}{% if history_run.previous_id %}&b={{ history_run.previous_id }}{% endif %}">Compare</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     {% endif %}
 </div>
 {% endblock %}
