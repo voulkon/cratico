@@ -1,4 +1,6 @@
 import json
+from types import SimpleNamespace
+from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -273,3 +275,45 @@ def test_parse_sql_log_line_explains_it_is_not_a_har():
 
     with pytest.raises(ValueError, match="SQL log"):
         parse_profile_input(line)
+
+
+@pytest.mark.django_db
+def test_admin_profiler_queues_task_and_redirects(client, django_user_model, settings):
+    settings.ALLOWED_HOSTS = ["localhost", "testserver"]
+    user = django_user_model.objects.create_superuser(
+        username="profiler-admin", email="profiler@example.com", password="x"
+    )
+    client.force_login(user)
+
+    with patch("admin_custom.views.profiler.celery_app.send_task") as send_task:
+        send_task.return_value = SimpleNamespace(id="job-123")
+        response = client.post(
+            "/api/admin/profiler/",
+            {"urls": "/api/version/", "repeat": "1", "authenticated": "on"},
+            HTTP_HOST="localhost",
+        )
+
+    assert response.status_code == 302
+    assert "job=job-123" in response["Location"]
+    profiler_calls = [
+        call
+        for call in send_task.call_args_list
+        if call.args and call.args[0] == "admin.profile_request"
+    ]
+    assert len(profiler_calls) == 1
+    assert profiler_calls[0].kwargs["args"][0] == ["/api/version/"]
+
+
+@pytest.mark.django_db
+def test_admin_profiler_status_requires_superuser(client, django_user_model, settings):
+    settings.ALLOWED_HOSTS = ["localhost", "testserver"]
+    user = django_user_model.objects.create_user(
+        username="profiler-staff", password="x", is_staff=True
+    )
+    client.force_login(user)
+
+    response = client.get(
+        "/api/admin/profiler/status/not-a-job/", HTTP_HOST="localhost"
+    )
+
+    assert response.status_code == 403

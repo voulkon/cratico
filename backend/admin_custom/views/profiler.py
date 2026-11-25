@@ -1,20 +1,20 @@
 """
 Admin request profiler.
 
-Paste an organization page URL or an API path and get the same cold/warm
-profile the ``profile_request`` command produces, including per-query timings,
-cache hit/miss lines and optional EXPLAIN plans.
+Paste page URLs, API paths, cURL commands or a HAR export and get the same
+cold/warm profile the ``profile_request`` command produces. The work runs in a
+Celery task so the admin request does not hit the nginx/gunicorn 504 timeout;
+the page polls the task state and renders the result when it is ready.
 """
 
-from admin_custom.sites import admin_site
-from core.services.request_profiler import (
-    MAX_PROFILE_TARGETS,
-    parse_profile_input,
-    profile_requests,
-)
+from celery.result import AsyncResult
 from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
+
+from admin_custom.sites import admin_site
+from core.services.request_profiler import MAX_PROFILE_TARGETS, parse_profile_input
+from diavgeia_project.celery import app as celery_app
 
 
 def _int_value(raw, default: int, low: int, high: int) -> int:
@@ -49,6 +49,9 @@ def profiler_view(request):
     errors = []
     expanded = []
     result = None
+    job_id = request.GET.get("job")
+    job_state = None
+    download_url = None
 
     if request.method == "POST":
         form.update(
@@ -94,29 +97,44 @@ def profiler_view(request):
             errors.append("Paste at least one URL, cURL command, or HAR file.")
 
         if expanded:
+            options = {
+                "method": "GET",
+                "host": request.get_host(),
+                "user": request.user.username if form["authenticated"] else None,
+                "repeat": form["repeat"],
+                "explain": form["explain"],
+                "explain_min_ms": form["explain_min_ms"],
+                "explain_top": 4,
+                "include_db_info": form["db_info"],
+                "client_ip": request.META.get("REMOTE_ADDR", "127.0.0.1"),
+                "bust_cache": form["bust_cache"],
+            }
             try:
-                result = profile_requests(
-                    expanded,
-                    method="GET",
-                    host=request.get_host(),
-                    user=request.user if form["authenticated"] else None,
-                    repeat=form["repeat"],
-                    explain=form["explain"],
-                    explain_min_ms=form["explain_min_ms"],
-                    explain_top=4,
-                    include_db_info=form["db_info"],
-                    client_ip=request.META.get("REMOTE_ADDR", "127.0.0.1"),
-                    bust_cache=form["bust_cache"],
+                task = celery_app.send_task(
+                    "admin.profile_request", args=[expanded, options]
                 )
-            except Exception as exc:  # noqa: BLE001 - show the failure in the UI
-                errors.append(f"Profiler failed: {exc}")
+            except Exception as exc:  # noqa: BLE001 - broker may be unavailable
+                errors.append(f"Could not queue the profiler task: {exc}")
+            else:
+                return redirect(f"{request.path}?job={task.id}")
 
-        if request.POST.get("format") == "json" and result is not None:
-            response = JsonResponse(result, json_dumps_params={"indent": 2})
-            response["Content-Disposition"] = (
-                'attachment; filename="request-profile.json"'
-            )
-            return response
+    elif job_id:
+        try:
+            task = AsyncResult(job_id, app=celery_app)
+            job_state = task.state
+            if task.state == "SUCCESS":
+                result = task.result
+                download_url = f"{request.path}?job={job_id}&download=1"
+                if request.GET.get("download"):
+                    response = JsonResponse(result, json_dumps_params={"indent": 2})
+                    response["Content-Disposition"] = (
+                        'attachment; filename="request-profile.json"'
+                    )
+                    return response
+            elif task.state == "FAILURE":
+                errors.append(f"Profiler task failed: {task.info}")
+        except Exception as exc:  # noqa: BLE001 - show the failure in the UI
+            errors.append(f"Could not read task state: {exc}")
 
     context = {
         **admin_site.each_context(request),
@@ -125,5 +143,25 @@ def profiler_view(request):
         "errors": errors,
         "expanded": expanded,
         "result": result,
+        "job_id": job_id,
+        "job_state": job_state,
+        "download_url": download_url,
     }
     return render(request, "admin/request_profiler.html", context)
+
+
+def profiler_status_view(request, job_id):
+    if not request.user.is_superuser:
+        raise PermissionDenied("Only superusers can use the request profiler.")
+
+    try:
+        task = AsyncResult(job_id, app=celery_app)
+        state = task.state
+        payload = {"state": state}
+        if state == "STARTED" and isinstance(task.info, dict):
+            payload["status"] = task.info.get("status")
+        if state == "FAILURE":
+            payload["error"] = str(task.info)
+        return JsonResponse(payload)
+    except Exception as exc:  # noqa: BLE001 - keep the poll loop alive
+        return JsonResponse({"state": "ERROR", "error": str(exc)}, status=500)
