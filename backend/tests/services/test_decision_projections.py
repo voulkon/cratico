@@ -239,3 +239,67 @@ class TestComputeDateRange:
 
         assert result["has_data"] is False
         assert result["date_range"] is None
+
+
+@pytest.mark.django_db
+class TestAggregatesDoNotDoubleCountMultiAmountDecisions:
+    """
+    The amount join fans out one row per ``DecisionAmountField``.  Every
+    decision-level count must stay distinct, otherwise an organization whose
+    decisions carry several amount rows reports inflated totals (and the
+    unified endpoint's grouped subquery used to do exactly that).
+    """
+
+    @staticmethod
+    def _seed():
+        from conftest import DecisionAmountFieldFactory, DecisionFactory
+
+        d1 = DecisionFactory(ada="MULTI-1")
+        d2 = DecisionFactory(ada="MULTI-2")
+        # d1 has two amount rows (150 total), d2 has one (25).
+        DecisionAmountFieldFactory(
+            decision=d1, amount=100, parent_key_path="a.expenseAmount"
+        )
+        DecisionAmountFieldFactory(
+            decision=d1, amount=50, parent_key_path="b.expenseAmount"
+        )
+        DecisionAmountFieldFactory(
+            decision=d2, amount=25, parent_key_path="c.expenseAmount"
+        )
+        return d1, d2
+
+    def test_date_range_counts_decisions_once(self):
+        d1, d2 = self._seed()
+        qs = Decision.objects.filter(id__in=[d1.id, d2.id])
+
+        result = compute_date_range(qs)
+
+        assert result["summary"]["total_decisions"] == 2
+        assert result["summary"]["total_amount"] == 175.0
+        chart = result["activity_chart"]["data"]
+        assert sum(item["count"] for item in chart) == 2
+        assert sum(item["amount"] for item in chart) == 175.0
+
+    def test_decision_types_counts_decisions_once(self, decision_type):
+        d1, d2 = self._seed()
+        d1.decision_type = decision_type
+        d1.save(update_fields=["decision_type"])
+        d2.decision_type = decision_type
+        d2.save(update_fields=["decision_type"])
+        qs = Decision.objects.filter(id__in=[d1.id, d2.id])
+
+        result = aggregate_decision_types(qs)
+
+        assert result["total_types"] == 1
+        row = result["decision_types"][0]
+        assert row["count"] == 2
+        assert row["total_amount"] == 175.0
+
+    def test_statistics_counts_decisions_once(self):
+        d1, d2 = self._seed()
+        qs = Decision.objects.filter(id__in=[d1.id, d2.id])
+
+        result = compute_statistics(qs)
+
+        assert result["summary"]["decisions"]["total_count"] == 2
+        assert result["summary"]["decisions"]["total_amount"] == 175.0

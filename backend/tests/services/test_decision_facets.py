@@ -316,3 +316,40 @@ class TestApplyDecisionFacets:
         assert d_direct.id in ids
         assert d_indirect.id in ids
         assert d_no_class.id in ids
+
+    def test_aggregate_only_skips_amount_annotation(self, decision_type):
+        """
+        ``aggregate_only=True`` must not add ``calculated_amount``.
+
+        A leftover aggregate annotation makes Django wrap a projection
+        aggregate (date_range / decision_types / statistics) in a subquery
+        grouped by decision and every amount column — the fan-out that made
+        large organizations unloadable.
+        """
+        from conftest import DecisionFactory
+
+        DecisionFactory(ada="AGG", decision_type=decision_type)
+        qs = Decision.objects.all()
+
+        annotated = apply_decision_facets(qs, sort_by="amount_desc")
+        aggregate = apply_decision_facets(
+            qs, sort_by="amount_desc", aggregate_only=True
+        )
+
+        assert "calculated_amount" in annotated.query.annotations
+        assert "calculated_amount" not in aggregate.query.annotations
+        # The aggregate path also skips the sort, like count_only.
+        assert not aggregate.query.order_by
+
+    def test_aggregate_only_keeps_amount_annotation_when_filtering(self, decision_type):
+        """An amount filter forces the annotation the filter itself needs."""
+        from conftest import DecisionFactory, DecisionAmountFieldFactory
+
+        decision = DecisionFactory(ada="AGG-FILTER", decision_type=decision_type)
+        DecisionAmountFieldFactory(decision=decision, amount=500)
+
+        qs = Decision.objects.all()
+        result = apply_decision_facets(qs, min_amount=100, aggregate_only=True)
+
+        assert "calculated_amount" in result.query.annotations
+        assert list(result.values_list("id", flat=True)) == [decision.id]

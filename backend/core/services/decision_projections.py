@@ -415,7 +415,7 @@ def aggregate_decision_types(qs: QuerySet) -> Dict[str, Any]:
     decision_types = (
         qs.values("decision_type__uid")
         .annotate(
-            count=models.Count("id"),
+            count=models.Count("id", distinct=True),
             total_amount=amount_sum_excluding_kae(),
             max_amount=effective_amount_max(),
             label=models.Max("decision_type__label"),
@@ -465,15 +465,18 @@ def compute_statistics(
         qs: Filtered Decision queryset.
         start_date_str, end_date_str: Original date strings for the response.
     """
-    stats = qs.aggregate(
-        total_decisions=models.Count("id"),
-        total_amount=amount_sum_excluding_kae(),
+    # Counting decisions needs no amount join; only the money total does.
+    # ``distinct`` keeps the count correct even if a caller hands us a
+    # queryset that still carries an aggregate annotation (which fans the
+    # amount join out one row per amount field).
+    total_decisions = qs.aggregate(
+        total_decisions=models.Count("id", distinct=True)
+    )["total_decisions"] or 0
+    total_amount = float(
+        qs.aggregate(total_amount=amount_sum_excluding_kae())["total_amount"] or 0
     )
 
     organizations_count = qs.values("organization").distinct().count()
-
-    total_amount = float(stats["total_amount"] or 0)
-    total_decisions = stats["total_decisions"] or 0
 
     return {
         "period": {
@@ -512,16 +515,16 @@ def compute_date_range(qs: QuerySet) -> Dict[str, Any]:
     """
     from django.db import models as dj_models
 
-    date_stats = qs.aggregate(
+    # Only the date bounds are needed here, and they live in the
+    # ``(organization, issue_date_day)`` index.  Keeping the aggregate to
+    # MIN/MAX lets Postgres answer it with an index-only scan instead of
+    # fetching the decision heap (which ``COUNT(id)`` forces).
+    date_bounds = qs.aggregate(
         earliest_date=dj_models.Min("issue_date_day"),
         latest_date=dj_models.Max("issue_date_day"),
-        total_decisions=dj_models.Count("id"),
-        total_amount=amount_sum_excluding_kae(),
     )
 
-    total_amount = float(date_stats["total_amount"] or 0)
-
-    if not date_stats["earliest_date"]:
+    if not date_bounds["earliest_date"]:
         return {
             "has_data": False,
             "message": "No decisions found.",
@@ -529,8 +532,8 @@ def compute_date_range(qs: QuerySet) -> Dict[str, Any]:
             "activity_chart": [],
         }
 
-    earliest = date_stats["earliest_date"]
-    latest = date_stats["latest_date"]
+    earliest = date_bounds["earliest_date"]
+    latest = date_bounds["latest_date"]
     span_days = (latest - earliest).days
 
     # Choose granularity based on span
@@ -544,18 +547,28 @@ def compute_date_range(qs: QuerySet) -> Dict[str, Any]:
         granularity = "year"
         period_column = "issue_date_year"
 
-    # Activity data
+    # Activity data.  This is the only projection that needs the amount
+    # table.  ``Count("id", distinct=True)`` keeps the decision count
+    # correct despite the amount join fanning out one row per amount field.
+    #
+    # The summary totals are derived from the chart instead of running a
+    # second amount-table aggregate: every decision falls in exactly one
+    # period, so summing the per-period counts/amounts equals the overall
+    # total.  That halves the number of cold scans over
+    # ``core_decisionamountfield``.
     activity_data = (
         qs.annotate(period=dj_models.F(period_column))
         .values("period")
         .annotate(
-            count=dj_models.Count("id"),
+            count=dj_models.Count("id", distinct=True),
             total_amount=amount_sum_excluding_kae(),
         )
         .order_by("period")
     )
 
     chart_data = []
+    total_amount_decimal = 0
+    total_decisions = 0
     for item in activity_data:
         period_val = item["period"]
         period_str = (
@@ -563,13 +576,17 @@ def compute_date_range(qs: QuerySet) -> Dict[str, Any]:
             if granularity == "year"
             else (period_val.isoformat() if period_val else None)
         )
+        amount_val = item["total_amount"] or 0
+        total_amount_decimal += amount_val
+        total_decisions += item["count"] or 0
         chart_data.append(
             {
                 "period": period_str,
                 "count": item["count"],
-                "amount": float(item["total_amount"] or 0),
+                "amount": float(amount_val),
             }
         )
+    total_amount = float(total_amount_decimal)
 
     # Chart stats — computed once here so every caller gets the same shape
     # without copy-pasting the enrichment logic.
@@ -593,10 +610,10 @@ def compute_date_range(qs: QuerySet) -> Dict[str, Any]:
             "recommended_granularity": granularity,
         },
         "summary": {
-            "total_decisions": date_stats["total_decisions"],
+            "total_decisions": total_decisions,
             "total_amount": total_amount,
             "avg_daily_decisions": round(
-                date_stats["total_decisions"] / max(span_days, 1), 2
+                total_decisions / max(span_days, 1), 2
             ),
             "avg_daily_amount": round(
                 total_amount / max(span_days, 1), 2
