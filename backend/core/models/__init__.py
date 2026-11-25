@@ -46,6 +46,7 @@ from .pipeline import (
     RunStatus,
     StepType,
 )
+from .request_profile_run import RequestProfileRun
 from .search_analytics import PopularQuery, SearchAnalytics
 from .search_suggestions import SearchSuggestion
 from .sync_status import SyncStatus

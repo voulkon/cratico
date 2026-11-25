@@ -1,9 +1,11 @@
 import json
+import uuid
 from types import SimpleNamespace
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+from core.models.request_profile_run import RequestProfileRun
 from core.services.request_profiler import (
     default_host,
     expand_profile_targets,
@@ -294,14 +296,18 @@ def test_admin_profiler_queues_task_and_redirects(client, django_user_model, set
         )
 
     assert response.status_code == 302
-    assert "job=job-123" in response["Location"]
+    run_id = response["Location"].split("job=", 1)[1]
+    run = RequestProfileRun.objects.get(pk=run_id)
+    assert run.status == RequestProfileRun.Status.PENDING
+    assert run.targets == ["/api/version/"]
     profiler_calls = [
         call
         for call in send_task.call_args_list
         if call.args and call.args[0] == "admin.profile_request"
     ]
     assert len(profiler_calls) == 1
-    assert profiler_calls[0].kwargs["args"][0] == ["/api/version/"]
+    assert profiler_calls[0].kwargs["args"][0] == run_id
+    assert profiler_calls[0].kwargs["args"][1] == ["/api/version/"]
 
 
 @pytest.mark.django_db
@@ -317,3 +323,127 @@ def test_admin_profiler_status_requires_superuser(client, django_user_model, set
     )
 
     assert response.status_code == 403
+
+
+@pytest.mark.django_db
+def test_profiler_task_persists_success(monkeypatch):
+    from core.tasks import tasks_request_profiler
+
+    run = RequestProfileRun.objects.create(
+        id=uuid.uuid4(),
+        task_id=str(uuid.uuid4()),
+        targets=["/api/version/"],
+        options={"repeat": 1},
+    )
+    result = {"requests": [{"path": "/api/version/", "wall_ms": 1.0}]}
+    monkeypatch.setattr(
+        tasks_request_profiler,
+        "profile_requests",
+        lambda paths, progress=None, **options: result,
+    )
+
+    tasks_request_profiler.profile_request_task(
+        str(run.id), ["/api/version/"], {"repeat": 1}
+    )
+
+    run.refresh_from_db()
+    assert run.status == RequestProfileRun.Status.SUCCESS
+    assert run.result == result
+    assert run.started_at
+    assert run.finished_at
+
+
+@pytest.mark.django_db
+def test_profiler_task_persists_failure(monkeypatch):
+    from core.tasks import tasks_request_profiler
+
+    run = RequestProfileRun.objects.create(
+        id=uuid.uuid4(),
+        task_id=str(uuid.uuid4()),
+        targets=["/api/version/"],
+        options={"repeat": 1},
+    )
+
+    def explode(paths, progress=None, **options):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(tasks_request_profiler, "profile_requests", explode)
+
+    with pytest.raises(RuntimeError):
+        tasks_request_profiler.profile_request_task(
+            str(run.id), ["/api/version/"], {"repeat": 1}
+        )
+
+    run.refresh_from_db()
+    assert run.status == RequestProfileRun.Status.FAILURE
+    assert "boom" in run.error
+    assert run.finished_at
+
+
+@pytest.mark.django_db
+def test_admin_profiler_revoke_marks_run_revoked(client, django_user_model, settings):
+    settings.ALLOWED_HOSTS = ["localhost", "testserver"]
+    user = django_user_model.objects.create_superuser(
+        username="profiler-revoker", email="revoker@example.com", password="x"
+    )
+    client.force_login(user)
+    run = RequestProfileRun.objects.create(
+        id=uuid.uuid4(),
+        task_id=str(uuid.uuid4()),
+        targets=["/api/version/"],
+        options={},
+    )
+
+    with patch("admin_custom.views.profiler.celery_app.control.revoke") as revoke:
+        response = client.post(
+            "/api/admin/profiler/",
+            {"action": "revoke", "run_id": str(run.id)},
+            HTTP_HOST="localhost",
+        )
+
+    assert response.status_code == 302
+    revoke.assert_called_once()
+    run.refresh_from_db()
+    assert run.status == RequestProfileRun.Status.REVOKED
+    assert run.finished_at
+
+
+def test_compare_rows_reports_negative_delta_as_improvement():
+    from admin_custom.views.profiler import _compare_rows
+
+    baseline = RequestProfileRun(
+        result={
+            "requests": [
+                {
+                    "path": "/api/version/",
+                    "iteration": 1,
+                    "wall_ms": 100.0,
+                    "db_ms": 50.0,
+                    "query_count": 5,
+                    "status": 200,
+                }
+            ]
+        }
+    )
+    current = RequestProfileRun(
+        result={
+            "requests": [
+                {
+                    "path": "/api/version/",
+                    "iteration": 1,
+                    "wall_ms": 60.0,
+                    "db_ms": 20.0,
+                    "query_count": 3,
+                    "status": 200,
+                }
+            ]
+        }
+    )
+
+    rows, totals = _compare_rows(current, baseline)
+
+    assert rows[0]["wall_delta_display"] == "-40.0"
+    assert rows[0]["wall_class"] == "better"
+    assert rows[0]["query_delta_display"] == "-2"
+    assert totals["wall_delta_display"] == "-40.0"
+    assert totals["db_delta_display"] == "-30.0"
