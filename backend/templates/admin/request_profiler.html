@@ -256,10 +256,9 @@
 
         <div class="profiler-actions">
             <button type="submit" class="button default">Profile</button>
-            <button type="submit" class="button" name="format" value="json">Download JSON</button>
             <span class="helptext">
-                Only GET <code>/api/</code> calls are profiled, up to 50. Without
-                start/end dates, the list, types and counterparts use the last 365 days.
+                Runs in a Celery worker; this page polls until the result is ready.
+                Only GET <code>/api/</code> calls are profiled, up to 50.
             </span>
         </div>
     </form>
@@ -270,7 +269,50 @@
         </div>
     {% endif %}
 
-    {% if expanded and not result %}
+    {% if job_id and not result and job_state != 'FAILURE' and job_state != 'SUCCESS' %}
+        <div class="profiler-warning" id="profiler-pending">
+            <strong>Profiling in the background.</strong>
+            Job <code>{{ job_id }}</code>.
+            State: <strong id="profiler-state">{{ job_state|default:"PENDING" }}</strong>
+            <span id="profiler-status"></span>
+            <noscript>Reload this page to check again.</noscript>
+            <div style="margin-top: 8px; font-size: 12px;">
+                If this stays PENDING for more than a few minutes, check that the
+                Celery worker is running and has registered
+                <code>admin.profile_request</code>.
+            </div>
+        </div>
+        <script>
+            (function () {
+                const jobId = "{{ job_id|escapejs }}";
+                const statusUrl = "{% url 'admin:request_profiler_status' job_id=job_id %}";
+                const stateEl = document.getElementById("profiler-state");
+                const statusEl = document.getElementById("profiler-status");
+                const terminal = new Set(["SUCCESS", "FAILURE", "REVOKED"]);
+                async function poll() {
+                    try {
+                        const response = await fetch(statusUrl, {
+                            headers: {"Accept": "application/json"}
+                        });
+                        const data = await response.json();
+                        if (data.state) stateEl.textContent = data.state;
+                        if (data.status) statusEl.textContent = data.status;
+                        if (terminal.has(data.state)) {
+                            window.location.href = window.location.pathname
+                                + "?job=" + encodeURIComponent(jobId);
+                            return;
+                        }
+                    } catch (err) {
+                        // Keep polling; a transient network error should not stop the page.
+                    }
+                    setTimeout(poll, 2000);
+                }
+                poll();
+            })();
+        </script>
+    {% endif %}
+
+    {% if expanded and not result and not job_id %}
         <h2>Requests that would run</h2>
         <ol class="targets">
             {% for target in expanded %}<li>{{ target }}</li>{% endfor %}
@@ -278,6 +320,15 @@
     {% endif %}
 
     {% if result %}
+        <div class="profiler-actions" style="margin: 0 0 18px;">
+            <span class="pill ok">completed</span>
+            <span class="helptext">Job <code>{{ job_id }}</code></span>
+            {% if download_url %}
+                <a class="button" href="{{ download_url }}">Download JSON</a>
+            {% endif %}
+            <a class="button" href="{% url 'admin:request_profiler' %}">Run another</a>
+        </div>
+
         {% if result.db %}
             <h2>Database</h2>
             {% if result.db.error %}

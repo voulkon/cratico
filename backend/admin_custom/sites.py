@@ -16,6 +16,11 @@ class CustomAdminSite(admin.AdminSite):
                 self._wrap_view("profiler", "profiler_view"),
                 name="request_profiler",
             ),
+            path(
+                "profiler/status/<str:job_id>/",
+                self._wrap_view("profiler", "profiler_status_view"),
+                name="request_profiler_status",
+            ),
             # Analytics URLs
             path(
                 "analytics/",
