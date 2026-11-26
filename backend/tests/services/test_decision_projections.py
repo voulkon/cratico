@@ -12,6 +12,8 @@ from core.services.decision_projections import (
     aggregate_decision_types,
     compute_date_range,
     compute_statistics,
+    decision_amount_summary,
+    decision_totals,
     paginate_decisions,
 )
 
@@ -207,7 +209,6 @@ class TestComputeDateRange:
 
     def test_has_data(self, decision_type):
         from conftest import DecisionFactory
-        from datetime import datetime, timezone
 
         DecisionFactory(
             ada="OLD",
@@ -303,3 +304,62 @@ class TestAggregatesDoNotDoubleCountMultiAmountDecisions:
 
         assert result["summary"]["decisions"]["total_count"] == 2
         assert result["summary"]["decisions"]["total_amount"] == 175.0
+
+
+@pytest.mark.django_db
+class TestDecisionTotals:
+    """
+    Shared helpers that keep the parent count on ``core_decision`` and run
+    the amount pass against the child table, so multi-amount decisions are
+    neither counted nor summed more than once.
+    """
+
+    @staticmethod
+    def _seed():
+        from conftest import DecisionAmountFieldFactory, DecisionFactory
+
+        d1 = DecisionFactory(ada="TOT-MULTI-1")
+        d2 = DecisionFactory(ada="TOT-MULTI-2")
+        no_amount = DecisionFactory(ada="TOT-NO-AMOUNT")
+        DecisionAmountFieldFactory(
+            decision=d1, amount=100, parent_key_path="a.expenseAmount"
+        )
+        DecisionAmountFieldFactory(
+            decision=d1, amount=50, parent_key_path="b.expenseAmount"
+        )
+        DecisionAmountFieldFactory(
+            decision=d1, amount=999, parent_key_path="amountWithKae[0]"
+        )
+        DecisionAmountFieldFactory(
+            decision=d1,
+            amount=300,
+            parent_key_path="c.expenseAmount",
+            invalid_amount_reason="kae_as_amount",
+        )
+        DecisionAmountFieldFactory(
+            decision=d2, amount=25, parent_key_path="d.expenseAmount"
+        )
+        return d1, d2, no_amount
+
+    def test_totals_count_parent_rows_and_sum_valid_amounts(self):
+        self._seed()
+        qs = Decision.objects.all()
+
+        result = decision_totals(qs)
+
+        assert result["total_decisions"] == 3
+        assert result["total_amount"] == 175.0
+
+    def test_summary_uses_per_decision_amounts(self):
+        self._seed()
+        qs = Decision.objects.all()
+
+        result = decision_amount_summary(qs)
+
+        assert result["total_decisions"] == 3
+        assert result["total_amount"] == 175.0
+        assert result["decisions_with_amounts"] == 2
+        # Decision totals are 150 and 25 — not the amount rows 100/50/25.
+        assert result["avg_amount"] == 87.5
+        assert result["max_amount"] == 150.0
+        assert result["min_amount"] == 25.0

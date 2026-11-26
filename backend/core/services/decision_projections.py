@@ -28,6 +28,7 @@ from django.utils.functional import cached_property
 
 from core.services.decision_facets import (
     amount_sum_excluding_kae,
+    daf_effective_sum_excluding_kae,
     effective_amount_max,
     effective_linked_amount_sum,
 )
@@ -47,6 +48,68 @@ DEFAULT_LIST_ONLY_FIELDS = (
     "organization__uid",
     "organization__label",
 )
+
+
+# ---------------------------------------------------------------------------
+# Shared decision totals — no to-many fan-out, no double aggregation
+# ---------------------------------------------------------------------------
+
+def _amount_fields_for(qs: QuerySet):
+    """``DecisionAmountField`` rows belonging to the decisions in ``qs``.
+
+    Rooting the amount query at the child table keeps the parent queryset
+    free of the to-many join, so neither a count nor a sum fans out.
+    """
+    from core.models.entities import DecisionAmountField
+
+    return DecisionAmountField.objects.filter(
+        decision_id__in=qs.order_by().values("pk")
+    )
+
+
+def decision_totals(qs: QuerySet) -> Dict[str, Any]:
+    """Return ``total_decisions`` and ``total_amount`` for a decision qs."""
+    total_decisions = qs.aggregate(n=models.Count("id", distinct=True))["n"] or 0
+    total_amount = (
+        _amount_fields_for(qs).aggregate(
+            total=daf_effective_sum_excluding_kae()
+        )["total"]
+        or 0
+    )
+    return {
+        "total_decisions": total_decisions,
+        "total_amount": float(total_amount),
+    }
+
+
+def decision_amount_summary(qs: QuerySet) -> Dict[str, Any]:
+    """Count decisions and describe their per-decision amount spread.
+
+    The amount pass groups the child table by decision first, so
+    ``AVG``/``MIN``/``MAX`` are computed over decision totals instead of
+    individual amount rows.
+    """
+    total_decisions = qs.aggregate(n=models.Count("id", distinct=True))["n"] or 0
+    per_decision = (
+        _amount_fields_for(qs)
+        .values("decision_id")
+        .annotate(decision_total=daf_effective_sum_excluding_kae())
+    )
+    stats = per_decision.aggregate(
+        total_amount=models.Sum("decision_total"),
+        avg_amount=models.Avg("decision_total"),
+        min_amount=models.Min("decision_total"),
+        max_amount=models.Max("decision_total"),
+        decisions_with_amounts=models.Count("decision_id"),
+    )
+    return {
+        "total_decisions": total_decisions,
+        "total_amount": float(stats["total_amount"] or 0),
+        "avg_amount": float(stats["avg_amount"] or 0),
+        "min_amount": float(stats["min_amount"] or 0),
+        "max_amount": float(stats["max_amount"] or 0),
+        "decisions_with_amounts": stats["decisions_with_amounts"] or 0,
+    }
 
 
 # ---------------------------------------------------------------------------

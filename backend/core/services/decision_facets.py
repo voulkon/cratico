@@ -212,6 +212,22 @@ def daf_effective_sum(filter=None):
     )
 
 
+def daf_effective_sum_excluding_kae(filter=None):
+    """Verified-aware Sum over a DecisionAmountField queryset, minus KAE rows.
+
+    The per-row equivalent of :func:`amount_sum_excluding_kae` for queries
+    rooted at ``DecisionAmountField`` instead of ``Decision``.
+    """
+    return Sum(
+        daf_coalesce_amount(),
+        filter=_and_filters(
+            filter,
+            ~Q(parent_key_path__startswith="amountWithKae"),
+            _exclude_invalid_amounts(""),
+        ),
+    )
+
+
 def daf_effective_max(filter=None):
     """Verified-aware Max over a DecisionAmountField queryset."""
     return Max(
