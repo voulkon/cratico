@@ -2,10 +2,12 @@ import traceback
 from datetime import timedelta
 
 from api.utils.date_utils import _parse_optional_date_range
-from api.utils.sorting import apply_decision_sorting
 from core.models.organizations import Organization, Signer, Unit
 from core.services.decision_facets import amount_sum_excluding_kae
-from core.services.feature_flag_service import feature_flags
+from core.services.decision_projections import (
+    decision_amount_summary,
+    decision_totals,
+)
 from core.services.financial_calculation_service import financial_service
 from core.services.search_analytics_service import SearchAnalyticsService
 from core.utils.performance_monitoring import monitor_query_performance
@@ -88,12 +90,7 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
                     filtered_qs = decisions_qs.filter_by_date_range(
                         start_date, end_date
                     )
-                    stats = filtered_qs.annotate(
-                        acc_total=amount_sum_excluding_kae()
-                    ).aggregate(
-                        total_decisions=models.Count("id"),
-                        total_amount=models.Sum("acc_total"),
-                    )
+                    stats = decision_totals(filtered_qs)
                     return Response(
                         {
                             "entity": entity_info,
@@ -102,8 +99,8 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
                                 "end_date": end_date.isoformat(),
                             },
                             "statistics": {
-                                "total_decisions": stats["total_decisions"] or 0,
-                                "total_amount": float(stats["total_amount"] or 0),
+                                "total_decisions": stats["total_decisions"],
+                                "total_amount": stats["total_amount"],
                                 "avg_amount": 0.0,
                                 "unique_organizations": 0,
                                 "unique_roles": 0,
@@ -162,12 +159,7 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
         # Lightweight mode: only Count + Sum, skips Avg/Max/Min and all expensive
         # breakdown queries (financial summary, charts, recent decisions).
         if lite_mode:
-            stats = filtered_qs.annotate(
-                acc_total=amount_sum_excluding_kae()
-            ).aggregate(
-                total_decisions=models.Count("id"),
-                total_amount=models.Sum("acc_total"),
-            )
+            stats = decision_totals(filtered_qs)
             return Response(
                 {
                     "entity": entity_info,
@@ -178,18 +170,18 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
                     },
                     "summary": {
                         "decisions": {
-                            "total_count": stats["total_decisions"] or 0,
+                            "total_count": stats["total_decisions"],
                             "avg_amount": 0.0,
                             "max_amount": 0.0,
                             "min_amount": 0.0,
                         },
                         "financial": {
-                            "primary_amount": float(stats["total_amount"] or 0),
+                            "primary_amount": stats["total_amount"],
                             "kae_amount": 0.0,
-                            "legacy_amount": float(stats["total_amount"] or 0),
+                            "legacy_amount": stats["total_amount"],
                             "decisions_with_amounts": 0,
                             "decisions_with_kae": 0,
-                            "total_decisions": stats["total_decisions"] or 0,
+                            "total_decisions": stats["total_decisions"],
                             "discrepancy_percentage": 0.0,
                             "avg_amount": 0.0,
                             "unique_organizations": 0,
@@ -205,70 +197,66 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
                 }
             )
 
-        # Calculate basic statistics using full aggregate (non-lite path)
-        annotated_qs = filtered_qs.annotate(acc_total=amount_sum_excluding_kae())
-        stats = annotated_qs.aggregate(
-            total_decisions=models.Count("id"),
-            avg_amount=models.Avg("acc_total"),
-            max_amount=models.Max("acc_total"),
-            min_amount=models.Min("acc_total"),
-            total_amount=models.Sum("acc_total"),
-        )
+        # Calculate basic statistics from one grouped amount pass.  The
+        # decision count stays on the parent queryset, so a multi-amount
+        # decision is counted once and AVG/MIN/MAX are per-decision totals.
+        stats = decision_amount_summary(filtered_qs)
 
         # Calculate financial summary (legacy path for non-AFM entities)
-        decision_total = stats["total_amount"] or 0
+        decision_total = stats["total_amount"]
         financial_summary = {
-            "primary_amount": float(decision_total),
+            "primary_amount": decision_total,
             "kae_amount": 0,
-            "legacy_amount": float(decision_total),
-            "decisions_with_amounts": filtered_qs.filter(
-                amount__isnull=False
-            ).count(),
+            "legacy_amount": decision_total,
+            "decisions_with_amounts": stats["decisions_with_amounts"],
             "decisions_with_kae": 0,
-            "total_decisions": stats["total_decisions"] or 0,
+            "total_decisions": stats["total_decisions"],
             "discrepancy_percentage": 0,
-            "avg_amount": float(stats["avg_amount"] or 0),
+            "avg_amount": stats["avg_amount"],
             "unique_organizations": filtered_qs.values("organization")
             .distinct()
             .count(),
         }
 
-        # Monthly breakdown for charts
-        try:
-            monthly_stats = (
-                filtered_qs.annotate(
-                    acc_total=amount_sum_excluding_kae(),
-                    month=models.F("issue_date_month"),
-                )
-                .values("month")
-                .annotate(count=models.Count("id"), amount=models.Sum("acc_total"))
-                .order_by("month")
+        # Monthly breakdown for charts.  Grouping the child amount table by
+        # month gives correct sums; the distinct count keeps decisions that
+        # carry several amount rows from being counted more than once.
+        monthly_stats = (
+            filtered_qs.values(month=models.F("issue_date_month"))
+            .annotate(
+                count=models.Count("id", distinct=True),
+                amount=amount_sum_excluding_kae(),
             )
-        except Exception:
-            monthly_stats = []
-            monthly_stats = []
+            .order_by("month")
+        )
 
         # Top decision types
         top_types = (
-            filtered_qs.annotate(acc_total=amount_sum_excluding_kae())
-            .values("decision_type__label")
-            .annotate(count=models.Count("id"), total_amount=models.Sum("acc_total"))
+            filtered_qs.values("decision_type__label")
+            .annotate(
+                count=models.Count("id", distinct=True),
+                total_amount=amount_sum_excluding_kae(),
+            )
             .order_by("-count")[:10]
         )
 
         # Status breakdown
         status_breakdown = (
             filtered_qs.values("status")
-            .annotate(count=models.Count("id"))
+            .annotate(count=models.Count("id", distinct=True))
             .order_by("-count")
         )
 
         # Recent decisions
         recent_decisions = (
-            filtered_qs.annotate(amount=amount_sum_excluding_kae())
+            filtered_qs.annotate(calculated_amount=amount_sum_excluding_kae())
             .order_by("-issue_date_day")[:5]
             .values(
-                "ada", "subject", "issue_date_day", "amount", "decision_type__label"
+                "ada",
+                "subject",
+                "issue_date_day",
+                "calculated_amount",
+                "decision_type__label",
             )
         )
 
@@ -282,10 +270,10 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
                 },
                 "summary": {
                     "decisions": {
-                        "total_count": stats["total_decisions"] or 0,
-                        "avg_amount": float(stats["avg_amount"] or 0),
-                        "max_amount": float(stats["max_amount"] or 0),
-                        "min_amount": float(stats["min_amount"] or 0),
+                        "total_count": stats["total_decisions"],
+                        "avg_amount": stats["avg_amount"],
+                        "max_amount": stats["max_amount"],
+                        "min_amount": stats["min_amount"],
                     },
                     "financial": financial_summary,
                     "status_breakdown": {
@@ -322,7 +310,11 @@ def entity_statistics_api_dev(request, entity_type, entity_id):
                             item["issue_date_day"].isoformat()
                             if item["issue_date_day"] else None
                         ),
-                        "amount": float(item["amount"]) if item["amount"] else None,
+                        "amount": (
+                            float(item["calculated_amount"])
+                            if item["calculated_amount"]
+                            else None
+                        ),
                         "decision_type": item["decision_type__label"],
                     }
                     for item in recent_decisions
@@ -648,17 +640,15 @@ def entity_timeline_api_dev(request, entity_type, entity_id):
             )
         period_column = _PERIOD_FIELD[granularity]
 
-        # Get timeline data
+        # Get timeline data.  Grouping the amount table by period directly
+        # (instead of pre-annotating the parent queryset) keeps the counts
+        # distinct and avoids Django nesting the aggregate in a per-amount
+        # subquery.
         timeline_data = (
-            decisions_qs.annotate(
-                acc_total=amount_sum_excluding_kae(),
-                period=models.F(period_column),
-            )
-            .values("period")
+            decisions_qs.values(period=models.F(period_column))
             .annotate(
-                count=models.Count("id"),
-                total_amount=models.Sum("acc_total"),
-                avg_amount=models.Avg("acc_total"),
+                count=models.Count("id", distinct=True),
+                total_amount=amount_sum_excluding_kae(),
             )
             .order_by("period")
         )
@@ -672,12 +662,16 @@ def entity_timeline_api_dev(request, entity_type, entity_id):
                 if granularity == "year"
                 else (period_val.isoformat() if period_val else None)
             )
+            count_val = item["count"] or 0
+            total_val = float(item["total_amount"] or 0)
             formatted_timeline.append(
                 {
                     "period": period_str,
-                    "count": item["count"],
-                    "total_amount": float(item["total_amount"] or 0),
-                    "avg_amount": float(item["avg_amount"] or 0),
+                    "count": count_val,
+                    "total_amount": total_val,
+                    "avg_amount": (
+                        round(total_val / count_val, 2) if count_val else 0
+                    ),
                 }
             )
 

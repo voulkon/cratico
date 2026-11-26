@@ -304,20 +304,28 @@ def decisions_unified_api(request):
     if date_err is not None:
         return date_err
 
+    source = (request.GET.get("source") or "").strip().lower()
+    view_name = (request.GET.get("view") or "decisions").strip().lower()
+
+    # Aggregate projections must not inherit the ``calculated_amount``
+    # annotation: Django wraps an aggregate over an already-annotated
+    # queryset in a subquery grouped by decision *and* every amount column,
+    # which fans out the amount join and is far slower than a plain grouped
+    # aggregate.  ``view=decisions`` keeps the annotation for display/sort.
+    aggregate_only = view_name in ("date_range", "decision_types", "statistics")
+
     try:
         qs = apply_decision_facets(
             source_qs,
             start_dt=start_dt,
             end_dt=end_dt,
             request=request,
+            aggregate_only=aggregate_only,
         )
     except ValueError as e:
         return Response({"error": str(e)}, status=400)
 
     # ── 4. Project ──────────────────────────────────────────────────
-    source = (request.GET.get("source") or "").strip().lower()
-    view_name = (request.GET.get("view") or "decisions").strip().lower()
-
     try:
         if view_name == "decision_types":
             return Response(aggregate_decision_types(qs))
@@ -354,7 +362,6 @@ def decisions_unified_api(request):
             search_tracking = None
             search_log_id = None
             if search_query:
-                source = (request.GET.get("source") or "").strip().lower()
                 search_tracking = SearchAnalyticsService.log_search_start(
                     query=search_query,
                     search_types=["metadata", "content"],
