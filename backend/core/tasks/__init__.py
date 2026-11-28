@@ -99,6 +99,7 @@ from .tasks_post_import import (
     verify_high_value_amounts,
     recover_self_counterparts,
     )
+from .tasks_request_profiler import profile_request_task
 from .tasks_periodic_validation import periodic_validation_task
 from .tasks_browse import (
     verify_browse_indexes_task,

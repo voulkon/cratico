@@ -190,6 +190,31 @@ Without that, one organization's counterparts are served for another.
 Test: same org and filters hit the cache; a different org misses; a new decision changes the result after the TTL.
 Expected: ~416 ms removed from repeat visits.
 
+
+## Follow-up (2026-11-25): aggregate projection grain
+
+The four steps above removed query count and warm-path time, but did **not**
+fix the first (cold) load of a high-activity organization. A prod profile of
+org 6167 (~102k decisions) still showed `view=date_range` at ~13 s on the first
+click and ~35 ms on the next (Redis hit).
+
+The root cause was the **aggregate projections** (`date_range`, `decision_types`, `statistics`) **reused the queryset** from `apply_decision_facets`, which **already carries the `calculated_amount`** aggregate annotation. 
+
+Django therefore nested every projection aggregate in a subquery grouped by `decision.id` **and every
+amount column**, and `Count("id")` counted amount rows instead of decisions (102,897 reported vs ~80,820 actual). 
+See [`../03.aggregation-grain/README.md`](../03.aggregation-grain/README.md) for the full mechanism and audit.
+
+Fixed:
+
+- `apply_decision_facets(..., aggregate_only=True)` keeps the amount annotation out of aggregate projections (`core/services/decision_facets.py`).
+- `compute_date_range` now runs `MIN/MAX` only for the bounds (index-only) plus
+  a single activity aggregate, and derives the summary totals from the chart.
+- `aggregate_decision_types` / `compute_statistics` / the activity chart use
+  `Count("id", distinct=True)`.
+
+A caveat that still remains is that while the above mentioned changes remove the fan-out and one of the two cold scans, they cannot remove the remaining **amount-table read**. 
+Making the *first* click fast needs a **caching/precompute change** (stale-while-revalidate, entity warmup, covering index, or a denormalized per-decision amount)
+
 ## Baseline artifacts
 
 - [`baseline/org_loading.excerpt.log.txt`](baseline/org_loading.excerpt.log.txt)

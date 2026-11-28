@@ -1,5 +1,4 @@
-from django.conf import settings
-from django.db.models import Count, F, Q
+from django.db.models import Count, Max, Q
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
@@ -371,8 +370,12 @@ def decision_entities(request, decision_ref):
         .values("role", "entity")  # GROUP BY role, entity
         .annotate(
             total_amount=effective_linked_amount_sum(),
-            occurrences=Count("id"),
-            currency=F("linked_amounts__currency"),  # pick first currency
+            # ``effective_linked_amount_sum`` joins ``linked_amounts``, so a
+            # relationship with several amounts fans out.  Count distinct
+            # relationship rows, and aggregate the currency instead of
+            # grouping by it.
+            occurrences=Count("id", distinct=True),
+            currency=Max("linked_amounts__currency"),
         )
     )
 

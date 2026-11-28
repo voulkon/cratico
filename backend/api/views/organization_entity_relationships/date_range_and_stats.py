@@ -10,7 +10,6 @@ from core.models.decisions import Decision
 from core.models.entities import DecisionEntityRelationship
 from core.services.decision_facets import amount_sum_excluding_kae
 from core.services.financial_calculation_service import financial_service
-from django.conf import settings
 from django.db import models
 from django.utils.dateparse import parse_date
 from drf_yasg import openapi
@@ -141,10 +140,12 @@ def relationship_statistics_api(request, afm, orgUid):
             )
             total_amount = financial_summary.total_amount
         except Exception:
-            # Fall back to verified-aware aggregation over amount fields
+            # Fall back to verified-aware aggregation over amount fields.
+            # Aggregate the child rows directly; annotating the parent
+            # queryset first makes Django nest the aggregate in a grouped
+            # subquery.
             total_amount = float(
-                decisions_qs.annotate(acc_total=amount_sum_excluding_kae())
-                .aggregate(total=models.Sum("acc_total"))["total"]
+                decisions_qs.aggregate(total=amount_sum_excluding_kae())["total"]
                 or 0
             )
 
@@ -315,7 +316,6 @@ def relationship_decisions_api(request, afm, orgUid):
     from core.services.decision_facets import (
         apply_decision_facets,
         parse_date_range_from_request,
-        parse_sort_by,
     )
     from core.services.decision_projections import paginate_decisions
 

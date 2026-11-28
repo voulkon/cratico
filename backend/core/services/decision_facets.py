@@ -212,6 +212,22 @@ def daf_effective_sum(filter=None):
     )
 
 
+def daf_effective_sum_excluding_kae(filter=None):
+    """Verified-aware Sum over a DecisionAmountField queryset, minus KAE rows.
+
+    The per-row equivalent of :func:`amount_sum_excluding_kae` for queries
+    rooted at ``DecisionAmountField`` instead of ``Decision``.
+    """
+    return Sum(
+        daf_coalesce_amount(),
+        filter=_and_filters(
+            filter,
+            ~Q(parent_key_path__startswith="amountWithKae"),
+            _exclude_invalid_amounts(""),
+        ),
+    )
+
+
 def daf_effective_max(filter=None):
     """Verified-aware Max over a DecisionAmountField queryset."""
     return Max(
@@ -574,6 +590,7 @@ def apply_decision_facets(
     amount_field: str = "calculated_amount",
     date_field: str = "issue_date_day",
     count_only: bool = False,
+    aggregate_only: bool = False,
 ) -> QuerySet:
     """
     Apply the complete set of standard facets to a Decision queryset.
@@ -591,6 +608,16 @@ def apply_decision_facets(
     total: the annotation and the sort are skipped so ``COUNT(*)`` does not
     join the amount table.  An amount filter still forces the annotation,
     because the filter needs it.
+
+    Set ``aggregate_only=True`` when the queryset is only used for a
+    projection aggregate (``view=date_range``/``decision_types``/
+    ``statistics``).  It skips the annotation and the sort for the same
+    reason as ``count_only``.  Keeping ``calculated_amount`` out matters
+    even more here: an existing aggregate annotation makes Django wrap the
+    projection aggregate in a subquery that groups by decision *and* every
+    amount column, which on a large organization is orders of magnitude
+    slower than a plain grouped aggregate (and inflates ``COUNT(id)`` for
+    decisions that have more than one amount row).
 
     Returns the filtered + sorted queryset.
     """
@@ -635,11 +662,13 @@ def apply_decision_facets(
     qs = apply_organization_filter(qs, organization_ids)
 
     # ── Annotate calculated_amount *before* amount-range filtering ──
-    # The page query needs the sum for display and sorting.  The count
-    # path does not: skipping it keeps the amount-table LEFT JOIN and the
-    # GROUP BY out of ``COUNT(*)``.  An amount filter still needs it.
+    # The page query needs the sum for display and sorting.  The count and
+    # aggregate paths do not: skipping it keeps the amount-table LEFT JOIN
+    # and the GROUP BY out of ``COUNT(*)`` / projection aggregates.  An
+    # amount filter still needs it.
     needs_amount = min_amount is not None or max_amount is not None
-    if not count_only or needs_amount:
+    skip_projection = count_only or aggregate_only
+    if not skip_projection or needs_amount:
         if "calculated_amount" not in qs.query.annotations:
             qs = qs.annotate(calculated_amount=amount_sum_excluding_kae())
     amount_field = "calculated_amount"
@@ -653,8 +682,8 @@ def apply_decision_facets(
     # 8. Viewed (no-op for non-batch sources)
     qs = apply_viewed(qs, viewed)
 
-    # 9. Sort (irrelevant for a count-only queryset)
-    if not count_only:
+    # 9. Sort (irrelevant for count-only and aggregate-only querysets)
+    if not skip_projection:
         qs = apply_sort(qs, sort_by, amount_field=amount_field, date_field=date_field)
 
     return qs

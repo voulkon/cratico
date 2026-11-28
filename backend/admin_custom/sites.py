@@ -10,6 +10,22 @@ class CustomAdminSite(admin.AdminSite):
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
+            # Diagnostics
+            path(
+                "profiler/",
+                self._wrap_view("profiler", "profiler_view"),
+                name="request_profiler",
+            ),
+            path(
+                "profiler/status/<str:job_id>/",
+                self._wrap_view("profiler", "profiler_status_view"),
+                name="request_profiler_status",
+            ),
+            path(
+                "profiler/compare/",
+                self._wrap_view("profiler", "profiler_compare_view"),
+                name="request_profiler_compare",
+            ),
             # Analytics URLs
             path(
                 "analytics/",
@@ -324,6 +340,28 @@ class CustomAdminSite(admin.AdminSite):
         }
         app_list.append(analytics_app)
 
+        # Add Diagnostics section (superusers only, matching the view guard).
+        if request.user.is_superuser:
+            diagnostics_app = {
+                "name": "Diagnostics",
+                "app_label": "diagnostics",
+                "models": [
+                    {
+                        "name": "Request Profiler",
+                        "object_name": "RequestProfiler",
+                        "admin_url": "/api/admin/profiler/",
+                        "view_only": True,
+                    },
+                    {
+                        "name": "Profile Runs",
+                        "object_name": "RequestProfileRun",
+                        "admin_url": "/api/admin/core/requestprofilerun/",
+                        "view_only": True,
+                    },
+                ],
+            }
+            app_list.append(diagnostics_app)
+
         # Add Security & Threat Detection section
         security_app = {
             "name": "Security & Threat Detection",
@@ -585,6 +623,7 @@ def register_all_models():
         NotificationBatchDecisionAdmin,
         NotificationSubscriptionAdmin,
         OrganizationAdmin,
+        RequestProfileRunAdmin,
         SignerAdmin,
         SubscriptionAdmin,
         TaskOutputEstimateAdmin,
@@ -617,6 +656,7 @@ def register_all_models():
     from core.models.import_jobs import DateCoverage, ImportJob
     from core.models.import_thresholds import ImportThreshold
     from core.models.organizations import Organization, Signer, Unit
+    from core.models.request_profile_run import RequestProfileRun
     from core.models.terms import LegalDocument
     from notifications.models import (
         Notification,
@@ -669,6 +709,9 @@ def register_all_models():
 
     # Register Legal Documents models
     admin_site.register(LegalDocument, LegalDocumentAdmin)
+
+    # Register Request Profiler runs
+    admin_site.register(RequestProfileRun, RequestProfileRunAdmin)
 
     # Register Notification models
     admin_site.register(NotificationSubscription, NotificationSubscriptionAdmin)
